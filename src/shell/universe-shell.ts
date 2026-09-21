@@ -65,10 +65,18 @@ export async function start(): Promise<void> {
   );
 
   try {
-    const { createUniverse } = await import('../universe/api');
+    // The galaxy's data and the engine's code, side by side. Either one failing means plain mode.
+    const [{ createUniverse }, manifest] = await Promise.all([
+      import('../universe/api'),
+      fetch(routes.universeManifest()).then((response): Promise<unknown> => {
+        if (!response.ok) throw new Error(`universe manifest: HTTP ${response.status}`);
+        return response.json();
+      }),
+    ]);
     const flags = new URLSearchParams(location.search);
     const created = await createUniverse({
       mount,
+      manifest,
       reducedMotion: root.dataset.motion === 'reduced',
       debug: { perf: flags.has('perf'), tweak: flags.has('tweak') },
     });

@@ -1,6 +1,8 @@
 import type { ModelData } from '../sim/meshBuilder';
+import { buildPlanetRing, buildSatellite, buildStation } from './models/docks';
 import { buildFlame } from './models/flame';
 import { buildRocket } from './models/rocket';
+import { tuning } from './tuning';
 
 /**
  * THE ASSET MANIFEST: logical name -> where the model comes from (docs/PLAN.md §5.6). Logic asks
@@ -18,6 +20,12 @@ export type AssetSource = { kind: 'procedural'; build: () => ModelData };
 export const assets = {
   rocket: { kind: 'procedural', build: buildRocket },
   flame: { kind: 'procedural', build: buildFlame },
+  station: { kind: 'procedural', build: buildStation },
+  satellite: { kind: 'procedural', build: buildSatellite },
+  planetRing: {
+    kind: 'procedural',
+    build: buildPlanetRing(tuning.world.ringOuterRadii / tuning.world.ringInnerRadii),
+  },
 } as const satisfies Record<string, AssetSource>;
 
 export type AssetId = keyof typeof assets;

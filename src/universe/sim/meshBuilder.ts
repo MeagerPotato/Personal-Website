@@ -199,6 +199,43 @@ export class MeshBuilder {
     return this;
   }
 
+  /** An axis-aligned box: `size` is its full extent along x, y and z. */
+  box(center: Point, size: Point, color: Rgb): this {
+    const [cx, cy, cz] = center;
+    const hx = size[0] / 2;
+    const hy = size[1] / 2;
+    const hz = size[2] / 2;
+    const at = (sx: number, sy: number, sz: number): Point => [
+      cx + sx * hx,
+      cy + sy * hy,
+      cz + sz * hz,
+    ];
+    return this.quad(at(1, -1, -1), at(1, 1, -1), at(1, 1, 1), at(1, -1, 1), color) // +x
+      .quad(at(-1, -1, 1), at(-1, 1, 1), at(-1, 1, -1), at(-1, -1, -1), color) // -x
+      .quad(at(-1, 1, -1), at(-1, 1, 1), at(1, 1, 1), at(1, 1, -1), color) // +y
+      .quad(at(-1, -1, 1), at(-1, -1, -1), at(1, -1, -1), at(1, -1, 1), color) // -y
+      .quad(at(-1, -1, 1), at(1, -1, 1), at(1, 1, 1), at(-1, 1, 1), color) // +z
+      .quad(at(1, -1, -1), at(-1, -1, -1), at(-1, 1, -1), at(1, 1, -1), color); // -z
+  }
+
+  /**
+   * Turn EVERYTHING built so far about the X axis (radians; positive turns +Y toward +Z). The
+   * lathe works around Z; `rotateX(-Math.PI / 2)` stands such a shape upright, its axis along +Y.
+   */
+  rotateX(angle: number): this {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    for (const values of [this.positions, this.normals]) {
+      for (let i = 0; i < values.length; i += 3) {
+        const y = values[i + 1] ?? 0;
+        const z = values[i + 2] ?? 0;
+        values[i + 1] = y * cos - z * sin;
+        values[i + 2] = y * sin + z * cos;
+      }
+    }
+    return this;
+  }
+
   build(): MeshData {
     return {
       positions: new Float32Array(this.positions),

@@ -6,7 +6,8 @@
  * then makes the flame glow while the pastel world, which never exceeds 1, stays crisp
  * (docs/PLAN.md §5.5).
  *
- * Uniforms: uIntensity. Defines: USE_COLOR (vertex colours; without it the glow is white).
+ * Uniforms: uIntensity, uTint (linear colour, multiplies the vertex colour). Defines: USE_COLOR
+ * (vertex colours; without it the glow is the tint alone).
  */
 export const glow = {
   vertexShader: /* glsl */ `
@@ -23,10 +24,11 @@ export const glow = {
 
   fragmentShader: /* glsl */ `
     uniform float uIntensity;
+    uniform vec3 uTint;
     flat varying vec3 vColor;
 
     void main() {
-      gl_FragColor = vec4(vColor * uIntensity, 1.0);
+      gl_FragColor = vec4(vColor * uTint * uIntensity, 1.0);
       #include <colorspace_fragment>
     }
   `,

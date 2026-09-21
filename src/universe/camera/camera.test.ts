@@ -121,7 +121,10 @@ describe('the chase camera', () => {
 
     const horizontal = 2 * Math.atan(Math.tan((tall.pose.fov / 2) * DEG) * (390 / 844));
     expect(horizontal / DEG).toBeCloseTo(params.minHorizontalFovDegrees, 6);
-    expect(tall.pose.distance).toBeGreaterThan(wide.pose.distance * 1.15);
+    expect(tall.camera.position.y).toBeCloseTo(
+      wide.camera.position.y * params.portraitDistanceScale,
+      6,
+    );
 
     // A sliver of a window must not turn the lens inside out.
     const sliver = view(new ChaseCam(ship(), { reducedMotion: false }), 0.1);

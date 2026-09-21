@@ -36,7 +36,12 @@ describe('the flight recorder', () => {
   it('replays a flight to the same state, bit for bit', () => {
     const input = new InputSystem();
     input.add(scriptedPilot('a bumpy ride'));
-    const ship = new ShipSystem({ pilot: input, assets: new AssetStore(), reducedMotion: true });
+    const ship = new ShipSystem({
+      spawn: { x: 0, z: 0, heading: 0 },
+      pilot: input,
+      assets: new AssetStore(),
+      reducedMotion: true,
+    });
     const recorder = new IntentRecorder();
 
     // Fly for a while first, so the recording starts from a state with speed and spin in it.

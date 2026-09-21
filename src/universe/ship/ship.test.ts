@@ -11,11 +11,12 @@ import type { FlightInput } from '../sim/types';
 import { ShipSystem } from './ShipSystem';
 
 const STEP = 1 / tuning.loop.stepHz;
+const SPAWN = { x: 12, z: -52, heading: 0.35 };
 
 function setup(reducedMotion = false) {
   const pilot = { current: { thrust: 0, turn: 0, brake: 0, boost: false } as FlightInput };
   const assets = new AssetStore();
-  const ship = new ShipSystem({ pilot, assets, reducedMotion });
+  const ship = new ShipSystem({ spawn: SPAWN, pilot, assets, reducedMotion });
   return { pilot, assets, ship };
 }
 
@@ -53,13 +54,12 @@ const flameOf = (ship: ShipSystem): Object3D => {
 };
 
 describe('the ship', () => {
-  it('starts at the spawn point, at rest, pointing the way tuning says', () => {
+  it('starts at the spawn point, at rest, pointing the way it was told', () => {
     const { ship } = setup();
-    const { spawn } = tuning.ship;
-    expect(ship.position.x).toBe(spawn.x);
-    expect(ship.position.z).toBe(spawn.z);
-    expect(ship.heading).toBeCloseTo((spawn.headingDeg * Math.PI) / 180, 12);
-    expect(ship.object.rotation.y).toBeCloseTo(ship.heading, 12);
+    expect(ship.position.x).toBe(SPAWN.x);
+    expect(ship.position.z).toBe(SPAWN.z);
+    expect(ship.heading).toBe(SPAWN.heading);
+    expect(ship.object.rotation.y).toBe(SPAWN.heading);
     expect(ship.speed).toBe(0);
   });
 

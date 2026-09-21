@@ -16,9 +16,10 @@ and every v0.1 page exist (home, about, resume, contact, projects, systems) and 
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
 narrow ones). **Phase 1 (flight) is under way**: the engine runs on a fixed 60 Hz simulation
-clock, and a procedural rocket flies through an empty sky with the keyboard, followed by the chase
-camera. No planets yet. Phase 2's 3D half (docking, autopilot) waits for the world. Roadmap:
-docs/PLAN.md §6.
+clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
+**galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
+and the satellite, all moving on their orbits. Nothing can be docked with or bumped into yet.
+Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -102,7 +103,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 | `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
-| `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
+| `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `manifest.ts` (reads `/universe.json`), `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
 | `src/shell/**` | client code outside the engine: mode, boot, watchdog, router (`navigation.ts` rules, `swap.ts` DOM, `router.ts` history), `panel.ts` | Claude |
 | `src/site/**`, `src/config/**` | framework-neutral build logic and site constants | Claude |
 | `src/pages`, `src/layouts`, `src/components` | markup-only `.astro` | Claude |
@@ -151,6 +152,12 @@ model) plus named **sockets** for whatever attaches to it. Colours are tokens th
 `hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts`;
 logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
 material, and releases the handle in its scope. Asset names and socket names are API.
+
+**Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
+velocity) of every body as a pure function of time: the simulation asks for the time of its step,
+a view for the exact time of its frame (`frame.simTime - (1 - frame.alpha) / stepHz`). Anything
+that takes more than a millisecond to build (a planet mesh) is a generator run through
+`core/jobs.ts`, a slice per frame.
 
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.

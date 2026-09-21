@@ -5,6 +5,7 @@ import { Scope } from '../core/scope';
 import { tuning } from '../design/tuning';
 import { copyShipState, createShipState, stepFlight } from '../sim/flight';
 import { TAU, lerp, smoothstep } from '../sim/math';
+import type { SpawnPoint, SpawnRule } from '../sim/spawn';
 import { createSpring, stepSpring } from '../sim/spring';
 import type { FlightInput, ShipState } from '../sim/types';
 import { EngineFlame, type FlameParams } from './EngineFlame';
@@ -16,7 +17,7 @@ export interface Pilot {
 }
 
 export interface ShipLookParams {
-  readonly spawn: { readonly x: number; readonly z: number; readonly headingDeg: number };
+  readonly spawn: SpawnRule;
   readonly bankRad: number;
   readonly bankFullSpeed: number;
   readonly pitchBoostDeg: number;
@@ -28,6 +29,8 @@ export interface ShipLookParams {
 }
 
 export interface ShipOptions {
+  /** Where the visitor starts (sim/spawn.ts). */
+  spawn: SpawnPoint;
   pilot: Pilot;
   assets: AssetStore;
   reducedMotion: boolean;
@@ -59,7 +62,8 @@ export class ShipSystem implements System {
 
   constructor(private readonly options: ShipOptions) {
     const look = tuning.ship;
-    this.current = createShipState(look.spawn.x, look.spawn.z, look.spawn.headingDeg * RAD_PER_DEG);
+    const { spawn } = options;
+    this.current = createShipState(spawn.x, spawn.z, spawn.heading);
     this.previous = copyShipState(this.current, createShipState());
 
     this.rocket = new Rocket(options.assets, this.scope);
@@ -81,6 +85,11 @@ export class ShipSystem implements System {
   /** The latest SIMULATED state, for logic that steps with the simulation. Read only. */
   get state(): Readonly<ShipState> {
     return this.current;
+  }
+
+  /** The light that shades the ship this frame (world/Galaxy.ts knows which sun is near). */
+  setSun(position: Readonly<Vector3>): void {
+    this.rocket.setSun(position);
   }
 
   /** Put the ship somewhere at rest, with no in-between frame (spawning, deep links). */

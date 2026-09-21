@@ -100,6 +100,10 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
 | Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
 | Space dust: count, size, brightness, streak length | `tuning.dust` |
+| How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
+| The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems | `tuning.world` |
+| The station, the satellite, the planet ring | `design/models/docks.ts` |
+| Where a visitor starts, and what they see first | `tuning.ship.spawn` |
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans, nods and bobs, and how the flame follows the throttle | `tuning.ship` |
@@ -111,6 +115,11 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
 `tuning.chaseCam`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
+
+**The horizon is where the planets are.** Everything flies on one plane, so every planet sits on
+the horizon line of the chase camera, and `tuning.chaseCam.up` with `lookAheadBase` decide where
+that line is on screen. It belongs about a third of the way down: higher and the planets hide under
+the top bar, with three quarters of the screen empty below them.
 
 Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
 procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8

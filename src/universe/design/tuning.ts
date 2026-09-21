@@ -2,6 +2,7 @@ import type { ChaseCamParams } from '../camera/ChaseCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
 import type { ShipLookParams } from '../ship/ShipSystem';
+import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 
 /**
@@ -65,8 +66,13 @@ export const tuning = {
    * the lean, the nod and the bob are worn by the model only, and the camera ignores them.
    */
   ship: {
-    /** Where a new visitor starts, and which way they face (degrees, counter-clockwise from +Z). */
-    spawn: { x: 12, z: -52, headingDeg: 20 },
+    /**
+     * A new visitor starts this far from the home planet, facing it, on the side away from the
+     * nearest other system and swung round by swingDeg, so that the first thing they see is home
+     * with that system's sun beside it (sim/spawn.ts). The swing is about how far from the middle
+     * of the view that sun sits: a phone held upright only sees 20 degrees to each side.
+     */
+    spawn: { distance: 118, swingDeg: 17 },
     /** Lean into a turn: this many radians at the full turn rate, fading in up to bankFullSpeed. */
     bankRad: 0.6,
     bankFullSpeed: 15,
@@ -96,9 +102,15 @@ export const tuning = {
   chaseCam: {
     /** Where the camera sits, relative to the point it trails behind the ship (u). */
     back: 11,
-    up: 5.5,
-    /** It looks this far ahead of that point: base + perSpeed * speed. Faster = further ahead. */
-    lookAheadBase: 4,
+    up: 4.4,
+    /**
+     * It looks this far ahead of that point: base + perSpeed * speed. Faster = further ahead.
+     * Together with `up` this sets where the HORIZON sits on screen, and the horizon is where
+     * every planet is: looking 14 u ahead from 4.4 u up puts it a third of the way down, clear of
+     * the HUD, with the ship at about 70%. (Looking only 4 u ahead pushed the planets up under
+     * the top bar and left the lower three quarters of the screen empty.)
+     */
+    lookAheadBase: 14,
     lookAheadPerSpeed: 0.18,
     /**
      * Springs, rad/s: higher = stiffer. The camera trails the ship by 2 * speed / positionOmega
@@ -142,6 +154,58 @@ export const tuning = {
      */
     near: 0.5,
     far: 12000,
+  },
+
+  /**
+   * How a planet is shaped and painted (sim/planet.ts). Colours come from `tokens.color.biome`.
+   * Changing anything here reshapes EVERY planet; a planet's own `seed` only picks which one it is.
+   */
+  planet: {
+    /** Height of the highest peak as a share of the radius. Above 0.07 the outline turns lumpy. */
+    reliefShare: 0.05,
+    /** Continents across a planet: 1 = one or two big ones, 3 = an archipelago. */
+    frequency: 1.45,
+    octaves: 4,
+    /** Noise below this is sea. 0 floods about half; lower = drier. */
+    seaLevel: -0.04,
+    peakAt: 0.5,
+    /** Land rises in this many steps, this much of the way from smooth slopes to hard steps. */
+    terraces: 4,
+    terraceStrength: 0.6,
+    /** Land height (0 to 1) where the colour changes: shore|low, low|high, high|peak. */
+    bandStops: [0.1, 0.46, 0.8],
+    /** Each facet's colour is nudged by up to this share: flat areas look hand-made. */
+    colorJitter: 0.03,
+  } satisfies PlanetLook,
+
+  /** How the galaxy is drawn (world/Galaxy.ts). */
+  world: {
+    /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
+    detailPlanet: 8,
+    detailNear: 14,
+    detailMoon: 3,
+    detailSun: 4,
+    /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
+    nearEnterRadii: 8,
+    nearExitRadii: 10,
+    nearLingerSec: 10,
+    /** Milliseconds per frame that generating meshes may take (core/jobs.ts). */
+    jobBudgetMs: 4,
+    /** Planets turn on their axis, slowly. Off under reduced motion. */
+    spinRadPerSec: 0.04,
+    /** A ringed planet: the ring's inner and outer edge in planet radii, and how far it tips. */
+    ringInnerRadii: 1.45,
+    ringOuterRadii: 2.15,
+    ringTiltDeg: 16,
+    /** The thin circles that show where things orbit. */
+    orbitLineOpacity: 0.2,
+    orbitLineSegments: 128,
+    /**
+     * The ship is lit by the sun of the system it is in: fully inside `shipLightFullRadii` system
+     * radii, fading to the distant key light by `shipLightFadeRadii`.
+     */
+    shipLightFullRadii: 1.2,
+    shipLightFadeRadii: 2,
   },
 
   /** The three bands of the toon shader (shaders/toonFlat.ts). */
