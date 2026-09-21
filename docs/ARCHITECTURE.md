@@ -338,13 +338,14 @@ under a bottom sheet.
   builds, for every page; Back, Forward, Close and Escape; scroll restored per entry; focus on
   the heading, also with reduced motion; the canvas and its GL context after fifty navigations;
   a newer deploy or a dead network means a normal page load; plain mode asks for one script and
-  never for the galaxy; no JavaScript, reduced motion, a GPU that gives no context, the 404;
-  pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card; the
-  star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
-  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any
-  page in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px,
-  and every control is 44 px. They fly for real, on whatever renders (a CI runner has no GPU and
-  draws on its CPU), so they wait for outcomes, never for seconds.
+  never for the galaxy; no JavaScript, reduced motion, a GPU that gives no context, the 404; a WebGL
+  context taken away mid-visit (the engine rebuilds in place: same page, same dock, the map still
+  open); pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card;
+  the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
+  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
+  in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
+  44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
+  they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
   CSP, 404). Looks and feel are judged there and on real phones; a number in a test cannot say
   whether flying is fun.
