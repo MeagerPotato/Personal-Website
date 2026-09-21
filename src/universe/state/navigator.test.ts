@@ -177,6 +177,27 @@ describe('Navigator', () => {
     ]);
   });
 
+  it('starts a visit IN orbit when a page was opened on a body: never in flight, not even once', () => {
+    // What main.ts does for `start.at`: place the ship before the first step and the first frame.
+    const h = harness(64, -99);
+    syncSurroundings(h.surroundings, 0);
+    expect(h.navigator.place('page/resume')).toBe(true);
+    expect(h.navigator.state).toEqual({ mode: 'docked', target: 'page/resume' });
+    expect(h.navigator.lastArrival).toBe('cut');
+
+    h.run(2);
+    expect(h.heard.filter(([name]) => name !== 'soi')).toEqual([
+      ['statechange', { mode: 'docked', target: 'page/resume' }],
+      ['docked', { id: 'page/resume' }],
+    ]);
+    // A body this galaxy does not have is no error: the visit starts in open sky.
+    const lost = harness(64, -99);
+    expect(lost.navigator.place('project/unpublished')).toBe(false);
+    lost.run(0.5);
+    expect(lost.navigator.state).toEqual({ mode: 'flight', target: null });
+    expect(lost.names()).toEqual([]);
+  });
+
   it('comes back from a snapshot exactly where it was: docked, same place, same way round', () => {
     const h = harness(0, -40, -Math.PI / 2);
     h.run(0.2);

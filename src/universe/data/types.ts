@@ -46,6 +46,11 @@ export interface UniverseInput {
   systems: readonly SystemInput[];
   projects: readonly ProjectInput[];
   pages: readonly PageInput[];
+  /**
+   * The page that lists every project. It is nobody's own page, so it is shown from the sun of
+   * the first system: that is where the projects are. (From Phase 3, with more systems, the map.)
+   */
+  projectsHref?: string | undefined;
   /** true in dev, false in production builds. */
   includeDrafts: boolean;
 }
@@ -109,4 +114,9 @@ export interface UniverseManifest {
   systems: ManifestSystem[];
   bodies: ManifestBody[];
   lanes: ManifestLane[];
+  /**
+   * Pages that are not a body's own page but are SHOWN FROM one: path -> body id. A body's own
+   * `href` needs no entry. Absent in manifests from before it existed.
+   */
+  alsoAt?: Record<string, string>;
 }

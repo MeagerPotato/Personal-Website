@@ -1,0 +1,80 @@
+// THE ROUTE AND THE SHIP FOLLOW EACH OTHER. A visitor can get to a page two ways: by a link (the
+// route changes, and the ship must follow it to the body that page belongs to) or by flying (the
+// ship docks, and the route must follow it to that body's page). Either side may lead, and both
+// are idempotent (universe/api.ts), so following is a matter of telling each what the other did
+// and never of waiting for an answer: nothing here can deadlock, and nothing here keeps state
+// about where the ship is.
+//
+//   route  -> ship    a page with a body: goTo(body). Any other page: undock().
+//   ship   -> route   docked: open that body's page, unless the page showing is already shown
+//                     from it. Left by the PILOT: leave the page (the router goes home). Left
+//                     because somebody ASKED: that was us, and the route already knows.
+//
+// docs/PLAN.md §5.3: the URL is the committed destination, never the ship's position.
+
+import type { Universe } from '../universe/api';
+import type { Destinations } from './destinations';
+import type { Router } from './router';
+
+export interface FollowOptions {
+  universe: Pick<Universe, 'on' | 'goTo' | 'undock'>;
+  router: Pick<Router, 'navigate' | 'leave' | 'prefetch' | 'cancel'>;
+  destinations: Destinations;
+  /** Where leaving a page goes: the open sky. */
+  homeHref: string;
+  /** The path of the page that is showing. */
+  pathname(): string;
+}
+
+export interface Following {
+  /** The router has put another page on screen (a link, Back, a page opened from orbit). */
+  routeChanged(pathname: string): void;
+  dispose(): void;
+}
+
+export function startFollowing(options: FollowOptions): Following {
+  const { universe, router, destinations } = options;
+  /** The body whose page the router has been asked for and has not shown yet. */
+  let opening: string | null = null;
+
+  const showsFrom = (id: string): boolean => destinations.idFor(options.pathname()) === id;
+
+  const stops = [
+    // Within reach of a body is as good a hint as a pointer resting on a link.
+    universe.on('soi', ({ id }) => {
+      const href = id === null ? null : destinations.hrefOf(id);
+      if (href !== null) router.prefetch(href);
+    }),
+
+    universe.on('docked', ({ id }) => {
+      if (showsFrom(id)) return;
+      const href = destinations.hrefOf(id);
+      if (href === null) return;
+      opening = id;
+      void router.navigate(href);
+    }),
+
+    universe.on('undocked', ({ id, by }) => {
+      if (by !== 'pilot') return;
+      if (opening === id) {
+        // Gone again before the page arrived: it must not arrive now and call the ship back.
+        opening = null;
+        router.cancel();
+      } else if (showsFrom(id)) {
+        router.leave(options.homeHref);
+      }
+    }),
+  ];
+
+  return {
+    routeChanged(pathname) {
+      opening = null;
+      const id = destinations.idFor(pathname);
+      if (id === null) universe.undock();
+      else void universe.goTo(id);
+    },
+    dispose() {
+      for (const stop of stops) stop();
+    },
+  };
+}

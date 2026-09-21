@@ -160,6 +160,22 @@ under a bottom sheet.
   The leftovers of a capture settle on springs that start with the ship's own velocities, so
   there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
   (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
+- **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
+  body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
+  `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
+  means the ship goes there: `goTo(id)`. Any other page means `undock()`. The other way round,
+  `docked` opens that body's page unless it is showing already, and `undocked` with `by: 'pilot'`
+  leaves the page (`router.leave`: Back when Back is the open sky, otherwise a new step). Both
+  sides are idempotent and neither waits for the other, so there is nothing to deadlock. A page
+  asked for by a dock that the pilot has already left again is called off (`router.cancel`).
+- **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
+  DOCKED: a page opened on a body boots in orbit round it (`start.at`), placed before the first
+  step, so the state machine is never in `flight`, nothing flies and the camera cuts. The URL
+  never says where a ship in open sky IS: the shell keeps the engine's snapshot in
+  sessionStorage when the page goes away (`shell/pose-memory.ts`) and hands it to the next
+  engine (`start.snapshot`), which checks every field before believing it. So a reload, or a
+  navigation the router had to hand to the browser, carries on in the same world at the same
+  time with the ship where it was. When the two disagree the URL wins.
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild

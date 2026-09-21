@@ -36,7 +36,9 @@ import { Starfield } from './world/Starfield';
  * so the asset store, added first, outlives everything that borrowed from it.)
  *
  * With a `start` snapshot the world comes up exactly where that snapshot was taken: this is how
- * the universe survives a lost WebGL context (api.ts).
+ * the universe survives a lost WebGL context (api.ts), a reload, and a full page load. With `at`,
+ * the ship is in orbit round that body before the first frame: a page opened on a planet starts
+ * THERE, without flying and without ever having been in flight.
  */
 export interface BootHooks {
   onFirstFrame(): void;
@@ -67,6 +69,7 @@ export function boot(
   hooks: BootHooks,
   quality: BootQuality,
   start: Snapshot | null,
+  at: string | null = null,
 ): Booted {
   // Before anything is created: a manifest we cannot read must not leave a canvas behind.
   const manifest = readManifest(options.manifest);
@@ -120,10 +123,15 @@ export function boot(
       emit: hooks.onNavigation,
     }),
   );
-  if (start?.dock) {
-    syncSurroundings(surroundings, start.steps / tuning.loop.stepHz);
-    navigator.restore(start.dock);
+  // Docking needs to know where the bodies are NOW, and the first step has not placed them yet.
+  if (start?.dock || at !== null) {
+    syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
+  if (start?.dock) navigator.restore(start.dock);
+  // An unknown id (a page whose body is a draft, a manifest from another deploy) is no error: the
+  // page is in the panel all the same, and the ship simply starts in open sky.
+  // (A dock restored just above is already there, and `place` then changes nothing.)
+  if (at !== null) navigator.place(at);
   const jobs = new JobQueue(tuning.world.jobBudget);
   // ...and as the visitor sees it. Both follow the same orbits.
   const galaxy = engine.add(

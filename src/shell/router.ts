@@ -6,8 +6,8 @@
 // DOM, and whenever anything at all looks wrong (a failed fetch, a non-HTML answer, a new deploy,
 // a page the contract does not cover) the router lets the browser load the page normally.
 //
-// This is the ONLY file allowed to write history (eslint.config.js). The engine will emit intents
-// and reconcile to the route through `onNavigate`; it never touches history itself.
+// This is the ONLY file allowed to write history (eslint.config.js). The engine never touches it:
+// the ship and the route follow each other through follow.ts, which asks this file.
 //
 // Plain mode never loads this module: there, links are just links.
 
@@ -28,7 +28,7 @@ export interface RouterOptions {
   navItems: readonly NavItem[];
   /**
    * On every committed navigation, once the new page is in the DOM and before focus moves to
-   * its heading. The panel opens or closes here; later the engine flies to what the URL names.
+   * its heading. The panel opens or closes here, and the ship sets out for what the URL names.
    */
   onNavigate?: (navigation: { url: URL; kind: NavigationKind }) => void;
   /** Injected in tests: the network, and the two ways of giving up on a soft navigation. */
@@ -43,10 +43,17 @@ export interface Router {
   /** Fetch a page the visitor is likely to open next. */
   prefetch(href: string): void;
   /**
-   * Leave the page that is showing, the way closing a card does: back to where the visitor came
-   * from if that was one of our own pages, otherwise on to `fallbackHref` (the home page).
+   * Leave the page that is showing for `homeHref` (the open sky), the way closing a card does.
+   * If the visitor came here FROM that page, by a push of ours, this is Back, so that opening and
+   * closing a page leaves no trail. From anywhere else it is a new step: Back must never be a
+   * surprise, and neither must Close (it closes; it does not open the page before this one).
    */
-  leave(fallbackHref: string): void;
+  leave(homeHref: string): void;
+  /**
+   * Forget a navigation that is still waiting for the network: its page will not be shown. (The
+   * ship docked and asked for a page, then left again before the page arrived.)
+   */
+  cancel(): void;
   dispose(): void;
 }
 
@@ -58,6 +65,8 @@ interface EntryState {
    * of this site that the router itself left, so history.back() is a safe way to "close".
    */
   routerDepth: number;
+  /** Path of the page this entry was pushed from: what history.back() would show. */
+  routerFrom?: string;
 }
 
 const PREFETCH_CAPACITY = 6;
@@ -92,15 +101,17 @@ export function startRouter(options: RouterOptions): Router {
   let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
   const currentDepth = (): number => (history.state as EntryState | null)?.routerDepth ?? 0;
-  const newState = (depth: number): EntryState => ({
+  const cameFrom = (): string | undefined => (history.state as EntryState | null)?.routerFrom;
+  const newState = (depth: number, from: string | undefined): EntryState => ({
     routerKey: `${Date.now().toString(36)}-${(keyCounter += 1)}`,
     routerDepth: depth,
+    ...(from === undefined ? {} : { routerFrom: from }),
   });
   /** The key of the history entry the browser is on, tagging the entry first if it has none. */
   function entryKey(): string {
     const existing = (history.state as EntryState | null)?.routerKey;
     if (existing) return existing;
-    const state = newState(0);
+    const state = newState(0, undefined);
     history.replaceState(state, '');
     return state.routerKey;
   }
@@ -198,7 +209,11 @@ export function startRouter(options: RouterOptions): Router {
     // Like the browser, a link to the URL that is already showing replaces its entry: clicking
     // "About" on the About page must not make Back a no-op.
     const kind: NavigationKind = replace || url.href === location.href ? 'replace' : 'push';
-    const state = newState(currentDepth() + (kind === 'push' ? 1 : 0));
+    // A replaced entry still has the same entry behind it; a pushed one has this page behind it.
+    const state = newState(
+      currentDepth() + (kind === 'push' ? 1 : 0),
+      kind === 'push' ? location.pathname : cameFrom(),
+    );
     if (kind === 'replace') history.replaceState(state, '', url.href);
     else history.pushState(state, '', url.href);
     currentKey = state.routerKey;
@@ -303,9 +318,16 @@ export function startRouter(options: RouterOptions): Router {
   return {
     navigate,
     prefetch,
-    leave(fallbackHref) {
-      if (currentDepth() > 0) history.back();
-      else void navigate(fallbackHref);
+    leave(homeHref) {
+      const home = new URL(homeHref, location.href);
+      if (currentDepth() > 0 && cameFrom() === home.pathname) history.back();
+      else void navigate(homeHref);
+    },
+    cancel() {
+      // Whatever was waiting for the network is now an OLDER navigation: its answer is dropped.
+      inFlight?.abort();
+      inFlight = undefined;
+      navigationId += 1;
     },
     dispose() {
       listeners.abort();

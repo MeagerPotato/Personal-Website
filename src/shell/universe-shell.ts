@@ -1,12 +1,15 @@
 // Everything the page needs in universe mode that is NOT the engine itself: boot the engine, fall
-// back to plain if it does not come up, keep the canvas alive across pages with the router, and
-// show each page's content in the panel.
+// back to plain if it does not come up, keep the canvas alive across pages with the router, show
+// each page's content in the panel, and keep the route and the ship in step (follow.ts).
 
 import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
+import { readDestinations } from './destinations';
+import { startFollowing, type Following } from './follow';
 import { startPanel, type Panel } from './panel';
 import { mirrorInset, watchPanelInset } from './panel-inset';
+import { keepSnapshot, recallSnapshot } from './pose-memory';
 import { asTier, recallTier, rememberTier } from './quality-memory';
 import { startRouter, type Router } from './router';
 import { startFrameWatchdog } from './watchdog';
@@ -22,6 +25,8 @@ const root = document.documentElement;
 let router: Router | undefined;
 let panel: Panel | undefined;
 let stopInset: (() => void) | undefined;
+let stopKeeping: (() => void) | undefined;
+let following: Following | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -39,6 +44,10 @@ function fallBackToPlain(reason: string): void {
   panel = undefined;
   stopInset?.();
   stopInset = undefined;
+  stopKeeping?.();
+  stopKeeping = undefined;
+  following?.dispose();
+  following = undefined;
   mirrorInset(root, null);
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
@@ -51,7 +60,10 @@ export async function start(): Promise<void> {
   // Before the engine chunk even arrives, so that the very first click is already a soft one.
   router = startRouter({
     navItems: site.nav,
-    onNavigate: ({ url }) => panel?.sync(url.pathname),
+    onNavigate: ({ url }) => {
+      panel?.sync(url.pathname);
+      following?.routeChanged(url.pathname);
+    },
   });
   panel = startPanel({
     homePath: routes.home(),
@@ -82,10 +94,17 @@ export async function start(): Promise<void> {
       }),
     ]);
     const flags = new URLSearchParams(location.search);
+    const destinations = readDestinations(manifest);
     const created = await createUniverse({
       mount,
       overlay: document.getElementById('universe-overlay') ?? undefined,
       manifest,
+      // The page that is open NOW, which may not be the one this started on: the engine chunk
+      // takes a moment to arrive, and the router was already taking clicks.
+      start: {
+        at: destinations.idFor(location.pathname),
+        snapshot: recallSnapshot(() => sessionStorage),
+      },
       reducedMotion: root.dataset.motion === 'reduced',
       quality: asTier(flags.get('q')),
       qualityCeiling: recallTier(() => localStorage, Date.now()),
@@ -98,6 +117,19 @@ export async function start(): Promise<void> {
       return;
     }
     universe = created;
+    if (router) {
+      following = startFollowing({
+        universe: created,
+        router,
+        destinations,
+        homeHref: routes.home(),
+        pathname: () => location.pathname,
+      });
+    }
+    stopKeeping = keepSnapshot(
+      () => created.snapshot(),
+      () => sessionStorage,
+    );
     // The panel covers part of the view: the engine frames things in what is left, and the
     // stylesheet keeps the engine's own DOM there.
     stopInset = watchPanelInset((inset, first) => {

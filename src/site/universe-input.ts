@@ -91,6 +91,7 @@ export function toUniverseInput(content: {
     systems: content.systems.map(toSystemInput),
     projects: content.projects.map(toProjectInput),
     pages: content.pages.map(toPageInput),
+    projectsHref: routes.projects(),
     includeDrafts: content.includeDrafts,
   };
 }
