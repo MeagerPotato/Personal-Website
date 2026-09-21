@@ -1,0 +1,29 @@
+---
+// A screenshot or photo in the content column. AVIF first, WebP as the <img> fallback: every
+// browser that can run this site's CSS can show WebP, and a PNG fallback of a screenshot came out
+// five times heavier than its source. Markup only.
+import type { ImageMetadata } from 'astro';
+import { Picture } from 'astro:assets';
+
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+  class?: string | undefined;
+  /** True for the one image at the top of a page; everything else loads lazily. */
+  eager?: boolean;
+}
+
+const { src, alt, class: className, eager = false } = Astro.props;
+---
+
+<Picture
+  class={className}
+  src={src}
+  alt={alt}
+  formats={['avif']}
+  fallbackFormat="webp"
+  widths={[480, 800, 1200]}
+  sizes="(min-width: 46rem) 42rem, calc(100vw - 3rem)"
+  loading={eager ? 'eager' : 'lazy'}
+  fetchpriority={eager ? 'high' : 'auto'}
+/>

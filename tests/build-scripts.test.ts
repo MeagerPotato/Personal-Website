@@ -5,6 +5,9 @@ import {
   extractInlineScripts,
   extractStaticImports,
   extractUrls,
+  firstDifference,
+  isPlainOnly,
+  pageSkeleton,
   parseAttributes,
   toSitePath,
 } from '../scripts/lib/html.mjs';
@@ -102,5 +105,66 @@ describe('toSitePath', () => {
     ]) {
       expect(toSitePath(url, '/')).toBeNull();
     }
+  });
+});
+
+describe('the swap contract', () => {
+  const page = (options: { title: string; main: string; current?: string; extraHead?: string }) =>
+    [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+      `<title data-page-head>${options.title}</title>`,
+      `<meta name="description" content="About ${options.title}" data-page-head>`,
+      `<link rel="canonical" href="https://site.invalid/${options.title}/" data-page-head>`,
+      options.extraHead ?? '',
+      '<link rel="stylesheet" href="/_astro/x.css"></head><body><nav>',
+      `<a href="/a/"${options.current === 'a' ? ' aria-current="page"' : ''}>A</a>`,
+      `<a href="/b/"${options.current === 'b' ? ' aria-current="true"' : ''}>B</a>`,
+      `</nav><main id="main" tabindex="-1">${options.main}</main><footer>f</footer></body></html>`,
+    ].join('');
+
+  it('ignores exactly what the router swaps: <main>, [data-page-head], aria-current', () => {
+    const a = page({ title: 'a', main: '<h1>A</h1><p>one</p>', current: 'a' });
+    const b = page({
+      title: 'b',
+      main: '<h1>B</h1><img src="/x.avif" alt="">',
+      current: 'b',
+      extraHead: '<script type="application/ld+json" data-page-head>{"@type":"Person"}</script>',
+    });
+    expect(pageSkeleton(a)).toBe(pageSkeleton(b));
+    expect(pageSkeleton(a)).toContain('<main id="main" tabindex="-1"></main>');
+    expect(pageSkeleton(a)).not.toContain('aria-current');
+    expect(pageSkeleton(a)).not.toContain('<title');
+  });
+
+  it('sees any other difference, and says where it is', () => {
+    const a = page({ title: 'a', main: '' });
+    const b = page({ title: 'b', main: '' }).replace('<body>', '<body class="b">');
+    const difference = firstDifference(pageSkeleton(a), pageSkeleton(b));
+    expect(difference?.actual).toContain('<body class=\\"b\\">');
+    expect(difference?.expected).toContain('<body>');
+    expect(firstDifference('same', 'same')).toBeNull();
+  });
+
+  it('sees a per-page head node that forgot data-page-head', () => {
+    const a = page({ title: 'a', main: '' });
+    const b = page({ title: 'b', main: '', extraHead: '<meta name="robots" content="noindex">' });
+    expect(pageSkeleton(a)).not.toBe(pageSkeleton(b));
+  });
+
+  it('is not fooled by page content that mentions the swapped parts', () => {
+    const a = page({ title: 'a', main: '<p>plain</p>' });
+    const b = page({ title: 'b', main: '<code>&lt;main&gt; and data-page-head</code>' });
+    expect(pageSkeleton(a)).toBe(pageSkeleton(b));
+  });
+
+  it('refuses a page without exactly one <main>', () => {
+    expect(() => pageSkeleton('<html><body><p>no main</p></body></html>')).toThrow(/one <main>/);
+    expect(() => pageSkeleton('<main>a</main><main>b</main>')).toThrow(/one <main>/);
+  });
+
+  it('knows the plain-only pages, which the router never swaps in', () => {
+    expect(isPlainOnly('<!doctype html><html lang="en" data-plain-only>')).toBe(true);
+    expect(isPlainOnly('<!doctype html><html lang="en">')).toBe(false);
+    expect(isPlainOnly('<html lang="en"><body data-plain-only>')).toBe(false);
   });
 });

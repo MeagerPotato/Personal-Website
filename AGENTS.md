@@ -12,8 +12,9 @@ shading) on dark navy space. Tone: playful framing, technical substance. The own
 "Allen", nothing more.
 
 Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
-exists (collections, schemas, the galaxy builder, `/universe.json`), the real pages come next.
-Phase 1 (flight) has not started, and Phase 2's 3D half waits for it. Roadmap: docs/PLAN.md §6.
+and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
+mode. Universe mode is still only a starfield behind them. Phase 1 (flight) has not started, and
+Phase 2's 3D half (router, panel, docking) waits for it. Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -38,9 +39,15 @@ Phase 1 (flight) has not started, and Phase 2's 3D half waits for it. Roadmap: d
 9. **Whoever creates a GPU resource disposes it.** Every engine system implements `dispose()`.
 10. **Thin Astro.** Astro pre-renders pages and owns the content layer. `astro:*` imports only in
     `src/pages`, `src/layouts`, `src/components`. No `<ClientRouter/>`, islands, scoped `<style>`
-    blocks, middleware, adapters, or MDX.
+    blocks, middleware, adapters, or MDX. `.astro` files are markup: anything with an `if` in it
+    is a plain function in `src/site/` with a test beside it.
+11. **The swap contract.** Outside `<main>` and the `<head>` nodes marked `data-page-head`, every
+    page is byte-identical, and every page has exactly one `<h1>`. The router (Phase 2) swaps only
+    those parts, so this is what makes a soft navigation end in the same DOM as a hard one. One
+    documented exception: `aria-current` on the main nav, derived by `src/site/nav.ts` on both
+    sides. The plain-only 404 is exempt. `verify-dist` enforces all of it.
 
-Invariants 5, 6, 7 and 10 are lint rules (`eslint.config.js`); `tests/lint-boundaries.test.ts`
+Invariants 5, 6, 7 and 10 (its import rule) are lint rules (`eslint.config.js`); `tests/lint-boundaries.test.ts`
 proves they still bite. **Flat-config gotcha:** a later block's rule _replaces_ an earlier block's
 same rule for the same file. Options never merge. Edit the shared constants, not one block.
 
@@ -124,8 +131,21 @@ unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never
 `src/universe/world/` (or a sibling folder); add it in `main.ts`, where order is explicit; dispose
 everything you create. Pure maths goes in `sim/` with a `*.test.ts` beside it.
 
-**Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` and
-`description`. Internal links end with `/`. No `<script>` or `<style>` in the page.
+**Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
+`pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for
+the one `<h1>`. Build internal links with `src/site/routes.ts`; they end with `/`. No `<script>`
+or `<style>` in the page, and nothing per-page outside `<main>` (invariant 11). A page that
+belongs in the main nav is one line in `src/config/site.ts`.
+
+**Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
+comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
+`[data-theme]`, a planet's palette as `--planet-*` under `[data-biome]`. Check 360 px wide, and
+check print if the resume could be affected.
+
+**Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
+should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print
+stylesheet render it; a missing or empty section fails the build. No phone number, no private
+email: `tests/privacy.test.ts` scans the whole repository for both.
 
 **Add a project (a planet).** Create `src/content/projects/<id>/index.md` plus a cover image
 beside it. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
@@ -133,6 +153,8 @@ Frontmatter is validated by `src/site/schemas.ts` (unknown keys fail the build):
 `summary` (≤ 160 chars), `system: <system id>`, `date: "YYYY-MM"` in quotes, `status`, `role`,
 `cover: { src: ./cover.png, alt }`, `planet: { biome }`; optional `stack`, `links` (https only),
 `gallery`, `related`, `flagship`, `draft`. Copy the shape of `projects/days2meet/index.md`.
+Images are served as AVIF with a WebP fallback at three widths (`components/Shot.astro`), so
+commit one good source image, at least 1200 px wide, and let the build do the rest.
 
 **Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
 Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.

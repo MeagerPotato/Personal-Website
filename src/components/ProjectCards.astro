@@ -1,0 +1,39 @@
+---
+// A list of projects as cards. A planet's moons, when it has any, are listed inside its card.
+// Markup only; the data comes ready-made from src/site/view-models.ts.
+import type { PlanetNode, ProjectCard } from '../site/view-models';
+
+interface Props {
+  cards: ReadonlyArray<ProjectCard | PlanetNode>;
+}
+
+const { cards } = Astro.props;
+---
+
+<ul class="cards">
+  {cards.map((card) => (
+    <li class="card" data-biome={card.biome}>
+      <span class="planet-dot" aria-hidden="true" />
+      <div class="card__body">
+        <h3 class="card__title">
+          <a href={card.href}>{card.title}</a>
+        </h3>
+        <p class="card__summary">{card.summary}</p>
+        <p class="card__meta">{card.flagship ? `Flagship · ${card.status}` : card.status}</p>
+        {'moons' in card && card.moons.length > 0 && (
+          <ul class="card__moons" aria-label={`Moons of ${card.title}`}>
+            {card.moons.map((moon) => (
+              <li data-biome={moon.biome}>
+                <span class="planet-dot planet-dot--moon" aria-hidden="true" />
+                <span>
+                  <a href={moon.href}>{moon.title}</a>
+                  <span class="card__moon-summary">{moon.summary}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </li>
+  ))}
+</ul>

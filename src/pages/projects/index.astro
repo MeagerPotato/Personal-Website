@@ -1,0 +1,39 @@
+---
+// Every project, grouped the way the galaxy is: by solar system, planets with their moons.
+import { getCollection } from 'astro:content';
+import PageHeader from '../../components/PageHeader.astro';
+import ProjectCards from '../../components/ProjectCards.astro';
+import Base from '../../layouts/Base.astro';
+import { pageTitle } from '../../site/seo';
+import { buildProjectTree, visibleProjects } from '../../site/view-models';
+
+const systems = await getCollection('systems');
+const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
+const tree = buildProjectTree(systems, projects);
+---
+
+<Base
+  title={pageTitle('Projects')}
+  description="Everything Allen has built, mapped the way the galaxy is: solar systems are passions, planets are projects, moons are the smaller things in their orbit."
+>
+  <PageHeader
+    eyebrow="Star chart"
+    title="Projects"
+    lede="Solar systems are the things I care about. Planets are projects, and moons are the smaller things in their orbit."
+  />
+
+  {tree.map((system) => (
+    <section
+      class="section system"
+      data-theme={system.theme}
+      aria-labelledby={`system-${system.id}`}
+    >
+      <h2 id={`system-${system.id}`}>
+        <span class="sun-dot" aria-hidden="true" />
+        <a href={system.href}>{system.name}</a>
+      </h2>
+      <p>{system.tagline}</p>
+      <ProjectCards cards={system.planets} />
+    </section>
+  ))}
+</Base>

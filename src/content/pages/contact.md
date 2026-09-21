@@ -4,9 +4,5 @@ summary: The fastest ways to reach Allen, and where to find the work.
 dock: satellite
 ---
 
-The best signal reaches me through these channels.
-
-- **GitHub:** [MeagerPotato](https://github.com/MeagerPotato), where the projects live
-- **LinkedIn:** [allenkhsieh](https://www.linkedin.com/in/allenkhsieh), the formal version
-
-TODO(copy): add the public email address once Allen confirms which one it is.
+The comms satellite is always listening. Email is the fastest way to reach me, whether it is about
+an internship, a project, or a card game that needs a sixth player.

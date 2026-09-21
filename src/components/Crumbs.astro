@@ -1,0 +1,20 @@
+---
+// Where this page sits: Projects > Code > FishAI. Markup only.
+import type { Crumb } from '../site/view-models';
+
+interface Props {
+  crumbs: readonly Crumb[];
+}
+
+const { crumbs } = Astro.props;
+---
+
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol>
+    {crumbs.map((crumb) => (
+      <li>
+        <a href={crumb.href}>{crumb.label}</a>
+      </li>
+    ))}
+  </ol>
+</nav>

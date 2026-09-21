@@ -1,43 +1,72 @@
 ---
+import { getCollection } from 'astro:content';
+import ProjectCards from '../components/ProjectCards.astro';
 import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
+import { routes } from '../site/routes';
+import { buildProjectTree, featuredPlanets, visibleProjects } from '../site/view-models';
+
+const systems = await getCollection('systems');
+const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
+const featured = featuredPlanets(buildProjectTree(systems, projects), 3);
 ---
 
 <Base
-  title="Allen · a small universe, under construction"
-  description="Allen studies aerospace engineering at UC Berkeley and builds rockets and software. This site is becoming a galaxy you can fly through."
+  title="Allen · rockets, robots, and software"
+  description="Allen studies aerospace engineering at UC Berkeley and builds rockets, robots, and software. This site is a small universe: solar systems are passions, planets are projects."
 >
-  <p class="eyebrow">Status: building the launchpad</p>
-  <h1>A small universe is under construction.</h1>
-
-  <p class="lede">
-    I'm Allen. I study aerospace engineering at UC Berkeley, and I build rockets, software, and a
-    bot that takes the card game Canadian Fish far too seriously.
-  </p>
+  <header class="page-header">
+    <p class="eyebrow">Aerospace engineering · UC Berkeley</p>
+    <h1>A small universe of things I've built.</h1>
+    <p class="lede">
+      I'm Allen. I build rockets, robots, and software, including a bot that takes the card game
+      Canadian Fish far too seriously.
+    </p>
+  </header>
 
   <p>
-    This site is turning into a galaxy you can fly through: every solar system is something I care
-    about, and every planet is a project. Until launch day, here is where to find me.
+    Every solar system here is something I care about, and every planet is a project. The part where
+    you fly a rocket between them is still on the launchpad. Everything worth reading has already
+    landed.
   </p>
 
-  <ul class="links">
+  <ul class="actions">
     <li>
-      <a href={site.socials.github} rel="me noopener">
-        GitHub
+      <a class="button button--primary" href={routes.projects()}>
+        See the projects
       </a>
-      <span>where the projects live</span>
     </li>
     <li>
-      <a href={site.socials.linkedin} rel="me noopener">
-        LinkedIn
+      <a class="button" href={routes.page('resume')}>
+        Read the resume
       </a>
-      <span>the formal version</span>
-    </li>
-    <li>
-      <a href={site.elsewhere.days2meet} rel="noopener">
-        Days2Meet
-      </a>
-      <span>a scheduling poll I built because when2meet needed a sequel</span>
     </li>
   </ul>
+
+  <section class="section" aria-labelledby="home-featured">
+    <h2 id="home-featured">Start here</h2>
+    <ProjectCards cards={featured} />
+  </section>
+
+  <section class="section" aria-labelledby="home-elsewhere">
+    <h2 id="home-elsewhere">Elsewhere</h2>
+    <ul class="links">
+      <li>
+        <a href={site.socials.github} rel="me noopener">
+          GitHub
+        </a>
+        <span>where the projects live</span>
+      </li>
+      <li>
+        <a href={site.socials.linkedin} rel="me noopener">
+          LinkedIn
+        </a>
+        <span>the formal version</span>
+      </li>
+      <li>
+        <a href={`mailto:${site.email}`}>Email</a>
+        <span>{site.email}</span>
+      </li>
+    </ul>
+  </section>
 </Base>

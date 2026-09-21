@@ -1,0 +1,95 @@
+---
+// The resume, rendered from src/content/resume.yaml. The print stylesheet (src/styles/global.css,
+// section 4) turns this same page into the paper version.
+import { getCollection, getEntry, render } from 'astro:content';
+import PageHeader from '../components/PageHeader.astro';
+import ResumeRoles from '../components/ResumeRoles.astro';
+import Base from '../layouts/Base.astro';
+import { site } from '../config/site';
+import { toResume } from '../site/resume';
+import { pageTitle } from '../site/seo';
+import { DOCK_LABEL, displayUrl } from '../site/view-models';
+
+const page = await getEntry('pages', 'resume');
+if (!page) throw new Error('src/content/pages/resume.md is missing');
+const { Content } = await render(page);
+const resume = toResume(await getCollection('resume'));
+---
+
+<Base title={pageTitle(page.data.title)} description={page.data.summary}>
+  <PageHeader eyebrow={DOCK_LABEL[page.data.dock]} title={page.data.title} />
+
+  <ul class="resume-contact">
+    <li>
+      <a href={`mailto:${site.email}`}>{site.email}</a>
+    </li>
+    <li>
+      <a href={site.url}>{displayUrl(site.url)}</a>
+    </li>
+    <li>
+      <a href={site.socials.github} rel="me noopener">
+        {displayUrl(site.socials.github)}
+      </a>
+    </li>
+    <li>
+      <a href={site.socials.linkedin} rel="me noopener">
+        {displayUrl(site.socials.linkedin)}
+      </a>
+    </li>
+  </ul>
+
+  <div class="prose screen-only">
+    <Content />
+  </div>
+
+  <section class="resume-section" aria-labelledby="resume-education">
+    <h2 id="resume-education">Education</h2>
+    <ul class="entries">
+      {resume.education.map((item) => (
+        <li class="entry">
+          <div class="entry__head">
+            <h3>{item.school}</h3>
+            <p class="entry__when">{item.when}</p>
+          </div>
+          <p class="entry__sub">
+            {item.location ? `${item.detail} · ${item.location}` : item.detail}
+          </p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="resume-section" aria-labelledby="resume-experience">
+    <h2 id="resume-experience">Experience</h2>
+    <ResumeRoles roles={resume.experience} />
+  </section>
+
+  <section class="resume-section" aria-labelledby="resume-leadership">
+    <h2 id="resume-leadership">Leadership</h2>
+    <ResumeRoles roles={resume.leadership} />
+  </section>
+
+  <section class="resume-section" aria-labelledby="resume-skills">
+    <h2 id="resume-skills">Skills</h2>
+    <dl class="skills">
+      {resume.skills.map((group) => (
+        <div>
+          <dt>{group.label}</dt>
+          <dd>{group.values.join(', ')}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+
+  <section class="resume-section" aria-labelledby="resume-awards">
+    <h2 id="resume-awards">Awards</h2>
+    <ul class="awards">
+      {resume.awards.map((award) => (
+        <li>
+          <span class="awards__title">{award.title}</span>
+          {award.detail && <span class="awards__detail">{award.detail}</span>}
+        </li>
+      ))}
+    </ul>
+  </section>
+</Base>
