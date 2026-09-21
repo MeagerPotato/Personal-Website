@@ -49,6 +49,11 @@ export default defineConfig({
     url: `${ORIGIN}/`,
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
+    // Silent unless asked: with a self-signed certificate workerd reports every connection a
+    // browser opens as a TLS error, hundreds of lines that bury the test results. If the server
+    // does not come up, run again with E2E_SERVER_LOG=1 to hear what it says.
+    stdout: 'ignore',
+    stderr: process.env.E2E_SERVER_LOG ? 'pipe' : 'ignore',
     timeout: 120_000,
     env: { WRANGLER_SEND_METRICS: 'false' },
   },
