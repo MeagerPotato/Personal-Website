@@ -46,6 +46,7 @@ has a soft edge. Nothing can be docked with yet. Roadmap: docs/PLAN.md §6.
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
    a lit surface is exactly the token hex and 3D matches the DOM.
 9. **Whoever creates a GPU resource disposes it.** Every engine system implements `dispose()`.
+   In a dev build the engine counts what is left when it is disposed and warns in the console.
 10. **Thin Astro.** Astro pre-renders pages and owns the content layer. `astro:*` imports only in
     `src/pages`, `src/layouts`, `src/components`. No `<ClientRouter/>`, islands, scoped `<style>`
     blocks, middleware, adapters, or MDX. `.astro` files are markup: anything with an `if` in it
@@ -177,6 +178,13 @@ unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never
 `frame.alpha`; never advance the simulation from a frame. Track every geometry, material and
 texture in a `Scope` (`core/scope.ts`) and dispose the scope in `dispose()`. Pure maths goes in
 `sim/` with a `*.test.ts` beside it.
+
+**State that must survive.** The engine can be thrown away and built again at any moment: when
+the browser takes the WebGL context (a phone tab in the background), `api.ts` takes a `Snapshot`
+(`core/snapshot.ts`), disposes the engine, canvas and all, and boots a new one from it. So state
+lives in exactly one of two places: it follows from the simulation step count (where every planet
+is), or it is a field of the snapshot (the ship). Anything new that a visitor would miss after a
+rebuild, such as which planet they are docked at, becomes a snapshot field.
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for

@@ -102,10 +102,12 @@ export class ShipSystem implements System {
     this.restore(createShipState(x, z, heading));
   }
 
-  /** Put the ship into an exact state, speed and spin included (replays, later snapshots). */
+  /** Put the ship into an exact state, speed and spin included (replays, snapshots). */
   restore(state: Readonly<ShipState>): void {
     copyShipState(state, this.current);
     copyShipState(state, this.previous);
+    // Whoever reads the pose before the next frame (the camera's first cut) must see the new one.
+    this.present(1, 0, 0);
   }
 
   fixedUpdate(dt: number, simTime: number): void {

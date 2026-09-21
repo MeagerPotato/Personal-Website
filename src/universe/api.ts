@@ -7,7 +7,9 @@
  * setMapOpen, setPanelInset, state, activeDestination) lands in Phase 2; see docs/PLAN.md §5.5.
  */
 
-import { boot } from './main';
+import { EventBus } from './core/events';
+import { RebuildBudget, type Snapshot } from './core/snapshot';
+import { boot, type Booted } from './main';
 
 export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
@@ -49,19 +51,97 @@ export interface Universe {
   dispose(): void;
 }
 
+/** A GPU that loses its context more often than this is not going to get better: go plain. */
+const MAX_REBUILDS = 3;
+const REBUILD_WINDOW_MS = 60_000;
+
 /**
  * Rejects if WebGL is unavailable or only software-rendered.
  *
  * Ordering guarantee: `ready` fires from the first animation frame, which is always after this
  * promise resolves, so a listener attached right after `await createUniverse()` never misses it.
+ *
+ * A LOST WEBGL CONTEXT (a phone that spent a minute in the background, a driver reset) is not
+ * the end: the engine is thrown away, canvas and all, and built again from a snapshot as soon as
+ * someone is looking, with the ship and every planet where they were. The web layer notices
+ * nothing. Only a context that keeps getting lost, or cannot be had again, is `fatal`.
  */
 export async function createUniverse(options: UniverseOptions): Promise<Universe> {
-  const { engine, events } = boot(options);
+  const events = new EventBus<UniverseEvents>();
+  const budget = new RebuildBudget(MAX_REBUILDS, REBUILD_WINDOW_MS);
+  let paused = false;
+  let disposed = false;
+  let announcedReady = false;
+  let announcedInput = false;
+  let current: Booted | null = null;
+  let waiting: (() => void) | null = null;
+
+  const hooks = {
+    onFirstFrame: (): void => {
+      if (announcedReady) return;
+      announcedReady = true;
+      events.emit('ready', undefined);
+    },
+    onFirstInput: (): void => {
+      if (announcedInput) return;
+      announcedInput = true;
+      events.emit('firstinput', undefined);
+    },
+    onContextLost: (): void => {
+      if (disposed || !current) return;
+      const snapshot = current.snapshot();
+      current.engine.dispose();
+      current = null;
+      if (!budget.spend(performance.now())) {
+        events.emit('fatal', { reason: 'WebGL context lost repeatedly' });
+        return;
+      }
+      whenVisible(() => rebuild(snapshot));
+    },
+  };
+
+  function rebuild(snapshot: Snapshot): void {
+    if (disposed) return;
+    try {
+      current = boot(options, hooks, snapshot);
+      current.engine.setPaused(paused);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      events.emit('fatal', { reason: `WebGL context lost and not regained: ${reason}` });
+    }
+  }
+
+  /** Browsers take contexts from tabs nobody is looking at; asking for one back there is futile. */
+  function whenVisible(run: () => void): void {
+    if (!document.hidden) {
+      run();
+      return;
+    }
+    const onChange = (): void => {
+      if (document.hidden) return;
+      waiting?.();
+      run();
+    };
+    waiting = (): void => {
+      document.removeEventListener('visibilitychange', onChange);
+      waiting = null;
+    };
+    document.addEventListener('visibilitychange', onChange);
+  }
+
+  current = boot(options, hooks, null);
+
   return {
     on: (event, listener) => events.on(event, listener),
-    setPaused: (paused) => engine.setPaused(paused),
+    setPaused: (value) => {
+      paused = value;
+      current?.engine.setPaused(value);
+    },
     dispose: () => {
-      engine.dispose();
+      disposed = true;
+      waiting?.();
+      current?.engine.dispose();
+      current = null;
       events.clear();
     },
   };
