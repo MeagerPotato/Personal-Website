@@ -9,8 +9,15 @@
 //                     only went there BECAUSE the ship left (below): the pilot may have left
 //                     for somewhere else (a planet they pointed at), and must not be called back.
 //   ship   -> route   docked: open that body's page, unless the page showing is already shown
-//                     from it. Left by the PILOT: leave the page (the router goes home). Left
-//                     because somebody ASKED: that was us, and the route already knows.
+//                     from it, or the router is busy (below). Left by the PILOT: leave the page
+//                     (the router goes home). Left because somebody ASKED: that was us, and the
+//                     route already knows.
+//
+// WHILE THE ROUTER IS BUSY the visitor has asked for a page that is not on screen yet, and the
+// ship does not know: it hears of a route when the page shows. If it docks in that gap, that is
+// old news. Opening its page would take the navigation over (the latest one wins), and the page
+// the visitor asked for would never come: press Close just as the ship arrives, and the page
+// closed and came straight back. Whatever shows next tells the ship where to be.
 //
 // docs/PLAN.md §5.3: the URL is the committed destination, never the ship's position.
 
@@ -20,7 +27,7 @@ import type { Router } from './router';
 
 export interface FollowOptions {
   universe: Pick<Universe, 'on' | 'goTo' | 'undock'>;
-  router: Pick<Router, 'navigate' | 'leave' | 'prefetch' | 'cancel'>;
+  router: Pick<Router, 'busy' | 'navigate' | 'leave' | 'prefetch' | 'cancel'>;
   destinations: Destinations;
   /** Where leaving a page goes: the open sky. */
   homeHref: string;
@@ -51,7 +58,7 @@ export function startFollowing(options: FollowOptions): Following {
     }),
 
     universe.on('docked', ({ id }) => {
-      if (showsFrom(id)) return;
+      if (router.busy || showsFrom(id)) return;
       const href = destinations.hrefOf(id);
       if (href === null) return;
       opening = id;

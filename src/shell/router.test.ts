@@ -342,6 +342,70 @@ describe('cancel', () => {
   });
 });
 
+describe('busy', () => {
+  it('is true exactly while a page has been asked for and is not on screen yet', async () => {
+    harness = start();
+    expect(harness.router.busy).toBe(false);
+    const release = harness.gate('/about/');
+    const going = harness.router.navigate('/about/');
+    await flush();
+    expect(harness.router.busy).toBe(true);
+    release();
+    await going;
+    expect(harness.router.busy).toBe(false);
+    expect(heading()).toBe('About');
+  });
+
+  it('covers Back, where the URL changes long before the page does', async () => {
+    harness = start();
+    await harness.router.navigate('/about/');
+    const release = harness.gate('/');
+    history.back();
+    await flush();
+    // The address bar says "/" already; the page is still About. Nobody should act on either.
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('About');
+    expect(harness.router.busy).toBe(true);
+    release();
+    await flush();
+    expect(heading()).toBe('Home');
+    expect(harness.router.busy).toBe(false);
+  });
+
+  it('ends when the navigation is given up, one way or another', async () => {
+    harness = start();
+    const release = harness.gate('/about/');
+    const going = harness.router.navigate('/about/');
+    await flush();
+    harness.router.cancel();
+    expect(harness.router.busy).toBe(false);
+    release();
+    await going;
+
+    await harness.router.navigate('/nope/'); // a 404: the browser is asked to load it
+    expect(harness.hardLoads).toEqual(['/nope/']);
+    expect(harness.router.busy).toBe(false);
+  });
+
+  it('stays true when a newer navigation takes over from one that is still waiting', async () => {
+    harness = start();
+    const releaseAbout = harness.gate('/about/');
+    const releaseFish = harness.gate('/projects/fishai/');
+    const first = harness.router.navigate('/about/');
+    await flush();
+    const second = harness.router.navigate('/projects/fishai/');
+    await flush();
+    releaseAbout();
+    await first;
+    // The older one is out of the race, but the visitor is still waiting for a page.
+    expect(harness.router.busy).toBe(true);
+    releaseFish();
+    await second;
+    expect(harness.router.busy).toBe(false);
+    expect(heading()).toBe('FishAI');
+  });
+});
+
 describe('listeners', () => {
   it('hears about a navigation before focus moves, so a panel can open first', async () => {
     let focusedWhenTold: Element | null = null;
