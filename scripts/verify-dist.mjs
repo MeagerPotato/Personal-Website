@@ -7,6 +7,7 @@
 //   4. PLAIN-MODE PURITY: no page can reach three.js through static imports. The engine must
 //      only ever be reachable through a dynamic import(), which plain mode never executes.
 //   5. WEIGHT BUDGETS: what plain mode costs per page, and what the lazy engine costs in total.
+//   6. NO PLACEHOLDER COPY: "TODO(copy)" may sit in drafts and in source, never in what ships.
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -165,6 +166,16 @@ if (lazyWeight > BUDGET.lazyScripts) {
     `lazy JavaScript (the engine) weighs ${kib(lazyWeight)} gzipped; ` +
       `the budget is ${kib(BUDGET.lazyScripts)}`,
   );
+}
+
+// 6 --- no placeholder copy -------------------------------------------------------------------
+const PLACEHOLDER = 'TODO(copy)';
+for (const file of files.filter((path) => /\.(html|json|xml|txt)$/.test(path))) {
+  if ((await readFile(file, 'utf8')).includes(PLACEHOLDER)) {
+    errors.push(
+      `${sitePathOf(file)}: contains "${PLACEHOLDER}". Write the copy, or mark it a draft.`,
+    );
+  }
 }
 
 // --- report ------------------------------------------------------------------------------------
