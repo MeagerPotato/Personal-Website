@@ -1,0 +1,38 @@
+/* DEV ONLY: the asset lab (src/pages/_lab.astro). No build contains this file. */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-space-900);
+  color: var(--color-ink-mid);
+  font-family: var(--font-body);
+}
+
+#lab-host {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+#lab-host:active {
+  cursor: grabbing;
+}
+
+#lab-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lab-note {
+  position: fixed;
+  inset: auto auto 1rem 1rem;
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  pointer-events: none;
+}

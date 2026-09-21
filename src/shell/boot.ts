@@ -6,6 +6,10 @@
 // Both imports are DYNAMIC on purpose. scripts/verify-dist.mjs fails the build if three.js ever
 // becomes statically reachable from a page.
 
-if (document.documentElement.dataset.mode === 'universe') {
+if (import.meta.env.DEV && document.documentElement.dataset.lab !== undefined) {
+  // The asset lab, `/lab/` under `npm run dev`. The condition is a build-time constant: no build
+  // contains this branch, the page, or anything behind the import.
+  void import('./lab-shell').then(({ start }) => start());
+} else if (document.documentElement.dataset.mode === 'universe') {
   void import('./universe-shell').then(({ start }) => start());
 }

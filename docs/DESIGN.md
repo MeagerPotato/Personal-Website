@@ -127,6 +127,13 @@ the horizon line of the chase camera, and `tuning.chaseCam.up` with `lookAheadBa
 that line is on screen. It belongs about a third of the way down: higher and the planets hide under
 the top bar, with three quarters of the screen empty below them.
 
+**Judge one thing at a time in the lab.** With `npm run dev` running,
+`http://localhost:4321/lab/` puts a single planet (any biome, any seed, with or without rings,
+everyday or close-up detail), moon, sun, the rocket, the station or the satellite on a turntable
+in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
+for `shading`, `planet`, `world`, `post` and `ship`; "copy tuning as JSON" gives you what to paste
+back into `tuning.ts`. Token colours are not sliders: edit `tokens.ts` and the page reloads.
+
 **Judge a look on every tier.** `/?universe&q=low`, `&q=medium` and `&q=high` show the three
 side by side in three tabs. LOW has no bloom and no vignette, so nothing may DEPEND on them: they
 are seasoning. Only things that ask for it bloom (the knobs above), so the pastel world stays crisp
