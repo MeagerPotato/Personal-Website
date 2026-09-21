@@ -107,12 +107,20 @@ modes. Pages worth checking: `/`, `/about/`, `/projects/`, `/projects/fishai/`,
 `/contact/`, and `/nope/` (the 404, plain only). The hint card shows once per browser: run
 `localStorage.removeItem('hints')` in the console to see it again.
 
+Your PR also gets a second check, `e2e`: real browsers (Chromium, WebKit, a phone-sized Chromium)
+measure several lines of the checklist below on the built site: nothing scrolls sideways at 360
+and 320 px, every control is at least 44 px, axe finds no serious issue in either mode, keyboard
+focus lands where it should. It is not required for merging, but a red `e2e` after a restyle
+almost certainly means one of those broke: read its report (an artifact of the run). To run it
+yourself: `npx playwright install chromium webkit` once, then `npm run e2e` (slow; optional).
+
 ## Acceptance checklist (copy into the PR description and tick)
 
 - [ ] Text contrast is at least WCAG AA (4.5:1 body, 3:1 large text) on every surface it sits on,
       and the contrast numbers in `docs/DESIGN.md` are updated if a colour in a pairing changed
 - [ ] Touch targets are at least 44×44 px
-- [ ] No horizontal scroll at 360 px wide, in both modes (and the nav still fits one row at 320 px)
+- [ ] No horizontal scroll at 360 px wide, in both modes (and none at 320 px either, where the nav
+      may wrap to a second row with a wide font)
 - [ ] With reduced motion requested, nothing animates and nothing is lost
 - [ ] Keyboard focus is always visible (uses `--color-focus`), except on the page heading the
       router focuses, which deliberately shows no ring
