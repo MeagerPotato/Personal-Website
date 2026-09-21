@@ -1599,10 +1599,19 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     scroll-behavior: auto;
   }
 
+  /*
+   * Transitions are OFF, not "very short". A transition of any length at all keeps `visibility`
+   * at its old value until the next frame, and the router focuses the new page's heading in this
+   * one (src/shell/swap.ts): in a panel that still counted as hidden the heading could not take
+   * focus, and the keyboard and the screen reader were left behind on the link that was pressed.
+   * Nothing listens for `transitionend`. Delays go too: a panel that waits before it hides is
+   * waiting for a slide that is not happening.
+   */
   *,
   *::before,
   *::after {
-    transition-duration: 0.01ms !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
     animation-duration: 0.01ms !important;
   }
 }
