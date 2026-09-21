@@ -117,9 +117,10 @@ Each display frame:
    render resolution, give some back, or (once, early) ask for a lower tier.
 
 Order in `main.ts` today: assets → input → ship → navigator → galaxy → ship lighting → camera
-director → camera rig → bodies on screen → picker → sky → stars → dust → jobs → prompt → debug
-overlays. The camera comes after everything it looks at (the ship AND the planets), so that it
-sees this frame's world; whoever needs to know where things are ON SCREEN comes after the camera.
+director → camera rig → bodies on screen → picker → labels → sky → stars → dust → jobs →
+prompt → debug overlays. The camera comes after everything it looks at (the ship AND the
+planets), so that it sees this frame's world; whoever needs to know where things are ON SCREEN
+comes after the camera.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`; map and
 cinematic later) only fills in a `Pose`: what to look at, from how far, turned which way, through
@@ -192,6 +193,15 @@ under a bottom sheet.
   so whatever page was open is left (`undocked` with `by: 'pilot'`) and the new body's page opens
   on arrival. The prompt says "Flying to FishAI" with a Stop on the way, for someone who got
   there by a tap and cannot know that steering takes the ship back.
+- **Names over the bodies** (`ui/Labels.ts`): one real `<button>` per body in
+  `#universe-overlay`, so a name can be tapped, tabbed to and read out, and pressing it is
+  pointing at the body. They read the same map of the screen as the picker. Which names may show
+  is `sim/declutter.ts` (pure): where the ship is going first, then systems, planets, moons, the
+  nearer first; never touching, never under the panel or the top bar, and steady (a name that
+  shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
+  while bodies drift past each other). The name of the body the ship is docked at is on the page
+  already, so it is not shown. Per frame that is a little arithmetic and one `transform` per
+  visible name; layout is read once, when the names are measured.
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
