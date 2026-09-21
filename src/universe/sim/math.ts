@@ -49,3 +49,13 @@ export function smoothstep(edge0: number, edge1: number, value: number): number 
   const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
 }
+
+/**
+ * Ease `current` toward `target` at `ratePerSec`, EXACTLY over `dt` seconds: two half steps land
+ * where one whole step does, so the ease looks the same at any frame rate. After 1 / ratePerSec
+ * seconds about 63% of the gap is closed.
+ */
+export function approach(current: number, target: number, ratePerSec: number, dt: number): number {
+  if (!(ratePerSec > 0) || !(dt > 0)) return current;
+  return target + (current - target) * Math.exp(-ratePerSec * dt);
+}

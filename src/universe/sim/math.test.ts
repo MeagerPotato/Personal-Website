@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { TAU, angleDelta, angleOf, clamp, lerp, pointAt, smoothstep, unitX, unitZ } from './math';
+import {
+  TAU,
+  angleDelta,
+  angleOf,
+  approach,
+  clamp,
+  lerp,
+  pointAt,
+  smoothstep,
+  unitX,
+  unitZ,
+} from './math';
 
 describe('the angle convention', () => {
   it('points along +Z at 0 and along +X after a quarter turn counter-clockwise', () => {
@@ -47,5 +58,22 @@ describe('scalar helpers', () => {
     expect(smoothstep(10, 0, 12)).toBe(0);
     expect(smoothstep(3, 3, 2)).toBe(0);
     expect(smoothstep(3, 3, 3)).toBe(1);
+  });
+});
+
+describe('approach', () => {
+  it('closes about 63% of the gap in 1 / rate seconds, and lands the same however time is cut', () => {
+    expect(approach(0, 10, 4, 0.25)).toBeCloseTo(10 * (1 - Math.exp(-1)), 12);
+
+    let value = 0;
+    for (const dt of [0.016, 0.05, 0.009, 0.075]) value = approach(value, 10, 4, dt);
+    expect(value).toBeCloseTo(approach(0, 10, 4, 0.15), 12);
+  });
+
+  it('never overshoots, and ignores a step that could not mean anything', () => {
+    expect(approach(0, 1, 1000, 10)).toBeLessThanOrEqual(1);
+    expect(approach(3, 9, 0, 1)).toBe(3);
+    expect(approach(3, 9, 5, 0)).toBe(3);
+    expect(approach(3, 9, 5, Number.NaN)).toBe(3);
   });
 });

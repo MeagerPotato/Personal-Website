@@ -100,11 +100,18 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
 | Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
 | Space dust: count, size, brightness, streak length | `tuning.dust` |
+| The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
+| Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
+| How the ship leans, nods and bobs, and how the flame follows the throttle | `tuning.ship` |
+| The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens | `tuning.chaseCam` |
+| How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 
-Two things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
+Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
 procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8
 bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that
-line if you rewrite the shader.
+line if you rewrite the shader. **A big warm glow on navy reads as brown:** the chase camera looks
+down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part cool, and warm
+colours small and high.
 
 ## Accessibility bar (non-negotiable)
 

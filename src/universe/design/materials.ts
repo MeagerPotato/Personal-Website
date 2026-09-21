@@ -8,6 +8,7 @@ import {
   type IUniform,
 } from 'three';
 import { dust } from './shaders/dust';
+import { glow } from './shaders/glow';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
 import { tokens } from './tokens';
@@ -64,6 +65,20 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     defines: options.instancedSun ? { INSTANCED_SUN: '' } : {},
   });
   return material as ToonMaterial;
+}
+
+export type GlowMaterial = ShaderMaterial & { uniforms: { uIntensity: IUniform<number> } };
+
+/** For things that are light themselves (shaders/glow.ts). Colours come from the geometry. */
+export function createGlowMaterial(options: { intensity: number }): GlowMaterial {
+  const material = new ShaderMaterial({
+    name: 'glow',
+    vertexShader: glow.vertexShader,
+    fragmentShader: glow.fragmentShader,
+    uniforms: { uIntensity: { value: options.intensity } },
+    vertexColors: true,
+  });
+  return material as GlowMaterial;
 }
 
 export function createBackdropMaterial(): ShaderMaterial {

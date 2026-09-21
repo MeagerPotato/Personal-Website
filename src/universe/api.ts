@@ -3,8 +3,8 @@
  * from src/universe, and it does so with a dynamic import(), so plain mode never downloads
  * three.js. No top-level side effects here.
  *
- * Phase 0 exposes the lifecycle only. The navigation surface (goTo, undock, setMapOpen,
- * setPanelInset, state, activeDestination) lands in Phase 2; see docs/PLAN.md §5.5.
+ * So far this is the lifecycle and one fact about the pilot. The navigation surface (goTo, undock,
+ * setMapOpen, setPanelInset, state, activeDestination) lands in Phase 2; see docs/PLAN.md §5.5.
  */
 
 import { boot } from './main';
@@ -23,6 +23,8 @@ export interface UniverseOptions {
 export type UniverseEvents = {
   /** The first frame is on screen. */
   ready: undefined;
+  /** The visitor steered for the first time: they know how to fly, so hints can go. */
+  firstinput: undefined;
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
