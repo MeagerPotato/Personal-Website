@@ -160,6 +160,57 @@ describe('Galaxy', () => {
     expect(moonLine?.position.x).toBeCloseTo(node('project/fishai').position.x, 9);
   });
 
+  it('draws everything at its true size while flying, and big enough to see on the star map', () => {
+    const viewer = { position: new Vector3(0, 0, -120) };
+    const moon = manifest.bodies.find((body) => body.id === 'project/fish-onboarding');
+    if (!moon?.orbit) throw new Error('fixture');
+    // Far enough out that the moon circles its planet at 5 px: inside the planet's own disc.
+    const far = moon.orbit.radius / 5;
+    const map = { weight: 0, unitsPerPx: far };
+    const galaxy = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer,
+      reducedMotion: false,
+      map,
+    });
+    const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
+    const row = (id: string): number => galaxy.orbits.indexOf(id);
+
+    galaxy.frameUpdate(frame(1));
+    expect([...galaxy.displayScale]).toEqual(manifest.bodies.map(() => 1));
+    expect(node('project/fish-onboarding').scale.x).toBe(1);
+    expect(galaxy.displayReach).toBe(20); // the sun
+
+    // On the map the sun, a few px across, is brought up to its smallest size...
+    map.weight = 1;
+    galaxy.frameUpdate(frame(2));
+    const sunPx = tuning.map.minRadiusPx.sun;
+    expect(far * sunPx).toBeGreaterThan(20);
+    expect(node('system/code').scale.x).toBeCloseTo((sunPx * far) / 20, 9);
+    expect(galaxy.displayScale[row('system/code')]).toBeCloseTo((sunPx * far) / 20, 9);
+    expect(galaxy.displayReach).toBeCloseTo(sunPx * far, 9);
+    // ...and the moon is not drawn at all, nor is the circle it travels on.
+    expect(galaxy.displayScale[row('project/fish-onboarding')]).toBe(0);
+    expect(node('project/fish-onboarding').visible).toBe(false);
+    expect(galaxy.object.getObjectByName('project/fish-onboarding:orbit')?.visible).toBe(false);
+    expect(galaxy.object.getObjectByName('project/fishai:orbit')?.visible).toBe(true);
+
+    // Close in on the map, there is room for the moon again.
+    map.unitsPerPx = 0.4;
+    galaxy.frameUpdate(frame(3));
+    expect(node('project/fish-onboarding').visible).toBe(true);
+    expect(galaxy.displayScale[row('project/fish-onboarding')]).toBeGreaterThanOrEqual(1);
+
+    // And back in flight, everything is itself.
+    map.weight = 0;
+    galaxy.frameUpdate(frame(4));
+    expect(node('system/code').scale.x).toBe(1);
+    expect(node('project/fish-onboarding').visible).toBe(true);
+    galaxy.dispose();
+  });
+
   it('shows a planet once its mesh exists, and a finer one only while the ship is close', () => {
     const { galaxy, viewer, meshOf, finishJobs } = setup();
     const home = meshOf('page/about');

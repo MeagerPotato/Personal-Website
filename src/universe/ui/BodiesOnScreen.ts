@@ -8,6 +8,8 @@ export interface BodiesOnScreenOptions {
   positions: ArrayLike<number>;
   /** How big every body is, by row. */
   radii: ArrayLike<number>;
+  /** How big every body is DRAWN this frame, as a factor on that, by row (world/Galaxy.ts). */
+  scales?: ArrayLike<number>;
   count: number;
 }
 
@@ -29,7 +31,7 @@ export class BodiesOnScreen implements System {
   }
 
   frameUpdate(): void {
-    const { camera, positions, radii, count } = this.options;
+    const { camera, positions, radii, scales, count } = this.options;
     // The rig has just moved the camera; the renderer would only work this out when it draws.
     camera.updateMatrixWorld();
     this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -42,6 +44,7 @@ export class BodiesOnScreen implements System {
       radii,
       count,
       this.map,
+      scales,
     );
   }
 

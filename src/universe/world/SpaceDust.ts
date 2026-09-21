@@ -65,6 +65,12 @@ export class SpaceDust implements System {
     this.scope.onDispose(() => this.object.removeFromParent());
   }
 
+  /** How much of the dust shows, 0 to 1. None on the star map: from up there it is only noise. */
+  setPresence(presence: number): void {
+    this.object.visible = presence > 0;
+    this.object.material.uniforms.uOpacity.value = tuning.dust.opacity * presence;
+  }
+
   frameUpdate(): void {
     const { uCenter, uVelocity } = this.object.material.uniforms;
     uCenter.value.copy(this.options.viewer.position);

@@ -22,11 +22,32 @@ import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import type { OrbitSubject } from '../camera/OrbitCam';
 import type { ManifestBody, ManifestSystem, UniverseManifest } from '../manifest';
+import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapView';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
 import { createRng } from '../sim/rng';
 import { biomeBands, sunBands, sunLook } from './looks';
 import { PlanetMesh } from './PlanetMesh';
+
+/** How the galaxy is drawn on the star map (`tuning.map`). */
+export interface MapLookParams extends MapScaleParams {
+  /** How much of the sun's shading the map takes out of lit surfaces, 0 to 1. */
+  readonly flatness: number;
+  /** The stars dim to this share of themselves on the map. */
+  readonly starOpacity: number;
+  /** No body looks smaller than this on the map (radius, CSS px), by kind. */
+  readonly minRadiusPx: Readonly<Record<ManifestBody['kind'], number>>;
+  /** The ship is a marker on the map: never smaller than this (half its length, CSS px). */
+  readonly shipRadiusPx: number;
+}
+
+/** What the galaxy needs to know of the star map, each frame (ui/StarMap.ts). */
+export interface MapState {
+  /** How much of the picture is the map's: 0 flying, 1 on the map. */
+  readonly weight: number;
+  /** World units covered by one CSS px on the map. */
+  readonly unitsPerPx: number;
+}
 
 export interface GalaxyOptions {
   manifest: UniverseManifest;
@@ -37,6 +58,8 @@ export interface GalaxyOptions {
   /** Whoever the level of detail follows: the ship. */
   viewer: { readonly position: Readonly<Vector3> };
   reducedMotion: boolean;
+  /** The star map, when there is one: on it, bodies are drawn big enough to see (sim/mapView.ts). */
+  map?: MapState;
 }
 
 interface BodyView {
@@ -51,6 +74,8 @@ interface BodyView {
 
 interface OrbitLine {
   line: LineLoop;
+  /** Row of the body whose path it is. */
+  of: number;
   /** Row of the body it circles, or -1 for a circle around its system's centre. */
   around: number;
   centerX: number;
@@ -81,10 +106,23 @@ export class Galaxy implements System {
   /** Where every body is THIS frame, by row of the orbit table: [x0, z0, x1, z1, ...]. Read only. */
   readonly positions: Float64Array;
 
+  /**
+   * How big every body is DRAWN this frame, as a factor on its true size, by row: 1 while flying,
+   * and on the star map whatever makes it visible, or 0 for one the map has no room for
+   * (sim/mapView.ts). Whoever measures a body on screen must measure with these. Read only.
+   */
+  readonly displayScale: Float64Array;
+
+  /** The biggest any body is drawn this frame (radius, world units): the ship's marker rides above it. */
+  displayReach = 0;
+
   private readonly scope = new Scope();
   private readonly views: BodyView[] = [];
   private readonly lines: OrbitLine[] = [];
   private readonly systems = new Map<string, SystemLook>();
+  private readonly mapBodies: MapBodies & { readonly minRadiusPx: Float64Array };
+  /** What kind of body each row is: its smallest size on the map goes by that. */
+  private readonly kinds: ManifestBody['kind'][];
 
   constructor(private readonly options: GalaxyOptions) {
     const { manifest } = options;
@@ -92,6 +130,16 @@ export class Galaxy implements System {
     this.orbits = options.orbits ?? createOrbitTable(manifest.systems, manifest.bodies);
     this.positions = new Float64Array(this.orbits.count * 2);
     bodyPositions(this.orbits, 0, this.positions);
+    this.displayScale = new Float64Array(this.orbits.count).fill(1);
+    const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+    this.kinds = this.orbits.ids.map((id) => byId.get(id)?.kind ?? 'moon');
+    this.mapBodies = {
+      count: this.orbits.count,
+      parent: this.orbits.parent,
+      orbitRadius: this.orbits.radius,
+      radius: this.orbits.ids.map((id) => byId.get(id)?.radius ?? 0),
+      minRadiusPx: new Float64Array(this.orbits.count),
+    };
 
     const sunMaterial = this.scope.track(
       createGlowMaterial({ intensity: 1, bloom: tuning.world.sunBloom }),
@@ -136,6 +184,15 @@ export class Galaxy implements System {
     // The exact time of this frame, which lies between the last two simulation steps.
     const t = frame.simTime - (1 - frame.alpha) / tuning.loop.stepHz;
     bodyPositions(this.orbits, Math.max(0, t), this.positions);
+    const { map } = this.options;
+    if (map) {
+      // Read every frame the map shows, so that the dev panel's sliders work on it live.
+      if (map.weight > 0) {
+        const sizes = tuning.map.minRadiusPx;
+        this.kinds.forEach((kind, row) => (this.mapBodies.minRadiusPx[row] = sizes[kind]));
+      }
+      displayScales(this.mapBodies, map.unitsPerPx, map.weight, tuning.map, this.displayScale);
+    }
     this.place(frame.dt, this.options.reducedMotion ? 0 : tuning.world.spinRadPerSec * frame.dt);
   }
 
@@ -190,19 +247,28 @@ export class Galaxy implements System {
   }
 
   private place(dt: number, spin: number): void {
-    const { positions } = this;
+    const { positions, displayScale } = this;
     const viewer = this.options.viewer.position;
+    let reach = 0;
     for (const view of this.views) {
       const x = positions[view.index * 2] ?? 0;
       const z = positions[view.index * 2 + 1] ?? 0;
+      const scale = displayScale[view.index] ?? 1;
       view.node.position.set(x, 0, z);
+      view.node.scale.setScalar(scale);
+      // (A scale of nothing at all is a matrix that cannot be undone, which three complains of.)
+      view.node.visible = scale > 1e-4;
+      reach = Math.max(reach, view.body.radius * scale);
       if (view.spinning) view.spinning.rotation.y += spin;
       view.planet?.update(Math.hypot(x - viewer.x, z - viewer.z) / view.body.radius, dt);
     }
+    this.displayReach = reach;
     for (const orbit of this.lines) {
       const x = orbit.around < 0 ? orbit.centerX : (positions[orbit.around * 2] ?? 0);
       const z = orbit.around < 0 ? orbit.centerZ : (positions[orbit.around * 2 + 1] ?? 0);
       orbit.line.position.set(x, 0, z);
+      // The path of a body that the map has no room for would only be a smudge round its parent.
+      orbit.line.visible = (displayScale[orbit.of] ?? 1) > 1e-4;
     }
   }
 
@@ -265,6 +331,7 @@ export class Galaxy implements System {
     this.object.add(line);
     return {
       line,
+      of: this.orbits.indexOf(body.id),
       around: body.parent === null ? -1 : this.orbits.indexOf(body.parent),
       centerX: look.system.position[0],
       centerZ: look.system.position[1],

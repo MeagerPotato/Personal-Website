@@ -33,7 +33,9 @@ export function createScreenMap(capacity: number): ScreenMap {
  *
  * `viewProjection` is projection x view, column-major (three's `Matrix4.elements`). `focal` is
  * element 5 of the PROJECTION matrix: how many half-view-heights a unit spans at a distance of one
- * unit. `positions` is [x0, z0, x1, z1, ...] in world units, `radii` likewise by row.
+ * unit. `positions` is [x0, z0, x1, z1, ...] in world units, `radii` likewise by row. `scales`,
+ * when given, is how big each body is DRAWN as a factor on its radius (the star map draws small
+ * bodies big, and some not at all: sim/mapView.ts), and a body is measured as it is drawn.
  */
 export function projectBodies(
   viewProjection: ArrayLike<number>,
@@ -44,6 +46,7 @@ export function projectBodies(
   radii: ArrayLike<number>,
   count: number,
   out: ScreenMap,
+  scales?: ArrayLike<number>,
 ): ScreenMap {
   const m = viewProjection;
   const rows = Math.min(count, out.x.length);
@@ -63,7 +66,7 @@ export function projectBodies(
     const cy = (m[1] ?? 0) * x + (m[9] ?? 0) * z + (m[13] ?? 0);
     out.x[i] = (cx / cw / 2 + 0.5) * width;
     out.y[i] = (0.5 - cy / cw / 2) * height;
-    out.radius[i] = ((radii[i] ?? 0) * focal * height) / 2 / cw;
+    out.radius[i] = ((radii[i] ?? 0) * (scales?.[i] ?? 1) * focal * height) / 2 / cw;
   }
   return out;
 }

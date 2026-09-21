@@ -1,5 +1,6 @@
 import type { RigParams } from '../camera/CameraRig';
 import type { ChaseCamParams } from '../camera/ChaseCam';
+import type { MapCamParams } from '../camera/MapCam';
 import type { CruiseParams } from '../sim/autopilot';
 import type { OrbitCamParams } from '../camera/OrbitCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
@@ -16,6 +17,8 @@ import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 import type { LabelsParams } from '../ui/Labels';
 import type { PickerParams } from '../ui/Picker';
+import type { StarMapParams } from '../ui/StarMap';
+import type { MapLookParams } from '../world/Galaxy';
 
 /**
  * TUNING: every number that shapes how the universe FEELS. Engine timings are in seconds,
@@ -367,7 +370,62 @@ export const tuning = {
     dockBlendSec: 1.2,
     /** 1/s. How quickly the view slides over when the panel opens, closes or changes size. */
     insetOmega: 7,
+    /**
+     * The depth range follows the camera out to the map: nothing is drawn nearer than nearShare of
+     * the distance to what the camera looks at, and the far end is at least farShare times that
+     * distance. Never tighter than `camera.near` and `camera.far` below, which is what flying gets.
+     */
+    nearShare: 0.02,
+    farShare: 2,
   } satisfies RigParams & { dockBlendSec: number },
+
+  /**
+   * THE STAR MAP (ui/StarMap.ts, camera/MapCam.ts, sim/mapView.ts): the galaxy from straight
+   * above, north up. M, the Map button or scrolling out opens it; pointing at a body flies there.
+   */
+  map: {
+    /** A long lens from far away, so that a planet at the edge is as round as one in the middle. */
+    fovDegrees: 12,
+    /** Seconds from the flight view up to the map, and back down. A cut under reduced motion. */
+    blendSec: 0.9,
+    /**
+     * How close and how far the map zooms: world units across the SHORTER side of the free view.
+     * It opens on everything, with fitMargin times the room everything needs (and may go past
+     * spanMax for that, once the galaxy has outgrown it).
+     */
+    spanMin: 400,
+    spanMax: 7000,
+    fitMargin: 1.3,
+    /** 1/s. How quickly the map settles after a step of the wheel or a key. */
+    viewOmega: 12,
+    /** Each CSS px of wheel zooms by e to this power: 0.0015 is about 16% a notch. */
+    wheelZoomPerPx: 0.0015,
+    /** Scrolling OUT this far (CSS px) in one go, while flying, opens the map: one firm notch. */
+    wheelOpenPx: 100,
+    /** The arrow keys move the map this fast (CSS px per second); + and - zoom by keyZoomStep. */
+    keyPanPxPerSec: 700,
+    keyZoomStep: 1.4,
+
+    /**
+     * HOW THE MAP LOOKS. `flatness`: how much of the sun's shading is taken out of every lit
+     * surface, 0 (as in flight) to 1 (flat discs of pure token colour, Mini Motorways style).
+     */
+    flatness: 1,
+    /** The stars dim to this share of themselves, and the dust is put away: a map is a calm thing. */
+    starOpacity: 0.3,
+    /**
+     * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
+     * pixels per hundred units, and a planet at its true size would be a speck.
+     */
+    minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4 },
+    /**
+     * A body that circles another shows once their two discs are apart, and is full size once they
+     * are this far apart (CSS px): from far out a system is its sun, and its moons come last.
+     */
+    clearPx: 4,
+    /** The ship is a marker: never shorter than twice this (CSS px). */
+    shipRadiusPx: 9,
+  } satisfies StarMapParams & MapCamParams & MapLookParams,
 
   /**
    * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many

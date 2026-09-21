@@ -1022,8 +1022,18 @@ picture {
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* A mouse over a planet that can be flown to (universe/ui/Picker.ts). */
-  #universe-host canvas[data-pick] {
+  /* The star map is a thing to take hold of and drag (universe/ui/StarMap.ts)... */
+  #universe-host canvas[data-map] {
+    cursor: grab;
+  }
+
+  #universe-host canvas[data-map][data-dragging] {
+    cursor: grabbing;
+  }
+
+  /* ...and, there as in flight, a mouse over a planet can fly to it (universe/ui/Picker.ts). */
+  #universe-host canvas[data-pick],
+  #universe-host canvas[data-map][data-pick]:not([data-dragging]) {
     cursor: pointer;
   }
 
@@ -1165,7 +1175,8 @@ picture {
     html[data-mode='universe'][data-engine='ready'][data-panel='closed']
       .flight-hint:not([hidden]) {
       top: calc(env(safe-area-inset-top) + 6.75rem);
-      right: max(var(--space-4), env(safe-area-inset-right));
+      /* The Map button (below) has the corner beside it. */
+      right: calc(max(var(--space-4), env(safe-area-inset-right)) + 4.25rem + var(--space-3));
       bottom: auto;
       left: max(var(--space-4), env(safe-area-inset-left));
       max-width: none;
@@ -1189,6 +1200,11 @@ picture {
 
   html[data-motion='reduced'] .flight-hint {
     animation: none;
+  }
+
+  /* How to fly is no help on the map, where the same keys move the map. */
+  html[data-map] .flight-hint {
+    visibility: hidden;
   }
 
   /*
@@ -1373,6 +1389,61 @@ picture {
 
   html[data-motion='reduced'] .dock-prompt {
     animation: none;
+  }
+
+  /*
+   * The Map button (universe/ui/StarMap.ts): "Map" while flying, "Close map" on the map. Top
+   * right of the free view, just under the links of the top bar, whose reach the shell measures
+   * (--panel-inset-top, src/shell/panel-inset.ts); the fallback is the bar on a wide screen.
+   */
+  .map-toggle {
+    position: absolute;
+    top: calc(var(--panel-inset-top, 4rem) + var(--space-3));
+    right: max(var(--space-6), env(safe-area-inset-right));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem; /* 44 px touch target */
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink-mid);
+    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .map-toggle:hover,
+  .map-toggle[data-state='open'] {
+    color: var(--color-ink-high);
+    border-color: var(--color-ink-low);
+  }
+
+  .map-toggle kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 var(--space-1);
+    border: 1px solid var(--color-ink-low);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-mid);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+
+  @media (pointer: coarse) {
+    /* A finger has no M key. */
+    .map-toggle kbd {
+      display: none;
+    }
+
+    .map-toggle {
+      right: max(var(--space-4), env(safe-area-inset-right));
+    }
   }
 
   html[data-mode='universe'] .page {

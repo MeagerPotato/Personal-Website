@@ -6,8 +6,7 @@
  * Commands go down as method calls (`goTo`, `undock`), facts come up as events (`docked`,
  * `undocked`, `statechange`), and both sides are IDEMPOTENT: the visitor may dock from inside the
  * world and the router then follows, or the route may change and the ship then follows, and
- * being told what one already knows is never an error. The map (setMapOpen) lands in Phase 3; see
- * docs/PLAN.md §5.5.
+ * being told what one already knows is never an error. See docs/PLAN.md §5.5.
  */
 
 import { EventBus } from './core/events';
@@ -103,6 +102,8 @@ export type UniverseEvents = {
    * this API, so the web layer already knows.
    */
   undocked: { id: string; by: 'pilot' | 'asked' };
+  /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
+  map: { open: boolean };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -125,6 +126,13 @@ export interface Universe {
   goTo(id: string, options?: { mode?: 'fly' | 'instant' }): Promise<'arrived' | 'cancelled'>;
   /** Let go of whatever the ship is docked at or headed for. */
   undock(): void;
+  /** Is the star map open (or on its way to being)? */
+  readonly mapOpen: boolean;
+  /**
+   * Open or close the star map: the galaxy from above, where pointing at a body flies there. It
+   * is only another way of LOOKING: the ship carries on with whatever it was doing.
+   */
+  setMapOpen(open: boolean): void;
   /**
    * Where everything is, as plain data that survives JSON: hand it back as `start.snapshot` and
    * the next universe in this tab carries on from here (a reload, a full page load). Null only
@@ -136,8 +144,9 @@ export interface Universe {
    * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
    * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
    *
-   * `top` is how far down the page's top bar reaches. The camera does not care (the bar is a
-   * strip of sky with words on it, not a wall), but the names over the bodies keep clear of it.
+   * `top` is how far down the page's top bar reaches. A flying camera does not care (the bar is
+   * a strip of sky with words on it, not a wall), but the names over the bodies keep clear of it,
+   * and so does the star map.
    */
   setPanelInset(
     inset: { top?: number; right?: number; bottom?: number },
@@ -175,6 +184,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let last: Snapshot | null = null;
   /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
   let inset: ViewInset = {};
+  /** Likewise the map: a rebuilt engine opens on what the visitor was looking at. */
+  let mapOpen = false;
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
   let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
 
@@ -235,6 +246,11 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       // The navigator's events are a subset of the universe's, name for name and shape for shape.
       events.emit(event, payload as UniverseEvents[K]);
     },
+    onMap: (open: boolean): void => {
+      if (open === mapOpen) return;
+      mapOpen = open;
+      events.emit('map', { open });
+    },
     onContextLost: (): void => {
       if (disposed || !current) return;
       const snapshot = (last = current.snapshot());
@@ -253,6 +269,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     try {
       current = boot(options, hooks, { tier, forced }, snapshot);
       current.setInset(inset, true);
+      current.setMapOpen(mapOpen, true);
       current.engine.setPaused(paused);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -307,6 +324,10 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       });
     },
     undock: () => current?.navigator.release('asked'),
+    get mapOpen(): boolean {
+      return mapOpen;
+    },
+    setMapOpen: (open) => current?.setMapOpen(open, false),
     snapshot: () => current?.snapshot() ?? last,
     setPanelInset: (next, { cut = false } = {}) => {
       inset = { ...next };

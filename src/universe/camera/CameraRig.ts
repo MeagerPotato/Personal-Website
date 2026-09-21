@@ -1,6 +1,6 @@
-import { Quaternion, Vector3, type PerspectiveCamera } from 'three';
+import { Euler, Quaternion, Vector3, type PerspectiveCamera } from 'three';
 import type { Frame, System, Viewport } from '../core/Engine';
-import { clamp } from '../sim/math';
+import { angleDelta, clamp, TAU } from '../sim/math';
 import { createSpring, snapSpring, stepSpring } from '../sim/spring';
 
 /**
@@ -34,7 +34,7 @@ export interface ViewShape {
   readonly freeHeight: number;
 }
 
-/** One way of looking at the world: chase, orbit; map and cinematic later. */
+/** One way of looking at the world: chase, orbit, map; cinematic later. */
 export interface CameraMode {
   /** Fill `out` for this frame. */
   update(frame: Frame, view: ViewShape, out: Pose): void;
@@ -49,19 +49,52 @@ export interface CameraMode {
 export interface RigParams {
   /** 1/s: how quickly the view slides over when the panel opens, closes or changes size. */
   readonly insetOmega: number;
+  /**
+   * The depth range follows the camera out. From the map, thousands of units up, the range that
+   * suits a chase camera (half a unit to twelve thousand) would leave the depth buffer a few units
+   * coarse: nothing is drawn nearer than this share of the distance to what the camera looks at,
+   * and the far end is at least this many times that distance. Never tighter than the camera's own.
+   */
+  readonly nearShare: number;
+  readonly farShare: number;
+}
+
+/** The depth range a camera was made with, and how it may stretch (RigParams). */
+export interface DepthRange {
+  readonly near: number;
+  readonly far: number;
+  readonly nearShare: number;
+  readonly farShare: number;
+}
+
+/**
+ * Which way round a blend turns, remembered from frame to frame. Two views that face nearly
+ * opposite ways can be turned into each other either way round, and while both keep moving the
+ * shorter way may change sides: a blend that followed it would flip the picture over in one frame.
+ * So a blend makes up its mind once, and then stays with the turn nearest to its last one.
+ */
+export interface Turn {
+  /** Radians round the vertical, from the old view to the new one. NaN: not decided yet. */
+  yaw: number;
 }
 
 const BACK = new Vector3();
-const TURN = new Quaternion();
+// Yaw first, then pitch, then roll: the order in which a camera on a tripod is turned.
+const FROM = new Euler(0, 0, 0, 'YXZ');
+const TO = new Euler(0, 0, 0, 'YXZ');
 
-export function applyPose(camera: PerspectiveCamera, pose: Pose): void {
+export function applyPose(camera: PerspectiveCamera, pose: Pose, depth?: DepthRange): void {
   camera.quaternion.copy(pose.quaternion);
   // A camera looks down its own -Z, so it stands `distance` along its +Z from what it looks at.
   camera.position
     .copy(pose.focus)
     .add(BACK.set(0, 0, pose.distance).applyQuaternion(pose.quaternion));
-  if (camera.fov !== pose.fov) {
+  const near = depth ? Math.max(depth.near, pose.distance * depth.nearShare) : camera.near;
+  const far = depth ? Math.max(depth.far, pose.distance * depth.farShare) : camera.far;
+  if (camera.fov !== pose.fov || camera.near !== near || camera.far !== far) {
     camera.fov = pose.fov;
+    camera.near = near;
+    camera.far = far;
     camera.updateProjectionMatrix();
   }
 }
@@ -72,12 +105,43 @@ export function easeBlend(t: number): number {
   return x * x * x * (x * (x * 6 - 15) + 10);
 }
 
-/** `out` may be `from` or `to`: the rig mixes in place. */
-export function mixPose(from: Pose, to: Pose, k: number, out: Pose): Pose {
-  out.focus.lerpVectors(from.focus, to.focus, k);
-  // Not straight into `out`: slerpQuaternions starts by overwriting its target with `from`.
-  out.quaternion.copy(TURN.slerpQuaternions(from.quaternion, to.quaternion, k));
-  out.distance = from.distance + (to.distance - from.distance) * k;
+/**
+ * `out` may be `from` or `to`: the rig mixes in place.
+ *
+ * Distance mixes BY RATIO: from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u,
+ * not 3,000, so pulling out looks like one steady zoom instead of a leap followed by a crawl. And
+ * what is looked at moves over in step with the distance actually covered, so it travels while
+ * the view is wide and a long way is a few pixels: the ship stays in the picture all the way out
+ * to the map, and comes back into the middle before the camera closes in on it.
+ *
+ * The turn mixes as a TRIPOD turns: so much round, so much down. Every camera here is level, and
+ * halfway between two level views must be level too; the shortest turn between them (a slerp) is
+ * not, it tips the horizon on the way, and the further round it has to go the more.
+ */
+export function mixPose(from: Pose, to: Pose, k: number, out: Pose, turn?: Turn): Pose {
+  const near = Math.max(from.distance, 1e-6);
+  const far = Math.max(to.distance, 1e-6);
+  const distance = near * Math.pow(far / near, k);
+  const apart = far - near;
+  const covered = Math.abs(apart) > 1e-6 * Math.max(near, far) ? (distance - near) / apart : k;
+  out.focus.lerpVectors(from.focus, to.focus, covered);
+  // (Read both before writing either: `out` may be one of them.)
+  FROM.setFromQuaternion(from.quaternion, 'YXZ');
+  TO.setFromQuaternion(to.quaternion, 'YXZ');
+  let yaw = angleDelta(FROM.y, TO.y);
+  if (turn) {
+    if (Number.isFinite(turn.yaw)) yaw += TAU * Math.round((turn.yaw - yaw) / TAU);
+    turn.yaw = yaw;
+  }
+  out.quaternion.setFromEuler(
+    FROM.set(
+      FROM.x + (TO.x - FROM.x) * k,
+      FROM.y + yaw * k,
+      FROM.z + angleDelta(FROM.z, TO.z) * k,
+      'YXZ',
+    ),
+  );
+  out.distance = distance;
   out.fov = from.fov + (to.fov - from.fov) * k;
   return out;
 }
@@ -105,6 +169,7 @@ export class CameraRig implements System {
   private readonly frozen = createPose();
   private progress = 1;
   private blendSec = 0;
+  private readonly turn: Turn = { yaw: Number.NaN };
 
   private width = 1;
   private height = 1;
@@ -115,6 +180,7 @@ export class CameraRig implements System {
   private offsetX = 0;
   private offsetY = 0;
   private readonly view = { aspect: 1, freeWidth: 1, freeHeight: 1 };
+  private readonly depth: DepthRange;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -122,6 +188,17 @@ export class CameraRig implements System {
     private readonly params: RigParams,
   ) {
     this.mode = initial;
+    const { near, far } = camera;
+    this.depth = {
+      near,
+      far,
+      get nearShare() {
+        return params.nearShare;
+      },
+      get farShare() {
+        return params.farShare;
+      },
+    };
   }
 
   /** The mode in charge (or on its way to being). */
@@ -147,6 +224,7 @@ export class CameraRig implements System {
       // view carries on from exactly where it is.
       this.from = this.mode;
       this.progress = 1 - this.progress;
+      this.turn.yaw = -this.turn.yaw;
     } else {
       if (this.progress < 1) {
         // A third mode cuts into a blend: start from the picture as it is, held still.
@@ -156,6 +234,7 @@ export class CameraRig implements System {
         this.from = this.mode;
       }
       this.progress = 0;
+      this.turn.yaw = Number.NaN;
     }
     this.blendSec = blendSec;
     this.mode = mode;
@@ -171,6 +250,9 @@ export class CameraRig implements System {
     if (cut) {
       snapSpring(this.insetRight, this.wantRight);
       snapSpring(this.insetBottom, this.wantBottom);
+      // Whoever asks for the shape of the view before the next frame (the star map, fitting the
+      // galaxy into it) must hear of a cut at once.
+      this.slide(0);
     }
   }
 
@@ -185,10 +267,10 @@ export class CameraRig implements System {
         this.from.update(frame, this.view, this.other);
         source = this.other;
       }
-      mixPose(source, this.pose, easeBlend(this.progress), this.pose);
+      mixPose(source, this.pose, easeBlend(this.progress), this.pose, this.turn);
       if (this.progress >= 1) this.from = null;
     }
-    applyPose(this.camera, this.pose);
+    applyPose(this.camera, this.pose, this.depth);
   }
 
   resize(viewport: Viewport): void {
@@ -201,7 +283,9 @@ export class CameraRig implements System {
   }
 
   dispose(): void {
-    // Owns nothing: the camera is the engine's.
+    // Owns nothing: the camera is the engine's, and gets back the depth range it came with.
+    this.camera.near = this.depth.near;
+    this.camera.far = this.depth.far;
     this.camera.clearViewOffset();
   }
 

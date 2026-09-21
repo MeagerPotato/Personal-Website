@@ -18,6 +18,7 @@ export class InputSystem implements System {
 
   private readonly sources: InputSource[] = [];
   private sawInput = false;
+  private enabled = true;
 
   /** `onFirstInput` fires once, the first time the pilot asks for anything. */
   constructor(private readonly onFirstInput: () => void = () => undefined) {}
@@ -27,10 +28,21 @@ export class InputSystem implements System {
     return source;
   }
 
+  /**
+   * Hands off the ship: while the star map is open, the keys and the fingers that fly are busy
+   * moving the map. The pilot then wants nothing, which is not the same as the ship standing
+   * still: an autopilot, or an orbit, carries on. (A replay flies on regardless.)
+   */
+  setEnabled(enabled: boolean): void {
+    if (enabled === this.enabled) return;
+    this.enabled = enabled;
+    for (const source of this.sources) source.setEnabled?.(enabled);
+  }
+
   fixedUpdate(): void {
     clearIntent(this.current);
     if (this.override) this.override.read(this.current);
-    else for (const source of this.sources) source.read(this.current);
+    else if (this.enabled) for (const source of this.sources) source.read(this.current);
 
     if (!this.sawInput && isSteering(this.current)) {
       this.sawInput = true;

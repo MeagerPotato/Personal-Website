@@ -34,6 +34,9 @@ export class TouchControls implements InputSource {
   private originY = 0;
   private deflectX = 0;
   private deflectY = 0;
+  private enabled = true;
+  /** A finger has touched the world: from then on boost can be found (while flying). */
+  private touched = false;
   private readonly padArea: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(
@@ -69,6 +72,13 @@ export class TouchControls implements InputSource {
     addIntent(out, this.intent.thrust, this.intent.turn, this.intent.brake, this.boosting.size > 0);
   }
 
+  /** Off: fingers on the world are somebody else's (the star map), and stick and pad are put away. */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled) this.releaseAll();
+    this.pad.hidden = !(enabled && this.touched);
+  }
+
   /**
    * Where the boost pad is on the page, or null until a finger has brought it out. A name under
    * a thumb that is boosting would be pressed by accident: names keep off it (ui/Labels.ts).
@@ -92,7 +102,9 @@ export class TouchControls implements InputSource {
 
   private readonly onCanvasDown = (event: PointerEvent): void => {
     if (event.pointerType === 'mouse') return;
-    this.pad.hidden = false; // a finger exists: from now on boost can be found
+    this.touched = true; // a finger exists: from now on boost can be found
+    if (!this.enabled) return;
+    this.pad.hidden = false;
     this.canvas.setPointerCapture?.(event.pointerId);
 
     if (this.stickPointer === null) {

@@ -13,7 +13,8 @@
  *   uSunPosition  world position of the light            uShadowTint  linear multiplier for shade
  *   uTint         linear colour, multiplies vertex colour uBandEdges   facing thresholds (x < y)
  *   uMidLevel     how lit the middle band is, 0..1      uBloomMask   shared: 1 while post-processing
- *                                                       reads alpha as the bloom guest list
+ *   uFlatness     shared: how much of the shading is    reads alpha as the bloom guest list
+ *                 taken out, 0..1 (the star map: 1 is a flat disc of pure colour)
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
  *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies).
  */
@@ -24,6 +25,7 @@ export const toonFlat = {
     uniform vec3 uTint;
     uniform vec2 uBandEdges;
     uniform float uMidLevel;
+    uniform float uFlatness;
 
     #ifdef INSTANCED_SUN
       attribute vec3 aSunPosition;
@@ -47,6 +49,8 @@ export const toonFlat = {
       #endif
       float facing = dot(worldNormal, normalize(sun - worldPosition.xyz));
       float level = facing > uBandEdges.y ? 1.0 : (facing > uBandEdges.x ? uMidLevel : 0.0);
+      // On the star map every facet is lit: a map shows what is where, not what time of day it is.
+      level = mix(level, 1.0, uFlatness);
 
       vec3 base = uTint;
       #ifdef USE_COLOR

@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { Euler, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Frame } from '../core/Engine';
 import {
@@ -13,7 +13,7 @@ import {
 } from './CameraRig';
 
 const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
-const PARAMS: RigParams = { insetOmega: 7 };
+const PARAMS: RigParams = { insetOmega: 7, nearShare: 0.02, farShare: 2 };
 const UP = new Vector3(0, 1, 0);
 
 /** A camera mode that looks at a point which may move, from a fixed side. */
@@ -95,7 +95,10 @@ describe('mixPose', () => {
       return pose;
     };
     const apart = mixPose(make(0, 0, 10, 50), make(8, 1, 30, 40), 0.25, createPose());
-    expect(apart.focus.x).toBeCloseTo(2, 12);
+    // Distance mixes by ratio, and the focus goes as far as the distance has: see below.
+    const distance = 10 * 3 ** 0.25;
+    const focus = (8 * (distance - 10)) / 20;
+    expect(apart.focus.x).toBeCloseTo(focus, 12);
     expect(apart.quaternion.angleTo(new Quaternion())).toBeCloseTo(0.25, 9);
 
     const to = make(8, 1, 30, 40);
@@ -103,12 +106,119 @@ describe('mixPose', () => {
     const from = make(0, 0, 10, 50);
     mixPose(from, make(8, 1, 30, 40), 0.25, from);
     for (const mixed of [to, from]) {
-      expect(mixed.focus.x).toBeCloseTo(2, 12);
+      expect(mixed.focus.x).toBeCloseTo(focus, 12);
       // (acos near 1 is only good to about 1e-8.)
       expect(mixed.quaternion.angleTo(apart.quaternion)).toBeCloseTo(0, 6);
-      expect(mixed.distance).toBeCloseTo(15, 12);
+      expect(mixed.distance).toBeCloseTo(distance, 12);
       expect(mixed.fov).toBeCloseTo(47.5, 12);
     }
+  });
+
+  it('pulls out by ratio, and keeps what it leaves in the picture all the way', () => {
+    // From just behind the ship to high above the middle of the galaxy, 600 u away from it.
+    const chase = createPose();
+    chase.distance = 25;
+    chase.fov = 55;
+    const map = createPose();
+    map.focus.set(600, 0, 0);
+    map.distance = 6000;
+    map.fov = 12;
+
+    const halfway = mixPose(chase, map, 0.5, createPose());
+    expect(halfway.distance).toBeCloseTo(Math.sqrt(25 * 6000), 9);
+    // The same either way round: turning back mid-blend carries on from where the view is.
+    const back = mixPose(map, chase, 0.5, createPose());
+    expect(back.distance).toBeCloseTo(halfway.distance, 9);
+    expect(back.focus.x).toBeCloseTo(halfway.focus.x, 9);
+
+    let last = 0;
+    for (let k = 0; k <= 1.0001; k += 0.02) {
+      const pose = mixPose(chase, map, Math.min(1, k), createPose());
+      // How far the ship (at the origin) is from the middle of the view, in half-view-heights:
+      // never further than it ends up on the map, so it never leaves the picture on the way.
+      const halfTall = pose.distance * Math.tan((pose.fov / 2) * (Math.PI / 180));
+      const off = pose.focus.x / halfTall;
+      expect(off).toBeGreaterThanOrEqual(last - 1e-9);
+      expect(off).toBeLessThan(1);
+      last = off;
+    }
+  });
+
+  it('turns like a tripod: the horizon stays level however far round it has to go', () => {
+    const level = (yaw: number, pitch: number): Pose => {
+      const pose = createPose();
+      pose.quaternion.setFromEuler(new Euler(pitch, yaw, 0, 'YXZ'));
+      return pose;
+    };
+    // Behind a ship flying "south", and the star map: straight down, north up, half a turn away.
+    const chase = level(0.2, -0.17);
+    const map = level(0.2 + 3, -Math.PI / 2);
+    const read = new Euler(0, 0, 0, 'YXZ');
+    for (const k of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      read.setFromQuaternion(mixPose(chase, map, k, createPose()).quaternion, 'YXZ');
+      expect(read.z).toBeCloseTo(0, 9);
+      expect(read.y).toBeCloseTo(0.2 + 3 * k, 9);
+      // (Straight down is where reading an angle back is least exact: a few billionths.)
+      expect(read.x).toBeCloseTo(-0.17 + (-Math.PI / 2 + 0.17) * k, 7);
+    }
+    // The short way round, across the seam at +-PI.
+    read.setFromQuaternion(mixPose(level(3, 0), level(-3, 0), 0.5, createPose()).quaternion, 'YXZ');
+    expect(Math.abs(read.y)).toBeCloseTo(Math.PI, 9);
+    // And the ends are the ends, exactly enough.
+    expect(mixPose(chase, map, 0, createPose()).quaternion.angleTo(chase.quaternion)).toBeLessThan(
+      1e-7,
+    );
+    expect(mixPose(chase, map, 1, createPose()).quaternion.angleTo(map.quaternion)).toBeLessThan(
+      1e-7,
+    );
+  });
+
+  it('mixes what is looked at evenly when the distance does not change', () => {
+    const a = createPose();
+    a.distance = 40;
+    const b = createPose();
+    b.focus.set(10, 0, 0);
+    b.distance = 40;
+    expect(mixPose(a, b, 0.3, createPose()).focus.x).toBeCloseTo(3, 12);
+  });
+});
+
+describe('the shape of the view', () => {
+  it('knows of a panel that was cut to at once, not only with the next frame', () => {
+    const { rig } = rigWith(new Looking(0, 0, 10, 50));
+    rig.setInset({ right: 320 });
+    expect(rig.shape.freeWidth).toBe(1);
+    rig.setInset({ right: 320 }, true);
+    expect(rig.shape.freeWidth).toBeCloseTo(0.75, 9);
+  });
+});
+
+describe('the depth range', () => {
+  it("is the camera's own while flying, and follows the camera out to the map", () => {
+    const near = new Looking(0, 0, 20, 50);
+    const high = new Looking(0, 0, 6000, 12);
+    const camera = new PerspectiveCamera(50, 1.6, 0.5, 12000);
+    const rig = new CameraRig(camera, near, PARAMS);
+    rig.resize({ width: 1280, height: 800, pixelRatio: 1 });
+    rig.frameUpdate(frame(1 / 60));
+    expect([camera.near, camera.far]).toEqual([0.5, 12000]);
+
+    rig.use(high, 0);
+    rig.frameUpdate(frame(1 / 60));
+    expect(camera.near).toBeCloseTo(120, 9);
+    expect(camera.far).toBe(12000);
+    // What the projection says, not only the fields: the matrix was rebuilt.
+    const m = camera.projectionMatrix.elements;
+    expect(m[10]).toBeCloseTo(-(12000 + 120) / (12000 - 120), 9);
+
+    // From further out still, the far end goes along.
+    const higher = new Looking(0, 0, 40000, 12);
+    rig.use(higher, 0);
+    rig.frameUpdate(frame(1 / 60));
+    expect(camera.far).toBe(80000);
+
+    rig.dispose();
+    expect([camera.near, camera.far]).toEqual([0.5, 12000]);
   });
 });
 
@@ -170,6 +280,43 @@ describe('the camera rig, changing modes', () => {
     for (let i = 0; i < 18; i += 1) rig.frameUpdate(frame(1 / 60));
     expect(camera.fov).toBeCloseTo(50, 6);
     expect(camera.position.distanceTo(new Vector3(0, 0, 10))).toBeLessThan(1e-6);
+  });
+
+  it('makes up its mind which way round to turn, and does not change it halfway', () => {
+    // A view that keeps turning, like the one behind a ship that flies a curve.
+    class Turning extends Looking {
+      yaw = 0;
+      override update(step: Frame, view: ViewShape, out: Pose): void {
+        this.quaternion.setFromAxisAngle(UP, this.yaw);
+        super.update(step, view, out);
+      }
+    }
+    const yawOf = (camera: PerspectiveCamera): number =>
+      new Euler(0, 0, 0, 'YXZ').setFromQuaternion(camera.quaternion, 'YXZ').y;
+
+    const a = new Turning(0, 0, 10, 50);
+    const b = new Looking(0, 3, 10, 50);
+    const { camera, rig } = rigWith(a);
+    rig.frameUpdate(frame(0));
+    rig.use(b, 1);
+    // Just short of half a turn apart, and the shorter way round is the one through +.
+    rig.frameUpdate(frame(0.4));
+    const before = yawOf(camera);
+    expect(before).toBeGreaterThan(0);
+    // Now the old view turns a little further away: the shorter way round is the OTHER one.
+    a.yaw = -0.3;
+    rig.frameUpdate(frame(0.01));
+    // The picture moves by that little, and does not flip over to the far side.
+    expect(Math.abs(yawOf(camera) - before)).toBeLessThan(0.3);
+
+    // Turning back halfway still carries on from exactly where the view is.
+    const held = yawOf(camera);
+    rig.use(a, 1);
+    rig.frameUpdate(frame(0));
+    expect(yawOf(camera)).toBeCloseTo(held, 9);
+    // And it arrives, the long way round or not, where the view it goes to is.
+    rig.frameUpdate(frame(2));
+    expect(yawOf(camera)).toBeCloseTo(-0.3, 9);
   });
 
   it('lets a third view cut into a blend, starting from the picture as it is', () => {

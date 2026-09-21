@@ -19,6 +19,7 @@ export class Rocket {
 
   private readonly tilt = new Group();
   private readonly material: ToonMaterial;
+  private raised = 0;
 
   constructor(assets: AssetStore, scope: Scope) {
     this.material = scope.track(createToonMaterial({ vertexColors: true }));
@@ -36,8 +37,18 @@ export class Rocket {
 
   place(position: Readonly<Vector3>, heading: number): void {
     this.object.position.copy(position);
+    this.object.position.y += this.raised;
     // The universe's angle convention IS three's rotation.y (sim/types.ts).
     this.object.rotation.y = heading;
+  }
+
+  /**
+   * The ship as a MARKER (the star map): drawn `scale` times its size, `raised` units above the
+   * flight plane so that it lies on top of whatever it is beside. Looks only, like the lean.
+   */
+  mark(scale: number, raised: number): void {
+    this.object.scale.setScalar(scale);
+    this.raised = raised;
   }
 
   /** `bank` > 0 rolls the LEFT wing up; `pitch` > 0 drops the nose; `lift` raises the model. */

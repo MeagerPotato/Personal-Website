@@ -57,15 +57,15 @@ export function barReach(
 }
 
 /**
- * The same inset for the stylesheet, as two custom properties on <html>: the engine's own DOM (the
- * dock prompt) keeps to the free part of the viewport too, or a bottom sheet would cover it.
- * `null` takes them away again.
+ * The same inset for the stylesheet, as custom properties on <html>: the engine's own DOM keeps to
+ * the free part of the viewport too (or a bottom sheet would cover the dock prompt), and below the
+ * links of the top bar (the Map button sits right under them). `null` takes them away again.
  */
 export function mirrorInset(
   root: { style: Pick<CSSStyleDeclaration, 'setProperty' | 'removeProperty'> },
   inset: PanelInset | null,
 ): void {
-  for (const side of ['right', 'bottom'] as const) {
+  for (const side of ['top', 'right', 'bottom'] as const) {
     const name = `--panel-inset-${side}`;
     if (inset) root.style.setProperty(name, `${inset[side]}px`);
     else root.style.removeProperty(name);

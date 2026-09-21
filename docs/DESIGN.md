@@ -89,7 +89,11 @@ Both are styled from `src/styles/global.css`: base rules are plain mode,
 Decided so far: no three.js lights (one custom flat-toon shader with a per-system sun direction),
 sRGB output with no tone mapping, bloom only on emissive things, labels are real DOM buttons, the
 map view is the same perspective camera at a very narrow field of view (so nothing pops), planets
-flatten to discs in map mode, motorway lanes are rounded and colour-coded by system.
+flatten to discs in map mode, motorway lanes are rounded and colour-coded by system. **The map
+exists** (first pass): shading goes flat, stars dim and hold still, every body is drawn at least a
+few pixels big and a moon only once there is room beside its planet, the ship is a marker. How it
+should LOOK (the flatness, the sizes, what fills the empty navy, a sun that still reads as a sun
+on a tier with no bloom) is A2's.
 A2 decides: shading band positions and softness, biome colour bands, starfield density and size,
 backdrop treatment, post-processing amounts, the look of map mode and of the lanes.
 
@@ -124,6 +128,9 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The autopilot (a click on a planet or a nav link flies the ship there): how fast it cruises between systems (`far`) and inside one (`near`), how hard it speeds up and brakes, how slowly it passes close to a body (`keepOutSpeed`) and how quickly that opens up with room (`openSpaceGain`), how wide it swings round bodies (`keepOut`, `path.clearance`), how far ahead it looks | `tuning.cruise` |
 | Pointing at a planet: how small a target may be for a mouse and for a finger, how small a body can look and still be picked, what still counts as a tap | `tuning.picking` (the cursor over a planet: `#universe-host canvas[data-pick]` in `src/styles/global.css`) |
 | The names over the bodies: type, colour, the dot on the one the ship is headed for (`data-state='target'`), how systems, planets and moons differ (`data-kind`), how they fade in and out (`data-shown`) | `.body-label` in `src/styles/global.css` |
+| The star map (`M`, the Map button, or scroll out): the lens, how long the way out takes, how far in and out it zooms and how much air the first fit leaves, how quickly pans and zooms settle, wheel and key speeds, how far a wheel must turn to open it | `tuning.map` |
+| The LOOK of the map: how flat the shading goes (`flatness`), how far the stars dim (`starOpacity`), the smallest size of each kind of body in px (`minRadiusPx`), how much room a moon needs beside its planet before it is drawn (`clearPx`), the size of the ship's marker (`shipRadiusPx`) | `tuning.map` (what flat MEANS: `uFlatness` in `shaders/toonFlat.ts`) |
+| The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
 | Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once | `tuning.labels` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre | `.dock-prompt` in `src/styles/global.css` |
@@ -132,7 +139,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.map`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on
