@@ -2,7 +2,7 @@
 // validate any replacement for the page shell (docs/PLAN.md §5.1, "exit insurance").
 //
 //   1. dist/_headers exists and its CSP placeholder was filled
-//   2. the dev-only /lab page did not leak into production
+//   2. nothing dev-only leaked into production: the /lab page, the live tuning panel (lil-gui)
 //   3. every internal link and asset reference resolves, and page links end with "/"; every
 //      page names a link-preview image (og:image) that is absolute, on this site, and exists
 //   4. PLAIN-MODE PURITY: no page can reach three.js through static imports. The engine must
@@ -75,8 +75,16 @@ if (!sitePaths.has('/_headers')) {
   }
 }
 
-// 2 --- dev-only pages ----------------------------------------------------------------------
+// 2 --- dev-only things ---------------------------------------------------------------------
 if (existsSync(resolve(DIST, 'lab'))) errors.push('dist/lab exists: the dev-only /lab page leaked');
+
+// The tuning panel is imported behind `import.meta.env.DEV`, which a production build removes.
+// lil-gui names its CSS classes after itself, and those strings survive minification.
+for (const file of files.filter((name) => name.endsWith('.js'))) {
+  if ((await readFile(file, 'utf8')).includes('lil-gui')) {
+    errors.push(`${sitePathOf(file)} contains lil-gui: the dev-only tuning panel leaked`);
+  }
+}
 
 // 3 --- links ---------------------------------------------------------------------------------
 const pagePathOf = (file) => sitePathOf(file).replace(/(^|\/)index\.html$/, '$1');

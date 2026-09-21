@@ -103,6 +103,11 @@ export class Engine {
     this.resizeObserver.observe(options.mount);
   }
 
+  /** True once dispose() ran: late arrivals (a lazy chunk) must not add themselves any more. */
+  get isDisposed(): boolean {
+    return this.disposed;
+  }
+
   add<T extends System>(system: T): T {
     this.systems.push(system);
     system.resize?.(this.viewport);

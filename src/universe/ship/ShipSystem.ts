@@ -85,8 +85,13 @@ export class ShipSystem implements System {
 
   /** Put the ship somewhere at rest, with no in-between frame (spawning, deep links). */
   placeAt(x: number, z: number, heading: number): void {
-    copyShipState(createShipState(x, z, heading), this.current);
-    copyShipState(this.current, this.previous);
+    this.restore(createShipState(x, z, heading));
+  }
+
+  /** Put the ship into an exact state, speed and spin included (replays, later snapshots). */
+  restore(state: Readonly<ShipState>): void {
+    copyShipState(state, this.current);
+    copyShipState(state, this.previous);
   }
 
   fixedUpdate(dt: number): void {

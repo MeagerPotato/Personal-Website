@@ -38,6 +38,12 @@ const toonLook = {
   uMidLevel: { value: tuning.shading.midLevel },
 };
 
+/** Re-read the look constants after tuning changed at run time (the dev panel). */
+export function refreshToonLook(): void {
+  toonLook.uBandEdges.value.set(...tuning.shading.bandEdges);
+  toonLook.uMidLevel.value = tuning.shading.midLevel;
+}
+
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
   vertexColors?: boolean;

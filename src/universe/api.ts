@@ -18,6 +18,11 @@ export interface UniverseOptions {
    * everything AMBIENT is calmed: no twinkle, no sky drift, and later no camera flourishes.
    */
   reducedMotion?: boolean;
+  /**
+   * `perf`: a small frame-rate readout, in every build (for phones on a preview URL).
+   * `tweak`: the live tuning panel. Development only; ignored in a production build.
+   */
+  debug?: { perf?: boolean; tweak?: boolean };
 }
 
 export type UniverseEvents = {
