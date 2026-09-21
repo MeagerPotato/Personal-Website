@@ -5,6 +5,7 @@
 import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
+import { startAnnouncer } from './announcer';
 import { readDestinations } from './destinations';
 import { startFollowing, type Following } from './follow';
 import { startHints } from './hints';
@@ -29,6 +30,7 @@ let stopInset: (() => void) | undefined;
 let stopKeeping: (() => void) | undefined;
 let following: Following | undefined;
 let stopHints: (() => void) | undefined;
+let stopAnnouncer: (() => void) | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -53,6 +55,8 @@ function fallBackToPlain(reason: string): void {
   following = undefined;
   stopHints?.();
   stopHints = undefined;
+  stopAnnouncer?.();
+  stopAnnouncer = undefined;
   mirrorInset(root, null);
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
@@ -138,6 +142,14 @@ export async function start(): Promise<void> {
         universe: created,
         storage: () => localStorage,
         panelClosed: () => root.dataset.panel === 'closed',
+      });
+    }
+    const status = document.querySelector<HTMLElement>('[data-announcer]');
+    if (status) {
+      stopAnnouncer = startAnnouncer({
+        element: status,
+        universe: created,
+        titleOf: destinations.titleOf,
       });
     }
     stopKeeping = keepSnapshot(

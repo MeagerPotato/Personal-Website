@@ -260,6 +260,12 @@ under a bottom sheet.
   pointer and hides it while the panel is open). It goes for good once they have steered
   (`firstinput`), set out for somewhere from the open sky, or pressed "Got it"; a journey that
   began with a link does not count, because that visitor was reading.
+- **What the ship does, said aloud** (`shell/announcer.ts`). One polite `role="status"` region,
+  in the layout from the start and empty, because a screen reader listens to the regions it found
+  when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI." or "Stopped.", and
+  that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
+  link, a cut under reduced motion), nor about leaving: there a page opens or closes, the focus
+  moves, and the heading says it better.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
   DOCKED: a page opened on a body boots in orbit round it (`start.at`), placed before the first
   step, so the state machine is never in `flight`, nothing flies and the camera cuts. The URL
@@ -318,7 +324,7 @@ under a bottom sheet.
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
-  history rules, the panel, the swap contract.
+  history rules, the panel, the swap contract, the hint card, the announcer.
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
