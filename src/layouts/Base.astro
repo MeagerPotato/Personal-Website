@@ -1,0 +1,72 @@
+---
+// The one page skeleton. Markup only ("thin Astro", docs/PLAN.md §5.1): no client logic here.
+//
+// The same <main> is the whole page in plain mode and the info panel in universe mode. Which one
+// you get is decided by html[data-mode], set before first paint by src/shell/mode.inline.js.
+import Head from '../components/Head.astro';
+import { site } from '../config/site';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Pages that must never boot the engine (the 404). */
+  plainOnly?: boolean;
+  noindex?: boolean;
+}
+
+const { title, description, plainOnly = false, noindex = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang={site.locale} data-plain-only={plainOnly ? '' : undefined}>
+  <head>
+    <Head title={title} description={description} noindex={noindex} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
+
+    <!-- The engine mounts its own canvas in here (universe mode only). Decorative: the content
+         below is complete without it. -->
+    <div id="universe-host" aria-hidden="true"></div>
+
+    <div class="page">
+      <header class="masthead">
+        <a class="wordmark" href="/">
+          {site.name}
+        </a>
+      </header>
+
+      <main id="main" tabindex="-1">
+        <slot />
+      </main>
+
+      <footer class="footer">
+        <p class="notice notice--engine-failed" role="status">
+          The 3D view could not start on this device, so you are seeing the plain version.
+          Everything is still here.
+        </p>
+        <p class="notice notice--reduced-motion">
+          Your device asks for reduced motion, so you are seeing the calm version.
+          <a href="?universe" data-router-ignore>
+            Launch the starfield anyway
+          </a>
+        </p>
+        <nav class="mode-links" aria-label="Viewing mode">
+          <a class="mode-link mode-link--to-plain" href="?plain" data-router-ignore>
+            Plain version
+          </a>
+          <a class="mode-link mode-link--to-universe" href="?universe" data-router-ignore>
+            Launch the starfield
+          </a>
+        </nav>
+      </footer>
+    </div>
+
+    <script>
+      import '../shell/boot';
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+# build output and caches
+dist/
+.astro/
+.wrangler/
+coverage/
+node_modules/
+package-lock.json
+
+# Prose is never formatted by a machine: copy and doc edits must not fail CI on whitespace.
+**/*.md
+src/content/
+
+# Shipped byte-for-byte as the inline mode script (its hash is in the CSP).
+src/shell/mode.inline.js
+
+# Generated into dist/_headers; column layout is meaningful.
+config/headers.template
