@@ -44,6 +44,49 @@ export const tuning = {
     /** Whole-sky drift, radians per second. Off under reduced motion. */
     driftRadPerSec: 0.004,
   },
+
+  /**
+   * Where things sit. Read at BUILD time by data/layout.ts, which bakes positions into
+   * /universe.json: changing a value here rearranges the galaxy on the next build.
+   */
+  layout: {
+    /** Systems sit on a sunflower spiral: slot k is slotDistance * sqrt(k) out, k golden angles round. */
+    slotDistance: 1000,
+    goldenAngleDeg: 137.5,
+    /** Each system is nudged off its slot by up to this much, seeded by its id, so the spiral never looks mechanical. */
+    slotJitter: 100,
+
+    sunRadius: 20,
+    /** Nothing orbits closer to a sun's surface than this (the autopilot's keep-out, plus headroom). */
+    sunClearance: 25,
+    /** Radius by the `planet.size` a project chooses. Moons are projects too, just smaller. */
+    planetRadius: { s: 5, m: 8, l: 12 },
+    moonRadius: { s: 1.2, m: 1.8, l: 2.5 },
+    /** Docking orbit around a body of radius R: R + max(dockMin, dockScale * R). */
+    dockMin: 6,
+    dockScale: 0.9,
+
+    /** The first ring is at least this far from the sun's centre; rings then clear each other by orbitGap. */
+    orbitStart: 60,
+    orbitGap: 8,
+    /** Moons (and the home system's station and satellite) pack tighter than planets do. */
+    moonGap: 4,
+    /** Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the build. */
+    maxSystemRadius: 380,
+    minSystemGap: 150,
+    /** Orbital period in seconds: periodAtStartSec * (r / orbitStart) ^ periodExponent. */
+    periodAtStartSec: 240,
+    periodExponent: 1.5,
+
+    /** The home system has no sun: the home planet sits at its centre and the rest orbits it. */
+    home: {
+      theme: 'butter',
+      biome: 'terra',
+      planetRadius: 14,
+      stationRadius: 2.2,
+      satelliteRadius: 1.6,
+    },
+  },
 } as const;
 
 export type Tuning = typeof tuning;

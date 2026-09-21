@@ -46,6 +46,18 @@ export const tokens = {
       sky: { base: '#9ac4ee', light: '#cbe0f7', shade: '#6c9bcb' },
       lilac: { base: '#c3b0f0', light: '#e0d6f8', shade: '#9886c9' },
     },
+    /**
+     * Planet surfaces, lowest altitude to highest: sea, shore, low, high, peak. A project picks one
+     * by name in its frontmatter (`planet.biome`). First-pass values; Astra's A2 pass refines them.
+     */
+    biome: {
+      terra: { sea: '#7fb0dd', shore: '#f3e3b3', low: '#a8d8a0', high: '#7dbb8a', peak: '#f4f1ea' },
+      tide: { sea: '#6c9bcb', shore: '#9ed9c1', low: '#cdeee1', high: '#f3d88a', peak: '#f9ebbf' },
+      dune: { sea: '#c98f6b', shore: '#e0b184', low: '#f0cd9a', high: '#f6deb4', peak: '#fbeed2' },
+      frost: { sea: '#8fb8e0', shore: '#b9d6f0', low: '#d9e9f7', high: '#eef5fb', peak: '#ffffff' },
+      ember: { sea: '#f2a097', shore: '#c8766f', low: '#8a6a78', high: '#6f5a6e', peak: '#f9cdc7' },
+      bloom: { sea: '#9886c9', shore: '#c3b0f0', low: '#e0d6f8', high: '#f9cdc7', peak: '#fff1d6' },
+    },
     /** Interactive text and the keyboard focus ring. */
     accent: '#9ac4ee',
     focus: '#f3d88a',
@@ -107,3 +119,7 @@ export type Tokens = typeof tokens;
 /** Colour families a solar system can choose in its frontmatter (`theme:`). */
 export type ThemeKey = keyof Tokens['color']['system'];
 export const THEME_KEYS = Object.keys(tokens.color.system) as [ThemeKey, ...ThemeKey[]];
+
+/** Planet surface palettes a project can choose in its frontmatter (`planet.biome`). */
+export type BiomeKey = keyof Tokens['color']['biome'];
+export const BIOME_KEYS = Object.keys(tokens.color.biome) as [BiomeKey, ...BiomeKey[]];
