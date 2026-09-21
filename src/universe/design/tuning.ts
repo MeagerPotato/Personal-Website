@@ -1,10 +1,13 @@
+import type { FlightParams } from '../sim/types';
+
 /**
  * TUNING: every number that shapes how the universe FEELS. Engine timings are in seconds,
  * distances in world units (1 u is about 1 m at toy scale).
  *
  * DESIGN SURFACE (docs/PLAN.md §5.6): values are free to change; shapes are owned by the logic
- * that consumes them (from Phase 1 each block is checked with `satisfies <Params>`, so an edit
- * that breaks a contract is a type error, not a runtime surprise).
+ * that consumes them. A block that ends in `satisfies <Params>` is checked against that logic's
+ * contract, so an edit that breaks it is a type error, not a runtime surprise. (Type imports
+ * only: tuning never imports logic.)
  */
 export const tuning = {
   /**
@@ -18,6 +21,26 @@ export const tuning = {
     /** Past this many steps in one frame the backlog is dropped: the world runs slow instead. */
     maxStepsPerFrame: 5,
   },
+
+  /**
+   * How the ship flies (sim/flight.ts). Top speed is thrustAccel / forwardDrag = 42.5 u/s, and
+   * boostFactor times that with boost, about 81 u/s.
+   */
+  flight: {
+    thrustAccel: 34,
+    boostFactor: 1.9,
+    /** 1/s. Also how quickly the ship coasts to a stop: about 1/forwardDrag seconds. */
+    forwardDrag: 0.8,
+    brakeDrag: 2.5,
+    /** 1/s. Higher = goes where it points; lower = drifts through turns. */
+    lateralGrip: 4,
+    /** rad/s. Nimble at a standstill, wider at speed. */
+    yawRateSlow: 2.6,
+    yawRateFast: 1.5,
+    yawRateFastSpeed: 80,
+    /** Seconds for the turn rate to follow the stick. Below 0.08 feels twitchy, above 0.2 heavy. */
+    yawResponseSec: 0.12,
+  } satisfies FlightParams,
 
   viewport: {
     /** Pixels are the budget on phones. Cap the ratio AND the absolute pixel count. */
