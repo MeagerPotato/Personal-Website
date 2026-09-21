@@ -283,11 +283,25 @@ under a bottom sheet.
   no `TODO(copy)` in `dist/`.
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries
   still bite, the build scripts work, and no phone number or private address is in the repo.
-- **Real browsers.** `npm run preview` serves `dist/` the way Cloudflare will (headers, CSP, 404).
-  Looks and feel are judged there and on real phones; a number in a test cannot say whether
-  flying is fun.
+- **Real browsers, by machine** (`npm run e2e`, Playwright, `tests/e2e`): Chromium, WebKit and a
+  phone-sized Chromium drive the real build behind `wrangler dev`, so the headers and the CSP are
+  under test too (over HTTPS: the CSP says `upgrade-insecure-requests`, and WebKit honours that
+  even on a loopback address). What they hold: a soft navigation ends in the page a fresh load
+  builds, for every page; Back, Forward, Close and Escape; scroll restored per entry; focus on
+  the heading, also with reduced motion; the canvas and its GL context after fifty navigations;
+  a newer deploy or a dead network means a normal page load; plain mode asks for one script and
+  never for the galaxy; no JavaScript, reduced motion, a GPU that gives no context, the 404;
+  pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card; axe
+  with no serious issue on any page in either mode; nothing scrolls sideways at 360 and 320 px,
+  and every control is 44 px. They fly for real, on whatever renders (a CI runner has no GPU and
+  draws on its CPU), so they wait for outcomes, never for seconds.
+- **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
+  CSP, 404). Looks and feel are judged there and on real phones; a number in a test cannot say
+  whether flying is fun.
 
-`npm run verify` runs all of it and is what CI runs. Run it before every commit.
+`npm run verify` runs everything but the browsers and is the required check. Run it before every
+commit. The browsers run in a second CI job that is allowed to be slow and is not required: a red
+run there is a reason to look, not a locked door.
 
 ## 9. Tools for looking inside
 

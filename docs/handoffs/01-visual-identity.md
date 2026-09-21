@@ -107,6 +107,13 @@ modes. Pages worth checking: `/`, `/about/`, `/projects/`, `/projects/fishai/`,
 `/contact/`, and `/nope/` (the 404, plain only). The hint card shows once per browser: run
 `localStorage.removeItem('hints')` in the console to see it again.
 
+Your PR also gets a second check, `e2e`: real browsers (Chromium, WebKit, a phone-sized Chromium)
+measure several lines of the checklist below on the built site: nothing scrolls sideways at 360
+and 320 px, every control is at least 44 px, axe finds no serious issue in either mode, keyboard
+focus lands where it should. It is not required for merging, but a red `e2e` after a restyle
+almost certainly means one of those broke: read its report (an artifact of the run). To run it
+yourself: `npx playwright install chromium webkit` once, then `npm run e2e` (slow; optional).
+
 ## Acceptance checklist (copy into the PR description and tick)
 
 - [ ] Text contrast is at least WCAG AA (4.5:1 body, 3:1 large text) on every surface it sits on,

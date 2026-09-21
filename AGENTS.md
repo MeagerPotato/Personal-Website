@@ -80,6 +80,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run build` | asset checks → `astro build` → `dist/_headers` with CSP hashes |
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
+| `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no
@@ -219,6 +220,11 @@ simulation then does, and reports it as events, delivered with the frame. Both d
 or the route may change and the ship follows, and telling either side what it already knows is
 never an error. Interactive DOM made by the engine (the prompt, later the labels) goes into
 `#universe-overlay`, never into `#universe-host`, which is hidden from assistive technology.
+
+**Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
+`./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
+attributes on `<html>`, wait for outcomes and never for a number of seconds, and point at moving
+things with `pointAt` (a planet's name never holds still for Playwright's own click).
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for
