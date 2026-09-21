@@ -7,28 +7,51 @@ import { navCurrent, type NavItem } from '../site/nav';
 
 const PAGE_HEAD = 'data-page-head';
 
-const isShared = (node: Node): node is Element =>
-  node.nodeType === 1 && !(node as Element).hasAttribute(PAGE_HEAD);
+const isElement = (node: Node): node is Element => node.nodeType === 1;
+const isPerPage = (node: Node): boolean => isElement(node) && node.hasAttribute(PAGE_HEAD);
 
-const staticHeadNodes = (doc: Document): Element[] => [...doc.head.childNodes].filter(isShared);
+/** Head elements that are not per-page, in order: ours, plus anything a browser extension added. */
+const candidates = (doc: Document): Element[] =>
+  [...doc.head.childNodes].filter(isElement).filter((node) => !isPerPage(node));
 
 /**
- * The <head> cut at its shared elements: runs[i] is everything that sits before shared[i] (the
- * per-page elements, and the whitespace between them), and the last run is whatever follows the
- * last shared element.
+ * The elements of the CURRENT head that are the fetched page's shared elements, matched in order
+ * by their markup (the build guarantees shared nodes are byte-identical on every page). Null when
+ * one is missing: a real difference.
+ *
+ * Whatever else sits in the current head is FOREIGN: a dark-mode extension's <style>, a password
+ * manager's <meta>. A fresh load would carry it too, so it is never counted, moved or removed.
+ * Without this, one extension would turn every soft navigation into a full page load.
  */
-function headRuns(doc: Document): { shared: Element[]; runs: ChildNode[][] } {
-  const shared: Element[] = [];
+function matchShared(current: Document, next: Document): Element[] | null {
+  const pool = candidates(current);
+  const matched: Element[] = [];
+  let from = 0;
+  for (const wanted of candidates(next)) {
+    const markup = wanted.outerHTML;
+    let index = from;
+    while (index < pool.length && pool[index]?.outerHTML !== markup) index += 1;
+    const found = pool[index];
+    if (!found) return null;
+    matched.push(found);
+    from = index + 1;
+  }
+  return matched;
+}
+
+/**
+ * A <head> cut at its shared elements: runs[i] is everything that sits before shared[i] (the
+ * per-page elements, and the whitespace between them), and the last run is whatever follows the
+ * last shared element. Foreign elements belong to no run, so they stay where they are.
+ */
+function headRuns(doc: Document, shared: readonly Element[]): ChildNode[][] {
+  const cuts = new Set<Node>(shared);
   const runs: ChildNode[][] = [[]];
   for (const node of [...doc.head.childNodes]) {
-    if (isShared(node)) {
-      shared.push(node);
-      runs.push([]);
-    } else {
-      runs[runs.length - 1]?.push(node);
-    }
+    if (cuts.has(node)) runs.push([]);
+    else if (!isElement(node) || isPerPage(node)) runs[runs.length - 1]?.push(node);
   }
-  return { shared, runs };
+  return runs;
 }
 
 const buildOf = (doc: Document): string | null =>
@@ -43,7 +66,7 @@ export function swapBlocker(current: Document, next: Document): string | null {
   if (next.documentElement.hasAttribute('data-plain-only')) return 'plain-only page';
   // A deploy happened while this tab was open: the new HTML may expect new CSS and scripts.
   if (buildOf(current) !== buildOf(next)) return 'different build';
-  if (staticHeadNodes(current).length !== staticHeadNodes(next).length) return 'different <head>';
+  if (!matchShared(current, next)) return 'different <head>';
   return null;
 }
 
@@ -53,12 +76,14 @@ export function swapBlocker(current: Document, next: Document): string | null {
  * re-created: re-inserting a stylesheet would reload it. Only the runs BETWEEN them are replaced.
  */
 export function swapHead(current: Document, next: Document): void {
-  const here = headRuns(current);
-  const there = headRuns(next);
-  there.runs.forEach((run, index) => {
-    for (const stale of here.runs[index] ?? []) stale.remove();
+  const shared = matchShared(current, next);
+  if (!shared) return; // swapBlocker() said so already; never half-swap a head we do not know
+  const here = headRuns(current, shared);
+  const there = headRuns(next, candidates(next));
+  there.forEach((run, index) => {
+    for (const stale of here[index] ?? []) stale.remove();
     const fresh = run.map((node) => current.importNode(node, true));
-    const before = here.shared[index];
+    const before = shared[index];
     if (before) before.before(...fresh);
     else current.head.append(...fresh);
   });
@@ -89,5 +114,10 @@ export function markCurrentNav(doc: Document, items: readonly NavItem[], pathnam
 export function focusHeading(doc: Document): void {
   // The markup already carries tabindex="-1" (components/PageHeader.astro), so focusing changes
   // no attribute and the DOM stays identical to a fresh load of the same page.
+  //
+  // Not while the panel is closed (src/shell/panel.ts): its text is sliding out of sight, and
+  // focus inside it would be stranded in an invisible place a moment later. The panel hands
+  // focus to its own button instead.
+  if (doc.documentElement.dataset.panel === 'closed') return;
   doc.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true });
 }

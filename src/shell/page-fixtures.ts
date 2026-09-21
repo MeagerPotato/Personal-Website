@@ -40,13 +40,19 @@ export const headHtml = (page: TestPage): string =>
 
 export const bodyHtml = (page: TestPage): string =>
   [
+    '<a class="skip-link" href="#main">Skip to content</a>',
     '<div id="universe-host"><canvas></canvas></div>',
     '<header class="masthead"><a class="wordmark" href="/">Allen</a>',
     '<nav class="site-nav"><ul>',
     navLink('/about/', 'About', page),
     navLink('/projects/', 'Projects', page),
-    '</ul></nav></header>',
-    `<main id="main" tabindex="-1">${page.main}</main>`,
+    '</ul></nav>',
+    '<button type="button" data-panel-toggle aria-expanded="false">About this site</button>',
+    '</header>',
+    '<div class="panel"><div class="panel-bar">',
+    '<button type="button" data-panel-resize aria-pressed="false">Expand</button>',
+    '<button type="button" data-panel-close>Close</button></div>',
+    `<main id="main" tabindex="-1" data-flight-keys="off">${page.main}</main></div>`,
     '<footer><a href="?plain" data-router-ignore>Plain version</a></footer>',
   ].join('');
 

@@ -124,7 +124,6 @@ body {
 }
 
 main {
-  align-self: start;
   min-width: 0;
   outline: none;
 }
@@ -880,50 +879,244 @@ picture {
   padding-block: var(--space-3);
 }
 
-/* 2. Universe mode ------------------------------------------------------------------------ */
+/* 2. Universe mode ------------------------------------------------------------------------
+   The 3D world fills the window. The masthead becomes the HUD's top bar, and the page's content
+   becomes a PANEL over the world: a side panel on wide screens, a bottom sheet on narrow ones.
+   Whether the panel shows is html[data-panel], set by src/shell/panel.ts; before that script
+   runs, the home page (which marks itself with data-home) starts closed, so nothing flashes.
+   Screen only: on paper every page is the plain layout. */
 
-html[data-mode='universe'] body {
-  background: var(--color-space-900);
+.panel {
+  align-self: start;
+  min-width: 0;
 }
 
-html[data-mode='universe'] #universe-host {
-  display: block;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  opacity: 0;
-  transition: opacity var(--motion-slow) var(--motion-ease-out);
+.panel-bar,
+.panel-toggle {
+  display: none;
 }
 
-html[data-mode='universe'][data-engine='ready'] #universe-host {
-  opacity: 1;
-}
+@media screen {
+  html[data-mode='universe'],
+  html[data-mode='universe'] body {
+    height: 100%;
+    /* The panel scrolls; the document never does, or the world would slide under the HUD. */
+    overflow: hidden;
+  }
 
-#universe-host canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
+  html[data-mode='universe'] body {
+    min-height: 0;
+    background: var(--color-space-900);
+  }
 
-html[data-mode='universe'] .page {
-  position: relative;
-  z-index: 1;
-}
+  html[data-mode='universe'] #universe-host {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity var(--motion-slow) var(--motion-ease-out);
+  }
 
-/* The same <main> becomes a panel floating over the scene. */
-html[data-mode='universe'] main {
-  padding: var(--space-8);
-  border: 1px solid var(--color-surface-line);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface-panel) 84%, transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-}
+  html[data-mode='universe'][data-engine='ready'] #universe-host {
+    opacity: 1;
+  }
 
-html[data-mode='universe'] .links li,
-html[data-mode='universe'] .card,
-html[data-mode='universe'] .facts {
-  background: color-mix(in srgb, var(--color-surface-raised) 70%, transparent);
+  #universe-host canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* Touches on the world steer the ship; they must never scroll or zoom the page. */
+    touch-action: none;
+  }
+
+  html[data-mode='universe'] .page {
+    display: block;
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+  }
+
+  /* The HUD's top bar. Only its controls take clicks: the gaps between them belong to the world. */
+  html[data-mode='universe'] .masthead {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 3;
+    padding: max(var(--space-2), env(safe-area-inset-top))
+      max(var(--space-6), env(safe-area-inset-right)) var(--space-6)
+      max(var(--space-6), env(safe-area-inset-left));
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-space-950) 72%, transparent),
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  html[data-mode='universe'] .masthead > * {
+    pointer-events: auto;
+  }
+
+  html[data-mode='universe'] .site-nav {
+    margin-left: auto;
+  }
+
+  .panel-button {
+    min-height: 2.75rem; /* 44 px touch target */
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink-mid);
+    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .panel-button:hover {
+    color: var(--color-ink-high);
+    border-color: var(--color-ink-low);
+  }
+
+  /* The home page's welcome text waits behind this button; every other page IS an open panel. */
+  html[data-mode='universe'][data-panel-home] .panel-toggle {
+    display: inline-block;
+    margin-left: var(--space-4);
+  }
+
+  html[data-mode='universe'] .panel {
+    /* A narrow column at any window size: pin the fluid type scale to its narrow end. */
+    --text-xs: var(--text-narrow-xs);
+    --text-sm: var(--text-narrow-sm);
+    --text-base: var(--text-narrow-base);
+    --text-lg: var(--text-narrow-lg);
+    --text-xl: var(--text-narrow-xl);
+    --text-display: var(--text-narrow-display);
+
+    position: fixed;
+    z-index: 2;
+    /* Not "start" (the plain layout's value): on a positioned box that means "shrink to the
+       content and ignore bottom", and the panel would be as tall as its text. */
+    align-self: stretch;
+    top: 4.75rem;
+    right: max(var(--space-4), env(safe-area-inset-right));
+    bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    width: min(30rem, calc(100vw - 2 * var(--space-4)));
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    font-size: var(--text-base);
+    transition:
+      transform var(--motion-slow) var(--motion-ease-out),
+      visibility 0s;
+  }
+
+  html[data-mode='universe'] .panel-bar {
+    display: flex;
+    flex: none;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) 0;
+  }
+
+  /* Expanding only means something for the bottom sheet. */
+  html[data-mode='universe'] [data-panel-resize] {
+    display: none;
+  }
+
+  html[data-mode='universe'] main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-2) var(--space-6) var(--space-8);
+  }
+
+  html[data-mode='universe'][data-panel='closed'] .panel,
+  html[data-mode='universe']:not([data-panel]) .panel:has([data-home]) {
+    transform: translateX(calc(100% + var(--space-8)));
+    visibility: hidden;
+    transition:
+      transform var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  html[data-mode='universe'] .links li,
+  html[data-mode='universe'] .card,
+  html[data-mode='universe'] .facts {
+    background: color-mix(in srgb, var(--color-surface-raised) 70%, transparent);
+  }
+
+  /* What is left of the footer is the way out to the plain version: a corner of the HUD. */
+  html[data-mode='universe'] .footer {
+    position: fixed;
+    z-index: 1;
+    left: max(var(--space-6), env(safe-area-inset-left));
+    bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* Narrow screens: the panel is a sheet that rises from the bottom edge. */
+  @media (max-width: 47.99rem) {
+    html[data-mode='universe'] .masthead {
+      padding-inline: max(var(--space-4), env(safe-area-inset-left))
+        max(var(--space-4), env(safe-area-inset-right));
+    }
+
+    /* Two rows: the wordmark and the welcome button, then the nav across the full width. */
+    html[data-mode='universe'] .panel-toggle {
+      margin-left: auto;
+    }
+
+    html[data-mode='universe'] .site-nav {
+      flex-basis: 100%;
+      margin-left: 0;
+    }
+
+    html[data-mode='universe'] .site-nav ul {
+      justify-content: space-between;
+    }
+
+    html[data-mode='universe'] .panel {
+      top: auto;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      width: auto;
+      height: 58svh;
+      border-width: 1px 0 0;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      transition:
+        transform var(--motion-slow) var(--motion-ease-out),
+        height var(--motion-base) var(--motion-ease-out),
+        visibility 0s;
+    }
+
+    html[data-mode='universe'][data-panel-size='full'] .panel {
+      height: calc(100svh - 4.5rem);
+    }
+
+    html[data-mode='universe'] [data-panel-resize] {
+      display: inline-block;
+    }
+
+    html[data-mode='universe'] main {
+      padding-inline: var(--space-4);
+      padding-bottom: max(var(--space-8), env(safe-area-inset-bottom));
+    }
+
+    html[data-mode='universe'][data-panel='closed'] .panel,
+    html[data-mode='universe']:not([data-panel]) .panel:has([data-home]) {
+      transform: translateY(calc(100% + var(--space-4)));
+    }
+  }
 }
 
 /* 3. Mode-dependent notices and links ------------------------------------------------------- */
