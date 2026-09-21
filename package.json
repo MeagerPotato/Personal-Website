@@ -1,0 +1,45 @@
+{
+  "name": "allenkh-com",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "allenkh.com: a space-themed personal site you fly through. Astro shell + vanilla three.js engine.",
+  "engines": {
+    "node": ">=24.16 <25"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "node scripts/check-assets.mjs && astro build && node scripts/postbuild.mjs",
+    "preview": "wrangler dev",
+    "check": "astro check",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "verify": "npm run format:check && npm run lint && npm run check && npm run test && npm run build && node scripts/verify-dist.mjs"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.3.3",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.6",
+    "@types/three": "^0.186.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^3.2.1",
+    "eslint-plugin-jsx-a11y-x": "^0.2.0",
+    "globals": "^17.12.0",
+    "happy-dom": "^20.14.5",
+    "prettier": "^3.9.8",
+    "prettier-plugin-astro": "^1.0.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1",
+    "wrangler": "^4.135.0"
+  }
+}
