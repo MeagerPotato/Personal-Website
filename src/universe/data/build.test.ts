@@ -119,6 +119,18 @@ describe('buildUniverse', () => {
     });
   });
 
+  it('shows the projects index from the sun of the first system, when there is one', () => {
+    expect(buildUniverse(v01()).alsoAt).toEqual({});
+    const listed = v01({
+      systems: [system('rocketry', 2), system('code', 1)],
+      projectsHref: '/projects/',
+    });
+    expect(buildUniverse(listed).alsoAt).toEqual({ '/projects/': 'system/code' });
+    expect(
+      buildUniverse(v01({ systems: [], projects: [], projectsHref: '/projects/' })).alsoAt,
+    ).toEqual({});
+  });
+
   it('never lets two docking orbits overlap, and keeps everything clear of the sun', () => {
     const manifest = buildUniverse(
       v01({

@@ -12,12 +12,13 @@
 
 import { EventBus } from './core/events';
 import { isTier, lowerTier, startingTier, type QualityTier } from './core/quality/tiers';
-import { RebuildBudget, type Snapshot } from './core/snapshot';
+import { RebuildBudget, startingFrom, type Snapshot, type StartOptions } from './core/snapshot';
 import { boot, type Booted } from './main';
 import { FLIGHT, type AppState } from './state/appMachine';
 import type { NavigatorEvents } from './state/Navigator';
 
 export type { QualityTier } from './core/quality/tiers';
+export type { StartOptions } from './core/snapshot';
 export type { AppMode, AppState } from './state/appMachine';
 
 /**
@@ -61,6 +62,11 @@ export interface UniverseOptions {
    * everything AMBIENT is calmed: no twinkle, no sky drift, and later no camera flourishes.
    */
   reducedMotion?: boolean;
+  /**
+   * Where the visit starts: in orbit round the body whose page is open (`at`), and with the world
+   * as an earlier `snapshot()` from this tab left it. Neither: at the spawn point, in open sky.
+   */
+  start?: StartOptions;
   /** Force a quality tier (`?q=`). The engine then neither probes nor demotes. */
   quality?: QualityTier;
   /**
@@ -119,6 +125,12 @@ export interface Universe {
   /** Let go of whatever the ship is docked at or headed for. */
   undock(): void;
   /**
+   * Where everything is, as plain data that survives JSON: hand it back as `start.snapshot` and
+   * the next universe in this tab carries on from here (a reload, a full page load). Null only
+   * when there is nothing to tell.
+   */
+  snapshot(): unknown;
+  /**
    * How much of the viewport the info panel covers, in CSS pixels from the right and from the
    * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
    * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
@@ -152,6 +164,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let announcedInput = false;
   let current: Booted | null = null;
   let waiting: (() => void) | null = null;
+  /** What the engine knew when it was last taken down: the answer to `snapshot()` until it is back. */
+  let last: Snapshot | null = null;
   /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
   let inset: { right?: number; bottom?: number } = {};
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
@@ -193,7 +207,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       const lower = lowerTier(tier);
       if (disposed || !current || !lower) return;
       // A tier decides what kind of canvas there is, so a new tier is a new engine.
-      const snapshot = current.snapshot();
+      const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
       tier = lower;
@@ -216,7 +230,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     },
     onContextLost: (): void => {
       if (disposed || !current) return;
-      const snapshot = current.snapshot();
+      const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
       if (!budget.spend(performance.now())) {
@@ -257,7 +271,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     document.addEventListener('visibilitychange', onChange);
   }
 
-  current = boot(options, hooks, { tier, forced }, null);
+  const start = startingFrom(options.start);
+  current = boot(options, hooks, { tier, forced }, start.snapshot, start.at);
 
   return {
     on: (event, listener) => events.on(event, listener),
@@ -279,6 +294,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       });
     },
     undock: () => current?.navigator.release('asked'),
+    snapshot: () => current?.snapshot() ?? last,
     setPanelInset: (next, { cut = false } = {}) => {
       inset = { ...next };
       // The panel itself does not slide under reduced motion (global.css); neither does the view.

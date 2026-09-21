@@ -329,10 +329,18 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
     }
   }
 
+  // The home system is systems[0]; the first system of projects, by `order`, comes after it.
+  const firstOfProjects = systems[1];
+  const alsoAt: Record<string, string> = {};
+  if (input.projectsHref !== undefined && firstOfProjects) {
+    alsoAt[input.projectsHref] = firstOfProjects.center;
+  }
+
   return {
     version: 1,
     systems,
     bodies,
     lanes: [...lanes.keys()].sort(compare).flatMap((key) => lanes.get(key) ?? []),
+    alsoAt,
   };
 }

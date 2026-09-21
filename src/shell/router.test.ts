@@ -244,16 +244,39 @@ describe('history', () => {
 });
 
 describe('leave: closing a page the way a card closes', () => {
-  it('goes back when the visitor came from one of our own pages', async () => {
+  it('goes Back when Back is the open sky: opening and closing a page leaves no trail', async () => {
+    harness = start();
+    const before = history.length;
+    await harness.router.navigate('/about/');
+
+    harness.router.leave('/');
+    await flush();
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('Home');
+    expect(harness.navigations.at(-1)).toEqual({ path: '/', kind: 'pop' });
+    expect(history.length).toBe(before + 1); // the entry is still there, ahead of us
+  });
+
+  it('goes ON to the open sky when Back is another page: closing never opens something', async () => {
     harness = start();
     await harness.router.navigate('/about/');
     await harness.router.navigate('/projects/fishai/');
 
     harness.router.leave('/');
     await flush();
-    expect(location.pathname).toBe('/about/');
-    expect(heading()).toBe('About');
-    expect(harness.navigations.at(-1)).toEqual({ path: '/about/', kind: 'pop' });
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('Home');
+    expect(harness.navigations.at(-1)).toEqual({ path: '/', kind: 'push' });
+  });
+
+  it('remembers where an entry was pushed from even when that entry is later replaced', async () => {
+    harness = start();
+    await harness.router.navigate('/about/');
+    await harness.router.navigate('/projects/fishai/', { replace: true });
+
+    harness.router.leave('/');
+    await flush();
+    expect(harness.navigations.at(-1)).toEqual({ path: '/', kind: 'pop' });
   });
 
   it('goes on to the fallback when there is nowhere of ours to go back to', async () => {
@@ -276,6 +299,46 @@ describe('leave: closing a page the way a card closes', () => {
     await flush();
     expect(harness.navigations.map((entry) => entry.kind)).toEqual(['replace', 'push']);
     expect(location.pathname).toBe('/');
+  });
+});
+
+describe('cancel', () => {
+  it('drops a navigation that is still waiting for the network, without a page load', async () => {
+    harness = start();
+    const before = history.length;
+    const release = harness.gate('/about/');
+    const going = harness.router.navigate('/about/');
+    await flush();
+
+    harness.router.cancel();
+    release();
+    await going;
+    await flush();
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('Home');
+    expect(history.length).toBe(before);
+    expect(harness.hardLoads).toEqual([]);
+    expect(harness.navigations).toEqual([]);
+
+    // And the router carries on as if nothing had been asked.
+    await harness.router.navigate('/about/');
+    expect(heading()).toBe('About');
+  });
+
+  it('also drops one whose page was already fetched', async () => {
+    harness = start();
+    harness.router.prefetch('/about/');
+    await flush();
+    const going = harness.router.navigate('/about/');
+    harness.router.cancel();
+    await going;
+    expect(location.pathname).toBe('/');
+    expect(harness.navigations).toEqual([]);
+  });
+
+  it('is harmless when nothing is on its way', () => {
+    harness = start();
+    expect(() => harness?.router.cancel()).not.toThrow();
   });
 });
 
