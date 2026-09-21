@@ -24,9 +24,14 @@ and the satellite, all moving on their orbits. Let go of the controls near a pla
 has a soft edge. Three **quality tiers** (anti-aliasing everywhere, bloom and a vignette where the
 device can afford them) and a lost WebGL context is survived. **Docking** works inside the world:
 within reach of a body a quiet prompt offers to orbit it (`E`, or tap it), the ship is flown onto
-the ring and then carried round it, and steering away leaves. The router does not follow the
-ship yet (E10), and nothing flies itself to a far destination yet (E6).
-Roadmap: docs/PLAN.md §6.
+the ring and then carried round it, and steering away leaves. **The route and the ship follow
+each other**: a link flies the ship to that page's body with the **autopilot** (the page opens at
+once), docking from inside the world opens the body's page, and a page opened directly boots in
+orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
+first-time visitor gets a **hint card**. What Phase 2 still lacks before launch: Allen's copy
+edit, the analytics token, and Astra's visual identity pass (A1). Phase 1's exit gate, the
+playtest on a laptop and a real phone, is Allen's and still open.
+Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
 
