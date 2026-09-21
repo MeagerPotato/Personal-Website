@@ -8,6 +8,8 @@ import { engineReady, expect, nameOf, openUniverse, pointAt, test, universe } fr
 const html = (page: Page) => page.locator('html');
 const heading = (page: Page) => page.locator('main h1');
 const prompt = (page: Page) => page.locator('.dock-prompt');
+/** What is said for someone who cannot see the ship (src/shell/announcer.ts). */
+const status = (page: Page) => page.locator('[data-announcer]');
 const pathOf = (page: Page): string => new URL(page.url()).pathname;
 
 /**
@@ -39,6 +41,8 @@ test('the name of a planet flies the ship there, and its page opens on arrival',
 
   await expect(prompt(page)).toContainText('Flying to About');
   await expect(prompt(page)).toContainText('Stop');
+  // Said, too, for someone who cannot see the ship turn.
+  await expect(status(page)).toHaveText('Flying to About.');
   // Nothing opens until the ship is there: the sky stays open while it flies.
   expect(pathOf(page)).toBe('/');
 
@@ -46,6 +50,7 @@ test('the name of a planet flies the ship there, and its page opens on arrival',
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
   await expect(heading(page)).toHaveText('About');
   await expect(prompt(page)).toContainText('Leave orbit');
+  await expect(status(page)).toHaveText('Docked at About.');
 });
 
 test('the planet itself can be pointed at', async ({ page, isMobile }) => {
@@ -66,6 +71,7 @@ test('Stop gives the ship back, and nothing opens', async ({ page, isMobile }) =
 
   await prompt(page).click();
   await expect(prompt(page)).not.toContainText('Flying to');
+  await expect(status(page)).toHaveText('Stopped.');
   await page.waitForTimeout(1500);
   expect(pathOf(page)).toBe('/');
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');

@@ -54,10 +54,12 @@ test('the Map button pulls out to the whole galaxy, and puts it away again', asy
   await expect(nameOf(page, 'About')).toBeVisible();
   expect(pathOf(page)).toBe('/');
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');
+  await expect(page.locator('[data-announcer]')).toHaveText('Star map open.');
 
   await closeButton(page).click();
   await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
   await expect(openButton(page)).toBeVisible();
+  await expect(page.locator('[data-announcer]')).toHaveText('Star map closed.');
 });
 
 test('the Map button works from the keyboard, which stays on it', async ({ page }) => {

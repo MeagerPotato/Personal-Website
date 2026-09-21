@@ -42,6 +42,10 @@ const { pathname } = Astro.url;
     <!-- The engine's own interactive DOM (the dock prompt, later the labels): real buttons, so
          NOT inside the hidden host. Empty, and not displayed, in plain mode. -->
     <div id="universe-overlay"></div>
+    <!-- Universe mode: what the ship does, said for someone who cannot see it
+         (src/shell/announcer.ts). In the page from the start, and empty: a screen reader listens
+         to the regions it found when the page loaded. -->
+    <p class="announcer" role="status" data-announcer></p>
     <!-- Universe mode, first visit: how to fly (src/shell/hints.ts shows it, once). The stylesheet
          picks the list by pointer: keys for a mouse, thumbs for a finger. -->
     <aside class="flight-hint" aria-label="How to fly" data-flight-hint hidden>
@@ -54,6 +58,9 @@ const { pathname } = Astro.url;
         </li>
         <li>
           <kbd>Shift</kbd> to boost
+        </li>
+        <li>
+          <kbd>M</kbd> for the map
         </li>
         <li>Click a planet, or its name, to fly there</li>
       </ul>

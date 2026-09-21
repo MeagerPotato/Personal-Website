@@ -6,7 +6,7 @@ const MANIFEST = {
   bodies: [
     { id: 'page/about', href: '/about/', kind: 'home' },
     { id: 'system/code', href: '/systems/code/', kind: 'sun' },
-    { id: 'project/fishai', href: '/projects/fishai/', kind: 'planet' },
+    { id: 'project/fishai', href: '/projects/fishai/', kind: 'planet', title: 'FishAI' },
   ],
   alsoAt: { '/projects/': 'system/code' },
 };
@@ -19,6 +19,13 @@ describe('destinations', () => {
     expect(destinations.idFor('/')).toBeNull();
     expect(destinations.idFor('/nowhere/')).toBeNull();
     expect(destinations.hrefOf('project/unknown')).toBeNull();
+  });
+
+  it('knows what a body is called, when the galaxy says so', () => {
+    const destinations = readDestinations(MANIFEST);
+    expect(destinations.titleOf('project/fishai')).toBe('FishAI');
+    expect(destinations.titleOf('system/code')).toBeNull();
+    expect(destinations.titleOf('project/unknown')).toBeNull();
   });
 
   it('shows a listed page from the body it is listed at, which still opens its OWN page', () => {

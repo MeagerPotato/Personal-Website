@@ -942,6 +942,17 @@ picture {
   transform: none;
 }
 
+/* What the ship does, said for a screen reader (src/shell/announcer.ts): heard, never seen. */
+.announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .footer {
   display: grid;
   gap: var(--space-3);
