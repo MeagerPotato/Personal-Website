@@ -8,6 +8,7 @@ import type { PostParams } from '../fx/PostFX';
 import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
+import type { DockParams } from '../sim/docking';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 
@@ -112,6 +113,27 @@ export const tuning = {
     margin: 500,
     pullPerUnit: 0.08,
   } satisfies EdgeParams,
+
+  /**
+   * Docking (sim/docking.ts). Asked to dock, the orbit assist's virtual pilot flies the ship onto
+   * the ring by itself; on the ring the ship is carried round the body instead of being flown.
+   */
+  dock: {
+    /** Carried from here on: this close to the ring (u), crossing it slower than this (u/s). */
+    captureDistance: 0.5,
+    captureRadialSpeed: 2,
+    /** The approach flies this much faster (u/s) for every unit it is still off the ring. */
+    hurryPerUnit: 1,
+    /** An approach that is still not on the ring after this long (s) is captured where it is. */
+    approachTimeoutSec: 12,
+    /** Docked: radians per second round the body, but never faster than maxSpeed u/s. */
+    orbitRate: 0.35,
+    maxSpeed: 14,
+    /** 1/s. How quickly the leftovers of a capture settle: higher is snappier. */
+    settleOmega: 3,
+    /** Steering beyond this leaves an approach or a dock (once the controls were let go of). */
+    leaveDeadZone: 0.25,
+  } satisfies DockParams,
 
   /** How fingers and the mouse become flight (core/input/). The keyboard has nothing to tune. */
   input: {

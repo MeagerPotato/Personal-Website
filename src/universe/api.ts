@@ -3,16 +3,22 @@
  * from src/universe, and it does so with a dynamic import(), so plain mode never downloads
  * three.js. No top-level side effects here.
  *
- * So far this is the lifecycle and one fact about the pilot. The navigation surface (goTo, undock,
- * setMapOpen, setPanelInset, state, activeDestination) lands in Phase 2; see docs/PLAN.md §5.5.
+ * Commands go down as method calls (`goTo`, `undock`), facts come up as events (`docked`,
+ * `undocked`, `statechange`), and both sides are IDEMPOTENT: the visitor may dock from inside the
+ * world and the router then follows, or the route may change and the ship then follows, and
+ * being told what one already knows is never an error. The rest of the navigation surface
+ * (setMapOpen, setPanelInset) lands later in Phase 2; see docs/PLAN.md §5.5.
  */
 
 import { EventBus } from './core/events';
 import { isTier, lowerTier, startingTier, type QualityTier } from './core/quality/tiers';
 import { RebuildBudget, type Snapshot } from './core/snapshot';
 import { boot, type Booted } from './main';
+import { FLIGHT, type AppState } from './state/appMachine';
+import type { NavigatorEvents } from './state/Navigator';
 
 export type { QualityTier } from './core/quality/tiers';
+export type { AppMode, AppState } from './state/appMachine';
 
 /**
  * DEV ONLY: the lab, one asset on a turntable (lab/LabScene.ts). The condition is a build-time
@@ -38,6 +44,12 @@ export async function createLab(options: {
 export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
   mount: HTMLElement;
+  /**
+   * Element for the engine's interactive DOM (the dock prompt, later the labels). It must NOT be
+   * inside `mount`, which is decorative and hidden from assistive technology. Without it the
+   * engine shows no DOM of its own.
+   */
+  overlay?: HTMLElement;
   /**
    * The parsed body of /universe.json (the web layer fetches it). Checked on the way in: a
    * manifest this engine cannot read makes createUniverse reject, and the shell goes plain.
@@ -73,6 +85,18 @@ export type UniverseEvents = {
    * device needs a lower one (`demoted`: worth remembering for the next visit).
    */
   quality: { tier: QualityTier; demoted: boolean };
+  /** What the visitor is doing changed: flight, autopilot, approach, docked (state/appMachine.ts). */
+  statechange: AppState;
+  /** The ship came within reach of a body it could dock at (`id`), or left it (null). */
+  soi: { id: string | null };
+  /** The ship is in orbit round `id`: its page is what the panel should show. */
+  docked: { id: string };
+  /**
+   * An approach or a dock ended. `by: 'pilot'` means it started INSIDE the engine (the controls,
+   * the prompt), so the web layer should follow (go home); `by: 'asked'` means it came through
+   * this API, so the web layer already knows.
+   */
+  undocked: { id: string; by: 'pilot' | 'asked' };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -83,6 +107,17 @@ export interface Universe {
     event: K,
     listener: (payload: UniverseEvents[K]) => void,
   ): () => void;
+  /** What the visitor is doing right now. */
+  readonly state: AppState;
+  /**
+   * Go to the body with this id (`/universe.json`). `fly` travels there when it is within reach
+   * and (until the autopilot exists, E6) cuts there when it is not; `instant` always cuts.
+   * Resolves `arrived` once docked, `cancelled` when the pilot or another request got in first,
+   * or the body is unknown. Asking for where the ship already is resolves `arrived` at once.
+   */
+  goTo(id: string, options?: { mode?: 'fly' | 'instant' }): Promise<'arrived' | 'cancelled'>;
+  /** Let go of whatever the ship is docked at or headed for. */
+  undock(): void;
   setPaused(paused: boolean): void;
   dispose(): void;
 }
@@ -111,6 +146,14 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let announcedInput = false;
   let current: Booted | null = null;
   let waiting: (() => void) | null = null;
+  /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
+  let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
+
+  function settleJourney(result: 'arrived' | 'cancelled'): void {
+    const settled = journey;
+    journey = null;
+    settled?.settle(result);
+  }
 
   const forced = isTier(options.quality);
   let tier: QualityTier = isTier(options.quality)
@@ -148,6 +191,20 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       tier = lower;
       events.emit('quality', { tier, demoted: true });
       rebuild(snapshot);
+    },
+    onNavigation: <K extends keyof NavigatorEvents>(
+      event: K,
+      payload: NavigatorEvents[K],
+    ): void => {
+      // Only news about the journey's OWN destination settles it: setting out from one dock for
+      // another also reports the old one as left.
+      const about = (payload as { id?: string | null }).id;
+      if (journey && about === journey.id) {
+        if (event === 'docked') settleJourney('arrived');
+        else if (event === 'undocked') settleJourney('cancelled');
+      }
+      // The navigator's events are a subset of the universe's, name for name and shape for shape.
+      events.emit(event, payload as UniverseEvents[K]);
     },
     onContextLost: (): void => {
       if (disposed || !current) return;
@@ -195,12 +252,31 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
 
   return {
     on: (event, listener) => events.on(event, listener),
+    get state(): AppState {
+      return current?.navigator.state ?? FLIGHT;
+    },
+    goTo: (id, { mode = 'fly' } = {}) => {
+      const navigator = current?.navigator;
+      if (!navigator) return Promise.resolve('cancelled');
+      const { state } = navigator;
+      if (state.mode === 'docked' && state.target === id) return Promise.resolve('arrived');
+
+      settleJourney('cancelled');
+      const going = (mode === 'fly' && navigator.approach(id)) || navigator.place(id);
+      if (!going) return Promise.resolve('cancelled');
+      // `place` has docked already, but says so with the next frame, like everything else.
+      return new Promise((settle) => {
+        journey = { id, settle };
+      });
+    },
+    undock: () => current?.navigator.release('asked'),
     setPaused: (value) => {
       paused = value;
       current?.engine.setPaused(value);
     },
     dispose: () => {
       disposed = true;
+      settleJourney('cancelled');
       waiting?.();
       current?.engine.dispose();
       current = null;

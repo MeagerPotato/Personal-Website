@@ -39,6 +39,9 @@ const { pathname } = Astro.url;
     <!-- The engine mounts its own canvas in here (universe mode only). Decorative: the content
          below is complete without it. -->
     <div id="universe-host" aria-hidden="true"></div>
+    <!-- The engine's own interactive DOM (the dock prompt, later the labels): real buttons, so
+         NOT inside the hidden host. Empty, and not displayed, in plain mode. -->
+    <div id="universe-overlay"></div>
 
     <div class="page">
       <!-- Identical on every page except for aria-current (see src/site/nav.ts). -->

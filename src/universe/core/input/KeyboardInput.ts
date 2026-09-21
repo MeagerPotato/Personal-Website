@@ -9,6 +9,14 @@ import { KeyState, isFlightKey } from './keys';
  */
 const PAGE_OWNS_KEYS = 'input, textarea, select, [contenteditable], [data-flight-keys="off"]';
 
+/** Is this key press the page's or the browser's business rather than the ship's? */
+export function belongsToPage(event: KeyboardEvent): boolean {
+  // Ctrl+S, Cmd+Left, Alt+D... are the browser's. Shift is ours: it is the boost key.
+  if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return true;
+  const element = event.target instanceof Element ? event.target : null;
+  return element?.closest(PAGE_OWNS_KEYS) != null;
+}
+
 /** WASD / arrows to fly, Shift to boost. */
 export class KeyboardInput implements InputSource {
   private readonly keys = new KeyState();
@@ -33,11 +41,7 @@ export class KeyboardInput implements InputSource {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (!isFlightKey(event.code)) return;
-    // Ctrl+S, Cmd+Left, Alt+D... are the browser's. Shift is ours: it is the boost key.
-    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
-    const element = event.target instanceof Element ? event.target : null;
-    if (element?.closest(PAGE_OWNS_KEYS)) return;
+    if (!isFlightKey(event.code) || belongsToPage(event)) return;
 
     this.keys.press(event.code);
     // Arrow keys would scroll the page under the ship.

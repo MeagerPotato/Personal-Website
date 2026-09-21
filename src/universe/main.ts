@@ -17,9 +17,11 @@ import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
 import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
+import { Navigator, type NavigatorEvents } from './state/Navigator';
+import { Prompt } from './ui/Prompt';
 import { copyShipState, createShipState } from './sim/flight';
 import { spawnPoint } from './sim/spawn';
-import { createSurroundings } from './sim/surroundings';
+import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
 import { SpaceDust } from './world/SpaceDust';
@@ -41,6 +43,8 @@ export interface BootHooks {
   onContextLost(): void;
   /** The first seconds showed that the tier is too much for this device. */
   onDemote(): void;
+  /** Where the visitor is headed or docked (state/Navigator.ts). */
+  onNavigation<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
 }
 
 export interface BootQuality {
@@ -51,6 +55,7 @@ export interface BootQuality {
 
 export interface Booted {
   engine: Engine;
+  navigator: Navigator;
   /** Where everything is right now (core/snapshot.ts). */
   snapshot(): Snapshot;
 }
@@ -103,6 +108,20 @@ export function boot(
     new ShipSystem({ spawn, pilot: input, surroundings, assets, reducedMotion }),
   );
   if (start) ship.restore(start.ship);
+  // After the ship, so that it sees what each step did to the dock in that same step.
+  const navigator = engine.add(
+    new Navigator({
+      surroundings,
+      ship,
+      pilot: input,
+      params: tuning,
+      emit: hooks.onNavigation,
+    }),
+  );
+  if (start?.dock) {
+    syncSurroundings(surroundings, start.steps / tuning.loop.stepHz);
+    navigator.restore(start.dock);
+  }
   engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
 
   const jobs = new JobQueue(tuning.world.jobBudget);
@@ -129,16 +148,32 @@ export function boot(
   engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
   engine.add(jobs);
 
+  if (options.overlay) {
+    const titles = new Map(manifest.bodies.map((body) => [body.id, body.title]));
+    engine.add(
+      new Prompt({
+        overlay: options.overlay,
+        navigator,
+        titleOf: (id) => titles.get(id) ?? id,
+      }),
+    );
+  }
+
   if (options.debug?.perf) {
     const { assist, orbits } = surroundings;
     const near = (): string =>
       assist.body < 0 ? '-' : `${orbits.ids[assist.body] ?? '?'} ${assist.weight.toFixed(2)}`;
+    const doing = (): string => {
+      const { mode, target } = navigator.state;
+      return target === null ? mode : `${mode} ${target}`;
+    };
     engine.add(
       new PerfHud(options.mount, engine.renderer, () => [
         `tier  ${quality.tier} x${engine.resolutionScale.toFixed(2)}`,
         `at    ${ship.position.x.toFixed(0)}, ${ship.position.z.toFixed(0)}`,
         `speed ${ship.speed.toFixed(1)} u/s`,
         `near  ${near()}`,
+        `state ${doing()}`,
       ]),
     );
   }
@@ -153,9 +188,11 @@ export function boot(
   engine.start();
   return {
     engine,
+    navigator,
     snapshot: () => ({
       steps: engine.steps,
       ship: copyShipState(ship.state, createShipState()),
+      dock: navigator.snapshot(),
     }),
   };
 }

@@ -46,7 +46,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#universe-host {
+#universe-host,
+#universe-overlay {
   display: none;
 }
 
@@ -997,6 +998,97 @@ picture {
     display: none;
   }
 
+  /*
+   * The engine's own interactive DOM sits between the world and the page's chrome. The layer
+   * itself takes no clicks: whatever is not a control belongs to the world.
+   */
+  html[data-mode='universe'] #universe-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  #universe-overlay > * {
+    pointer-events: auto;
+  }
+
+  /*
+   * The dock prompt (universe/ui/Prompt.ts): "Orbit FishAI" within reach of a body, "Leave orbit"
+   * once there. Bottom centre, between the thumbs, clear of the stick and the boost pad.
+   */
+  .dock-prompt {
+    position: absolute;
+    left: 50%;
+    bottom: max(var(--space-12), calc(env(safe-area-inset-bottom) + var(--space-8)));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 2.75rem; /* 44 px touch target */
+    max-width: calc(100vw - 2 * var(--space-6));
+    padding: 0 var(--space-6);
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink-high);
+    background: color-mix(in srgb, var(--color-surface-raised) 86%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transform: translateX(-50%);
+    animation: dock-prompt-in var(--motion-base) var(--motion-ease-out);
+  }
+
+  .dock-prompt[hidden] {
+    display: none;
+  }
+
+  .dock-prompt:hover {
+    border-color: var(--color-ink-low);
+  }
+
+  .dock-prompt span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dock-prompt kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 var(--space-1);
+    border: 1px solid var(--color-ink-low);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-mid);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+
+  .dock-prompt kbd[hidden] {
+    display: none;
+  }
+
+  /* A finger has no E key. */
+  @media (pointer: coarse) {
+    .dock-prompt kbd {
+      display: none;
+    }
+  }
+
+  @keyframes dock-prompt-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 0.5rem);
+    }
+  }
+
+  html[data-motion='reduced'] .dock-prompt {
+    animation: none;
+  }
+
   html[data-mode='universe'] .page {
     display: block;
     max-width: none;
@@ -1239,6 +1331,7 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   }
 
   #universe-host,
+  #universe-overlay,
   .skip-link,
   .site-nav,
   .crumbs,

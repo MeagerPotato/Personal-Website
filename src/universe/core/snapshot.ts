@@ -10,6 +10,17 @@ export interface Snapshot {
   /** Simulation steps taken so far. The simulation's only clock (core/loop.ts). */
   readonly steps: number;
   readonly ship: Readonly<ShipState>;
+  /**
+   * Where the visitor was headed or docked, if anywhere. A docked ship is CARRIED, not flown, so
+   * its state alone would not bring the orbit back: the dock is put back from these.
+   */
+  readonly dock: {
+    readonly id: string;
+    readonly docked: boolean;
+    /** Docked: where on the ring, and which way round. */
+    readonly angle: number;
+    readonly spin: number;
+  } | null;
 }
 
 /**
