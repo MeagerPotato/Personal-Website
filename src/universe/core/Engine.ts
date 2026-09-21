@@ -37,14 +37,20 @@ export interface System {
 
 export interface EngineOptions {
   mount: HTMLElement;
+  /** Simulation steps already taken, when the engine is rebuilt from a snapshot (core/snapshot.ts). */
+  startSteps?: number;
   onFirstFrame(): void;
+  /**
+   * The browser took the WebGL context away. The engine has stopped and is of no further use:
+   * the owner takes a snapshot, disposes it, and builds a new one on a fresh canvas (api.ts).
+   */
   onContextLost(): void;
 }
 
 /**
  * Owns the canvas, the renderer, and the frame loop; knows nothing about what is being drawn.
- * The engine creates its own <canvas> (and will replace it on context loss from Phase 1), so
- * nothing outside src/universe ever holds a reference to it.
+ * The engine creates its own <canvas>, and an engine whose context was lost is replaced whole,
+ * canvas and all (api.ts), so nothing outside src/universe ever holds a reference to it.
  *
  * The loop: every animation frame runs zero or more fixed simulation steps (core/loop.ts), then
  * one frame update, then one render. It sleeps while the tab is hidden or the engine is paused,
@@ -73,6 +79,7 @@ export class Engine {
   private hasRendered = false;
 
   constructor(private readonly options: EngineOptions) {
+    this.clock.reset(options.startSteps ?? 0);
     this.canvas = document.createElement('canvas');
     options.mount.append(this.canvas);
 
@@ -101,6 +108,11 @@ export class Engine {
     document.addEventListener('visibilitychange', this.handleVisibility);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(options.mount);
+  }
+
+  /** Simulation steps taken so far: the one number that says where every planet is. */
+  get steps(): number {
+    return this.clock.steps;
   }
 
   /** True once dispose() ran: late arrivals (a lazy chunk) must not add themselves any more. */
@@ -136,9 +148,15 @@ export class Engine {
     document.removeEventListener('visibilitychange', this.handleVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
     for (const system of this.systems.splice(0).reverse()) system.dispose();
+    // Invariant 9, checked where it can be: whoever created a GPU resource has disposed it by now.
+    const { geometries, textures } = this.renderer.info.memory;
+    if (import.meta.env.DEV && geometries + textures > 0) {
+      console.warn(`[engine] leaked ${geometries} geometries and ${textures} textures on dispose`);
+    }
     this.renderer.dispose();
     // Browsers cap the number of live WebGL contexts; release ours now rather than at GC time.
-    this.renderer.forceContextLoss();
+    // (Unless the browser already took it, which is why we are here after a lost context.)
+    if (!this.renderer.getContext().isContextLost()) this.renderer.forceContextLoss();
     this.canvas.remove();
   }
 

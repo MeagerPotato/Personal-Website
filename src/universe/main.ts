@@ -1,19 +1,20 @@
 import { Vector3 } from 'three';
-import type { UniverseEvents, UniverseOptions } from './api';
+import type { UniverseOptions } from './api';
 import { CameraRig } from './camera/CameraRig';
 import { ChaseCam } from './camera/ChaseCam';
 import { AssetStore } from './core/AssetStore';
 import { PerfHud } from './core/debug/PerfHud';
 import { Engine } from './core/Engine';
-import { EventBus } from './core/events';
 import { InputSystem } from './core/input/InputSystem';
 import { KeyboardInput } from './core/input/KeyboardInput';
 import { PointerSteer } from './core/input/PointerSteer';
 import { TouchControls } from './core/input/TouchControls';
 import { JobQueue } from './core/jobs';
+import type { Snapshot } from './core/snapshot';
 import { tuning } from './design/tuning';
 import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
+import { copyShipState, createShipState } from './sim/flight';
 import { spawnPoint } from './sim/spawn';
 import { createSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
@@ -27,27 +28,38 @@ import { Starfield } from './world/Starfield';
  * before the camera looks at it; the world and the dust arrange themselves around wherever the
  * ship ended up; and generating meshes gets whatever time is left. (Disposal runs the other way,
  * so the asset store, added first, outlives everything that borrowed from it.)
+ *
+ * With a `start` snapshot the world comes up exactly where that snapshot was taken: this is how
+ * the universe survives a lost WebGL context (api.ts).
  */
-export function boot(options: UniverseOptions): {
+export interface BootHooks {
+  onFirstFrame(): void;
+  onFirstInput(): void;
+  onContextLost(): void;
+}
+
+export interface Booted {
   engine: Engine;
-  events: EventBus<UniverseEvents>;
-} {
+  /** Where everything is right now (core/snapshot.ts). */
+  snapshot(): Snapshot;
+}
+
+export function boot(options: UniverseOptions, hooks: BootHooks, start: Snapshot | null): Booted {
   // Before anything is created: a manifest we cannot read must not leave a canvas behind.
   const manifest = readManifest(options.manifest);
-  const events = new EventBus<UniverseEvents>();
   const reducedMotion = options.reducedMotion ?? false;
 
   const engine = new Engine({
     mount: options.mount,
-    onFirstFrame: () => events.emit('ready', undefined),
-    // Phase 1 step 12 replaces this with "rebuild the engine on a fresh canvas from a snapshot".
-    onContextLost: () => events.emit('fatal', { reason: 'WebGL context lost' }),
+    startSteps: start?.steps ?? 0,
+    onFirstFrame: hooks.onFirstFrame,
+    onContextLost: hooks.onContextLost,
   });
 
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const assets = engine.add(new AssetStore());
 
-  const input = engine.add(new InputSystem(() => events.emit('firstinput', undefined)));
+  const input = engine.add(new InputSystem(hooks.onFirstInput));
   input.add(new KeyboardInput());
   input.add(new TouchControls(engine.canvas, options.mount));
   input.add(new PointerSteer(engine.canvas));
@@ -66,6 +78,7 @@ export function boot(options: UniverseOptions): {
   const ship = engine.add(
     new ShipSystem({ spawn, pilot: input, surroundings, assets, reducedMotion }),
   );
+  if (start) ship.restore(start.ship);
   engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
 
   const jobs = new JobQueue(tuning.world.jobBudgetMs);
@@ -98,6 +111,7 @@ export function boot(options: UniverseOptions): {
       assist.body < 0 ? '-' : `${orbits.ids[assist.body] ?? '?'} ${assist.weight.toFixed(2)}`;
     engine.add(
       new PerfHud(options.mount, engine.renderer, () => [
+        `at    ${ship.position.x.toFixed(0)}, ${ship.position.z.toFixed(0)}`,
         `speed ${ship.speed.toFixed(1)} u/s`,
         `near  ${near()}`,
       ]),
@@ -112,5 +126,11 @@ export function boot(options: UniverseOptions): {
   }
 
   engine.start();
-  return { engine, events };
+  return {
+    engine,
+    snapshot: () => ({
+      steps: engine.steps,
+      ship: copyShipState(ship.state, createShipState()),
+    }),
+  };
 }
