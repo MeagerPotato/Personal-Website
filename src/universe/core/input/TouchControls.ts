@@ -1,5 +1,7 @@
 import { tuning } from '../../design/tuning';
+import type { ScreenBox } from '../../sim/declutter';
 import type { FlightInput } from '../../sim/types';
+import { boxOf } from '../dom';
 import { addIntent, type InputSource } from './intents';
 import { mapStick, type StickIntent, type StickParams } from './stick';
 
@@ -32,6 +34,7 @@ export class TouchControls implements InputSource {
   private originY = 0;
   private deflectX = 0;
   private deflectY = 0;
+  private readonly padArea: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -64,6 +67,14 @@ export class TouchControls implements InputSource {
     const radius = this.params.stickRadiusPx;
     mapStick(this.deflectX / radius, this.deflectY / radius, this.params, this.intent);
     addIntent(out, this.intent.thrust, this.intent.turn, this.intent.brake, this.boosting.size > 0);
+  }
+
+  /**
+   * Where the boost pad is on the page, or null until a finger has brought it out. A name under
+   * a thumb that is boosting would be pressed by accident: names keep off it (ui/Labels.ts).
+   */
+  padBox(): Readonly<ScreenBox> | null {
+    return this.pad.hidden ? null : boxOf(this.pad, this.padArea);
   }
 
   dispose(): void {

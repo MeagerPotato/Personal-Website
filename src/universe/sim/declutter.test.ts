@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLabelBoxes, declutter, type LabelBoxes } from './declutter';
+import { createLabelBoxes, createTakenBoxes, declutter, type LabelBoxes } from './declutter';
 import { createRng } from './rng';
 
 const PARAMS = { gapPx: 4, keepPx: 6, max: 12 };
@@ -135,6 +135,46 @@ describe('declutter', () => {
     boxes.priority[1] = 0;
     declutter(boxes, PARAMS);
     expect(shown(boxes)).toEqual([0, 1]);
+  });
+
+  it('gives way to what was there first, however important the label', () => {
+    const taken = createTakenBoxes(2);
+    taken.count = 1;
+    Object.assign(taken.boxes[0] ?? {}, { left: 100, top: 300, width: 200, height: 44 });
+    const boxes = boxesOf([
+      [150, 280, 80, 40, 0], // where the ship is going, right on the prompt
+      [150, 200, 80, 40, 2],
+      [305, 300, 80, 40, 3], // beside it, a gap away
+      [302, 300, 80, 40, 3], // beside it, too close
+    ]);
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([0, 1, 1, 0]);
+
+    // The prompt goes away: the room is free again.
+    taken.count = 0;
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([1, 1, 1, 0]);
+  });
+
+  it('is as patient with a label beside something taken as beside another label', () => {
+    const taken = createTakenBoxes(1);
+    taken.count = 1;
+    Object.assign(taken.boxes[0] ?? {}, { left: 100, top: 0, width: 100, height: 44 });
+    const boxes = boxesOf([[10, 0, 80, 40, 1]]);
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([1]);
+    boxes.left[0] = 21; // closer than the gap, touching even: it showed already, so it may stay...
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([1]);
+    boxes.left[0] = 23; // ...until it is really in the way
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([0]);
+    boxes.left[0] = 18; // and it comes back only with a real gap
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([0]);
+    boxes.left[0] = 16;
+    declutter(boxes, PARAMS, taken);
+    expect(shown(boxes)).toEqual([1]);
   });
 
   it('in a crowd, shows labels that never touch, and always the most important of all', () => {

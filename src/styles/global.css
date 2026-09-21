@@ -1228,6 +1228,9 @@ picture {
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
+    /* A name on its way out still paints for a moment, over whichever name took its place: it must
+       not take that one's clicks. */
+    pointer-events: none;
     transition:
       opacity var(--motion-base) var(--motion-ease-out),
       color var(--motion-fast) var(--motion-ease-out),
@@ -1238,6 +1241,7 @@ picture {
   .body-label[data-shown] {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
     transition-delay: 0s;
   }
 

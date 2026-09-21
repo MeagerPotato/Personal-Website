@@ -1,5 +1,7 @@
 import type { System } from '../core/Engine';
 import { belongsToPage } from '../core/input/KeyboardInput';
+import { boxOf } from '../core/dom';
+import type { ScreenBox } from '../sim/declutter';
 import type { AppState } from '../state/appMachine';
 
 /** What the prompt needs of state/Navigator.ts. */
@@ -35,6 +37,7 @@ export class Prompt implements System {
   /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
   private readonly action: HTMLSpanElement;
   private shown = '';
+  private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(private readonly options: PromptOptions) {
     this.button = document.createElement('button');
@@ -79,6 +82,11 @@ export class Prompt implements System {
     this.action.textContent = action;
     this.action.hidden = action === '';
     this.button.hidden = text === '';
+  }
+
+  /** Where the prompt is on the page, or null while it does not show: names keep off it. */
+  box(): Readonly<ScreenBox> | null {
+    return this.button.hidden ? null : boxOf(this.button, this.area);
   }
 
   dispose(): void {

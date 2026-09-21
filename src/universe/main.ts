@@ -59,10 +59,18 @@ export interface BootQuality {
   forced: boolean;
 }
 
+/** How much of the viewport the page's own chrome covers, in CSS px (api.ts, `setPanelInset`). */
+export interface ViewInset {
+  top?: number;
+  right?: number;
+  bottom?: number;
+}
+
 export interface Booted {
   engine: Engine;
   navigator: Navigator;
-  rig: CameraRig;
+  /** The panel moved, or the top bar grew: frame the world in what is left, keep names off it. */
+  setInset(inset: ViewInset, cut: boolean): void;
   /** Where everything is right now (core/snapshot.ts). */
   snapshot(): Snapshot;
 }
@@ -98,7 +106,8 @@ export function boot(
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
   input.add(new KeyboardInput());
-  input.add(new TouchControls(engine.canvas, options.mount));
+  const touch = new TouchControls(engine.canvas, options.mount);
+  input.add(touch);
   input.add(new PointerSteer(engine.canvas));
 
   const home = homeSystemOf(manifest);
@@ -211,10 +220,12 @@ export function boot(
       onPick: flyToRow,
     }),
   );
+  let labels: Labels | null = null;
+  let prompt: Prompt | null = null;
   if (options.overlay) {
     // A name under every body that has room for one: pressing it is pointing at the body.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
-    engine.add(
+    labels = engine.add(
       new Labels({
         overlay: options.overlay,
         screen: onScreen.map,
@@ -227,6 +238,9 @@ export function boot(
         target: targetRow,
         docked: () => navigator.state.mode === 'docked',
         onPick: flyToRow,
+        // What else can be pressed out there. The prompt is only built further down (it is
+        // updated last in a frame); by the time anyone asks, it is there.
+        obstacles: [() => prompt?.box() ?? null, () => touch.padBox()],
       }),
     );
   }
@@ -239,7 +253,7 @@ export function boot(
 
   if (options.overlay) {
     const titles = new Map(manifest.bodies.map((body) => [body.id, body.title]));
-    engine.add(
+    prompt = engine.add(
       new Prompt({
         overlay: options.overlay,
         navigator,
@@ -282,7 +296,10 @@ export function boot(
   return {
     engine,
     navigator,
-    rig,
+    setInset(inset, cut) {
+      rig.setInset(inset, cut);
+      labels?.setTop(inset.top ?? 0);
+    },
     snapshot: () => ({
       steps: engine.steps,
       ship: copyShipState(ship.state, createShipState()),

@@ -36,6 +36,30 @@ export function createLabelBoxes(capacity: number): LabelBoxes {
   };
 }
 
+/** A box on the page, in CSS px. */
+export interface ScreenBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Room that is TAKEN before the first label is placed, by things that are not labels and do not
+ * move for them: the dock prompt, the boost pad. A label that would touch one does not show.
+ */
+export interface TakenBoxes {
+  count: number;
+  readonly boxes: readonly ScreenBox[];
+}
+
+export function createTakenBoxes(capacity: number): TakenBoxes {
+  return {
+    count: 0,
+    boxes: Array.from({ length: capacity }, () => ({ left: 0, top: 0, width: 0, height: 0 })),
+  };
+}
+
 export interface DeclutterParams {
   /** Labels keep at least this far apart (CSS px) ... */
   readonly gapPx: number;
@@ -46,7 +70,11 @@ export interface DeclutterParams {
 }
 
 /** Decide `boxes.shown` for this frame. */
-export function declutter(boxes: LabelBoxes, params: DeclutterParams): void {
+export function declutter(
+  boxes: LabelBoxes,
+  params: DeclutterParams,
+  taken?: Readonly<TakenBoxes>,
+): void {
   const { count, left, top, width, height, priority, shown, order } = boxes;
 
   // Insertion sort: from one frame to the next hardly anything changes places.
@@ -74,6 +102,12 @@ export function declutter(boxes: LabelBoxes, params: DeclutterParams): void {
     const r = (left[row] ?? 0) + (width[row] ?? 0) + pad;
     const b = (top[row] ?? 0) + (height[row] ?? 0) + pad;
     let free = true;
+    // What was there first: the same gap, and the same patience with a label that shows already.
+    for (let m = 0; m < (taken?.count ?? 0) && free; m += 1) {
+      const box = taken?.boxes[m];
+      if (!box) continue;
+      free = !(l < box.left + box.width && r > box.left && t < box.top + box.height && b > box.top);
+    }
     // Everything before it in the order that shows is already placed.
     for (let m = 0; m < k && free; m += 1) {
       const other = order[m] ?? 0;

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
+import type { ScreenBox } from '../sim/declutter';
 import { createScreenMap, type ScreenMap } from '../sim/screen';
 import { Labels } from './Labels';
 
@@ -37,7 +38,7 @@ function setup(rows: readonly Row[]) {
   const overlay = document.getElementById('overlay') as HTMLElement;
   const screen = createScreenMap(BODIES.length);
   put(screen, rows);
-  const state = { target: -1, docked: false };
+  const state = { target: -1, docked: false, prompt: null as ScreenBox | null };
   const view = { freeWidth: 1, freeHeight: 1 };
   const picked: number[] = [];
   const labels = new Labels({
@@ -49,6 +50,7 @@ function setup(rows: readonly Row[]) {
     target: () => state.target,
     docked: () => state.docked,
     onPick: (row) => picked.push(row),
+    obstacles: [() => state.prompt],
   });
   labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
   labels.frameUpdate();
@@ -134,6 +136,33 @@ describe('Labels', () => {
     view.freeHeight = 0.5; // a bottom sheet: 400 px are free
     labels.frameUpdate();
     expect(shown()).toEqual(['Code', 'About']);
+  });
+
+  it('keeps names off a top bar that is taller than usual, once told how tall', () => {
+    // Just under the usual bar: 70 + 10 + 2 = 82 is below topPx (80), so the name shows...
+    const { labels, shown } = setup([[200, 70, 10, 300]]);
+    cleanup = () => labels.dispose();
+    expect(shown()).toEqual(['Code']);
+    // ...but a phone's bar is two rows: 104 px, and names keep their distance from its edge too.
+    labels.setTop(104);
+    labels.frameUpdate();
+    expect(shown()).toEqual([]);
+    labels.setTop(70);
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code']);
+  });
+
+  it('keeps names off the other things that can be pressed, even the name of where it is going', () => {
+    const { labels, state, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.target = 1;
+    // The dock prompt, right where FishAI's name is (367..433 x 442..486).
+    state.prompt = { left: 300, top: 460, width: 220, height: 44 };
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
+    state.prompt = null;
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
   it('where names would touch, shows the system before the planet before the moon', () => {
