@@ -255,7 +255,7 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 
 - `wrangler.jsonc`, headers/CSP template, scripts: Appendix B. CSP inline-script hashes are **computed from `dist` at postbuild**, never maintained by hand. HSTS **without** `includeSubDomains` (it would bind days2meet). Preview hostnames get `X-Robots-Tag: noindex`.
 - Custom domain is added as a **Custom Domain on the Worker, never a wildcard Route** (a wildcard could capture days2meet). `www` → apex via Redirect Rule.
-- Cloudflare Web Analytics (free, cookie-less), manual beacon injected only when `location.hostname === 'allenkh.com'`; it tracks soft navigations by itself.
+- Cloudflare Web Analytics (free, cookie-less), manual beacon injected only when `location.hostname === 'allenkh.com'`; it tracks soft navigations by itself. **As built (2026-09-21): in place and OFF.** `src/shell/analytics.ts`, called from `boot.ts` on every page in both modes, adds Cloudflare's own script (the CSP already names its host) only with a token, only on `allenkh.com` (no preview, no localhost, no other subdomain), and not for a visitor whose browser sends Global Privacy Control or Do Not Track (nothing requires that for cookie-less counting; it is polite, and one line to remove). The token is one constant, `ANALYTICS_TOKEN` in `src/config/analytics.ts`, empty until Allen has added the site in the dashboard. Cost: 0.2 KiB on a plain page. Still to check once it is live: exactly one POST per soft navigation (§7).
 - `npm run preview` = `wrangler dev`, the only local server that applies `_headers`, the 404 page and slash rules.
 
 ### 5.10 Working together
