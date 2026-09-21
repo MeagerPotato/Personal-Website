@@ -11,8 +11,9 @@ passions, planets are projects, moons are sub-projects. Look: Mini Motorways (mu
 shading) on dark navy space. Tone: playful framing, technical substance. The owner appears as
 "Allen", nothing more.
 
-Status: **Phase 0** (foundations). What exists is a miniature of the real architecture: two pages,
-the mode switch, the engine shell, a starfield. Roadmap: docs/PLAN.md §6.
+Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
+exists (collections, schemas, the galaxy builder, `/universe.json`), the real pages come next.
+Phase 1 (flight) has not started, and Phase 2's 3D half waits for it. Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -84,7 +85,8 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 | `src/shell/**` | client code outside the engine: mode, boot, watchdog, later router and panel | Claude |
 | `src/site/**`, `src/config/**` | framework-neutral build logic and site constants | Claude |
 | `src/pages`, `src/layouts`, `src/components` | markup-only `.astro` | Claude |
-| `src/content/**` (Phase 2) | Markdown copy | Claude drafts, Allen edits |
+| `src/content/**`, `src/content.config.ts` | Markdown copy with images beside it; the thin collections wrapper | Claude drafts, Allen edits |
+| `src/universe/data/**` | pure build-time logic: validates content, lays out the galaxy | Claude |
 | `scripts/**`, `config/**`, `tests/**`, `.github/**` | build, CSP template, dist contract tests, CI | Claude |
 | Cloudflare dashboard, DNS | | **Allen only** |
 | GitHub repo settings, branch protection | set once by Claude in Phase 0 (docs/PLAN.md §6, step 7) | **Allen** from then on |
@@ -105,7 +107,8 @@ a logic change: ask for it instead.
 - Commit `.gltf`, any file over 5 MiB, names that are not lowercase kebab-case, or Git LFS
   pointers (`scripts/check-assets.mjs` rejects them).
 - Add a dependency without naming it and the reason in the PR description.
-- Leave `TODO(copy)` in content merged to `main` (from Phase 2 it fails the build).
+- Ship placeholder copy. `TODO(copy)` may sit in drafts and in source that is not rendered yet;
+  if it reaches `dist/`, `verify-dist` fails the build.
 - Commit with `--no-verify`, force-push `main`, or weaken a lint rule or budget to get green.
 
 ## Recipes
@@ -123,8 +126,31 @@ everything you create. Pure maths goes in `sim/` with a `*.test.ts` beside it.
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` and
 `description`. Internal links end with `/`. No `<script>` or `<style>` in the page.
 
-**Add a project, moon, system, or log post.** Arrives with the content layer (Phase 2, W1); that
-PR adds the recipe here.
+**Add a project (a planet).** Create `src/content/projects/<id>/index.md` plus a cover image
+beside it. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
+Frontmatter is validated by `src/site/schemas.ts` (unknown keys fail the build): `title`,
+`summary` (≤ 160 chars), `system: <system id>`, `date: "YYYY-MM"` in quotes, `status`, `role`,
+`cover: { src: ./cover.png, alt }`, `planet: { biome }`; optional `stack`, `links` (https only),
+`gallery`, `related`, `flagship`, `draft`. Copy the shape of `projects/days2meet/index.md`.
+
+**Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
+Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.
+
+**Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
+(a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
+`order`:** it is the system's place in the galaxy.
+
+**Unfinished copy.** Write `TODO(copy)` where words are missing and, on a project, set
+`draft: true`. Drafts show in `npm run dev` and are left out of production. Pages (about, resume,
+contact) have no draft flag: they must be finished before they are rendered, because `TODO(copy)`
+anywhere in `dist/` fails the build.
+
+**What checks content.** Schemas catch shape. `buildUniverse()` (`src/universe/data/build.ts`)
+catches what a schema cannot: a missing `system`/`parent`/`related` target, a moon of a moon, a
+published moon under a draft planet, two systems claiming one `order`, a system grown too large.
+It lists every problem at once, and its output is the static `/universe.json` the engine reads.
+
+**Add a log post.** Arrives with the blog (Phase 5).
 
 ## Working together
 
