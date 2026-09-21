@@ -1,5 +1,6 @@
 import type { RigParams } from '../camera/CameraRig';
 import type { ChaseCamParams } from '../camera/ChaseCam';
+import type { CruiseParams } from '../sim/autopilot';
 import type { OrbitCamParams } from '../camera/OrbitCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
@@ -55,6 +56,82 @@ export const tuning = {
     /** Seconds for the turn rate to follow the stick. Below 0.08 feels twitchy, above 0.2 heavy. */
     yawResponseSec: 0.12,
   } satisfies FlightParams,
+
+  /**
+   * THE AUTOPILOT (sim/autopilot.ts): flies the ship to a body that is out of reach, then hands
+   * over to the docking approach. It flies the ordinary flight model with a stronger DRIVE, so a
+   * trip between systems takes seconds while the pilot's own top speed stays what it is.
+   */
+  cruise: {
+    flight: {
+      /** Top speed is thrustAccel / forwardDrag = 325 u/s: headroom above the profiles below. */
+      thrustAccel: 130,
+      boostFactor: 1,
+      forwardDrag: 0.4,
+      brakeDrag: 2.5,
+      lateralGrip: 4,
+      yawRateSlow: 2.6,
+      yawRateFast: 1.5,
+      yawRateFastSpeed: 80,
+      yawResponseSec: 0.12,
+    } satisfies FlightParams,
+    path: {
+      /** u between the points of a planned path. */
+      sampleStep: 4,
+      /** A way round a body passes this many keep-out radii from its centre. */
+      clearance: 1.15,
+      /** A moving ship's path begins the way it is going, for this many seconds' worth of travel. */
+      leadSec: 0.5,
+      /** No gap between two bodies is ever planned shut: their keep-outs shrink to leave this, u ... */
+      corridor: 6,
+      /** ... but never to less than this share of themselves. */
+      squeeze: 0.6,
+    },
+    /** Journeys longer than this (u) are flown by `far`, shorter ones by `near`. */
+    longLeg: 600,
+    /**
+     * Inside a system: brisk, and gentle in the bends. u/s and u/s². `brakeRate` (1/s) is what the
+     * ship's brake really does at low speed: keep it below flight.brakeDrag + flight.forwardDrag.
+     */
+    near: {
+      cruiseSpeed: 70,
+      accel: 50,
+      decel: 40,
+      lateralAccel: 40,
+      brakeRate: 2,
+      yawRate: 1.5,
+      minSpeed: 6,
+    },
+    /** Between systems: 1,500 u in about eight seconds. */
+    far: {
+      cruiseSpeed: 280,
+      accel: 120,
+      decel: 110,
+      lateralAccel: 60,
+      brakeRate: 2,
+      yawRate: 1.5,
+      minSpeed: 6,
+    },
+    /** Every body is kept clear of by its docking ring plus this, u. */
+    keepOut: 4,
+    /** A planet with its moons is gone round as one disc when that disc is no bigger than this, u. */
+    familyReach: 120,
+    /** The journey ends this many ring radii out (inside assist.soiRadii): the approach takes over. */
+    handOffRadii: 1.3,
+    /** Seconds between plans: bodies move, and no ship follows a path exactly. */
+    replanSec: 1,
+    /** Steer at the point this many seconds ahead on the path, within these distances (u)... */
+    lookAheadSec: 1,
+    lookAhead: [6, 220],
+    /** ...but never so far ahead that a bend is cut short by more than this, u. */
+    cornerCut: 2.5,
+    /** 1/s: how hard the throttle chases the profile's speed. */
+    speedGain: 2,
+    /** u/s. Inside a keep-out (leaving a ring, arriving beside a moon): no faster than this... */
+    keepOutSpeed: 25,
+    /** ...and outside, this much more (1/s) for each unit of room from the nearest one. */
+    openSpaceGain: 2,
+  } satisfies CruiseParams,
 
   /**
    * ORBIT ASSIST (sim/assist.ts): let go of the controls near a planet and the ship eases onto a

@@ -6,6 +6,14 @@ import {
   type BodyField,
 } from './assist';
 import {
+  beginCruise,
+  createCruiseState,
+  cruiseArrived,
+  cruiseInput,
+  type CruiseParams,
+  type CruiseState,
+} from './autopilot';
+import {
   addCushions,
   addEdgePull,
   resolveShells,
@@ -39,6 +47,8 @@ export interface Surroundings {
   readonly assist: AssistState;
   /** Whether the ship is asking to stay at a body, or staying there (sim/docking.ts). */
   readonly dock: DockState;
+  /** The journey to a body that is out of reach, while `dock.phase` is `cruise`. */
+  readonly cruise: CruiseState;
   /** Row of the body whose shell the ship touched in the last step, or -1. */
   touched: number;
 }
@@ -48,6 +58,7 @@ export interface SurroundingsParams {
   readonly cushion: CushionParams;
   readonly edge: EdgeParams;
   readonly dock: DockParams;
+  readonly cruise: CruiseParams;
 }
 
 /** The few fields of a manifest body that matter here (structural, like sim/orbits.ts). */
@@ -88,6 +99,7 @@ export function createSurroundings(input: SurroundingsInput, edgeMargin: number)
     edge: worldEdge(input.systems, input.home, edgeMargin),
     assist: createAssistState(),
     dock: createDockState(),
+    cruise: createCruiseState(orbits.count),
     touched: -1,
   };
 }
@@ -105,7 +117,9 @@ const push: Vec2 = { x: 0, z: 0 };
  * time. `flown` receives what was actually flown: the pilot's input with the assist mixed in.
  *
  * Far from everything this is exactly `stepFlight`, bit for bit. A DOCKED ship is not flown at
- * all: it is carried round its body (sim/docking.ts), and `flown` is empty.
+ * all: it is carried round its body (sim/docking.ts), and `flown` is empty. A CRUISING ship is
+ * flown by the autopilot, with the autopilot's stronger drive, until it is within reach of its
+ * body; the docking approach takes it from there.
  */
 export function flyStep(
   world: Surroundings,
@@ -130,7 +144,26 @@ export function flyStep(
     return state;
   }
 
-  if (dock.phase === 'approach') {
+  let drive = flight;
+  if (dock.phase === 'cruise') {
+    const { cruise } = world;
+    if (dock.phaseSec === 0) beginCruise(cruise);
+    dock.phaseSec += dt;
+    cruiseInput(
+      world.orbits,
+      field,
+      state,
+      dock.body,
+      simTime,
+      dt,
+      params.cruise,
+      params.assist,
+      cruise,
+      flown,
+    );
+    drive = params.cruise.flight;
+    world.assist.weight = 1;
+  } else if (dock.phase === 'approach') {
     approachInput(field, state, flight, params.assist, params.dock, dock, world.assist, flown);
   } else {
     assistInput(field, state, pilot, flight, params.assist, world.assist, flown);
@@ -140,9 +173,20 @@ export function flyStep(
   addCushions(field, state, params.cushion, push);
   addEdgePull(world.edge, state, params.edge, push);
 
-  stepFlight(state, flown, flight, dt, push);
+  stepFlight(state, flown, drive, dt, push);
   world.touched = resolveShells(field, state, params.cushion);
-  if (dock.phase === 'approach') tryCapture(field, state, params.dock, dock, world.assist, dt);
+  if (
+    dock.phase === 'cruise' &&
+    cruiseArrived(field, state, dock.body, params.cruise, params.assist)
+  ) {
+    // Within reach: the ring's own pilot takes over, the same way round as the journey came in.
+    dock.phase = 'approach';
+    dock.phaseSec = 0;
+    world.assist.body = dock.body;
+    world.assist.spin = world.cruise.spin;
+  } else if (dock.phase === 'approach') {
+    tryCapture(field, state, params.dock, dock, world.assist, dt);
+  }
   return state;
 }
 

@@ -28,11 +28,29 @@ const GALAXY: SurroundingsInput = {
   ],
 };
 
+/** The same, and a second system a good way off: somewhere to travel to. */
+const WIDE_GALAXY: SurroundingsInput = {
+  home: [0, 0],
+  systems: [...GALAXY.systems, { id: 'code', position: [-700, 600], radius: 120 }],
+  bodies: [
+    ...GALAXY.bodies,
+    { id: 'system/code', system: 'code', parent: null, orbit: null, radius: 20, dockRadius: 38 },
+    {
+      id: 'project/fishai',
+      system: 'code',
+      parent: 'system/code',
+      orbit: { radius: 100, phase: 1, periodSec: 500 },
+      radius: 12,
+      dockRadius: 22.8,
+    },
+  ],
+};
+
 type Heard = { [K in keyof NavigatorEvents]: [K, NavigatorEvents[K]] }[keyof NavigatorEvents];
 
 /** A little engine: the ship, the world, the navigator, in the order main.ts steps them. */
-function harness(x: number, z: number, heading = 0) {
-  const surroundings = createSurroundings(GALAXY, tuning.edge.margin);
+function harness(x: number, z: number, heading = 0, galaxy = GALAXY) {
+  const surroundings = createSurroundings(galaxy, tuning.edge.margin);
   const state = createShipState(x, z, heading);
   const pilot: { current: FlightInput } = { current: { ...NO_INPUT } };
   const heard: Heard[] = [];
@@ -239,5 +257,106 @@ describe('Navigator', () => {
     again.navigator.restore(dock);
     again.run(8);
     expect(again.navigator.state).toEqual({ mode: 'docked', target: 'page/about' });
+  });
+});
+
+describe('Navigator, travelling', () => {
+  const story = (h: ReturnType<typeof harness>): Heard[] =>
+    h.heard.filter(([name]) => name !== 'soi');
+
+  it('flies to a body that is out of reach: autopilot, approach, docked, each said once', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    expect(h.navigator.withinReach('project/fishai')).toBe(false);
+    expect(h.navigator.approach('project/fishai')).toBe(false);
+    expect(h.navigator.travel('project/nope')).toBe(false);
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+    expect(h.navigator.lastArrival).toBe('flown');
+    h.run(0.1);
+    expect(h.navigator.state).toEqual({ mode: 'autopilot', target: 'project/fishai' });
+    // Nobody on the way there is offered a dock.
+    expect(h.navigator.candidate).toBeNull();
+    // Asking again is not news.
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+
+    h.run(30);
+    expect(story(h)).toEqual([
+      ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
+      ['statechange', { mode: 'approach', target: 'project/fishai' }],
+      ['statechange', { mode: 'docked', target: 'project/fishai' }],
+      ['docked', { id: 'project/fishai' }],
+    ]);
+  });
+
+  it('simply approaches what is within reach already', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    expect(h.navigator.travel('page/about')).toBe(true);
+    h.run(0.1);
+    expect(h.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+  });
+
+  it('sets out from a dock, and says that the dock was left because somebody asked', () => {
+    const h = harness(0, 0, 0, WIDE_GALAXY);
+    h.navigator.place('page/about');
+    h.run(1);
+    h.heard.length = 0;
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'page/about', by: 'asked' }],
+      ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
+    ]);
+    h.run(30);
+    expect(h.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
+  });
+
+  it('hands the ship back to the pilot who steers, and says who ended the journey', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(3);
+    h.heard.length = 0;
+    h.pilot.current = { ...NO_INPUT, turn: 1 };
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['statechange', { mode: 'flight', target: null }],
+    ]);
+    expect(h.surroundings.dock.phase).toBe('free');
+  });
+
+  it('changes destination mid-journey when asked for somewhere else', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(3);
+    h.heard.length = 0;
+    expect(h.navigator.travel('system/code')).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'asked' }],
+      ['statechange', { mode: 'autopilot', target: 'system/code' }],
+    ]);
+    h.run(30);
+    expect(h.navigator.state).toEqual({ mode: 'docked', target: 'system/code' });
+  });
+
+  it('takes up a journey again after a snapshot', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(4);
+    const dock = h.navigator.snapshot();
+    expect(dock).toMatchObject({ id: 'project/fishai', docked: false });
+
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(dock);
+    again.run(0.1);
+    expect(again.navigator.state).toEqual({ mode: 'autopilot', target: 'project/fishai' });
+    again.run(30);
+    expect(again.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
   });
 });

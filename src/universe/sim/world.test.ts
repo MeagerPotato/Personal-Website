@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TAU } from './math';
 import { createNoise3, fbm } from './noise';
-import { bodyPositions, createOrbitTable } from './orbits';
+import { bodyPositionAt, bodyPositions, createOrbitTable } from './orbits';
 import {
   finish,
   generatePlanet,
@@ -119,6 +119,16 @@ describe('orbits', () => {
       const [x1, z1] = at(50 + dt, id);
       expect((x1 - x0) / dt).toBeCloseTo(vx, 3);
       expect((z1 - z0) / dt).toBeCloseTo(vz, 3);
+    }
+  });
+
+  it('tells where ONE body is at any time, exactly as it tells for all of them', () => {
+    const one = new Float64Array(2);
+    for (const t of [0, 37, 250.5, 9999]) {
+      for (const id of ['sun', 'planet', 'moon', 'homeworld']) {
+        bodyPositionAt(table, table.indexOf(id), t, one);
+        expect([one[0], one[1]]).toEqual(at(t, id));
+      }
     }
   });
 

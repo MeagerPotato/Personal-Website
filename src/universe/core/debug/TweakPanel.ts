@@ -13,6 +13,7 @@ const LIVE_BLOCKS = [
   'assist',
   'cushion',
   'dock',
+  'cruise',
   'input',
   'chaseCam',
   'orbitCam',

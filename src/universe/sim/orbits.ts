@@ -128,3 +128,26 @@ export function bodyPositions(
   }
   return out;
 }
+
+/**
+ * Position of ONE body at time `t`, written to `out` as [x, z]: for whoever cares about
+ * different bodies at different times (the autopilot: each body when the ship passes it).
+ */
+export function bodyPositionAt(
+  table: OrbitTable,
+  i: number,
+  t: number,
+  out: Float64Array,
+): Float64Array {
+  const parent = table.parent[i] ?? -1;
+  if (parent >= 0) bodyPositionAt(table, parent, t, out);
+  else {
+    out[0] = table.centerX[i] ?? 0;
+    out[1] = table.centerZ[i] ?? 0;
+  }
+  const radius = table.radius[i] ?? 0;
+  const angle = (table.phase[i] ?? 0) + (table.rate[i] ?? 0) * t;
+  out[0] = (out[0] ?? 0) + radius * Math.sin(angle);
+  out[1] = (out[1] ?? 0) + radius * Math.cos(angle);
+  return out;
+}

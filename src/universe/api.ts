@@ -116,8 +116,9 @@ export interface Universe {
   /** What the visitor is doing right now. */
   readonly state: AppState;
   /**
-   * Go to the body with this id (`/universe.json`). `fly` travels there when it is within reach
-   * and (until the autopilot exists, E6) cuts there when it is not; `instant` always cuts.
+   * Go to the body with this id (`/universe.json`). `fly` travels there: the autopilot brings the
+   * ship within reach and the docking approach puts it on the ring. `instant` cuts, and so does
+   * `fly` under reduced motion when the body is out of reach.
    * Resolves `arrived` once docked, `cancelled` when the pilot or another request got in first,
    * or the body is unknown. Asking for where the ship already is resolves `arrived` at once.
    */
@@ -286,7 +287,13 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       if (state.mode === 'docked' && state.target === id) return Promise.resolve('arrived');
 
       settleJourney('cancelled');
-      const going = (mode === 'fly' && navigator.approach(id)) || navigator.place(id);
+      // A journey across the galaxy is motion nobody asked for by clicking a link: a visitor who
+      // prefers less of it gets the short approach when the body is within reach, and a cut.
+      const fly = mode === 'fly' && options.reducedMotion !== true;
+      const going =
+        (fly && navigator.travel(id)) ||
+        (mode === 'fly' && navigator.approach(id)) ||
+        navigator.place(id);
       if (!going) return Promise.resolve('cancelled');
       // `place` has docked already, but says so with the next frame, like everything else.
       return new Promise((settle) => {

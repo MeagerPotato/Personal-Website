@@ -79,8 +79,8 @@ export class Navigator implements System {
   }
 
   /**
-   * Fly onto the ring of `id`, which must be within reach (the autopilot, from E6, brings the
-   * ship there first). False when it is not, or is unknown.
+   * Fly onto the ring of `id`, which must be within reach. False when it is not, or is unknown:
+   * then `travel` brings the ship there first.
    */
   approach(id: string): boolean {
     const { surroundings, pilot } = this.options;
@@ -91,6 +91,23 @@ export class Navigator implements System {
     this.arrival = 'flown';
     requestDock(surroundings.dock, i, pilot.current);
     this.apply({ type: 'approach', to: id });
+    return true;
+  }
+
+  /**
+   * Set out for `id` from wherever the ship is: the autopilot flies it there (sim/autopilot.ts)
+   * and the approach takes over within reach. False for an unknown body.
+   */
+  travel(id: string): boolean {
+    const { surroundings, pilot } = this.options;
+    const i = surroundings.orbits.indexOf(id);
+    if (i < 0) return false;
+    if (this.current.target === id) return true;
+    if (this.withinReach(id)) return this.approach(id);
+    this.leave('asked');
+    this.arrival = 'flown';
+    requestDock(surroundings.dock, i, pilot.current, true);
+    this.apply({ type: 'travel', to: id });
     return true;
   }
 
@@ -122,7 +139,7 @@ export class Navigator implements System {
   restore(from: Snapshot['dock']): void {
     if (!from) return;
     if (from.docked) this.place(from.id, from.angle, from.spin);
-    else this.approach(from.id);
+    else this.travel(from.id);
   }
 
   /** Let go: back to free flight, from exactly where and how the ship is. */
@@ -140,6 +157,9 @@ export class Navigator implements System {
       const id = this.current.target;
       this.queue.push(() => this.options.emit('undocked', { id, by: 'pilot' }));
       this.apply({ type: 'release' });
+    } else if (dock.phase === 'approach' && this.current.mode === 'autopilot') {
+      // The journey came within reach: the ring's own pilot has taken over.
+      if (this.current.target !== null) this.apply({ type: 'approach', to: this.current.target });
     } else if (dock.phase === 'docked' && this.current.mode === 'approach') {
       const id = this.current.target;
       this.apply({ type: 'capture' });
