@@ -119,7 +119,8 @@ yourself: `npx playwright install chromium webkit` once, then `npm run e2e` (slo
 - [ ] Text contrast is at least WCAG AA (4.5:1 body, 3:1 large text) on every surface it sits on,
       and the contrast numbers in `docs/DESIGN.md` are updated if a colour in a pairing changed
 - [ ] Touch targets are at least 44×44 px
-- [ ] No horizontal scroll at 360 px wide, in both modes (and the nav still fits one row at 320 px)
+- [ ] No horizontal scroll at 360 px wide, in both modes (and none at 320 px either, where the nav
+      may wrap to a second row with a wide font)
 - [ ] With reduced motion requested, nothing animates and nothing is lost
 - [ ] Keyboard focus is always visible (uses `--color-focus`), except on the page heading the
       router focuses, which deliberately shows no ring
