@@ -902,7 +902,8 @@ picture {
 }
 
 .panel-bar,
-.panel-toggle {
+.panel-toggle,
+.flight-hint {
   display: none;
 }
 
@@ -1037,6 +1038,87 @@ picture {
 
   #universe-overlay > * {
     pointer-events: auto;
+  }
+
+  /*
+   * How to fly, said once (shell/hints.ts): a card over the open sky for a first-time visitor,
+   * gone for good once they have steered. Only while the world has the whole screen: with the
+   * panel open someone is reading. Keys for a mouse, thumbs for a finger.
+   */
+  html[data-mode='universe'][data-engine='ready'][data-panel='closed'] .flight-hint:not([hidden]) {
+    position: fixed;
+    z-index: 2;
+    left: max(var(--space-6), env(safe-area-inset-left));
+    bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-12));
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    max-width: min(22rem, calc(100% - 2 * var(--space-6)));
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-md);
+    color: var(--color-ink-mid);
+    background: color-mix(in srgb, var(--color-surface-raised) 86%, transparent);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    animation: flight-hint-in var(--motion-slow) var(--motion-ease-out) both;
+  }
+
+  .flight-hint ul {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .flight-hint .flight-hint__touch {
+    display: none;
+  }
+
+  .flight-hint kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    margin-right: var(--space-1);
+    padding: 0 var(--space-1);
+    border: 1px solid var(--color-ink-low);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-high);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+
+  @media (pointer: coarse) {
+    /* Thumbs fly from the bottom of the screen: the card goes under the top bar instead. */
+    html[data-mode='universe'][data-engine='ready'][data-panel='closed']
+      .flight-hint:not([hidden]) {
+      top: calc(env(safe-area-inset-top) + 6.75rem);
+      right: max(var(--space-4), env(safe-area-inset-right));
+      bottom: auto;
+      left: max(var(--space-4), env(safe-area-inset-left));
+      max-width: none;
+    }
+
+    .flight-hint .flight-hint__keys {
+      display: none;
+    }
+
+    .flight-hint .flight-hint__touch {
+      display: grid;
+    }
+  }
+
+  @keyframes flight-hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+
+  html[data-motion='reduced'] .flight-hint {
+    animation: none;
   }
 
   /*

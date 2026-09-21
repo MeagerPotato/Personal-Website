@@ -7,6 +7,7 @@ import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
 import { readDestinations } from './destinations';
 import { startFollowing, type Following } from './follow';
+import { startHints } from './hints';
 import { startPanel, type Panel } from './panel';
 import { mirrorInset, watchPanelInset } from './panel-inset';
 import { keepSnapshot, recallSnapshot } from './pose-memory';
@@ -27,6 +28,7 @@ let panel: Panel | undefined;
 let stopInset: (() => void) | undefined;
 let stopKeeping: (() => void) | undefined;
 let following: Following | undefined;
+let stopHints: (() => void) | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -48,6 +50,8 @@ function fallBackToPlain(reason: string): void {
   stopKeeping = undefined;
   following?.dispose();
   following = undefined;
+  stopHints?.();
+  stopHints = undefined;
   mirrorInset(root, null);
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
@@ -124,6 +128,15 @@ export async function start(): Promise<void> {
         destinations,
         homeHref: routes.home(),
         pathname: () => location.pathname,
+      });
+    }
+    const hint = document.querySelector<HTMLElement>('[data-flight-hint]');
+    if (hint) {
+      stopHints = startHints({
+        element: hint,
+        universe: created,
+        storage: () => localStorage,
+        panelClosed: () => root.dataset.panel === 'closed',
       });
     }
     stopKeeping = keepSnapshot(

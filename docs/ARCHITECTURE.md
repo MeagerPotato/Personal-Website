@@ -212,6 +212,11 @@ under a bottom sheet.
   asked for by a dock that the pilot has already left again is called off (`router.cancel`), and
   a route that went home only BECAUSE the pilot left does not call the ship back from wherever
   the pilot was going.
+- **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
+  card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
+  pointer and hides it while the panel is open). It goes for good once they have steered
+  (`firstinput`), set out for somewhere from the open sky, or pressed "Got it"; a journey that
+  began with a link does not count, because that visitor was reading.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
   DOCKED: a page opened on a body boots in orbit round it (`start.at`), placed before the first
   step, so the state machine is never in `flight`, nothing flies and the camera cuts. The URL
