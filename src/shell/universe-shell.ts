@@ -66,9 +66,11 @@ export async function start(): Promise<void> {
 
   try {
     const { createUniverse } = await import('../universe/api');
+    const flags = new URLSearchParams(location.search);
     const created = await createUniverse({
       mount,
       reducedMotion: root.dataset.motion === 'reduced',
+      debug: { perf: flags.has('perf'), tweak: flags.has('tweak') },
     });
 
     // The watchdog may have fired while the engine chunk was still downloading.

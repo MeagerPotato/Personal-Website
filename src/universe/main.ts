@@ -2,6 +2,7 @@ import type { UniverseEvents, UniverseOptions } from './api';
 import { CameraRig } from './camera/CameraRig';
 import { ChaseCam } from './camera/ChaseCam';
 import { AssetStore } from './core/AssetStore';
+import { PerfHud } from './core/debug/PerfHud';
 import { Engine } from './core/Engine';
 import { EventBus } from './core/events';
 import { InputSystem } from './core/input/InputSystem';
@@ -44,6 +45,15 @@ export function boot(options: UniverseOptions): {
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
   engine.scene.add(backdrop.object, starfield.object, dust.object, ship.object);
+
+  if (options.debug?.perf) engine.add(new PerfHud(options.mount, engine.renderer));
+  // The condition is a build-time constant, so a production build drops the import, and lil-gui
+  // with it (scripts/verify-dist.mjs checks).
+  if (import.meta.env.DEV && options.debug?.tweak) {
+    void import('./core/debug/TweakPanel').then(({ TweakPanel }) => {
+      if (!engine.isDisposed) engine.add(new TweakPanel({ input, ship }));
+    });
+  }
 
   engine.start();
   return { engine, events };

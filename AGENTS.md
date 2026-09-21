@@ -71,6 +71,13 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no
 `VAR=x` prefixes, no shell globs.
 
+**Debug flags** (universe mode, read once at boot, combine with `&`): `?perf` shows frame rate,
+frame time, simulation steps per frame, draw calls and buffer size, in **every** build, so it works
+on a phone against a preview URL. `?tweak` opens the live tuning panel (sliders for the blocks of
+`design/tuning.ts` that are read every frame, "copy tuning as JSON" to paste back into that file,
+and a flight recorder that replays a flight bit for bit). The panel is **dev server only**:
+`verify-dist` fails a build that contains it.
+
 ## Newer than your training data
 
 Do not "fix" these back to what you remember. `npm run verify` is the arbiter.

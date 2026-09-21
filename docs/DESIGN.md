@@ -106,6 +106,10 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens | `tuning.chaseCam` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 
+**Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
+`tuning.chaseCam`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
+
 Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
 procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8
 bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that

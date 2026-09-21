@@ -10,6 +10,12 @@ export class InputSystem implements System {
   /** What the pilot wants during the current step. Read it; do not keep or change it. */
   readonly current: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: false };
 
+  /**
+   * When set, this source ALONE flies the ship and the devices are not read: a replay (exactness
+   * needs every other hand off the stick). Whoever sets it clears it, and disposes it.
+   */
+  override: InputSource | null = null;
+
   private readonly sources: InputSource[] = [];
   private sawInput = false;
 
@@ -23,7 +29,8 @@ export class InputSystem implements System {
 
   fixedUpdate(): void {
     clearIntent(this.current);
-    for (const source of this.sources) source.read(this.current);
+    if (this.override) this.override.read(this.current);
+    else for (const source of this.sources) source.read(this.current);
 
     if (!this.sawInput && isSteering(this.current)) {
       this.sawInput = true;
@@ -32,6 +39,7 @@ export class InputSystem implements System {
   }
 
   dispose(): void {
+    this.override = null;
     for (const source of this.sources.splice(0)) source.dispose();
     clearIntent(this.current);
   }
