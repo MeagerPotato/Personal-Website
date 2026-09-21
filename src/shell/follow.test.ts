@@ -116,6 +116,19 @@ describe('the route follows the ship', () => {
     expect(h.log).toEqual(['leave /']);
   });
 
+  it('does not call the ship back from wherever the pilot went: the route went home BECAUSE it left', () => {
+    const h = harness('/about/');
+    // The pilot pointed at another planet: the ship has left, and is on its way there.
+    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.show('/');
+    expect(h.log).toEqual(['leave /']);
+
+    // Only that once. Going home by a link still lets go of whatever the ship is doing.
+    h.show('/about/');
+    h.show('/');
+    expect(h.log.slice(1)).toEqual(['goTo page/about', 'undock']);
+  });
+
   it('ignores a dock that ended because somebody asked: that was the route, and it knows', () => {
     const h = harness('/about/');
     h.show('/projects/fishai/');

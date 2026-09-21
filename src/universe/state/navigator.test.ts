@@ -311,6 +311,28 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
   });
 
+  it('sets out because the PILOT pointed somewhere, and says so to what it leaves behind', () => {
+    const h = harness(0, 0, 0, WIDE_GALAXY);
+    h.navigator.place('page/about');
+    h.run(1);
+    h.heard.length = 0;
+    expect(h.navigator.travel('project/fishai', 'pilot')).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'page/about', by: 'pilot' }],
+      ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
+    ]);
+
+    // Pointing at another one on the way: the journey that ends is the pilot's doing too.
+    h.heard.length = 0;
+    expect(h.navigator.travel('system/code', 'pilot')).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['statechange', { mode: 'autopilot', target: 'system/code' }],
+    ]);
+  });
+
   it('hands the ship back to the pilot who steers, and says who ended the journey', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);
