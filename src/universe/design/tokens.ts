@@ -77,8 +77,16 @@ export const tokens = {
   },
 
   font: {
-    /** ui-rounded gives SF Rounded on Apple devices for free; a self-hosted face arrives in A1. */
+    /**
+     * ui-rounded gives SF Rounded on Apple devices for free. A1 chooses self-hosted faces: the
+     * candidates are in public/fonts with an @font-face each (src/styles/global.css, section 0),
+     * and a face is adopted by putting its family name FIRST in one of these stacks. A face that
+     * no stack names is never downloaded.
+     */
     body: "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Segoe UI', system-ui, sans-serif",
+    /** Headings and the wordmark. The same as `body` until A1 decides otherwise. */
+    display:
+      "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Segoe UI', system-ui, sans-serif",
     mono: "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
   },
 

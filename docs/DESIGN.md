@@ -54,8 +54,12 @@ states for buttons and chips.
 
 ## Typography _(open: A1)_
 
-Today: a system rounded stack (`font.body`) and a system mono stack (`font.mono`), zero font
-downloads. The fluid scale is `text.xs … text.display` (min at 360 px, max near 1200 px). A1 chooses
+Today: a system rounded stack (`font.body`, and `font.display` for headings and the wordmark,
+which is the same stack until A1 decides otherwise) and a system mono stack (`font.mono`), zero
+font downloads. Five candidates are staged in `public/fonts/` with an `@font-face` each (Nunito,
+Rubik, Outfit, Inter, JetBrains Mono: variable, Latin subset, SIL Open Font License); a face is
+adopted by putting its family name first in a stack, a face that no stack names is never
+downloaded, and whatever A1 does not choose is deleted afterwards. The fluid scale is `text.xs … text.display` (min at 360 px, max near 1200 px). A1 chooses
 at most two self-hosted faces (woff2, subset, `font-display: swap`), a rounded or geometric sans
 for display and a workhorse for body, and revisits the scale. Mono is for eyebrows, stats and code.
 
