@@ -1,0 +1,30 @@
+---
+// A list of roles (Experience, Leadership) on the resume. Markup only.
+import type { Resume } from '../site/resume';
+
+interface Props {
+  roles: Resume['experience'];
+}
+
+const { roles } = Astro.props;
+---
+
+<ul class="entries">
+  {roles.map((item) => (
+    <li class="entry">
+      <div class="entry__head">
+        <h3>{item.role}</h3>
+        <p class="entry__when">{item.when}</p>
+      </div>
+      <p class="entry__sub">
+        {item.link ? <a href={item.link}>{item.org}</a> : item.org}
+        {item.location && ` · ${item.location}`}
+      </p>
+      <ul class="entry__bullets">
+        {item.bullets.map((bullet) => (
+          <li>{bullet}</li>
+        ))}
+      </ul>
+    </li>
+  ))}
+</ul>

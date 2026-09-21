@@ -1,10 +1,10 @@
 import { defineCollection, reference } from 'astro:content';
-import { glob } from 'astro/loaders';
+import { file, glob } from 'astro/loaders';
 import { entryIdFromPath } from './site/routes';
-import { pageSchema, projectSchema, systemSchema } from './site/schemas';
+import { pageSchema, projectSchema, resumeSchema, systemSchema } from './site/schemas';
 
 // The thin Astro wrapper around the content layer (docs/PLAN.md §5.1). Everything with logic in
-// it lives in src/site as plain zod and plain functions; this file only says where the Markdown
+// it lives in src/site as plain zod and plain functions; this file only says where the content
 // is and hands over the two helpers that only Astro can provide: image() and reference().
 
 const generateId = ({ entry }: { entry: string }): string => entryIdFromPath(entry);
@@ -26,5 +26,11 @@ export const collections = {
   pages: defineCollection({
     loader: glob({ base: './src/content/pages', pattern: '*.md', generateId }),
     schema: pageSchema(),
+  }),
+
+  // The resume as data: one entry per section, keyed by section name.
+  resume: defineCollection({
+    loader: file('src/content/resume.yaml'),
+    schema: resumeSchema(),
   }),
 };

@@ -107,3 +107,48 @@ export function toSitePath(url, pagePath) {
   const resolved = new URL(url, `https://site.invalid${pagePath}`);
   return decodeURIComponent(resolved.pathname);
 }
+
+// --- the swap contract (docs/PLAN.md §5.1) ---------------------------------------------------------
+
+const MAIN_OPEN_RE = /<main\b[^>]*>/gi;
+const MAIN_CLOSE = '</main>';
+const PAGE_HEAD_PAIRED_RE =
+  /<(title|script|style)\b[^>]*\sdata-page-head\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+const PAGE_HEAD_VOID_RE = /<(?:meta|link)\b[^>]*\sdata-page-head\b[^>]*>/gi;
+const ARIA_CURRENT_RE = /\saria-current\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+)/gi;
+
+/** Pages that never boot the engine (the 404). The router never swaps one in, so they are exempt. */
+export function isPlainOnly(html) {
+  return /<html\b[^>]*\sdata-plain-only\b/i.test(html);
+}
+
+/**
+ * A page with everything the router swaps taken out: the children of <main>, every
+ * [data-page-head] node, and the nav's aria-current attributes. What is left must be
+ * byte-identical on every page, or a soft navigation and a hard one would end in different DOMs.
+ */
+export function pageSkeleton(html) {
+  const opens = [...html.matchAll(MAIN_OPEN_RE)];
+  const close = html.lastIndexOf(MAIN_CLOSE);
+  if (opens.length !== 1 || close < 0 || html.indexOf(MAIN_CLOSE) !== close) {
+    throw new Error('expected exactly one <main> element');
+  }
+  const bodyStart = opens[0].index + opens[0][0].length;
+  // <main> is emptied FIRST, so nothing a page says inside it can look like a head node.
+  return (html.slice(0, bodyStart) + html.slice(close))
+    .replace(PAGE_HEAD_PAIRED_RE, '')
+    .replace(PAGE_HEAD_VOID_RE, '')
+    .replace(ARIA_CURRENT_RE, '');
+}
+
+/** Where two strings first differ, with a little context: an error message a person can act on. */
+export function firstDifference(expected, actual, context = 70) {
+  if (expected === actual) return null;
+  let index = 0;
+  while (index < expected.length && index < actual.length && expected[index] === actual[index]) {
+    index += 1;
+  }
+  const from = Math.max(0, index - context);
+  const excerpt = (text) => JSON.stringify(text.slice(from, index + context));
+  return { index, expected: excerpt(expected), actual: excerpt(actual) };
+}

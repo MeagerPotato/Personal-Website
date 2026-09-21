@@ -1,0 +1,45 @@
+---
+// A solar system: one passion, and the planets that orbit it.
+import type { InferGetStaticPropsType } from 'astro';
+import { getCollection, render } from 'astro:content';
+import Crumbs from '../../components/Crumbs.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import ProjectCards from '../../components/ProjectCards.astro';
+import Base from '../../layouts/Base.astro';
+import { routes } from '../../site/routes';
+import { pageTitle } from '../../site/seo';
+import { buildProjectTree, visibleProjects } from '../../site/view-models';
+
+export async function getStaticPaths() {
+  const systems = await getCollection('systems');
+  return systems.map((entry) => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+
+const { entry } = Astro.props;
+const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
+const [system] = buildProjectTree([entry], projects);
+if (!system) throw new Error(`System "${entry.id}" did not make it into the project tree`);
+const { Content } = await render(entry);
+---
+
+<Base title={pageTitle(`${system.name} system`)} description={system.tagline}>
+  <Crumbs crumbs={[{ label: 'Projects', href: routes.projects() }]} />
+
+  <PageHeader
+    eyebrow="Solar system"
+    title={system.name}
+    lede={system.tagline}
+    theme={system.theme}
+  />
+
+  <div class="prose">
+    <Content />
+  </div>
+
+  <section class="section" aria-labelledby="system-planets">
+    <h2 id="system-planets">Planets</h2>
+    <ProjectCards cards={system.planets} />
+  </section>
+</Base>

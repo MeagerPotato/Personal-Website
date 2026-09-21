@@ -1,0 +1,124 @@
+---
+// A planet or a moon: one project. Both kinds share this page and this URL shape.
+import type { InferGetStaticPropsType } from 'astro';
+import { getCollection, render } from 'astro:content';
+import Crumbs from '../../components/Crumbs.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import ProjectCards from '../../components/ProjectCards.astro';
+import Shot from '../../components/Shot.astro';
+import Base from '../../layouts/Base.astro';
+import { pageTitle } from '../../site/seo';
+import {
+  STATUS_LABEL,
+  projectContext,
+  projectLinks,
+  projectWhen,
+  visibleProjects,
+} from '../../site/view-models';
+
+export async function getStaticPaths() {
+  const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
+  return projects.map((entry) => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+
+const { entry } = Astro.props;
+const { data } = entry;
+const systems = await getCollection('systems');
+const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
+const context = projectContext(entry, systems, projects);
+const links = projectLinks(data.links);
+const { Content } = await render(entry);
+---
+
+<Base title={pageTitle(data.title)} description={data.summary}>
+  <Crumbs crumbs={context.crumbs} />
+
+  <PageHeader
+    eyebrow={context.placement}
+    title={data.title}
+    lede={data.summary}
+    theme={context.theme}
+  />
+
+  {links.length > 0 && (
+    <ul class="actions">
+      {links.map((link, index) => (
+        <li>
+          <a
+            class:list={['button', { 'button--primary': index === 0 }]}
+            href={link.href}
+            rel="noopener"
+          >
+            {link.label}
+            <span class="button__host">{link.host}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <Shot class="cover" src={data.cover.src} alt={data.cover.alt} eager />
+
+  <dl class="facts">
+    <div>
+      <dt>Status</dt>
+      <dd>{STATUS_LABEL[data.status]}</dd>
+    </div>
+    <div>
+      <dt>When</dt>
+      <dd>{projectWhen(data)}</dd>
+    </div>
+    <div>
+      <dt>Role</dt>
+      <dd>{data.role}</dd>
+    </div>
+    {data.stack.length > 0 && (
+      <div class="facts__wide">
+        <dt>Built with</dt>
+        <dd>
+          <ul class="tags">
+            {data.stack.map((tool) => (
+              <li>{tool}</li>
+            ))}
+          </ul>
+        </dd>
+      </div>
+    )}
+  </dl>
+
+  <div class="prose">
+    <Content />
+  </div>
+
+  {data.gallery.length > 0 && (
+    <section class="section" aria-labelledby="project-gallery">
+      <h2 id="project-gallery">Gallery</h2>
+      <ul class="gallery">
+        {data.gallery.map((shot) => (
+          <li>
+            <figure>
+              <Shot src={shot.src} alt={shot.alt} />
+              {shot.caption && <figcaption>{shot.caption}</figcaption>}
+            </figure>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {context.moons.length > 0 && (
+    <section class="section" aria-labelledby="project-moons">
+      <h2 id="project-moons">Moons of {data.title}</h2>
+      <ProjectCards cards={context.moons} />
+    </section>
+  )}
+
+  {context.related.length > 0 && (
+    <section class="section" aria-labelledby="project-related">
+      <h2 id="project-related">Connected by motorway</h2>
+      <ProjectCards cards={context.related} />
+    </section>
+  )}
+</Base>

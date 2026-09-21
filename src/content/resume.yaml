@@ -1,0 +1,98 @@
+# The resume, as data. One entry per section; `items` are shown in the order written here.
+# Validated by resumeSchema in src/site/schemas.ts (unknown keys fail the build).
+#
+# NEVER add a phone number or a private email address to this file. The public contact address
+# lives in src/config/site.ts.
+#
+# Sources: Allen's resume (2026) and LinkedIn export (2026-09-20). Where they disagreed, the newer
+# LinkedIn numbers were used; docs/PLAN.md §9 lists the points still to confirm with Allen.
+
+education:
+  section: education
+  items:
+    - school: University of California, Berkeley
+      detail: B.S. Aerospace Engineering, College of Engineering
+      location: Berkeley, CA
+      when: Expected May 2030
+    - school: Troy High School
+      detail: Troy Tech Magnet Program
+      location: Fullerton, CA
+      when: May 2026
+
+experience:
+  section: experience
+  items:
+    - role: Systems Engineering Intern
+      org: Raytheon
+      location: Fullerton, CA
+      when: Summer 2025
+      bullets:
+        - Reverse-engineered an Arduino-based robotic system and produced its technical documentation, wiring diagrams, and CAD models.
+        - Shadowed engineering workflows across the mechanical, electrical, software, and systems departments; attended product development briefings and radar test site visits.
+    - role: AFRL Scholars Intern
+      org: Air Force Research Laboratory
+      location: Albuquerque, NM
+      when: Summer 2024
+      bullets:
+        - Designed, built, and iteratively tested a staged-recovery rocket through 11 design iterations, integrating a fragile payload and a dual-event recovery system using OpenRocket and CAD.
+        - Operated FDM and resin 3D printers, a CNC lathe and mill, and a laser cutter to prototype solutions for autonomous robotics projects.
+        - Observed cold-atom laboratory research on inertial navigation systems based on Bose-Einstein condensates.
+    - role: Selected Attendee
+      org: Y Combinator Startup School
+      location: San Francisco, CA
+      when: Summer 2026
+      bullets:
+        - Selected to attend YC's in-person conference for top student builders; heard from Sam Altman, Garry Tan, and Jensen Huang on AI, deep tech, and building startups.
+        - Placed 5th of 1,000+ competitors at the Corgi Hackathon with RunItBack, built in 12 hours, which turns a single photo into an interactive 3D environment for dementia reminiscence therapy.
+
+leadership:
+  section: leadership
+  items:
+    - role: Team Captain & Instructor
+      org: CyberPatriot
+      when: Sep 2022 – May 2026
+      bullets:
+        - Led the team to 2nd place at the CyberPatriot National Finals twice (2025 and 2026; 1,406 teams entered the 2025 season) and to 1st place in the Cisco Networking Challenge both years.
+        - National semifinalist runner-up in 2023 and 2024, competing all four years as the team's Windows specialist.
+        - Taught about 200 students over two years as a program instructor and Troy CyberCamp staff.
+    - role: Co-Founder & Lead Programmer
+      org: VEX Robotics
+      when: May 2023 – May 2026
+      bullets:
+        - Co-founded the school's first V5RC team with 11 members; by 2026 the program had grown to 14 teams and 90+ students.
+        - Programmed autonomous navigation in C++ using odometry, sensor fusion, motion profiling, and Monte Carlo localization.
+        - "Across the program: 4 VEX Worlds qualifications, back-to-back National Division Finalist (2024, 2025), and 3 California Region 4 State qualifications."
+        - Managed budgets that grew from about $15K to about $80K for parts, tools, and travel, and led summer-camp fundraisers that raised about $12K.
+    - role: Founder & President
+      org: Troy Preparedness Club
+      when: Jul 2023 – May 2026
+      bullets:
+        - Founded a school-wide emergency preparedness initiative; hosted 3 Teen CERT and 2 First Aid/BLS trainings, certifying about 150 students and engaging 300+ families.
+        - Organized 2,000+ volunteer hours; earned a U.S. Congressional Certificate of Recognition and a team lead role on the FEMA Youth Preparedness Council (Region 9).
+    - role: Founder & Team Captain
+      org: American Rocketry Challenge
+      when: Jul 2023 – May 2026
+      bullets:
+        - Founded and captained a competitive rocketry team; raised $2,000 from business sponsors.
+
+skills:
+  section: skills
+  items:
+    - label: Programming & tools
+      values: [Python, C++, TypeScript, Git, MySQL, MATLAB, LaTeX]
+    - label: Design & fabrication
+      values: [SolidWorks (CAD and FEA), Fusion 360, CNC machining, FDM and SLA printing]
+    - label: Certifications
+      values: [GIAC GFACT (cybersecurity), SolidWorks CSWA, FEMA CERT Basic Training, Red Cross CPR/AED]
+
+awards:
+  section: awards
+  items:
+    - title: CyberPatriot National Finals, 2nd place, and Cisco Networking Challenge, 1st place
+      detail: 2025 and 2026
+    - title: NCSF Scholar with Honors
+      detail: About the top 1% of 45,000 applicants, 2023
+    - title: VEX Robotics National Championships, Division Finalist
+      detail: 2024 and 2025
+    - title: National Merit Commended Scholar and AP Scholar with Distinction
+    - title: U.S. Congressional Certificate of Recognition, and VFW Citation and Medal

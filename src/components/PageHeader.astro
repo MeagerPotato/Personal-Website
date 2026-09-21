@@ -1,0 +1,20 @@
+---
+// The top of every page: a small label saying what kind of place this is, the name, and
+// optionally one sentence. `theme` tints the label with a solar system's colour. Markup only.
+import type { ThemeKey } from '../universe/design/tokens';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  lede?: string | undefined;
+  theme?: ThemeKey | undefined;
+}
+
+const { eyebrow, title, lede, theme } = Astro.props;
+---
+
+<header class="page-header" data-theme={theme}>
+  <p class="eyebrow">{eyebrow}</p>
+  <h1>{title}</h1>
+  {lede && <p class="lede">{lede}</p>}
+</header>

@@ -87,3 +87,54 @@ export const pageSchema = () =>
     /** home = the home planet itself; station and satellite orbit it. */
     dock: z.enum(['home', 'station', 'satellite']),
   });
+
+// --- resume.yaml ---------------------------------------------------------------------------------
+// One entry per section, keyed by the section's name. `items` is a list, so the order written in
+// the file is the order on the page. No phone number and no private email, ever.
+
+const resumeRole = z.strictObject({
+  role: z.string().min(1).max(80),
+  org: z.string().min(1).max(80),
+  location: z.string().min(1).max(60).optional(),
+  /** Shown as written ("Summer 2025", "Sep 2022 – May 2026"): a resume knows seasons, not months. */
+  when: z.string().min(1).max(40),
+  /** One accomplishment per bullet, with a number in it where there is one. */
+  bullets: z.array(z.string().min(1).max(320)).min(1).max(5),
+  link: httpsUrl.optional(),
+});
+
+export const resumeSchema = () =>
+  z.discriminatedUnion('section', [
+    z.strictObject({
+      section: z.literal('education'),
+      items: z.array(
+        z.strictObject({
+          school: z.string().min(1).max(80),
+          detail: z.string().min(1).max(160),
+          location: z.string().min(1).max(60).optional(),
+          /** Shown as written: "Expected May 2030". */
+          when: z.string().min(1).max(40),
+        }),
+      ),
+    }),
+    z.strictObject({ section: z.literal('experience'), items: z.array(resumeRole) }),
+    z.strictObject({ section: z.literal('leadership'), items: z.array(resumeRole) }),
+    z.strictObject({
+      section: z.literal('skills'),
+      items: z.array(
+        z.strictObject({
+          label: z.string().min(1).max(40),
+          values: z.array(z.string().min(1).max(60)).min(1),
+        }),
+      ),
+    }),
+    z.strictObject({
+      section: z.literal('awards'),
+      items: z.array(
+        z.strictObject({
+          title: z.string().min(1).max(120),
+          detail: z.string().min(1).max(160).optional(),
+        }),
+      ),
+    }),
+  ]);

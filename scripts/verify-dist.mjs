@@ -8,13 +8,24 @@
 //      only ever be reachable through a dynamic import(), which plain mode never executes.
 //   5. WEIGHT BUDGETS: what plain mode costs per page, and what the lazy engine costs in total.
 //   6. NO PLACEHOLDER COPY: "TODO(copy)" may sit in drafts and in source, never in what ships.
+//   7. SWAP CONTRACT: outside <main> and [data-page-head], every page is byte-identical (the
+//      nav's aria-current aside), and has exactly one <h1>. The router (Phase 2) swaps only
+//      those parts, so this is what makes a soft navigation end in the same DOM as a hard one.
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { posix, relative, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { toPosix, walk } from './lib/fs.mjs';
-import { extractEagerScripts, extractStaticImports, extractUrls, toSitePath } from './lib/html.mjs';
+import {
+  extractEagerScripts,
+  extractStaticImports,
+  extractUrls,
+  firstDifference,
+  isPlainOnly,
+  pageSkeleton,
+  toSitePath,
+} from './lib/html.mjs';
 
 const DIST = resolve(import.meta.dirname, '..', 'dist');
 // three.js keeps "THREE.<Class>: ..." strings in its warnings, which survive minification.
@@ -178,6 +189,41 @@ for (const file of files.filter((path) => /\.(html|json|xml|txt)$/.test(path))) 
   }
 }
 
+// 7 --- swap contract ---------------------------------------------------------------------------
+const swappable = pages.filter((page) => !isPlainOnly(page.html));
+let reference = null;
+// Shortest path first, so the home page is the reference everything else is compared with.
+for (const page of [...swappable].sort((a, b) => a.pagePath.length - b.pagePath.length)) {
+  const headings = page.html.match(/<h1[\s>]/gi)?.length ?? 0;
+  if (headings !== 1) {
+    errors.push(`${page.pagePath}: has ${headings} <h1> elements; the router focuses THE heading`);
+  }
+
+  let skeleton;
+  try {
+    skeleton = pageSkeleton(page.html);
+  } catch (error) {
+    errors.push(`${page.pagePath}: ${error.message}`);
+    continue;
+  }
+  if (reference === null) {
+    reference = { pagePath: page.pagePath, skeleton };
+    continue;
+  }
+  const difference = firstDifference(reference.skeleton, skeleton);
+  if (difference) {
+    errors.push(
+      [
+        `${page.pagePath}: differs from ${reference.pagePath} outside <main> and ` +
+          `[data-page-head], at character ${difference.index}`,
+        `${reference.pagePath} has ${difference.expected}`,
+        `${page.pagePath} has ${difference.actual}`,
+        'Per-page markup belongs inside <main>; per-page <head> nodes need data-page-head.',
+      ].join('\n      '),
+    );
+  }
+}
+
 // --- report ------------------------------------------------------------------------------------
 if (errors.length > 0) {
   console.error(`verify-dist: ${errors.length} problem(s)\n  - ${errors.join('\n  - ')}`);
@@ -185,7 +231,8 @@ if (errors.length > 0) {
 }
 console.log(
   `verify-dist: OK. ${htmlFiles.length} page(s), ${linkCount} internal reference(s), ` +
-    `${engineChunks.length} engine chunk(s), none statically reachable from any page.\n` +
+    `${engineChunks.length} engine chunk(s), none statically reachable from any page; ` +
+    `${swappable.length} page(s) share one skeleton.\n` +
     `  plain mode: heaviest page ${heaviest.pagePath} = ${kib(heaviest.weight)} ` +
     `of ${kib(BUDGET.plainPage)}; lazy JS = ${kib(lazyWeight)} of ${kib(BUDGET.lazyScripts)} (gzip)`,
 );

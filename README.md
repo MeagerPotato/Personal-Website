@@ -3,16 +3,17 @@
 Allen's personal site, built as a small universe you can fly through: solar systems are passions,
 planets are projects, moons are sub-projects. Mini Motorways colours, dark navy space, a rocket.
 
-**Status: Phase 0 (foundations).** What exists so far is an "under construction" page with a
-starfield, built as a miniature of the real architecture. The roadmap is in
-[docs/PLAN.md](docs/PLAN.md) §6.
+**Status: the pages are real, the flying is not yet.** Every page of the first release exists and
+reads well as a plain site: about, resume (it prints), contact, projects and their solar systems.
+Universe mode is still a starfield behind them; the rocket, the planets and docking come next. The
+roadmap is in [docs/PLAN.md](docs/PLAN.md) §6.
 
 ## One URL, two modes
 
 Every page is real pre-rendered HTML with the full content.
 
 - **Universe mode** boots a three.js world on top, and the page content becomes the info panel.
-- **Plain mode** is a fast typographic site: about 5 KB gzipped per page, no framework JavaScript,
+- **Plain mode** is a fast typographic site: under 10 KB gzipped per page, no framework JavaScript,
   and it never downloads three.js. Add `?plain` to any URL (`?universe` switches back). It is also
   what you get without WebGL2, with reduced motion requested, or if the engine fails to start.
 
