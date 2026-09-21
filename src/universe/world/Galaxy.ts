@@ -20,6 +20,7 @@ import {
 } from '../design/materials';
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import type { OrbitSubject } from '../camera/OrbitCam';
 import type { ManifestBody, ManifestSystem, UniverseManifest } from '../manifest';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
@@ -155,6 +156,22 @@ export class Galaxy implements System {
     }
     out.copy(KEY_LIGHT_POSITION);
     return sun ? out.lerp(sun, weight) : out;
+  }
+
+  /**
+   * A body as a camera subject: where it is this frame (a LIVE position: it moves with the body),
+   * its docking ring, and where its light comes from. Null for an unknown id.
+   */
+  subject(id: string): OrbitSubject | null {
+    const view = this.views.find((candidate) => candidate.body.id === id);
+    const look = view && this.systems.get(view.body.system);
+    if (!view || !look) return null;
+    const isLight = view.body.kind === 'sun';
+    return {
+      position: view.node.position,
+      ringRadius: view.body.dockRadius,
+      light: isLight ? null : look.hasSun ? look.sunPosition : KEY_LIGHT_POSITION,
+    };
   }
 
   dispose(): void {

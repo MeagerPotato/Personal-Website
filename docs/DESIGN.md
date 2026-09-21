@@ -111,6 +111,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans, nods and bobs, and how the flame follows the throttle | `tuning.ship` |
 | The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens | `tuning.chaseCam` |
+| The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders | `tuning.orbitCam` |
+| Changing between cameras and making room for the panel: seconds from chase view to orbit view, how quickly the view slides over | `tuning.cameraRig` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 | Orbit assist: how fast and how far out a ship that lets go is eased onto a ring, how early a ship flying at a planet is swung round it | `tuning.assist` |
 | Bumping into things: how deep and how firm the cushion above a surface is, how much bounce is left | `tuning.cushion` |
@@ -121,7 +123,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.chaseCam`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on

@@ -15,6 +15,8 @@ const LIVE_BLOCKS = [
   'dock',
   'input',
   'chaseCam',
+  'orbitCam',
+  'cameraRig',
   'ship',
   'shading',
 ] as const;

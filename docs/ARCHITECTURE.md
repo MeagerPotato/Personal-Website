@@ -115,8 +115,28 @@ Each display frame:
 6. **The governor** (`core/quality/governor.ts`) is told how long the frame took and may lower the
    render resolution, give some back, or (once, early) ask for a lower tier.
 
-Order in `main.ts` today: assets → input → ship → navigator → camera → galaxy → ship lighting → sky → stars →
-dust → jobs → debug overlays. The camera comes after the ship so that it sees this frame's ship.
+Order in `main.ts` today: assets → input → ship → navigator → galaxy → ship lighting → camera
+director → camera rig → sky → stars → dust → jobs → prompt → debug overlays. The camera comes
+after everything it looks at (the ship AND the planets), so that it sees this frame's world.
+
+**The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`; map and
+cinematic later) only fills in a `Pose`: what to look at, from how far, turned which way, through
+which lens. `CameraRig` applies the pose of the mode in charge and BLENDS between modes in that
+form, live: both modes keep following their subjects while a blend runs, turning back halfway
+runs the same blend the other way, and a mode that comes back after a while away is told so
+(`enter()`), so a chase camera starts from behind the ship instead of swooping in from where it
+last saw it. A few lines in `main.ts` direct it: docked means the orbit view, anything else the
+chase view; a ship that was PUT at a body (a deep link, a rebuild) is cut to, one that flew there
+is eased to, and under reduced motion everything is a cut.
+
+**The panel and the view.** The info panel covers part of the viewport. The shell measures how
+much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
+(`--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides the WINDOW onto the
+view with `camera.setViewOffset` so that the middle of the view is the middle of what is left:
+same camera, same perspective, so a planet stays round (turning the camera instead would stretch
+it into an egg near the edge of a wide lens). Modes that frame something are told how much is free
+and stand back accordingly. `#universe-overlay` is inset the same way, so the dock prompt is never
+under a bottom sheet.
 
 ## 5. Life of a visit
 

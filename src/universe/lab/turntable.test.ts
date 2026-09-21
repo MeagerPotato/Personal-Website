@@ -9,7 +9,7 @@ const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 
 function view(cam: TurntableCam, aspect = 16 / 9, dt = 0) {
   const pose = createPose();
-  cam.update(frame(dt), aspect, pose);
+  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1 }, pose);
   const camera = new PerspectiveCamera();
   applyPose(camera, pose);
   return { pose, camera, forward: new Vector3(0, 0, -1).applyQuaternion(camera.quaternion) };

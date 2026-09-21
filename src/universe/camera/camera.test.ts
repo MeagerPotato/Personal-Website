@@ -8,6 +8,7 @@ import { ChaseCam } from './ChaseCam';
 const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 const params = tuning.chaseCam;
 const DEG = Math.PI / 180;
+const WIDE = { aspect: 16 / 9, freeWidth: 1, freeHeight: 1 };
 
 function ship(x = 0, z = 0, heading = 0, speed = 0) {
   return { position: new Vector3(x, 0, z), heading, speed };
@@ -16,7 +17,7 @@ function ship(x = 0, z = 0, heading = 0, speed = 0) {
 /** Where the camera stands and which way it faces, after the rig has applied a pose. */
 function view(cam: ChaseCam, aspect = 16 / 9, dt = 1 / 60) {
   const pose = createPose();
-  cam.update(frame(dt), aspect, pose);
+  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1 }, pose);
   const camera = new PerspectiveCamera();
   applyPose(camera, pose);
   camera.updateMatrixWorld();
@@ -57,7 +58,7 @@ describe('the chase camera', () => {
       const pose = createPose();
       for (let i = 0; i < hz * 6; i += 1) {
         target.position.z += speed / hz;
-        cam.update(frame(1 / hz), 16 / 9, pose);
+        cam.update(frame(1 / hz), WIDE, pose);
       }
       const ahead = params.lookAheadBase + params.lookAheadPerSpeed * speed;
       return target.position.z - (pose.focus.z - ahead);
@@ -88,11 +89,11 @@ describe('the chase camera', () => {
     const target = ship();
     const cam = new ChaseCam(target, { reducedMotion: false });
     const pose = createPose();
-    cam.update(frame(1 / 60), 16 / 9, pose);
+    cam.update(frame(1 / 60), WIDE, pose);
 
     target.heading = Math.PI / 2; // the ship now points along +X
     const swing = (): number => {
-      cam.update(frame(1 / 60), 16 / 9, pose);
+      cam.update(frame(1 / 60), WIDE, pose);
       const forward = new Vector3(0, 0, -1).applyQuaternion(pose.quaternion);
       return Math.atan2(forward.x, forward.z);
     };
@@ -135,13 +136,20 @@ describe('the chase camera', () => {
     const target = ship();
     const cam = new ChaseCam(target, { reducedMotion: false });
     const pose = createPose();
-    cam.update(frame(1 / 60), 16 / 9, pose);
+    cam.update(frame(1 / 60), WIDE, pose);
 
     target.position.set(900, 0, -300);
     cam.snap();
-    cam.update(frame(1 / 60), 16 / 9, pose);
+    cam.update(frame(1 / 60), WIDE, pose);
     expect(pose.focus.x).toBeCloseTo(900, 6);
     expect(pose.focus.z).toBeCloseTo(-300 + params.lookAheadBase, 6);
+
+    // And when the rig comes back to it after a while with another camera (docked, say).
+    target.position.set(-40, 0, 77);
+    cam.enter();
+    cam.update(frame(1 / 60), WIDE, pose);
+    expect(pose.focus.x).toBeCloseTo(-40, 6);
+    expect(pose.focus.z).toBeCloseTo(77 + params.lookAheadBase, 6);
   });
 });
 

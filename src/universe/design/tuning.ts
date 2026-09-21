@@ -1,4 +1,6 @@
+import type { RigParams } from '../camera/CameraRig';
 import type { ChaseCamParams } from '../camera/ChaseCam';
+import type { OrbitCamParams } from '../camera/OrbitCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
 import type { JobBudget } from '../core/jobs';
@@ -227,6 +229,27 @@ export const tuning = {
     maxFovDegrees: 95,
     portraitDistanceScale: 1.3,
   } satisfies ChaseCamParams,
+
+  /** The camera of a docked ship: the body is the subject, the ship circles through the picture. */
+  orbitCam: {
+    fovDegrees: 40,
+    /** Looking down from this far above the flight plane. */
+    elevationDeg: 25,
+    /** Standing this far round from where the light comes from: mostly day side, some night. */
+    sunwardOffsetDeg: 35,
+    /** What has to fit into the part of the view the panel leaves free, in docking-ring radii. */
+    fitRingRadii: 1.15,
+    /** The view wanders round the body, slowly. Off under reduced motion. */
+    driftRadPerSec: 0.03,
+  } satisfies OrbitCamParams,
+
+  /** Changing between cameras, and making room for the info panel (camera/CameraRig.ts). */
+  cameraRig: {
+    /** Seconds from the chase view to the orbit view and back. A page opened on a planet cuts. */
+    dockBlendSec: 1.2,
+    /** 1/s. How quickly the view slides over when the panel opens, closes or changes size. */
+    insetOmega: 7,
+  } satisfies RigParams & { dockBlendSec: number },
 
   /**
    * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many
