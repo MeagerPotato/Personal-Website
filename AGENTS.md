@@ -14,8 +14,9 @@ shading) on dark navy space. Tone: playful framing, technical substance. The own
 Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation), over
-what is still only a starfield. Phase 1 (flight) has not started, and Phase 2's 3D half (panel,
-docking, autopilot) waits for it. Roadmap: docs/PLAN.md §6.
+what is still only a starfield. **Phase 1 (flight) is under way**: the engine runs on a fixed
+60 Hz simulation clock. Phase 2's 3D half (panel, docking, autopilot) waits for flight. Roadmap:
+docs/PLAN.md §6.
 
 ## Invariants
 
@@ -132,8 +133,12 @@ a logic change: ask for it instead.
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.
 
 **Add an engine system.** A class implementing `System` from `core/Engine.ts` under
-`src/universe/world/` (or a sibling folder); add it in `main.ts`, where order is explicit; dispose
-everything you create. Pure maths goes in `sim/` with a `*.test.ts` beside it.
+`src/universe/world/` (or a sibling folder); add it in `main.ts`, where order is explicit.
+**Simulate in `fixedUpdate(dt)`** (always 1/60 s, so flight is identical on every display) and
+**draw in `frameUpdate(frame)`**, interpolating between the last two simulation states by
+`frame.alpha`; never advance the simulation from a frame. Track every geometry, material and
+texture in a `Scope` (`core/scope.ts`) and dispose the scope in `dispose()`. Pure maths goes in
+`sim/` with a `*.test.ts` beside it.
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for

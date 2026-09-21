@@ -6,7 +6,7 @@ import {
   Points,
   ShaderMaterial,
 } from 'three';
-import type { System, Viewport } from '../core/Engine';
+import type { Frame, System, Viewport } from '../core/Engine';
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { createRng, pickWeighted } from '../sim/rng';
@@ -123,9 +123,9 @@ export class Starfield implements System {
     this.drift = options.reducedMotion ? 0 : params.driftRadPerSec;
   }
 
-  frameUpdate(elapsed: number, dt: number): void {
-    this.uniforms.uTime.value = elapsed;
-    this.object.rotation.y += this.drift * dt;
+  frameUpdate(frame: Frame): void {
+    this.uniforms.uTime.value = frame.elapsed;
+    this.object.rotation.y += this.drift * frame.dt;
   }
 
   resize(viewport: Viewport): void {

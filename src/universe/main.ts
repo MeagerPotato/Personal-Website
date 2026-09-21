@@ -16,7 +16,6 @@ export function boot(options: UniverseOptions): {
 
   const engine = new Engine({
     mount: options.mount,
-    reducedMotion,
     onFirstFrame: () => events.emit('ready', undefined),
     // Phase 1 step 12 replaces this with "rebuild the engine on a fresh canvas from a snapshot".
     onContextLost: () => events.emit('fatal', { reason: 'WebGL context lost' }),

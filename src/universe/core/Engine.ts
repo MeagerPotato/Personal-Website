@@ -1,6 +1,7 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { FixedClock } from './loop';
 import { computePixelRatio } from './viewport';
 
 export interface Viewport {
@@ -9,34 +10,45 @@ export interface Viewport {
   readonly pixelRatio: number;
 }
 
+/** What a system may know about the frame being drawn. One object, reused: do not keep it. */
+export interface Frame {
+  /** Seconds of rendering since the engine started; pauses and hidden tabs do not count. */
+  readonly elapsed: number;
+  /** Duration of this frame in seconds, clamped after a stall. For per-frame easing only. */
+  readonly dt: number;
+  /** Where the frame sits between the previous simulation state (0) and the current one (1). */
+  readonly alpha: number;
+  /** Simulation time of the current state, in seconds. */
+  readonly simTime: number;
+}
+
 /**
- * Anything that lives in the frame loop. Whoever creates a GPU resource disposes it, so
- * `dispose` is mandatory. (`fixedUpdate` and `setQuality` join this interface in Phase 1.)
+ * Anything that lives in the loop. The split is the rule that keeps flight identical on every
+ * display (docs/PLAN.md §5.5): SIMULATE in `fixedUpdate`, which always gets the same `dt`;
+ * DRAW in `frameUpdate`, interpolating by `frame.alpha`. Whoever creates a GPU resource
+ * disposes it, so `dispose` is mandatory. (`setQuality` joins with the quality tiers.)
  */
 export interface System {
-  frameUpdate?(elapsed: number, dt: number): void;
+  fixedUpdate?(dt: number, simTime: number): void;
+  frameUpdate?(frame: Frame): void;
   resize?(viewport: Viewport): void;
   dispose(): void;
 }
 
 export interface EngineOptions {
   mount: HTMLElement;
-  /** Static scene: render on demand instead of running a loop. */
-  reducedMotion: boolean;
   onFirstFrame(): void;
   onContextLost(): void;
 }
-
-/** Longest step we will simulate after a stall (tab switch, GC pause), in seconds. */
-const MAX_FRAME_DT = 0.1;
 
 /**
  * Owns the canvas, the renderer, and the frame loop; knows nothing about what is being drawn.
  * The engine creates its own <canvas> (and will replace it on context loss from Phase 1), so
  * nothing outside src/universe ever holds a reference to it.
  *
- * Phase 0 loop: variable dt, clamped. Phase 1 swaps in the fixed 60 Hz simulation with render
- * interpolation (docs/PLAN.md §5.5) without changing this class's public surface.
+ * The loop: every animation frame runs zero or more fixed simulation steps (core/loop.ts), then
+ * one frame update, then one render. It sleeps while the tab is hidden or the engine is paused,
+ * and the time spent asleep never reaches the simulation.
  */
 export class Engine {
   readonly scene = new Scene();
@@ -46,10 +58,15 @@ export class Engine {
 
   private readonly systems: System[] = [];
   private readonly resizeObserver: ResizeObserver;
+  private readonly clock = new FixedClock({
+    stepSec: 1 / tuning.loop.stepHz,
+    maxFrameSec: tuning.loop.maxFrameSec,
+    maxStepsPerFrame: tuning.loop.maxStepsPerFrame,
+  });
+  private readonly frame = { elapsed: 0, dt: 0, alpha: 0, simTime: 0 };
   private viewport: Viewport = { width: 1, height: 1, pixelRatio: 1 };
   private frameId = 0;
   private lastTime = 0;
-  private elapsed = 0;
   private started = false;
   private paused = false;
   private disposed = false;
@@ -141,11 +158,21 @@ export class Engine {
     this.frameId = 0;
     if (!this.shouldRun) return;
 
-    const dt = Math.min(Math.max((now - this.lastTime) / 1000, 0), MAX_FRAME_DT);
+    const slice = this.clock.advance((now - this.lastTime) / 1000);
     this.lastTime = now;
-    this.elapsed += dt;
 
-    for (const system of this.systems) system.frameUpdate?.(this.elapsed, dt);
+    const stepSec = 1 / tuning.loop.stepHz;
+    for (let step = slice.steps; step > 0; step -= 1) {
+      const simTime = (this.clock.steps - step + 1) * stepSec;
+      for (const system of this.systems) system.fixedUpdate?.(stepSec, simTime);
+    }
+
+    const frame = this.frame;
+    frame.elapsed += slice.frameSec;
+    frame.dt = slice.frameSec;
+    frame.alpha = slice.alpha;
+    frame.simTime = this.clock.simTime;
+    for (const system of this.systems) system.frameUpdate?.(frame);
     this.renderer.render(this.scene, this.camera);
 
     if (!this.hasRendered) {
@@ -153,8 +180,7 @@ export class Engine {
       this.options.onFirstFrame();
     }
 
-    // Under reduced motion nothing moves, so one frame per change is all we need.
-    if (!this.options.reducedMotion) this.frameId = requestAnimationFrame(this.tick);
+    this.frameId = requestAnimationFrame(this.tick);
   };
 
   // --- environment -----------------------------------------------------------------------------
@@ -179,7 +205,9 @@ export class Engine {
     this.camera.updateProjectionMatrix();
 
     for (const system of this.systems) system.resize?.(this.viewport);
-    this.wake(); // no-op while looping; repaints the static frame under reduced motion
+    // Resizing clears the drawing buffer, and this frame's tick has already run: draw again now,
+    // or every resize would flash one empty frame.
+    if (this.hasRendered) this.renderer.render(this.scene, this.camera);
   }
 
   private readonly handleVisibility = (): void => {
