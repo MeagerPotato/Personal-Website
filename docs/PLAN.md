@@ -37,7 +37,7 @@ This plan consolidates everything so far: the 20-question interview, Allen's fol
 | 23 | Fish trilogy | Canadian-Fish-Demo and Fish-Onboarding orbit the FishAI planet as **moons**. |
 | 24 | Astra timing | Visual identity pass (A1) happens **before v0.1 goes public**. |
 | 25 | Identity | Display name **"Allen"**. Tone: **playful framing, technical substance.** |
-| 26 | DNS | allenkh.com is registered at Cloudflare (nameservers verified); apex serves nothing yet. **`days2meet.allenkh.com` (live on Vercel) must never be disturbed.** |
+| 26 | DNS | allenkh.com is registered at Cloudflare (nameservers verified); apex serves nothing yet. **The project sites already on the domain must never be disturbed: `days2meet.allenkh.com` and `fishai.allenkh.com`, both live on Vercel** (the second was found on 2026-09-20 while reading FishAI's README; assume there may be more and check DNS before any DNS-adjacent step). |
 | 27 | Personal touches | Rocket name/look, home planet idea, easter eggs: deferred by Allen; checkpoints in §9. |
 | 28 | Privacy | No phone number anywhere in the repo or site. Public contact email to be named by Allen. |
 
@@ -278,7 +278,7 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 
 **Always:** `npm run verify` (format check → lint → `astro check` → Vitest → build → `verify-dist`: internal links resolve, `/lab` absent, asset rules, inline-script count ≤ 6, three.js unreachable without a dynamic import, gzip weight budgets of 30 KiB per plain page and 180 KiB of lazy JS; measured in Phase 0: 5.2 KiB and 129 KiB) locally before every commit and in CI on every PR.
 
-**Phase 0:** `npm run preview` shows zero CSP console errors. `curl.exe -sI` shows the CSP on `/`, `immutable` on `/_astro/*`, a 404 status with the custom body on `/nope`. `?plain` loads no three.js chunk and stays plain across navigations. JavaScript disabled → full content readable. Reduced motion emulated → invitation appears. A PR shows the `verify` check and Cloudflare's comment; the preview URL sends `X-Robots-Tag` and loads no beacon. After merge, `<meta name="build">` equals the commit SHA. `www` and `http` → 301; `/index.html` → 307. **days2meet snapshot matches the baseline.** securityheaders.com grade A. Lighthouse mobile, plain mode: Performance ≥ 95, Accessibility/Best Practices/SEO 100, LCP < 1.5 s, CLS < 0.02.
+**Phase 0:** `npm run preview` shows zero CSP console errors. `curl.exe -sI` shows the CSP on `/`, `immutable` on `/_astro/*`, a 404 status with the custom body on `/nope`. `?plain` loads no three.js chunk and stays plain across navigations. JavaScript disabled → full content readable. Reduced motion emulated → invitation appears. A PR shows the `verify` check and Cloudflare's comment; the preview URL sends `X-Robots-Tag` and loads no beacon. After merge, `<meta name="build">` equals the commit SHA. `www` and `http` → 301; `/index.html` → 307. **days2meet and fishai snapshots match the baseline.** securityheaders.com grade A. Lighthouse mobile, plain mode: Performance ≥ 95, Accessibility/Best Practices/SEO 100, LCP < 1.5 s, CLS < 0.02.
 
 **Phase 1:** the per-step checks above, plus the playtest gate on real devices. Most valuable unit tests: terminal speed within 1% of A/k_f and a seeded 10k-step fuzz stays finite and in bounds; full radial thrust from the orbit ring escapes within 3 s and a dock request converges within 6 s around a moving planet; over 200 seeded start/target pairs the autopilot respects curvature and acceleration limits, avoids the sun disc, arrives, and an injected steer keeps velocity continuous; adding a system or project leaves every existing position deep-equal; a deep link reaches Docked without passing through Flight.
 
@@ -296,7 +296,7 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 | **Astra's scarce usage** | Claude ships a presentable baseline; 3–4 packets, each self-contained and pre-checked. |
 | **Tooling newer than the agents' training data** | §5.8 list in `AGENTS.md`; exact pins; docs MCP servers; `npm run verify` as the arbiter. |
 | **Astro churn** (5→6→7 in ~18 months) | Thin usage, exact pins, majors at most yearly, dist-contract tests, costed exit plan. |
-| **days2meet collateral damage** | Baseline snapshot, Custom Domain not Route, no `includeSubDomains`, re-check after every DNS-adjacent step. |
+| **Collateral damage to days2meet or fishai** | Baseline snapshot of both, Custom Domain not Route, no `includeSubDomains`, re-check after every DNS-adjacent step. |
 | **Content bottleneck** | v0.1 needs only what Claude can already draft from the repos and resume. |
 
 **Resolved in Phase 0:** the a11y config key is `astro.configs['jsx-a11y-recommended']`; `_headers` rules do apply to 404 responses (checked under `wrangler dev`); `wrangler dev` must be restarted after every rebuild (its asset manifest goes stale); the lockfile generated on Windows carries the Linux binaries CI needs.
@@ -306,7 +306,7 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 ## 9. Open items (non-blocking) and checkpoints
 
 - **Phase 2 kickoff checkpoint (Allen asked for this on 2026-09-20):** before any Phase 2 work, ask Allen for (1) the LinkedIn content, pasted or via LinkedIn's *Save to PDF*, since it could not be read during planning; (2) a refreshed resume; (3) the rocket name/look and the home-planet idea; (4) whether Allen's mailbox on this domain (Cloudflare Email Routing) is the public contact address for the Contact page; the address itself stays out of the repo until Allen says it is public. If the personal touches are still deferred, ship a tasteful generic and revisit in Phase 4. Suggestion to consider then: the pilotable ship could be one of Allen's real rockets, built from the CAD files.
-- **Copy time (W6):** what "SESTINA" is and how to frame FishAI's results; how project pages describe AI-assisted development; display name for the Code system; whether to host a resume PDF (a version without the phone number).
+- **Copy time (W6):** how to frame FishAI's results (resolved 2026-09-20: SESTINA v1.0 is a third-party bot that runs in FishLab, someone else's engine; FishAI's README is the source for every number); how project pages describe AI-assisted development; display name for the Code system; whether to host a resume PDF (a version without the phone number).
 - **Phase 3 intake:** rocketry checklist and CAD exports (§4.3); Berkeley activities list; which rockets become planets.
 - **Phase 2 playtest item:** inter-system distance (1,000 u slot constant) before `galaxy.lock.json` freezes positions in Phase 3.
 
