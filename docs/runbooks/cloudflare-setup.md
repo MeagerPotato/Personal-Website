@@ -4,13 +4,19 @@
 merged to `main`. **Time:** about 10 minutes. **Plan reference:** docs/PLAN.md §5.9 and §6, Phase 0
 step 8. Dashboard labels drift; if something has moved, the dashboard's search box finds it.
 
-> **The one rule:** `days2meet.allenkh.com` is live on Vercel and must not change. Nothing below
-> touches its DNS record. If a step ever offers to edit, replace, or "fix" that record, stop.
+> **The one rule:** the project sites already living on this domain must not change. Today those
+> are `days2meet.allenkh.com` and `fishai.allenkh.com`, both on Vercel. Nothing below touches
+> their DNS records. If a step ever offers to edit, replace, or "fix" one of them, stop.
 
-## 0. Before you start: snapshot days2meet
+## 0. Before you start: snapshot the existing subdomains
 
-Run these and keep the output. Expected today (recorded 2026-09-20): a CNAME to
-`9963483035711a72.vercel-dns-017.com`, status `200`, `Server: Vercel`.
+Run these and keep the output. Expected today (recorded 2026-09-20), for each site: status `200`,
+`Server: Vercel`, and a CNAME to Vercel (the IP addresses behind it rotate, so ignore those):
+
+| Host | CNAME target |
+| --- | --- |
+| `days2meet.allenkh.com` | `9963483035711a72.vercel-dns-017.com` |
+| `fishai.allenkh.com` | `8da0e7de98c9471a.vercel-dns-017.com` |
 
 ```bash
 nslookup days2meet.allenkh.com
@@ -19,6 +25,16 @@ nslookup days2meet.allenkh.com
 ```bash
 curl.exe -sI https://days2meet.allenkh.com
 ```
+
+```bash
+nslookup fishai.allenkh.com
+```
+
+```bash
+curl.exe -sI https://fishai.allenkh.com
+```
+
+If you have put any other project on a subdomain since, snapshot it the same way.
 
 ## 1. Create the Worker from the GitHub repo
 
@@ -50,7 +66,7 @@ should make this unnecessary.)
    **Custom Domain** → `allenkh.com` → **Add Custom Domain**.
 2. Cloudflare creates the DNS record and the certificate itself. Give it a few minutes.
 
-**Custom Domain, never Route.** A route such as `*allenkh.com/*` would capture days2meet.
+**Custom Domain, never Route.** A route such as `*allenkh.com/*` would capture days2meet and fishai.
 
 ## 3. Send www to the apex
 
@@ -68,8 +84,8 @@ records alone: they are Cloudflare Email Routing, which is what makes email on t
 ## 4. Two zone settings to switch off
 
 Both rewrite HTML on its way out, which would break the site's Content Security Policy and add
-scripts to plain mode. They only affect traffic proxied by Cloudflare, so days2meet (DNS-only, on
-Vercel) is unaffected.
+scripts to plain mode. They only affect traffic proxied by Cloudflare, so the project sites
+(DNS-only records pointing at Vercel) are unaffected.
 
 - **Rocket Loader**: off. (Zone → **Speed** → **Optimization** → **Content Optimization**.)
 - **Email Address Obfuscation**: off. (Zone → **Scrape Shield**, or search the dashboard for it.)
@@ -88,7 +104,7 @@ Send Claude: "Cloudflare is connected" plus the analytics token. Claude then ope
 PR (Phase 0 step 9: turns off the public `workers.dev` hostname, adds the token) and runs the Phase 0
 checks in docs/PLAN.md §7.
 
-Re-run both commands from step 0. **The output must match the snapshot.** Then:
+Re-run every command from step 0. **The output must match the snapshot.** Then:
 
 ```bash
 curl.exe -sI https://allenkh.com
@@ -108,7 +124,7 @@ Expect `301` with `location: https://allenkh.com/some/path?x=1`.
 - Remove the site from the domain: Worker → **Domains & Routes** → delete the Custom Domain.
 - Stop deploys: Worker → **Settings** → **Build** → disconnect the repository.
 - The `www` record and the redirect rule can be deleted independently. None of this touches
-  days2meet.
+  days2meet or fishai.
 
 ## GitHub side (done by Claude in Phase 0 step 7; listed so it is reproducible)
 

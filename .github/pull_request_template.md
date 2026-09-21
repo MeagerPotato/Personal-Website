@@ -11,7 +11,7 @@
 - [ ] `npm run verify` is green locally
 - [ ] Looked at it in **both modes** (universe, and `?plain`) at desktop width and ~360 px
 - [ ] No new dependency, or the dependency is named above with the reason
-- [ ] Nothing here touches DNS, Cloudflare zone settings, or `days2meet.allenkh.com`
+- [ ] Nothing here touches DNS, Cloudflare zone settings, or the existing subdomains (`days2meet`, `fishai`)
 - [ ] No phone number, no private email, no secrets
 
 <!-- Astra PRs only: list any ASTRA-REQUEST items (things needed outside the design surface). -->

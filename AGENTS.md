@@ -94,8 +94,9 @@ a logic change: ask for it instead.
 
 ## Never
 
-- Touch DNS, Cloudflare zone settings, or anything that could affect **`days2meet.allenkh.com`**
-  (live on Vercel). No wildcard routes. No `includeSubDomains` on HSTS.
+- Touch DNS, Cloudflare zone settings, or anything that could affect the project sites already
+  living on this domain: **`days2meet.allenkh.com`** and **`fishai.allenkh.com`** (both on
+  Vercel), and any subdomain added later. No wildcard routes. No `includeSubDomains` on HSTS.
 - Run `wrangler deploy` locally. Deploys happen from `main` through Workers Builds.
 - Write a phone number, a private email address, or a secret anywhere in the repo.
 - Add an inline script, a per-page script, or `unsafe-inline` for scripts in the CSP.
