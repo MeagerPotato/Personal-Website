@@ -135,7 +135,10 @@ everything you create. Pure maths goes in `sim/` with a `*.test.ts` beside it.
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for
 the one `<h1>`. Build internal links with `src/site/routes.ts`; they end with `/`. No `<script>`
 or `<style>` in the page, and nothing per-page outside `<main>` (invariant 11). A page that
-belongs in the main nav is one line in `src/config/site.ts`.
+belongs in the main nav is one line in `src/config/site.ts`. For search engines and link
+previews, pass `jsonLd` (nodes from `src/site/seo.ts`) and, if the page has a picture of its
+own, `image`; otherwise it gets the site's card, `/og/default.png`, which
+`src/site/og.ts` draws from the tokens. Any new per-page `<head>` node needs `data-page-head`.
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under

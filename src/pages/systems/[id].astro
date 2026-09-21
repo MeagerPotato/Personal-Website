@@ -7,7 +7,7 @@ import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
 import Base from '../../layouts/Base.astro';
 import { routes } from '../../site/routes';
-import { pageTitle } from '../../site/seo';
+import { breadcrumbLd, pageTitle } from '../../site/seo';
 import { buildProjectTree, visibleProjects } from '../../site/view-models';
 
 export async function getStaticPaths() {
@@ -22,10 +22,15 @@ const projects = visibleProjects(await getCollection('projects'), import.meta.en
 const [system] = buildProjectTree([entry], projects);
 if (!system) throw new Error(`System "${entry.id}" did not make it into the project tree`);
 const { Content } = await render(entry);
+const crumbs = [{ label: 'Projects', href: routes.projects() }];
 ---
 
-<Base title={pageTitle(`${system.name} system`)} description={system.tagline}>
-  <Crumbs crumbs={[{ label: 'Projects', href: routes.projects() }]} />
+<Base
+  title={pageTitle(`${system.name} system`)}
+  description={system.tagline}
+  jsonLd={[breadcrumbLd(crumbs, { label: system.name, href: system.href })]}
+>
+  <Crumbs crumbs={crumbs} />
 
   <PageHeader
     eyebrow="Solar system"

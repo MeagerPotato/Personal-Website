@@ -6,6 +6,18 @@ export const site = {
   url: 'https://allenkh.com',
   locale: 'en',
 
+  /** One sentence about the site's owner, for search engines and link previews. */
+  description:
+    'Allen studies aerospace engineering at UC Berkeley and builds rockets, robots, and software.',
+  affiliation: 'University of California, Berkeley',
+  knowsAbout: [
+    'Aerospace engineering',
+    'Model rocketry',
+    'Robotics',
+    'Software engineering',
+    'Cybersecurity',
+  ],
+
   /**
    * The PUBLIC contact address, named by Allen on 2026-09-20. It is the only email address that
    * may appear anywhere in this repository or on the site.

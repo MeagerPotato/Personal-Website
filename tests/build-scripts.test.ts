@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalUrl,
   cspHash,
   extractEagerScripts,
   extractInlineScripts,
@@ -7,6 +8,7 @@ import {
   extractUrls,
   firstDifference,
   isPlainOnly,
+  metaContent,
   pageSkeleton,
   parseAttributes,
   toSitePath,
@@ -166,5 +168,26 @@ describe('the swap contract', () => {
     expect(isPlainOnly('<!doctype html><html lang="en" data-plain-only>')).toBe(true);
     expect(isPlainOnly('<!doctype html><html lang="en">')).toBe(false);
     expect(isPlainOnly('<html lang="en"><body data-plain-only>')).toBe(false);
+  });
+});
+
+describe('head metadata', () => {
+  const head = [
+    '<meta charset="utf-8">',
+    '<meta name="description" content="Tom &amp; Jerry say &quot;hi&quot;" data-page-head>',
+    '<link rel="canonical" href="https://site.invalid/about/" data-page-head>',
+    '<meta property="og:image" content="https://site.invalid/og/default.png" data-page-head>',
+    '<link rel="stylesheet" href="/_astro/x.css">',
+  ].join('');
+
+  it('reads a meta tag by property or by name, and decodes what Astro escaped', () => {
+    expect(metaContent(head, 'og:image')).toBe('https://site.invalid/og/default.png');
+    expect(metaContent(head, 'description')).toBe('Tom & Jerry say "hi"');
+    expect(metaContent(head, 'og:video')).toBeNull();
+  });
+
+  it('finds the canonical link and nothing else', () => {
+    expect(canonicalUrl(head)).toBe('https://site.invalid/about/');
+    expect(canonicalUrl('<link rel="stylesheet" href="/x.css">')).toBeNull();
   });
 });

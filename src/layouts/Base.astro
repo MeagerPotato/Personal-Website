@@ -6,6 +6,7 @@
 import Head from '../components/Head.astro';
 import { site } from '../config/site';
 import { navCurrent } from '../site/nav';
+import type { PreviewImage } from '../site/seo';
 import { routes } from '../site/routes';
 import '../styles/global.css';
 
@@ -15,16 +16,20 @@ interface Props {
   /** Pages that must never boot the engine (the 404). */
   plainOnly?: boolean;
   noindex?: boolean;
+  /** The link-preview picture; the site's default card when left out. */
+  image?: PreviewImage | undefined;
+  /** schema.org nodes for this page, built by src/site/seo.ts. */
+  jsonLd?: ReadonlyArray<Record<string, unknown>> | undefined;
 }
 
-const { title, description, plainOnly = false, noindex = false } = Astro.props;
+const { title, description, plainOnly = false, noindex = false, image, jsonLd } = Astro.props;
 const { pathname } = Astro.url;
 ---
 
 <!doctype html>
 <html lang={site.locale} data-plain-only={plainOnly ? '' : undefined}>
   <head>
-    <Head title={title} description={description} noindex={noindex} />
+    <Head title={title} description={description} noindex={noindex} image={image} jsonLd={jsonLd} />
   </head>
   <body>
     <a class="skip-link" href="#main">

@@ -11,6 +11,8 @@ export const routes = {
   project: (id: string): string => `/projects/${id}/`,
   system: (id: string): string => `/systems/${id}/`,
   universeManifest: (): string => '/universe.json',
+  /** The link-preview image for pages without a picture of their own. */
+  ogDefault: (): string => '/og/default.png',
 } as const;
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

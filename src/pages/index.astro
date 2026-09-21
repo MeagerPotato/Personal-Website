@@ -4,6 +4,7 @@ import ProjectCards from '../components/ProjectCards.astro';
 import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
 import { routes } from '../site/routes';
+import { personLd, websiteLd } from '../site/seo';
 import { buildProjectTree, featuredPlanets, visibleProjects } from '../site/view-models';
 
 const systems = await getCollection('systems');
@@ -12,6 +13,7 @@ const featured = featuredPlanets(buildProjectTree(systems, projects), 3);
 ---
 
 <Base
+  jsonLd={[websiteLd(), personLd()]}
   title="Allen · rockets, robots, and software"
   description="Allen studies aerospace engineering at UC Berkeley and builds rockets, robots, and software. This site is a small universe: solar systems are passions, planets are projects."
 >
