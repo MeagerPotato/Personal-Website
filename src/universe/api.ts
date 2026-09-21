@@ -6,8 +6,8 @@
  * Commands go down as method calls (`goTo`, `undock`), facts come up as events (`docked`,
  * `undocked`, `statechange`), and both sides are IDEMPOTENT: the visitor may dock from inside the
  * world and the router then follows, or the route may change and the ship then follows, and
- * being told what one already knows is never an error. The rest of the navigation surface
- * (setMapOpen, setPanelInset) lands later in Phase 2; see docs/PLAN.md §5.5.
+ * being told what one already knows is never an error. The map (setMapOpen) lands in Phase 3; see
+ * docs/PLAN.md §5.5.
  */
 
 import { EventBus } from './core/events';
@@ -118,6 +118,12 @@ export interface Universe {
   goTo(id: string, options?: { mode?: 'fly' | 'instant' }): Promise<'arrived' | 'cancelled'>;
   /** Let go of whatever the ship is docked at or headed for. */
   undock(): void;
+  /**
+   * How much of the viewport the info panel covers, in CSS pixels from the right and from the
+   * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
+   * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
+   */
+  setPanelInset(inset: { right?: number; bottom?: number }, options?: { cut?: boolean }): void;
   setPaused(paused: boolean): void;
   dispose(): void;
 }
@@ -146,6 +152,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let announcedInput = false;
   let current: Booted | null = null;
   let waiting: (() => void) | null = null;
+  /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
+  let inset: { right?: number; bottom?: number } = {};
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
   let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
 
@@ -223,6 +231,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     if (disposed) return;
     try {
       current = boot(options, hooks, { tier, forced }, snapshot);
+      current.rig.setInset(inset, true);
       current.engine.setPaused(paused);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -270,6 +279,11 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       });
     },
     undock: () => current?.navigator.release('asked'),
+    setPanelInset: (next, { cut = false } = {}) => {
+      inset = { ...next };
+      // The panel itself does not slide under reduced motion (global.css); neither does the view.
+      current?.rig.setInset(inset, cut || options.reducedMotion === true);
+    },
     setPaused: (value) => {
       paused = value;
       current?.engine.setPaused(value);

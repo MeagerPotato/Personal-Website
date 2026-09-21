@@ -3,7 +3,7 @@ import type { Frame } from '../core/Engine';
 import { tuning } from '../design/tuning';
 import { clamp, lerp, smoothstep } from '../sim/math';
 import { createSpring, snapSpring, stepSpring } from '../sim/spring';
-import type { CameraMode, Pose } from './CameraRig';
+import type { CameraMode, Pose, ViewShape } from './CameraRig';
 
 export interface ChaseCamParams {
   readonly back: number;
@@ -62,8 +62,14 @@ export class ChaseCam implements CameraMode {
     this.following = false;
   }
 
-  update(frame: Frame, aspect: number, out: Pose): void {
+  /** Back in charge after a while away: what the springs remember is where the ship WAS. */
+  enter(): void {
+    this.snap();
+  }
+
+  update(frame: Frame, view: ViewShape, out: Pose): void {
     const { params, target } = this;
+    const { aspect } = view;
     const { x, z } = target.position;
     const dt = frame.dt;
 

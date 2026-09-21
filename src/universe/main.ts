@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import type { UniverseOptions } from './api';
 import { CameraRig } from './camera/CameraRig';
+import { OrbitCam } from './camera/OrbitCam';
 import { ChaseCam } from './camera/ChaseCam';
 import { AssetStore } from './core/AssetStore';
 import { PerfHud } from './core/debug/PerfHud';
@@ -56,6 +57,7 @@ export interface BootQuality {
 export interface Booted {
   engine: Engine;
   navigator: Navigator;
+  rig: CameraRig;
   /** Where everything is right now (core/snapshot.ts). */
   snapshot(): Snapshot;
 }
@@ -122,8 +124,6 @@ export function boot(
     syncSurroundings(surroundings, start.steps / tuning.loop.stepHz);
     navigator.restore(start.dock);
   }
-  engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
-
   const jobs = new JobQueue(tuning.world.jobBudget);
   // ...and as the visitor sees it. Both follow the same orbits.
   const galaxy = engine.add(
@@ -141,6 +141,33 @@ export function boot(
     frameUpdate: () => ship.setSun(galaxy.lightAt(ship.position, light)),
     dispose: () => undefined,
   });
+
+  // The camera comes after everything it looks at, so that it sees this frame's ship and planets.
+  // Flying, it chases the ship; docked, it frames the body. A ship that was PUT somewhere (a page
+  // opened on a planet, a rebuild) is cut to; one that flew there is eased to, unless the visitor
+  // asked for less motion: a camera sweeping round is a flourish, not flying.
+  const chase = new ChaseCam(ship, { reducedMotion });
+  const orbit = new OrbitCam({ reducedMotion });
+  const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
+  let framed: string | null = null;
+  engine.add({
+    frameUpdate: () => {
+      const { mode, target } = navigator.state;
+      const docked = mode === 'docked' ? target : null;
+      if (docked === framed) return;
+      framed = docked;
+      const blendSec = reducedMotion ? 0 : tuning.cameraRig.dockBlendSec;
+      const subject = docked === null ? null : galaxy.subject(docked);
+      if (subject) {
+        orbit.look(subject);
+        rig.use(orbit, navigator.lastArrival === 'cut' ? 0 : blendSec);
+      } else {
+        rig.use(chase, blendSec);
+      }
+    },
+    dispose: () => undefined,
+  });
+  engine.add(rig);
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
@@ -189,6 +216,7 @@ export function boot(
   return {
     engine,
     navigator,
+    rig,
     snapshot: () => ({
       steps: engine.steps,
       ship: copyShipState(ship.state, createShipState()),

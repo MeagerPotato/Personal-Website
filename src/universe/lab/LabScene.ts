@@ -72,7 +72,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const jobs = new JobQueue(tuning.world.jobBudget);
   const camera = new TurntableCam(engine.canvas);
   const table = engine.add(new Turntable(assets, jobs, camera));
-  engine.add(new CameraRig(engine.camera, camera));
+  engine.add(new CameraRig(engine.camera, camera, tuning.cameraRig));
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: false }));

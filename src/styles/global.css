@@ -1005,9 +1005,14 @@ picture {
   html[data-mode='universe'] #universe-overlay {
     display: block;
     position: fixed;
-    inset: 0;
+    /* Only the part of the viewport that the info panel leaves free (src/shell/panel-inset.ts),
+       like the 3D view behind it: a prompt in the middle of it is never under a bottom sheet. */
+    inset: 0 var(--panel-inset-right, 0) var(--panel-inset-bottom, 0) 0;
     z-index: 1;
     pointer-events: none;
+    transition:
+      right var(--motion-slow) var(--motion-ease-out),
+      bottom var(--motion-slow) var(--motion-ease-out);
   }
 
   #universe-overlay > * {
@@ -1026,7 +1031,7 @@ picture {
     align-items: center;
     gap: var(--space-3);
     min-height: 2.75rem; /* 44 px touch target */
-    max-width: calc(100vw - 2 * var(--space-6));
+    max-width: calc(100% - 2 * var(--space-6));
     padding: 0 var(--space-6);
     border: 1px solid var(--color-surface-line);
     border-radius: var(--radius-pill);
@@ -1260,6 +1265,12 @@ picture {
 
     html[data-mode='universe'][data-panel-size='full'] .panel {
       height: calc(100svh - 4.5rem);
+    }
+
+    /* A sheet pulled all the way up leaves no sky for the engine's own controls to sit in: the
+       visitor is reading, and the sheet's Close button is the way back. */
+    html[data-mode='universe'][data-panel='open'][data-panel-size='full'] #universe-overlay {
+      visibility: hidden;
     }
 
     html[data-mode='universe'] [data-panel-resize] {

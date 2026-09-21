@@ -52,12 +52,18 @@ const SOI_ENTER_PULL = 0.08;
 export class Navigator implements System {
   private current: AppState = FLIGHT;
   private near: string | null = null;
+  private arrival: 'flown' | 'cut' = 'flown';
   private readonly queue: Array<() => void> = [];
 
   constructor(private readonly options: NavigatorOptions) {}
 
   get state(): AppState {
     return this.current;
+  }
+
+  /** How the ship got to where it is docked: `cut` means it was put there, and a camera should cut too. */
+  get lastArrival(): 'flown' | 'cut' {
+    return this.arrival;
   }
 
   /** Id of the body the ship could dock at right now, or null. */
@@ -82,6 +88,7 @@ export class Navigator implements System {
     if (i < 0 || !this.withinReach(id)) return false;
     if (this.current.target === id && this.current.mode !== 'autopilot') return true;
     this.leave('asked');
+    this.arrival = 'flown';
     requestDock(surroundings.dock, i, pilot.current);
     this.apply({ type: 'approach', to: id });
     return true;
@@ -97,6 +104,7 @@ export class Navigator implements System {
     const state = { ...ship.state };
     dockAt(surroundings.field, state, params.dock, surroundings.dock, i, angle, spin);
     ship.restore(state);
+    this.arrival = 'cut';
     this.apply({ type: 'place', at: id });
     this.queue.push(() => this.options.emit('docked', { id }));
     return true;

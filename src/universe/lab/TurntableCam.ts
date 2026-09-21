@@ -1,5 +1,5 @@
 import { Euler } from 'three';
-import type { CameraMode, Pose } from '../camera/CameraRig';
+import type { CameraMode, Pose, ViewShape } from '../camera/CameraRig';
 import type { Frame } from '../core/Engine';
 import { clamp } from '../sim/math';
 
@@ -55,7 +55,8 @@ export class TurntableCam implements CameraMode {
     );
   }
 
-  update(frame: Frame, aspect: number, out: Pose): void {
+  update(frame: Frame, view: ViewShape, out: Pose): void {
+    const { aspect } = view;
     if (aspect !== this.aspect) {
       // A different window shape: keep the subject the same size on the smaller side.
       const before = this.fitRadii();

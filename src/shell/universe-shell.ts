@@ -6,6 +6,7 @@ import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
 import { startPanel, type Panel } from './panel';
+import { mirrorInset, watchPanelInset } from './panel-inset';
 import { asTier, recallTier, rememberTier } from './quality-memory';
 import { startRouter, type Router } from './router';
 import { startFrameWatchdog } from './watchdog';
@@ -20,6 +21,7 @@ const root = document.documentElement;
 
 let router: Router | undefined;
 let panel: Panel | undefined;
+let stopInset: (() => void) | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -35,6 +37,9 @@ function fallBackToPlain(reason: string): void {
   router = undefined;
   panel?.dispose();
   panel = undefined;
+  stopInset?.();
+  stopInset = undefined;
+  mirrorInset(root, null);
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
 
@@ -93,6 +98,12 @@ export async function start(): Promise<void> {
       return;
     }
     universe = created;
+    // The panel covers part of the view: the engine frames things in what is left, and the
+    // stylesheet keeps the engine's own DOM there.
+    stopInset = watchPanelInset((inset, first) => {
+      created.setPanelInset(inset, { cut: first });
+      mirrorInset(root, inset);
+    });
 
     universe.on('ready', () => {
       if (settled) return;
