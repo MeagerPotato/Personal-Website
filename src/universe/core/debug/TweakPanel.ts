@@ -7,7 +7,7 @@ import type { InputSystem } from '../input/InputSystem';
 import { IntentRecorder, ReplaySource, type Recording } from './IntentRecorder';
 
 /** The blocks of design/tuning.ts that are read every frame, so a change shows at once. */
-const LIVE_BLOCKS = ['flight', 'chaseCam', 'ship', 'shading'] as const;
+const LIVE_BLOCKS = ['flight', 'input', 'chaseCam', 'ship', 'shading'] as const;
 
 /** A slider needs ends. Three times the starting value either way is room enough to explore. */
 function rangeFor(value: number): [min: number, max: number] {

@@ -34,7 +34,7 @@ export class PerfHud implements System {
     this.element.style.cssText = [
       'position:fixed',
       'z-index:5',
-      'top:4.75rem',
+      'top:7.5rem', // below the HUD's top bar, which has two rows on a phone
       'left:var(--space-4)',
       'margin:0',
       'padding:var(--space-2) var(--space-3)',
