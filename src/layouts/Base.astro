@@ -42,6 +42,30 @@ const { pathname } = Astro.url;
     <!-- The engine's own interactive DOM (the dock prompt, later the labels): real buttons, so
          NOT inside the hidden host. Empty, and not displayed, in plain mode. -->
     <div id="universe-overlay"></div>
+    <!-- Universe mode, first visit: how to fly (src/shell/hints.ts shows it, once). The stylesheet
+         picks the list by pointer: keys for a mouse, thumbs for a finger. -->
+    <aside class="flight-hint" aria-label="How to fly" data-flight-hint hidden>
+      <ul class="flight-hint__keys">
+        <li>
+          <kbd>W</kbd>
+          <kbd>A</kbd>
+          <kbd>S</kbd>
+          <kbd>D</kbd> or the arrow keys to fly
+        </li>
+        <li>
+          <kbd>Shift</kbd> to boost
+        </li>
+        <li>Click a planet, or its name, to fly there</li>
+      </ul>
+      <ul class="flight-hint__touch">
+        <li>Drag anywhere to steer</li>
+        <li>A second finger boosts</li>
+        <li>Tap a planet, or its name, to fly there</li>
+      </ul>
+      <button class="panel-button" type="button" data-flight-hint-dismiss>
+        Got it
+      </button>
+    </aside>
 
     <div class="page">
       <!-- Identical on every page except for aria-current (see src/site/nav.ts). -->
