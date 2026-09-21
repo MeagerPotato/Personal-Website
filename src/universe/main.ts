@@ -7,6 +7,8 @@ import { Engine } from './core/Engine';
 import { EventBus } from './core/events';
 import { InputSystem } from './core/input/InputSystem';
 import { KeyboardInput } from './core/input/KeyboardInput';
+import { PointerSteer } from './core/input/PointerSteer';
+import { TouchControls } from './core/input/TouchControls';
 import { ShipSystem } from './ship/ShipSystem';
 import { Backdrop } from './world/Backdrop';
 import { SpaceDust } from './world/SpaceDust';
@@ -37,6 +39,8 @@ export function boot(options: UniverseOptions): {
 
   const input = engine.add(new InputSystem(() => events.emit('firstinput', undefined)));
   input.add(new KeyboardInput());
+  input.add(new TouchControls(engine.canvas, options.mount));
+  input.add(new PointerSteer(engine.canvas));
 
   const ship = engine.add(new ShipSystem({ pilot: input, assets, reducedMotion }));
   engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));

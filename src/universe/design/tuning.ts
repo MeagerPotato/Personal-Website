@@ -1,4 +1,6 @@
 import type { ChaseCamParams } from '../camera/ChaseCam';
+import type { PointerSteerParams } from '../core/input/PointerSteer';
+import type { TouchParams } from '../core/input/TouchControls';
 import type { ShipLookParams } from '../ship/ShipSystem';
 import type { FlightParams } from '../sim/types';
 
@@ -43,6 +45,20 @@ export const tuning = {
     /** Seconds for the turn rate to follow the stick. Below 0.08 feels twitchy, above 0.2 heavy. */
     yawResponseSec: 0.12,
   } satisfies FlightParams,
+
+  /** How fingers and the mouse become flight (core/input/). The keyboard has nothing to tune. */
+  input: {
+    /** The touch stick: how far the knob travels (CSS px), and the dead middle as a share of that. */
+    stickRadiusPx: 56,
+    stickDeadZone: 0.14,
+    /** Degrees off "straight up" at which the turn is full. Smaller = twitchier. */
+    stickFullTurnDeg: 65,
+    /** Half-angle of the cone around "straight down" that means brake. */
+    stickBrakeConeDeg: 30,
+    /** EXPERIMENT, for the playtest to decide: hold the mouse button to fly toward the cursor. */
+    pointerSteer: false,
+    pointerFullTurnShare: 0.6,
+  } satisfies TouchParams & PointerSteerParams,
 
   /**
    * How the ship LOOKS while it flies (ship/ShipSystem.ts). None of this reaches the flight model:

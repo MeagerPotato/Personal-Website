@@ -105,6 +105,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | How the ship leans, nods and bobs, and how the flame follows the throttle | `tuning.ship` |
 | The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens | `tuning.chaseCam` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
+| Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
+| Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
 `tuning.chaseCam`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
