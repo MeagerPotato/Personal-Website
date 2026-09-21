@@ -7,6 +7,18 @@
  * that breaks a contract is a type error, not a runtime surprise).
  */
 export const tuning = {
+  /**
+   * The simulation clock (core/loop.ts). Flight constants are tuned AT this step rate: changing
+   * stepHz changes how the ship feels, slightly, and invalidates recorded replays.
+   */
+  loop: {
+    stepHz: 60,
+    /** Longest frame that counts. After a stall (tab switch, GC pause) the rest never happened. */
+    maxFrameSec: 0.1,
+    /** Past this many steps in one frame the backlog is dropped: the world runs slow instead. */
+    maxStepsPerFrame: 5,
+  },
+
   viewport: {
     /** Pixels are the budget on phones. Cap the ratio AND the absolute pixel count. */
     maxPixelRatio: 2,

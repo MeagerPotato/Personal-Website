@@ -12,7 +12,11 @@ import { boot } from './main';
 export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
   mount: HTMLElement;
-  /** Honour prefers-reduced-motion: static sky, no loop. */
+  /**
+   * The visitor prefers reduced motion but chose the universe anyway (the mode script sends them
+   * to plain mode otherwise). The loop still runs, because flying is motion they asked for;
+   * everything AMBIENT is calmed: no twinkle, no sky drift, and later no camera flourishes.
+   */
   reducedMotion?: boolean;
 }
 
