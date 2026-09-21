@@ -120,6 +120,9 @@ curl.exe -sI https://www.allenkh.com/some/path?x=1
 
 Expect `301` with `location: https://allenkh.com/some/path?x=1`.
 
+Everything else that stands between a connected domain and a public site is in
+[launch-checklist.md](launch-checklist.md).
+
 ## Undo
 
 - Remove the site from the domain: Worker → **Domains & Routes** → delete the Custom Domain.
