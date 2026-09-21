@@ -19,6 +19,7 @@ function harness(path = '/') {
   const listeners = new Map<string, Set<Listener<never>>>();
   const log: string[] = [];
   let pathname = path;
+  const routerState = { busy: false };
 
   const universe: FollowOptions['universe'] = {
     on(event, listener) {
@@ -34,6 +35,9 @@ function harness(path = '/') {
     undock: () => void log.push('undock'),
   };
   const router: FollowOptions['router'] = {
+    get busy() {
+      return routerState.busy;
+    },
     navigate: (href) => {
       log.push(`navigate ${href}`);
       return Promise.resolve();
@@ -53,6 +57,7 @@ function harness(path = '/') {
   return {
     log,
     following,
+    routerState,
     emit<K extends keyof UniverseEvents>(event: K, payload: UniverseEvents[K]): void {
       for (const listener of listeners.get(event) ?? []) (listener as Listener<K>)(payload);
     },
@@ -108,6 +113,20 @@ describe('the route follows the ship', () => {
     h.show('/about/');
     h.emit('docked', { id: 'page/about' }); // what a rebuilt engine says when it comes back
     expect(h.log).toEqual(['navigate /about/', 'goTo page/about']);
+  });
+
+  it('does not answer a dock while the visitor is waiting for another page', () => {
+    // Close, pressed as the ship arrives: Back is under way, the URL says "/" already, the page
+    // that shows is still About, and the ship docks at About because nobody has told it yet.
+    const h = harness('/');
+    h.routerState.busy = true;
+    h.emit('docked', { id: 'page/about' });
+    expect(h.log).toEqual([]);
+
+    // The sky shows: now the ship hears of it, and lets go.
+    h.routerState.busy = false;
+    h.show('/');
+    expect(h.log).toEqual(['undock']);
   });
 
   it('leaves the page when the PILOT leaves the orbit', () => {

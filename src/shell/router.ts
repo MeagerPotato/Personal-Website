@@ -38,6 +38,12 @@ export interface RouterOptions {
 }
 
 export interface Router {
+  /**
+   * A navigation has begun and its page is not on screen yet: the network is being waited for.
+   * After Back or Forward the URL is ALREADY the new one while this is true, so for that long the
+   * address bar and the page disagree, and nobody should act on either alone (shell/follow.ts).
+   */
+  readonly busy: boolean;
   /** Go to a same-site page without reloading. Resolves once the page shows (or a reload began). */
   navigate(href: string, options?: { replace?: boolean }): Promise<void>;
   /** Fetch a page the visitor is likely to open next. */
@@ -96,6 +102,8 @@ export function startRouter(options: RouterOptions): Router {
 
   let navigationId = 0;
   let inFlight: AbortController | undefined;
+  /** True from begin() until that navigation has shown its page, given up, or been cancelled. */
+  let waiting = false;
   let showing = pageKey(location);
   let keyCounter = 0;
   let hoverTimer: ReturnType<typeof setTimeout> | undefined;
@@ -186,6 +194,7 @@ export function startRouter(options: RouterOptions): Router {
   function begin(): { id: number; signal: AbortSignal } {
     inFlight?.abort();
     inFlight = new AbortController();
+    waiting = true;
     scrollByEntry.set(currentKey, scrollTop());
     return { id: (navigationId += 1), signal: inFlight.signal };
   }
@@ -199,11 +208,15 @@ export function startRouter(options: RouterOptions): Router {
       next = parse(await load(url, signal), url);
     } catch {
       // If a newer navigation superseded this one, that one owns the outcome.
-      if (id === navigationId) hardLoad(url.href);
+      if (id === navigationId) {
+        waiting = false;
+        hardLoad(url.href);
+      }
       return;
     }
     // Latest navigation wins: a slow answer to an older click is dropped.
     if (id !== navigationId) return;
+    waiting = false;
     if (!next) return hardLoad(url.href);
 
     // Like the browser, a link to the URL that is already showing replaces its entry: clicking
@@ -225,16 +238,23 @@ export function startRouter(options: RouterOptions): Router {
     const { id, signal } = begin();
     currentKey = entryKey();
     // Back or forward between anchors of the page that is showing: the browser handles it.
-    if (pageKey(url) === showing) return;
+    if (pageKey(url) === showing) {
+      waiting = false;
+      return;
+    }
 
     try {
       const next = parse(await load(url, signal), url);
       if (id !== navigationId) return;
+      waiting = false;
       if (!next) return reload();
       show(next, url, 'pop', scrollByEntry.get(currentKey) ?? 0);
     } catch {
       // The URL has already changed, so a reload shows the right page.
-      if (id === navigationId) reload();
+      if (id === navigationId) {
+        waiting = false;
+        reload();
+      }
     }
   }
 
@@ -316,6 +336,9 @@ export function startRouter(options: RouterOptions): Router {
   );
 
   return {
+    get busy() {
+      return waiting;
+    },
     navigate,
     prefetch,
     leave(homeHref) {
@@ -328,6 +351,7 @@ export function startRouter(options: RouterOptions): Router {
       inFlight?.abort();
       inFlight = undefined;
       navigationId += 1;
+      waiting = false;
     },
     dispose() {
       listeners.abort();
