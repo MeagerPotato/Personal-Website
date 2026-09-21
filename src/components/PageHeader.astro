@@ -1,6 +1,9 @@
 ---
 // The top of every page: a small label saying what kind of place this is, the name, and
 // optionally one sentence. `theme` tints the label with a solar system's colour. Markup only.
+//
+// The <h1> is focusable from script (tabindex -1), never by Tab: after a soft navigation the router
+// moves focus here, so keyboard and screen-reader users land on the content that changed.
 import type { ThemeKey } from '../universe/design/tokens';
 
 interface Props {
@@ -15,6 +18,6 @@ const { eyebrow, title, lede, theme } = Astro.props;
 
 <header class="page-header" data-theme={theme}>
   <p class="eyebrow">{eyebrow}</p>
-  <h1>{title}</h1>
+  <h1 tabindex="-1">{title}</h1>
   {lede && <p class="lede">{lede}</p>}
 </header>

@@ -1,8 +1,10 @@
-// Everything the page needs in universe mode that is NOT the engine itself. In Phase 0 that is
-// just "boot the engine, and fall back to plain if it does not come up". The router, panel
-// controller and prefetcher join this module in Phase 2.
+// Everything the page needs in universe mode that is NOT the engine itself: boot the engine, fall
+// back to plain if it does not come up, and keep the canvas alive across pages with the router.
+// The panel controller joins this module with Phase 2's engine work.
 
+import { site } from '../config/site';
 import type { Universe } from '../universe/api';
+import { startRouter, type Router } from './router';
 import { startFrameWatchdog } from './watchdog';
 
 /**
@@ -12,6 +14,7 @@ import { startFrameWatchdog } from './watchdog';
 const WATCHDOG_MS = 8000;
 
 const root = document.documentElement;
+let router: Router | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -21,6 +24,9 @@ function fallBackToPlain(reason: string): void {
   root.dataset.mode = 'plain';
   root.dataset.modeReason = 'engine-failed';
   delete root.dataset.engine;
+  // With no canvas to protect there is nothing to gain from soft navigation: links are links.
+  router?.dispose();
+  router = undefined;
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
 
@@ -29,6 +35,8 @@ export async function start(): Promise<void> {
   if (!mount) return;
 
   root.dataset.engine = 'booting';
+  // Before the engine chunk even arrives, so that the very first click is already a soft one.
+  router = startRouter({ navItems: site.nav });
   let universe: Universe | undefined;
   let settled = false;
 
