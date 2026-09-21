@@ -2,30 +2,13 @@
 // name, flies the ship there and opens its page on arrival. These tests fly for real, on whatever
 // renderer the machine has, so they wait for outcomes and never for a number of seconds.
 
-import type { Locator, Page } from '@playwright/test';
-import { engineReady, expect, openUniverse, test, universe } from './support';
+import type { Page } from '@playwright/test';
+import { engineReady, expect, nameOf, openUniverse, pointAt, test, universe } from './support';
 
 const html = (page: Page) => page.locator('html');
 const heading = (page: Page) => page.locator('main h1');
 const prompt = (page: Page) => page.locator('.dock-prompt');
-const nameOf = (page: Page, name: string) =>
-  page.getByRole('group', { name: 'Fly to' }).getByRole('button', { name, exact: true });
 const pathOf = (page: Page): string => new URL(page.url()).pathname;
-
-/**
- * Click or tap where the thing IS, the way a hand does. A name follows a body that is moving, so
- * it never holds still for Playwright's own click, which waits for that; and a real pointer also
- * proves that nothing lies on top of it.
- */
-async function pointAt(page: Page, target: Locator, touch: boolean, dy = 0): Promise<void> {
-  await expect(target).toBeVisible();
-  const box = await target.boundingBox();
-  if (!box) throw new Error('nothing to point at');
-  const x = box.x + box.width / 2;
-  const y = dy === 0 ? box.y + box.height / 2 : box.y + dy;
-  if (touch) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
-}
 
 /**
  * Somewhere that is NOT right in front of the ship, whatever the screen shows: the first name in

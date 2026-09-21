@@ -53,12 +53,14 @@ describe('panel inset', () => {
 });
 
 describe('the inset, for the stylesheet', () => {
-  it('goes on the root as two custom properties, and comes off again', () => {
+  it('goes on the root as custom properties, and comes off again', () => {
     const root = document.createElement('div');
-    mirrorInset(root, { top: 0, right: 496, bottom: 0 });
+    mirrorInset(root, { top: 64, right: 496, bottom: 0 });
+    expect(root.style.getPropertyValue('--panel-inset-top')).toBe('64px');
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('496px');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('0px');
     mirrorInset(root, null);
+    expect(root.style.getPropertyValue('--panel-inset-top')).toBe('');
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('');
   });

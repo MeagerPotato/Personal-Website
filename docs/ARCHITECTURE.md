@@ -61,6 +61,7 @@ code in `src/shell/` and the whole of `src/universe/` would survive a change of 
 web layer (src/shell)  --->  api.ts                     the only door; owns the engine's LIFE
                               main.ts                    the composition root: what exists, in what order
                               lab/                       dev only: one asset on a turntable
+        state/  ui/                                      where the visitor is headed; what can be pressed out there
         camera/  ship/  world/  fx/                      views: they draw what the simulation says
         core/                                            the loop, the canvas, input, jobs, quality, debug
         sim/   data/                                     pure maths. No three.js, no DOM, no clock, no Math.random
@@ -116,21 +117,35 @@ Each display frame:
 6. **The governor** (`core/quality/governor.ts`) is told how long the frame took and may lower the
    render resolution, give some back, or (once, early) ask for a lower tier.
 
-Order in `main.ts` today: assets → input → ship → navigator → galaxy → ship lighting → camera
-director → camera rig → bodies on screen → picker → labels → sky → stars → dust → jobs →
-prompt → debug overlays. The camera comes after everything it looks at (the ship AND the
-planets), so that it sees this frame's world; whoever needs to know where things are ON SCREEN
-comes after the camera.
+Order in `main.ts` today: assets → input → ship → navigator → star map → galaxy → ship lighting →
+camera director → camera rig → bodies on screen → picker → labels → sky → stars → dust → the
+map's look → jobs → prompt → debug overlays. The camera comes after everything it looks at (the
+ship AND the planets), so that it sees this frame's world; whoever needs to know where things are
+ON SCREEN comes after the camera. The star map comes BEFORE the galaxy, which draws every body at
+the size the map asks for.
 
-**The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`; map and
-cinematic later) only fills in a `Pose`: what to look at, from how far, turned which way, through
-which lens. `CameraRig` applies the pose of the mode in charge and BLENDS between modes in that
-form, live: both modes keep following their subjects while a blend runs, turning back halfway
-runs the same blend the other way, and a mode that comes back after a while away is told so
-(`enter()`), so a chase camera starts from behind the ship instead of swooping in from where it
-last saw it. A few lines in `main.ts` direct it: docked means the orbit view, anything else the
-chase view; a ship that was PUT at a body (a deep link, a rebuild) is cut to, one that flew there
-is eased to, and under reduced motion everything is a cut.
+**The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
+`MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
+way, through which lens. `CameraRig` applies the pose of the mode in charge and BLENDS between
+modes in that form, live: both modes keep following their subjects while a blend runs, turning
+back halfway runs the same blend the other way, and a mode that comes back after a while away is
+told so (`enter()`), so a chase camera starts from behind the ship instead of swooping in from
+where it last saw it. A few lines in `main.ts` direct it: the map view while the map is open,
+else the orbit view while docked, else the chase view; a ship that was PUT at a body (a deep
+link, a rebuild) is cut to, one that flew there is eased to, and under reduced motion everything
+is a cut.
+
+The mix itself (`mixPose`) is made for the long way out to the map. **Distance mixes by ratio:**
+from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u, so pulling out is one
+steady zoom and not a leap followed by a crawl. **What is looked at moves over in step with the
+distance actually covered,** so the ship stays in the picture all the way out. **The turn mixes as
+a tripod turns,** so much round and so much down: every view here is level, halfway between two
+level views must be level too, and the shortest turn between them (a slerp) is not. So the camera
+never rolls, in any blend. Two views that face nearly opposite ways can be turned into each other
+either way round; a blend makes up its mind once (`Turn`) and stays with it, or a ship that turns
+during the blend could flip the picture over in one frame. **The depth range follows the camera
+out** (`tuning.cameraRig.nearShare`, `farShare`): the range that suits a chase camera would leave
+the depth buffer a few units coarse from map height.
 
 **The panel and the view.** The info panel covers part of the viewport. The shell measures how
 much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
@@ -208,6 +223,28 @@ under a bottom sheet.
   the camera ignores and the names respect (the bar is two rows tall on a phone). Per frame that
   is a little arithmetic, one `transform` per visible name, and one look at where the few
   obstacles are, taken before anything is written, while layout is still clean.
+- **The star map** (`ui/StarMap.ts`, `camera/MapCam.ts`, `sim/mapView.ts`) is another way of
+  LOOKING, not another place to be. The navigator does not know about it: a journey, an approach
+  or a docked ship carries on underneath, and the URL and the panel do not change. `M`, the Map
+  button (a real button in `#universe-overlay`) or scrolling out opens it; `M`, the button or
+  `Esc` closes it, and the map hears `Esc` before the panel does. The map camera is the SAME
+  perspective camera, straight down through a 12° lens from far away, north up (+Z up the
+  screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
+  work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
+  by pixels and zooming about a point are pure maths in `sim/mapView.ts`), eased on springs and
+  fitted into what the panel, the top bar and the Map button leave free. While it is open the
+  flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
+  and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
+  Pointing at a body or its name goes there and closes the map; a nav link leaves it open, so
+  that journey is watched from above. **Sizes on the map** are `displayScales` (pure): every
+  body is drawn at least a few pixels big, by kind, and a body whose disc would touch its
+  parent's is not drawn at all (nor its orbit line, nor anything that orbits IT) until zooming in
+  makes room. The galaxy scales its meshes by those numbers and `BodiesOnScreen` measures with
+  the same ones, so what is drawn, what is named and what can be picked always agree. **The
+  look** follows one number, the map's `weight` (0 flying, 1 map, in step with the camera's
+  blend): toon shading flattens (`uFlatness`), stars dim and hold still, dust goes, and the ship
+  becomes a marker big enough to find. The web layer hears the `map` event and sets
+  `html[data-map]`, which is all the stylesheet needs.
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
@@ -234,7 +271,9 @@ under a bottom sheet.
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
-  must become a snapshot field.
+  must become a snapshot field. (What the web layer last ASKED for is not the engine's state:
+  `api.ts` keeps the panel's inset, the pause and whether the map is open, and tells the new
+  engine, with a cut.)
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and
   textures in a `Scope` (`core/scope.ts`); in development the engine warns on dispose if
   three.js still counts any.
@@ -262,6 +301,7 @@ under a bottom sheet.
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
 | Flight, journey, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
+| Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
 | Design values | `design/tokens.ts`, `design/tuning.ts` | one place to look, one place to edit |
@@ -274,7 +314,9 @@ under a bottom sheet.
   boost never gets under a shell; identical end states at 30, 60 and 144 Hz; the governor's every
   decision; a galaxy layout that is a pure function of each entity's id; 200 seeded journeys
   through a galaxy with moons (from docks and from mid-flight, at any heading and speed) that all
-  dock, touch nothing, keep their distance and never open the throttle with the nose off the path.
+  dock, touch nothing, keep their distance and never open the throttle with the nose off the path;
+  a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
+  and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
   history rules, the panel, the swap contract.
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
@@ -291,8 +333,10 @@ under a bottom sheet.
   the heading, also with reduced motion; the canvas and its GL context after fifty navigations;
   a newer deploy or a dead network means a normal page load; plain mode asks for one script and
   never for the galaxy; no JavaScript, reduced motion, a GPU that gives no context, the 404;
-  pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card; axe
-  with no serious issue on any page in either mode; nothing scrolls sideways at 360 and 320 px,
+  pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card; the
+  star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
+  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any
+  page in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px,
   and every control is 44 px. They fly for real, on whatever renders (a CI runner has no GPU and
   draws on its CPU), so they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
@@ -307,7 +351,7 @@ run there is a reason to look, not a locked door.
 
 | Tool | How | What for |
 | --- | --- | --- |
-| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/code`) |
+| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/code`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
 | **The lab** | `http://localhost:4321/lab/`, development only | one planet, moon, sun, rocket, station or satellite on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |

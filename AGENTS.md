@@ -28,7 +28,9 @@ the ring and then carried round it, and steering away leaves. **The route and th
 each other**: a link flies the ship to that page's body with the **autopilot** (the page opens at
 once), docking from inside the world opens the body's page, and a page opened directly boots in
 orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
-first-time visitor gets a **hint card**. What Phase 2 still lacks before launch: Allen's copy
+first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
+Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
+the URL and the panel know nothing about. What Phase 2 still lacks before launch: Allen's copy
 edit, the analytics token, and Astra's visual identity pass (A1). Phase 1's exit gate, the
 playtest on a laptop and a real phone, is Allen's and still open.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.

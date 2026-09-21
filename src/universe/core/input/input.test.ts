@@ -178,4 +178,34 @@ describe('InputSystem', () => {
     expect(keys.disposed && touch.disposed).toBe(true);
     expect(system.current).toEqual(blank());
   });
+
+  it('can be switched off: the pilot then wants nothing, and the devices are told', () => {
+    const onFirstInput = vi.fn();
+    const system = new InputSystem(onFirstInput);
+    const told: boolean[] = [];
+    system.add({ ...stick({ thrust: 1 }), setEnabled: (enabled) => told.push(enabled) });
+    system.add(stick({ turn: 1 })); // a device with nothing to put away
+
+    system.setEnabled(false);
+    system.setEnabled(false);
+    system.fixedUpdate();
+    expect(system.current).toEqual(blank());
+    // Keys held while the map is open are the map's: they do not count as having flown.
+    expect(onFirstInput).not.toHaveBeenCalled();
+
+    system.setEnabled(true);
+    system.fixedUpdate();
+    expect(system.current).toEqual({ thrust: 1, turn: 1, brake: 0, boost: false });
+    expect(told).toEqual([false, true]);
+    system.dispose();
+  });
+
+  it('lets a replay fly on while the controls are off', () => {
+    const system = new InputSystem();
+    system.override = stick({ thrust: 0.5 });
+    system.setEnabled(false);
+    system.fixedUpdate();
+    expect(system.current.thrust).toBe(0.5);
+    system.dispose();
+  });
 });

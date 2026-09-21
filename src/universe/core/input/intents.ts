@@ -9,6 +9,11 @@ import type { FlightInput } from '../../sim/types';
 export interface InputSource {
   /** Add what this device currently wants into `out`, using `addIntent`. */
   read(out: FlightInput): void;
+  /**
+   * The controls were switched off or back on (InputSystem.setEnabled). Nobody `read`s a source
+   * while they are off; one that also SHOWS something (a thumb stick) puts it away here.
+   */
+  setEnabled?(enabled: boolean): void;
   dispose(): void;
 }
 

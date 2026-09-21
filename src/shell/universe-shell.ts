@@ -39,6 +39,7 @@ function fallBackToPlain(reason: string): void {
   root.dataset.modeReason = 'engine-failed';
   delete root.dataset.engine;
   delete root.dataset.quality;
+  delete root.dataset.map;
   // With no canvas to protect there is nothing to gain from soft navigation: links are links.
   router?.dispose();
   router = undefined;
@@ -155,6 +156,12 @@ export async function start(): Promise<void> {
       settled = true;
       stopWatchdog();
       root.dataset.engine = 'ready';
+    });
+    // The star map is the engine's own (M, its button, the wheel); the page only needs to know,
+    // for the stylesheet: what belongs to flying (the how-to-fly card) steps aside.
+    universe.on('map', ({ open }) => {
+      if (open) root.dataset.map = 'open';
+      else delete root.dataset.map;
     });
     universe.on('quality', ({ tier, demoted }) => {
       root.dataset.quality = tier;

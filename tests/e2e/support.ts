@@ -2,7 +2,7 @@
 // page what state it is in. The shell writes all of its state on <html> as data attributes
 // (src/shell/mode.inline.js, universe-shell.ts, panel.ts), so that is what the tests read.
 
-import { expect, test as base, type Page } from '@playwright/test';
+import { expect, test as base, type Locator, type Page } from '@playwright/test';
 
 /** Every page that exists in both modes. The 404 is plain only and has tests of its own. */
 export const PAGES = [
@@ -59,6 +59,25 @@ export async function openUniverse(page: Page, path: string): Promise<void> {
 
 export async function engineReady(page: Page): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('data-engine', 'ready', { timeout: 45_000 });
+}
+
+/** The name over a body: a real button, in the group that says what pressing one does. */
+export const nameOf = (page: Page, name: string): Locator =>
+  page.getByRole('group', { name: 'Fly to' }).getByRole('button', { name, exact: true });
+
+/**
+ * Click or tap where the thing IS, the way a hand does. A name follows a body that is moving, so
+ * it never holds still for Playwright's own click, which waits for that; and a real pointer also
+ * proves that nothing lies on top of it.
+ */
+export async function pointAt(page: Page, target: Locator, touch: boolean, dy = 0): Promise<void> {
+  await expect(target).toBeVisible();
+  const box = await target.boundingBox();
+  if (!box) throw new Error('nothing to point at');
+  const x = box.x + box.width / 2;
+  const y = dy === 0 ? box.y + box.height / 2 : box.y + dy;
+  if (touch) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
 }
 
 /**

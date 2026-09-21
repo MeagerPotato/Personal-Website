@@ -97,6 +97,15 @@ export class ShipSystem implements System {
     this.rocket.setSun(position);
   }
 
+  /**
+   * On the star map the ship is a marker: `scale` times its size, `raised` units above the plane
+   * (so above the discs of the bodies around it). 1 and 0 is the ship as it is. Looks only: where
+   * the ship IS, and everything that follows it, never hears of this.
+   */
+  setMarker(scale: number, raised: number): void {
+    this.rocket.mark(scale, raised);
+  }
+
   /** Put the ship somewhere at rest, with no in-between frame (spawning, deep links). */
   placeAt(x: number, z: number, heading: number): void {
     this.restore(createShipState(x, z, heading));

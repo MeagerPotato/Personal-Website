@@ -18,6 +18,7 @@ const LIVE_BLOCKS = [
   'chaseCam',
   'orbitCam',
   'cameraRig',
+  'map',
   'ship',
   'shading',
 ] as const;

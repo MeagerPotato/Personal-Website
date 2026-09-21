@@ -48,7 +48,10 @@ test.describe('in the universe', () => {
     for (const path of PAGES) {
       if (path !== '/') {
         await softNavigate(page, path);
-        await expect(page.locator('.dock-prompt')).toContainText('Leave orbit');
+        // Mostly a cut, but a body within reach is glided to, and on a busy machine that takes a while.
+        await expect(page.locator('.dock-prompt')).toContainText('Leave orbit', {
+          timeout: 75_000,
+        });
       }
       await page.waitForTimeout(400); // the names that changed have finished fading
       expect.soft(await seriousIssues(page), path).toEqual([]);

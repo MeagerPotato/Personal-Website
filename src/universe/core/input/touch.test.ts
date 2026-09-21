@@ -144,6 +144,34 @@ describe('TouchControls', () => {
     expect(stick().hidden).toBe(true);
   });
 
+  it("can be switched off: fingers are then somebody else's, and stick and pad are put away", () => {
+    const touch = make();
+    fire(canvas, 'pointerdown', 1, 100, 400);
+    fire(canvas, 'pointermove', 1, 100, 360);
+    fire(canvas, 'pointerdown', 2, 300, 300);
+    expect(read().thrust).toBeGreaterThan(0);
+    expect(read().boost).toBe(true);
+
+    touch.setEnabled(false);
+    expect(read()).toEqual(blank());
+    expect(stick().hidden).toBe(true);
+    expect(pad().hidden).toBe(true);
+    expect(touch.padBox()).toBeNull();
+    // A finger on the world while it is off (dragging the star map) brings nothing out.
+    fire(canvas, 'pointerup', 1);
+    fire(canvas, 'pointerdown', 3, 120, 380);
+    fire(canvas, 'pointermove', 3, 120, 300);
+    expect(read()).toEqual(blank());
+    expect(stick().hidden).toBe(true);
+    fire(canvas, 'pointerup', 3);
+
+    // Back on: the pad is there at once (this visitor has fingers), the stick with the next touch.
+    touch.setEnabled(true);
+    expect(pad().hidden).toBe(false);
+    fire(canvas, 'pointerdown', 4, 100, 400);
+    expect(stick().hidden).toBe(false);
+  });
+
   it('lets go of everything when the window loses focus, and cleans up after itself', () => {
     make();
     fire(canvas, 'pointerdown', 1, 100, 300);

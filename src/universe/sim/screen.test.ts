@@ -114,6 +114,28 @@ describe('projectBodies', () => {
     expect(map.depth[1]).toBeGreaterThan(0);
   });
 
+  it('measures a body as it is drawn: bigger on the star map, or not there at all', () => {
+    const { viewProjection, focal } = camera([0, 100, 0], [0, 0, 0], [0, 0, -1], 90, 1.5);
+    const map = projectBodies(
+      viewProjection,
+      focal,
+      WIDTH,
+      HEIGHT,
+      [0, 0, 10, 0, 20, 0],
+      [5, 5, 5],
+      3,
+      createScreenMap(3),
+      [1, 2.5, 0],
+    );
+    expect(map.radius[0]).toBeCloseTo(20, 9);
+    expect(map.radius[1]).toBeCloseTo(50, 9);
+    // Nothing to see is nothing to pick and nothing to name.
+    expect(map.radius[2]).toBe(0);
+    expect(
+      pickBody(map, map.x[2] ?? 0, map.y[2] ?? 0, { minTargetPx: 12, minVisiblePx: 1.5 }),
+    ).toBe(1);
+  });
+
   it('fills no more rows than the map has', () => {
     const { viewProjection, focal } = camera([0, 100, 0], [0, 0, 0], [0, 0, -1], 90, 1.5);
     const map = projectBodies(

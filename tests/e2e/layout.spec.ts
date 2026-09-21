@@ -47,6 +47,7 @@ const CONTROLS = [
   '.panel-button',
   '.mode-link',
   '.dock-prompt',
+  '.map-toggle',
   '.body-label',
   '.skip-link:focus',
 ].join(', ');

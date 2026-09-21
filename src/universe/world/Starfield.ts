@@ -20,6 +20,7 @@ export class Starfield implements System {
   readonly object: Points<BufferGeometry, StarMaterial>;
   private readonly scope = new Scope();
   private readonly drift: number;
+  private calm = 0;
 
   constructor(options: StarfieldOptions) {
     const params = tuning.starfield;
@@ -72,9 +73,18 @@ export class Starfield implements System {
     this.drift = options.reducedMotion ? 0 : params.driftRadPerSec;
   }
 
+  /**
+   * The star map is a calm thing (0 = flying, 1 = on the map): the stars dim to `opacity`, and
+   * the sky stops drifting, which through the map's long lens would look like the galaxy turning.
+   */
+  setCalm(calm: number, opacity: number): void {
+    this.calm = calm;
+    this.object.material.uniforms.uOpacity.value = 1 + (opacity - 1) * calm;
+  }
+
   frameUpdate(frame: Frame): void {
     this.object.material.uniforms.uTime.value = frame.elapsed;
-    this.object.rotation.y += this.drift * frame.dt;
+    this.object.rotation.y += this.drift * (1 - this.calm) * frame.dt;
   }
 
   resize(viewport: Viewport): void {

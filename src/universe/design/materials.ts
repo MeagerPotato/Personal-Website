@@ -44,6 +44,7 @@ const toonLook = {
   uShadowTint: { value: new Color(tokens.color.shading.shadow) },
   uBandEdges: { value: new Vector2(...tuning.shading.bandEdges) },
   uMidLevel: { value: tuning.shading.midLevel },
+  uFlatness: { value: 0 },
 };
 
 /**
@@ -57,6 +58,14 @@ const bloomMask = { value: 1 };
 /** main.ts says which, once, from the quality tier: is there post-processing to read the list? */
 export function setBloomMask(enabled: boolean): void {
   bloomMask.value = enabled ? 1 : 0;
+}
+
+/**
+ * How much of the shading is taken out of EVERY lit surface, 0 to 1. The star map flattens the
+ * world as the camera pulls out to it (main.ts); everywhere else this is 0.
+ */
+export function setToonFlatness(flatness: number): void {
+  toonLook.uFlatness.value = Math.min(1, Math.max(0, flatness));
 }
 
 /** Re-read the look constants after tuning changed at run time (the dev panel). */
