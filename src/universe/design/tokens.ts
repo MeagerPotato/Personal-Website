@@ -92,6 +92,19 @@ export const tokens = {
     display: 'clamp(2.25rem, 1.8rem + 2.2vw, 3.75rem)',
   },
 
+  /**
+   * The narrow end of the scale above, for a column that stays narrow however wide the window is
+   * (the info panel in universe mode). Keep each value equal to the first number of its clamp().
+   */
+  textNarrow: {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    base: '1rem',
+    lg: '1.25rem',
+    xl: '1.75rem',
+    display: '2.25rem',
+  },
+
   space: {
     1: '0.25rem',
     2: '0.5rem',

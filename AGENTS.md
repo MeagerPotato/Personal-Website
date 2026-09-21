@@ -13,8 +13,9 @@ shading) on dark navy space. Tone: playful framing, technical substance. The own
 
 Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
-mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation), over
-what is still only a starfield. **Phase 1 (flight) is under way**: the engine runs on a fixed
+mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
+the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
+narrow ones), over what is still only a sky. **Phase 1 (flight) is under way**: the engine runs on a fixed
 60 Hz simulation clock. Phase 2's 3D half (panel, docking, autopilot) waits for flight. Roadmap:
 docs/PLAN.md §6.
 
@@ -94,7 +95,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `world/` … | Claude |
-| `src/shell/**` | client code outside the engine: mode, boot, watchdog, router (`navigation.ts` rules, `swap.ts` DOM, `router.ts` history), later the panel | Claude |
+| `src/shell/**` | client code outside the engine: mode, boot, watchdog, router (`navigation.ts` rules, `swap.ts` DOM, `router.ts` history), `panel.ts` | Claude |
 | `src/site/**`, `src/config/**` | framework-neutral build logic and site constants | Claude |
 | `src/pages`, `src/layouts`, `src/components` | markup-only `.astro` | Claude |
 | `src/content/**`, `src/content.config.ts` | Markdown copy with images beside it; the thin collections wrapper | Claude drafts, Allen edits |
@@ -155,6 +156,13 @@ belongs in the main nav is one line in `src/config/site.ts`. For search engines 
 previews, pass `jsonLd` (nodes from `src/site/seo.ts`) and, if the page has a picture of its
 own, `image`; otherwise it gets the site's card, `/og/default.png`, which
 `src/site/og.ts` draws from the tokens. Any new per-page `<head>` node needs `data-page-head`.
+
+**The panel's one rule.** In universe mode the panel's state is a function of the URL
+(`src/shell/panel.ts`): every page except the home page is a destination, its panel is open, and
+closing it means LEAVING (`router.leave()`: back if the visitor came from one of our pages, else
+home). Only the home page's welcome text is a toggle. State lives on `<html>` as `data-panel`,
+`data-panel-home`, `data-panel-size`; CSS does the showing. Never add a second way to hide a
+destination's panel: Back would stop meaning what it looks like.
 
 **Link to something the router must leave alone.** It already leaves alone other sites, files
 (any path with an extension), downloads, `target`, modified clicks, and anchors on the page that is

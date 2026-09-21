@@ -43,6 +43,46 @@ describe('a soft navigation ends in the same DOM as a hard one', () => {
   });
 });
 
+describe('a browser extension has been in the <head>', () => {
+  /** What a dark-mode extension or a password manager leaves behind, in three typical places. */
+  function injectForeignNodes(): void {
+    document.head.insertAdjacentHTML('afterbegin', '<style class="ext-first">html{}</style>');
+    document
+      .querySelector('meta[name="build"]')
+      ?.insertAdjacentHTML('beforebegin', '<meta name="ext-middle" content="1">');
+    document.head.insertAdjacentHTML('beforeend', '<style class="ext-last">body{}</style>');
+  }
+
+  it('still swaps softly: a fresh load would carry the same foreign nodes', () => {
+    injectForeignNodes();
+    expect(swapBlocker(document, parsePage(FISHAI))).toBeNull();
+  });
+
+  it('never removes or moves them, and everything of ours still matches a fresh load', () => {
+    injectForeignNodes();
+    const foreign = [
+      ...document.head.querySelectorAll('.ext-first, [name="ext-middle"], .ext-last'),
+    ];
+
+    softNavigate(FISHAI, '/projects/fishai/');
+    softNavigate(ABOUT, '/about/');
+
+    expect(foreign.every((node) => node.parentNode === document.head)).toBe(true);
+    expect(document.head.firstElementChild).toBe(foreign[0]);
+    expect(document.head.lastElementChild).toBe(foreign[2]);
+
+    for (const node of foreign) node.remove();
+    const soft = snapshot();
+    expect(soft).toBe(freshLoad(ABOUT));
+  });
+
+  it('still refuses a page whose own shared nodes differ', () => {
+    injectForeignNodes();
+    const rogue = parsePage({ ...ABOUT, rogueHead: '<meta name="rogue" content="x">' });
+    expect(swapBlocker(document, rogue)).toBe('different <head>');
+  });
+});
+
 describe('swapHead', () => {
   it('keeps document order: per-page nodes land between the same shared nodes', () => {
     swapHead(document, parsePage(FISHAI));
@@ -134,6 +174,13 @@ describe('swapBlocker', () => {
 });
 
 describe('focusHeading', () => {
+  it('leaves focus alone while the panel is closed: the heading is about to be invisible', () => {
+    document.documentElement.dataset.panel = 'closed';
+    focusHeading(document);
+    expect(document.activeElement).toBe(document.body);
+    delete document.documentElement.dataset.panel;
+  });
+
   it('moves focus to the heading without changing the DOM', () => {
     const before = snapshot();
     focusHeading(document);

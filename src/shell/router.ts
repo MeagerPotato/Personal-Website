@@ -26,7 +26,10 @@ export type NavigationKind = 'push' | 'replace' | 'pop';
 
 export interface RouterOptions {
   navItems: readonly NavItem[];
-  /** After every committed navigation. From Phase 2's engine work: fly to what the URL names. */
+  /**
+   * On every committed navigation, once the new page is in the DOM and before focus moves to
+   * its heading. The panel opens or closes here; later the engine flies to what the URL names.
+   */
   onNavigate?: (navigation: { url: URL; kind: NavigationKind }) => void;
   /** Injected in tests: the network, and the two ways of giving up on a soft navigation. */
   fetch?: typeof fetch;
@@ -39,12 +42,22 @@ export interface Router {
   navigate(href: string, options?: { replace?: boolean }): Promise<void>;
   /** Fetch a page the visitor is likely to open next. */
   prefetch(href: string): void;
+  /**
+   * Leave the page that is showing, the way closing a card does: back to where the visitor came
+   * from if that was one of our own pages, otherwise on to `fallbackHref` (the home page).
+   */
+  leave(fallbackHref: string): void;
   dispose(): void;
 }
 
 interface EntryState {
   /** Identifies a history entry, so its scroll position can be restored when it is revisited. */
   routerKey: string;
+  /**
+   * How many of our own pushes lie behind this entry. Above zero, the entry before it is a page
+   * of this site that the router itself left, so history.back() is a safe way to "close".
+   */
+  routerDepth: number;
 }
 
 const PREFETCH_CAPACITY = 6;
@@ -78,16 +91,30 @@ export function startRouter(options: RouterOptions): Router {
   let keyCounter = 0;
   let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const newState = (): EntryState => ({
+  const currentDepth = (): number => (history.state as EntryState | null)?.routerDepth ?? 0;
+  const newState = (depth: number): EntryState => ({
     routerKey: `${Date.now().toString(36)}-${(keyCounter += 1)}`,
+    routerDepth: depth,
   });
   /** The key of the history entry the browser is on, tagging the entry first if it has none. */
   function entryKey(): string {
     const existing = (history.state as EntryState | null)?.routerKey;
     if (existing) return existing;
-    const state = newState();
+    const state = newState(0);
     history.replaceState(state, '');
     return state.routerKey;
+  }
+
+  // In universe mode the panel (<main>) scrolls and the document does not; if the layout ever
+  // falls back, it is the other way round. Reading and writing both keeps the router right
+  // whichever one is the scroller: the other is always at 0 and cannot move.
+  const panel = (): HTMLElement | null => document.getElementById('main');
+  const scrollTop = (): number => window.scrollY + (panel()?.scrollTop ?? 0);
+  function scrollTo(top: number): void {
+    // "instant" on purpose: the stylesheet asks for smooth scrolling, and gliding through a page
+    // that has just been replaced would be motion without meaning.
+    panel()?.scrollTo({ top, left: 0, behavior: 'instant' });
+    window.scrollTo({ top, left: 0, behavior: 'instant' });
   }
 
   // The entry whose content is on screen. On popstate the browser has ALREADY moved to another
@@ -133,22 +160,22 @@ export function startRouter(options: RouterOptions): Router {
     markCurrentNav(document, options.navItems, url.pathname);
     showing = pageKey(url);
 
-    // "instant" on purpose: the stylesheet asks for smooth scrolling, and gliding through a page
-    // that has just been replaced would be motion without meaning.
     const anchor = url.hash ? document.getElementById(decodeURIComponent(url.hash.slice(1))) : null;
-    if (scrollY !== undefined) window.scrollTo({ top: scrollY, left: 0, behavior: 'instant' });
+    if (scrollY !== undefined) scrollTo(scrollY);
     else if (anchor) anchor.scrollIntoView({ behavior: 'instant' });
-    else window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    else scrollTo(0);
 
-    focusHeading(document);
+    // Listeners first: the panel may have to OPEN for this page, and a heading inside a hidden
+    // panel cannot take focus.
     options.onNavigate?.({ url, kind });
+    focusHeading(document);
   }
 
   /** Start a navigation: it supersedes whichever one was still waiting for the network. */
   function begin(): { id: number; signal: AbortSignal } {
     inFlight?.abort();
     inFlight = new AbortController();
-    scrollByEntry.set(currentKey, window.scrollY);
+    scrollByEntry.set(currentKey, scrollTop());
     return { id: (navigationId += 1), signal: inFlight.signal };
   }
 
@@ -171,7 +198,7 @@ export function startRouter(options: RouterOptions): Router {
     // Like the browser, a link to the URL that is already showing replaces its entry: clicking
     // "About" on the About page must not make Back a no-op.
     const kind: NavigationKind = replace || url.href === location.href ? 'replace' : 'push';
-    const state = newState();
+    const state = newState(currentDepth() + (kind === 'push' ? 1 : 0));
     if (kind === 'replace') history.replaceState(state, '', url.href);
     else history.pushState(state, '', url.href);
     currentKey = state.routerKey;
@@ -255,7 +282,7 @@ export function startRouter(options: RouterOptions): Router {
   window.addEventListener(
     'pagehide',
     () => {
-      scrollByEntry.set(currentKey, window.scrollY);
+      scrollByEntry.set(currentKey, scrollTop());
       writeScrollStore(scrollByEntry);
     },
     { signal },
@@ -276,6 +303,10 @@ export function startRouter(options: RouterOptions): Router {
   return {
     navigate,
     prefetch,
+    leave(fallbackHref) {
+      if (currentDepth() > 0) history.back();
+      else void navigate(fallbackHref);
+    },
     dispose() {
       listeners.abort();
       inFlight?.abort();

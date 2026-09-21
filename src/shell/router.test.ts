@@ -243,6 +243,56 @@ describe('history', () => {
   });
 });
 
+describe('leave: closing a page the way a card closes', () => {
+  it('goes back when the visitor came from one of our own pages', async () => {
+    harness = start();
+    await harness.router.navigate('/about/');
+    await harness.router.navigate('/projects/fishai/');
+
+    harness.router.leave('/');
+    await flush();
+    expect(location.pathname).toBe('/about/');
+    expect(heading()).toBe('About');
+    expect(harness.navigations.at(-1)).toEqual({ path: '/about/', kind: 'pop' });
+  });
+
+  it('goes on to the fallback when there is nowhere of ours to go back to', async () => {
+    window.history.replaceState(null, '', `${ORIGIN}/about/`);
+    showPage(ABOUT);
+    harness = start();
+    const before = history.length;
+
+    harness.router.leave('/');
+    await flush();
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('Home');
+    expect(history.length).toBe(before + 1);
+  });
+
+  it('does not count a replaced entry as somewhere to go back to', async () => {
+    harness = start();
+    await harness.router.navigate('/about/', { replace: true });
+    harness.router.leave('/');
+    await flush();
+    expect(harness.navigations.map((entry) => entry.kind)).toEqual(['replace', 'push']);
+    expect(location.pathname).toBe('/');
+  });
+});
+
+describe('listeners', () => {
+  it('hears about a navigation before focus moves, so a panel can open first', async () => {
+    let focusedWhenTold: Element | null = null;
+    harness = start(SITE, {
+      onNavigate: () => {
+        focusedWhenTold = document.activeElement;
+      },
+    });
+    await harness.router.navigate('/about/');
+    expect(focusedWhenTold).not.toBe(document.querySelector('main h1'));
+    expect(document.activeElement).toBe(document.querySelector('main h1'));
+  });
+});
+
 describe('prefetch', () => {
   it('fetches once, and the click that follows reuses it', async () => {
     harness = start();

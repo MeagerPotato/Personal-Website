@@ -46,6 +46,16 @@ const { pathname } = Astro.url;
         <a class="wordmark" href={routes.home()}>
           {site.name}
         </a>
+        <!-- Universe mode, home page only: the welcome text waits behind this button. -->
+        <button
+          class="panel-button panel-toggle"
+          type="button"
+          data-panel-toggle
+          aria-expanded="false"
+          aria-controls="main"
+        >
+          About this site
+        </button>
         <nav class="site-nav" aria-label="Main">
           <ul>
             {site.nav.map((item) => (
@@ -59,9 +69,22 @@ const { pathname } = Astro.url;
         </nav>
       </header>
 
-      <main id="main" tabindex="-1">
-        <slot />
-      </main>
+      <!-- In universe mode this is the info panel over the 3D world, and the bar holds its
+           controls (src/shell/panel.ts). In plain mode the bar is not rendered at all. -->
+      <div class="panel">
+        <div class="panel-bar">
+          <button class="panel-button" type="button" data-panel-resize aria-pressed="false">
+            Expand
+          </button>
+          <button class="panel-button" type="button" data-panel-close>
+            Close
+          </button>
+        </div>
+        <!-- data-flight-keys: inside the panel, arrow keys scroll the text; they never fly the ship. -->
+        <main id="main" tabindex="-1" data-flight-keys="off">
+          <slot />
+        </main>
+      </div>
 
       <footer class="footer">
         <p class="notice notice--engine-failed" role="status">

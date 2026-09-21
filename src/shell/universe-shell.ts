@@ -1,9 +1,11 @@
 // Everything the page needs in universe mode that is NOT the engine itself: boot the engine, fall
-// back to plain if it does not come up, and keep the canvas alive across pages with the router.
-// The panel controller joins this module with Phase 2's engine work.
+// back to plain if it does not come up, keep the canvas alive across pages with the router, and
+// show each page's content in the panel.
 
 import { site } from '../config/site';
+import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
+import { startPanel, type Panel } from './panel';
 import { startRouter, type Router } from './router';
 import { startFrameWatchdog } from './watchdog';
 
@@ -15,6 +17,7 @@ const WATCHDOG_MS = 8000;
 
 const root = document.documentElement;
 let router: Router | undefined;
+let panel: Panel | undefined;
 
 /**
  * The content is already in the DOM and the base CSS is the plain layout, so falling back is
@@ -27,6 +30,8 @@ function fallBackToPlain(reason: string): void {
   // With no canvas to protect there is nothing to gain from soft navigation: links are links.
   router?.dispose();
   router = undefined;
+  panel?.dispose();
+  panel = undefined;
   console.warn(`[universe] falling back to plain mode: ${reason}`);
 }
 
@@ -36,7 +41,14 @@ export async function start(): Promise<void> {
 
   root.dataset.engine = 'booting';
   // Before the engine chunk even arrives, so that the very first click is already a soft one.
-  router = startRouter({ navItems: site.nav });
+  router = startRouter({
+    navItems: site.nav,
+    onNavigate: ({ url }) => panel?.sync(url.pathname),
+  });
+  panel = startPanel({
+    homePath: routes.home(),
+    onLeave: () => router?.leave(routes.home()),
+  });
   let universe: Universe | undefined;
   let settled = false;
 
