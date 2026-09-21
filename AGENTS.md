@@ -15,8 +15,9 @@ Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: th
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
-narrow ones), over what is still only a sky. **Phase 1 (flight) is under way**: the engine runs on a fixed
-60 Hz simulation clock. Phase 2's 3D half (panel, docking, autopilot) waits for flight. Roadmap:
+narrow ones). **Phase 1 (flight) is under way**: the engine runs on a fixed 60 Hz simulation
+clock, and a procedural rocket flies through an empty sky with the keyboard, followed by the chase
+camera. No planets yet. Phase 2's 3D half (docking, autopilot) waits for the world. Roadmap:
 docs/PLAN.md §6.
 
 ## Invariants
@@ -91,10 +92,10 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), later the asset manifest | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
-| `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `world/` … | Claude |
+| `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
 | `src/shell/**` | client code outside the engine: mode, boot, watchdog, router (`navigation.ts` rules, `swap.ts` DOM, `router.ts` history), `panel.ts` | Claude |
 | `src/site/**`, `src/config/**` | framework-neutral build logic and site constants | Claude |
 | `src/pages`, `src/layouts`, `src/components` | markup-only `.astro` | Claude |
@@ -136,6 +137,13 @@ in the header comment (uniform names are the contract with logic). A factory in
 it is for and tracks it in a `Scope`. Custom shaders end with `#include <colorspace_fragment>`.
 Anything that is part of the sky draws at the far plane (`clip.z = clip.w`) and ignores the
 camera's position: see `shaders/sky.ts`.
+
+**Add a model.** A function in `design/models/<name>.ts` that returns `ModelData`: a mesh built
+with `MeshBuilder` (`sim/meshBuilder.ts`: lathe, plate, disc, cap; pure, so a test can measure the
+model) plus named **sockets** for whatever attaches to it. Colours are tokens through
+`hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts`;
+logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
+material, and releases the handle in its scope. Asset names and socket names are API.
 
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.

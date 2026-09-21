@@ -1,3 +1,5 @@
+import type { ChaseCamParams } from '../camera/ChaseCam';
+import type { ShipLookParams } from '../ship/ShipSystem';
 import type { FlightParams } from '../sim/types';
 
 /**
@@ -42,6 +44,72 @@ export const tuning = {
     yawResponseSec: 0.12,
   } satisfies FlightParams,
 
+  /**
+   * How the ship LOOKS while it flies (ship/ShipSystem.ts). None of this reaches the flight model:
+   * the lean, the nod and the bob are worn by the model only, and the camera ignores them.
+   */
+  ship: {
+    /** Where a new visitor starts, and which way they face (degrees, counter-clockwise from +Z). */
+    spawn: { x: 12, z: -52, headingDeg: 20 },
+    /** Lean into a turn: this many radians at the full turn rate, fading in up to bankFullSpeed. */
+    bankRad: 0.6,
+    bankFullSpeed: 15,
+    /** Nose up under boost, nose down under the brake. pitchOmega is how fast it nods (rad/s). */
+    pitchBoostDeg: 5,
+    pitchBrakeDeg: 4,
+    pitchOmega: 8,
+    /** A slow hover so a parked ship still looks alive. Off under reduced motion. */
+    bobAmplitude: 0.25,
+    bobHz: 0.4,
+    flame: {
+      /** Radius of the flame at its widest, and its length at full thrust and under boost (u). */
+      width: 0.23,
+      lengthCruise: 1.15,
+      lengthBoost: 2.2,
+      boostWidthFactor: 1.3,
+      /** 1/s. How quickly the flame follows the throttle. */
+      responsePerSec: 14,
+      /** Share of the length that flickers. Off under reduced motion. */
+      flicker: 0.14,
+      /** 1 until bloom exists; above 1 it will glow (shaders/glow.ts). */
+      intensity: 1,
+    },
+  } satisfies ShipLookParams,
+
+  /** The camera that follows the ship (camera/ChaseCam.ts). It never rolls. */
+  chaseCam: {
+    /** Where the camera sits, relative to the point it trails behind the ship (u). */
+    back: 11,
+    up: 5.5,
+    /** It looks this far ahead of that point: base + perSpeed * speed. Faster = further ahead. */
+    lookAheadBase: 4,
+    lookAheadPerSpeed: 0.18,
+    /**
+     * Springs, rad/s: higher = stiffer. The camera trails the ship by 2 * speed / positionOmega
+     * units, easing into a limit of maxTrail (so about 4.4 u at cruise and 5.3 u under boost), and
+     * its swing trails a turn by 2 * turnRate / yawOmega radians. That slack is what lets you SEE
+     * the ship turn and pull away.
+     */
+    positionOmega: 14,
+    maxTrail: 5.5,
+    yawOmega: 12,
+    /** The view widens with speed: +fovBoostDegrees between these two speeds. Not under reduced motion. */
+    fovBoostDegrees: 13,
+    fovBoostSpeeds: [35, 80],
+    /**
+     * A wider lens shrinks the ship. 0 = let it; 1 = move in exactly enough to keep its size, while
+     * the sky still stretches (a dolly zoom).
+     */
+    fovDolly: 0.5,
+    /**
+     * Tall screens: never let the HORIZONTAL view get narrower than this (the vertical one grows
+     * instead, up to maxFovDegrees), and back the camera off by up to portraitDistanceScale.
+     */
+    minHorizontalFovDegrees: 40,
+    maxFovDegrees: 95,
+    portraitDistanceScale: 1.3,
+  } satisfies ChaseCamParams,
+
   viewport: {
     /** Pixels are the budget on phones. Cap the ratio AND the absolute pixel count. */
     maxPixelRatio: 2,
@@ -79,15 +147,16 @@ export const tuning = {
     /**
      * Up to four huge, soft glows of colour at fixed places in the sky. `theme` picks a colour
      * family from tokens (its shade); `direction` is [x, y, z] and need not be normalised (y is
-     * up: the chase camera looks slightly down, so glows below the horizon are seen the most);
-     * `tightness` is how small the glow is (4 = a third of the sky, 12 = a patch); `strength` is
-     * how much colour is added at its centre. Keep them whisper-quiet.
+     * up: the chase camera looks down, so the sky from 45 degrees BELOW the horizon to 10 above is
+     * what is seen the most); `tightness` is how small the glow is (4 = a third of the sky, 12 = a
+     * patch); `strength` is how much colour is added at its centre. Keep them whisper-quiet, and
+     * keep warm colours small and high: on navy a big warm glow reads as brown.
      */
     glows: [
       { theme: 'lilac', direction: [-0.7, -0.35, -0.6], tightness: 5, strength: 0.075 },
-      { theme: 'sky', direction: [0.8, 0.1, -0.55], tightness: 7, strength: 0.065 },
-      { theme: 'coral', direction: [0.25, -0.5, 0.85], tightness: 9, strength: 0.05 },
-      { theme: 'mint', direction: [-0.6, 0.45, 0.65], tightness: 8, strength: 0.04 },
+      { theme: 'sky', direction: [0.8, -0.15, -0.55], tightness: 7, strength: 0.065 },
+      { theme: 'mint', direction: [0.3, -0.45, 0.85], tightness: 7, strength: 0.04 },
+      { theme: 'coral', direction: [-0.65, 0.4, 0.6], tightness: 12, strength: 0.03 },
     ],
   },
 

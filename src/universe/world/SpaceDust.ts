@@ -11,21 +11,29 @@ import { createDustMaterial, type DustMaterial } from '../design/materials';
 import { tuning } from '../design/tuning';
 import { createRng } from '../sim/rng';
 
+/** Whoever the dust surrounds: the ship. */
+export interface DustViewer {
+  readonly position: Readonly<Vector3>;
+  /** World units per second: it sets the direction and length of the streaks. */
+  readonly velocity: Readonly<Vector3>;
+}
+
 export interface SpaceDustOptions {
+  viewer: DustViewer;
   coarsePointer: boolean;
   reducedMotion: boolean;
 }
 
 /**
  * The motes that slide past the ship (the look, and the endless-field trick, live in
- * design/shaders/dust.ts). This class only builds the instanced quads and is told each frame
- * where the viewer is and how fast it moves.
+ * design/shaders/dust.ts). This class only builds the instanced quads, and each frame tells the
+ * shader where the viewer is and how fast it moves. Add it AFTER the viewer.
  */
 export class SpaceDust implements System {
   readonly object: Mesh<InstancedBufferGeometry, DustMaterial>;
   private readonly scope = new Scope();
 
-  constructor(options: SpaceDustOptions) {
+  constructor(private readonly options: SpaceDustOptions) {
     const params = tuning.dust;
     const count = options.coarsePointer ? params.countCoarse : params.count;
     const rng = createRng(params.seed);
@@ -57,10 +65,10 @@ export class SpaceDust implements System {
     this.scope.onDispose(() => this.object.removeFromParent());
   }
 
-  /** Centre the field on the viewer and tell it how the viewer moves (world units per second). */
-  follow(center: Readonly<Vector3>, velocity: Readonly<Vector3>): void {
-    this.object.material.uniforms.uCenter.value.copy(center);
-    this.object.material.uniforms.uVelocity.value.copy(velocity);
+  frameUpdate(): void {
+    const { uCenter, uVelocity } = this.object.material.uniforms;
+    uCenter.value.copy(this.options.viewer.position);
+    uVelocity.value.copy(this.options.viewer.velocity);
   }
 
   dispose(): void {

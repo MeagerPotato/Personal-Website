@@ -1,13 +1,21 @@
 import type { UniverseEvents, UniverseOptions } from './api';
+import { CameraRig } from './camera/CameraRig';
+import { ChaseCam } from './camera/ChaseCam';
+import { AssetStore } from './core/AssetStore';
 import { Engine } from './core/Engine';
 import { EventBus } from './core/events';
+import { InputSystem } from './core/input/InputSystem';
+import { KeyboardInput } from './core/input/KeyboardInput';
+import { ShipSystem } from './ship/ShipSystem';
 import { Backdrop } from './world/Backdrop';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 
 /**
- * Composition root: builds the engine and adds systems in an explicit order. So far that is the
- * sky (backdrop, stars) and the dust; flight, the camera rig, the world and the UI join here.
+ * Composition root: builds the engine and adds systems in an explicit order, because the order
+ * is the data flow of a frame. Input is read before the ship flies by it; the ship is drawn
+ * before the camera looks at it; the dust surrounds wherever the ship ended up. (Disposal runs
+ * the other way, so the asset store, added first, outlives everything that borrowed from it.)
  */
 export function boot(options: UniverseOptions): {
   engine: Engine;
@@ -24,11 +32,18 @@ export function boot(options: UniverseOptions): {
   });
 
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  const assets = engine.add(new AssetStore());
+
+  const input = engine.add(new InputSystem(() => events.emit('firstinput', undefined)));
+  input.add(new KeyboardInput());
+
+  const ship = engine.add(new ShipSystem({ pilot: input, assets, reducedMotion }));
+  engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
-  const dust = engine.add(new SpaceDust({ coarsePointer, reducedMotion }));
-  engine.scene.add(backdrop.object, starfield.object, dust.object);
+  const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
+  engine.scene.add(backdrop.object, starfield.object, dust.object, ship.object);
 
   engine.start();
   return { engine, events };
