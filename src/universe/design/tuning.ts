@@ -14,6 +14,7 @@ import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
+import type { LabelsParams } from '../ui/Labels';
 import type { PickerParams } from '../ui/Picker';
 
 /**
@@ -244,6 +245,27 @@ export const tuning = {
   } satisfies PickerParams,
 
   /**
+   * The names over the bodies (ui/Labels.ts, sim/declutter.ts). How they LOOK is CSS
+   * (`.body-label`); these decide where they sit and which of them may show at once.
+   */
+  labels: {
+    /** A name sits this far below the edge of its body (CSS px). */
+    offsetPx: 2,
+    /** A body that looks smaller than this (radius, CSS px) gets no name. */
+    minVisiblePx: 1.5,
+    /** Names keep this far from the sides and the bottom of the free view, and clear of the top bar. */
+    edgePx: 8,
+    topPx: 84,
+    /**
+     * Names keep gapPx apart; one that shows already may stay until it is keepPx closer than that
+     * (so nothing flickers while bodies drift past each other); never more than max at once.
+     */
+    gapPx: 4,
+    keepPx: 8,
+    max: 14,
+  } satisfies LabelsParams,
+
+  /**
    * How the ship LOOKS while it flies (ship/ShipSystem.ts). None of this reaches the flight model:
    * the lean, the nod and the bob are worn by the model only, and the camera ignores them.
    */
@@ -446,9 +468,14 @@ export const tuning = {
     jobBudget: { share: 0.25, minMs: 4, maxMs: 16 } satisfies JobBudget,
     /** Planets turn on their axis, slowly. Off under reduced motion. */
     spinRadPerSec: 0.04,
-    /** A ringed planet: the ring's inner and outer edge in planet radii, and how far it tips. */
-    ringInnerRadii: 1.45,
-    ringOuterRadii: 2.15,
+    /**
+     * A ringed planet: the ring's inner and outer edge in planet radii, and how far it tips. The
+     * outer edge stays INSIDE the docking orbit (1.9 radii or more, data/layout.ts): a wider ring
+     * has the docked ship flying through it, and from the chase camera, which then sits right on
+     * its plane, it is a wall of pale blue across the whole view.
+     */
+    ringInnerRadii: 1.35,
+    ringOuterRadii: 1.8,
     ringTiltDeg: 16,
     /** How much a sun and a planet's ring bleed into the picture as bloom, 0 to 1. */
     sunBloom: 1,

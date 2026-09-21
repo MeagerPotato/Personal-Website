@@ -129,6 +129,11 @@ export class CameraRig implements System {
     return this.mode;
   }
 
+  /** The shape of the view right now, the free part of it included. A LIVE object: do not keep copies. */
+  get shape(): ViewShape {
+    return this.view;
+  }
+
   /** Hand over to `mode` over `blendSec` seconds. 0 is a cut. */
   use(mode: CameraMode, blendSec: number): void {
     if (mode === this.mode) return;

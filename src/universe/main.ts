@@ -20,6 +20,7 @@ import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
+import { Labels } from './ui/Labels';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { copyShipState, createShipState } from './sim/flight';
@@ -191,23 +192,44 @@ export function boot(
       count: surroundings.orbits.count,
     }),
   );
+  const targetRow = (): number => {
+    const { target } = navigator.state;
+    return target === null ? -1 : surroundings.orbits.indexOf(target);
+  };
+  const flyToRow = (row: number): void => {
+    const id = surroundings.orbits.ids[row];
+    if (id === undefined) return;
+    if (!reducedMotion) navigator.travel(id, 'pilot');
+    else if (!navigator.approach(id, 'pilot')) navigator.place(id, 0, 1, 'pilot');
+  };
   engine.add(
     new Picker({
       canvas: engine.canvas,
       screen: onScreen.map,
       params: tuning.picking,
-      ignore: () => {
-        const { target } = navigator.state;
-        return target === null ? -1 : surroundings.orbits.indexOf(target);
-      },
-      onPick: (row) => {
-        const id = surroundings.orbits.ids[row];
-        if (id === undefined) return;
-        if (!reducedMotion) navigator.travel(id, 'pilot');
-        else if (!navigator.approach(id, 'pilot')) navigator.place(id, 0, 1, 'pilot');
-      },
+      ignore: targetRow,
+      onPick: flyToRow,
     }),
   );
+  if (options.overlay) {
+    // A name under every body that has room for one: pressing it is pointing at the body.
+    const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+    engine.add(
+      new Labels({
+        overlay: options.overlay,
+        screen: onScreen.map,
+        bodies: surroundings.orbits.ids.map((id) => {
+          const body = byId.get(id);
+          return { title: body?.title ?? id, kind: body?.kind ?? 'moon' };
+        }),
+        params: tuning.labels,
+        view: rig.shape,
+        target: targetRow,
+        docked: () => navigator.state.mode === 'docked',
+        onPick: flyToRow,
+      }),
+    );
+  }
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
