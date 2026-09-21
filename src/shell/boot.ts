@@ -6,6 +6,22 @@
 // Both imports are DYNAMIC on purpose. scripts/verify-dist.mjs fails the build if three.js ever
 // becomes statically reachable from a page.
 
+import { ANALYTICS_HOST, ANALYTICS_TOKEN } from '../config/analytics';
+import { startAnalytics } from './analytics';
+
+// Both modes, every page: a visit is a visit. It does nothing without a token, off the real
+// site, or for a visitor who asks not to be tracked (see analytics.ts).
+startAnalytics({
+  token: ANALYTICS_TOKEN,
+  countedHost: ANALYTICS_HOST,
+  hostname: location.hostname,
+  privacy: {
+    globalPrivacyControl: (navigator as Navigator & { globalPrivacyControl?: boolean })
+      .globalPrivacyControl,
+    doNotTrack: navigator.doNotTrack,
+  },
+});
+
 if (import.meta.env.DEV && document.documentElement.dataset.lab !== undefined) {
   // The asset lab, `/lab/` under `npm run dev`. The condition is a build-time constant: no build
   // contains this branch, the page, or anything behind the import.

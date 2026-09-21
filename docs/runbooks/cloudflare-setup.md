@@ -101,8 +101,9 @@ scripts to plain mode. They only affect traffic proxied by Cloudflare, so the pr
 ## 6. Tell Claude, then check
 
 Send Claude: "Cloudflare is connected" plus the analytics token. Claude then opens the follow-up
-PR (Phase 0 step 9: turns off the public `workers.dev` hostname, adds the token) and runs the Phase 0
-checks in docs/PLAN.md §7.
+PR (Phase 0 step 9: turns off the public `workers.dev` hostname, and puts the token in
+`ANALYTICS_TOKEN` in `src/config/analytics.ts`, the one line that turns counting on) and runs the
+Phase 0 checks in docs/PLAN.md §7.
 
 Re-run every command from step 0. **The output must match the snapshot.** Then:
 
