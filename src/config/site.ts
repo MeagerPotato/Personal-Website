@@ -39,10 +39,5 @@ export const site = {
     { label: 'Resume', href: routes.page('resume'), section: [routes.page('resume')] },
     { label: 'Contact', href: routes.page('contact'), section: [routes.page('contact')] },
   ],
-
-  /**
-   * Cloudflare Web Analytics token (public by design; it ships in the beacon snippet).
-   * Empty = analytics off. Filled in Phase 0 step 9, after Allen adds the site in the dashboard.
-   */
-  analyticsToken: '',
+  // The Cloudflare Web Analytics token lives in ./analytics.ts: boot.ts reads it on every page.
 } as const;
