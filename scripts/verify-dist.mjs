@@ -78,11 +78,16 @@ if (!sitePaths.has('/_headers')) {
 // 2 --- dev-only things ---------------------------------------------------------------------
 if (existsSync(resolve(DIST, 'lab'))) errors.push('dist/lab exists: the dev-only /lab page leaked');
 
-// The tuning panel is imported behind `import.meta.env.DEV`, which a production build removes.
-// lil-gui names its CSS classes after itself, and those strings survive minification.
-for (const file of files.filter((name) => name.endsWith('.js'))) {
-  if ((await readFile(file, 'utf8')).includes('lil-gui')) {
+// The tuning panel and the lab are imported behind `import.meta.env.DEV`, which a production
+// build removes. lil-gui names its CSS classes after itself and the lab names its scene
+// 'universe-lab'; both strings survive minification.
+for (const file of files.filter((name) => name.endsWith('.js') || name.endsWith('.css'))) {
+  const text = await readFile(file, 'utf8');
+  if (text.includes('lil-gui')) {
     errors.push(`${sitePathOf(file)} contains lil-gui: the dev-only tuning panel leaked`);
+  }
+  if (text.includes('universe-lab') || text.includes('lab-host')) {
+    errors.push(`${sitePathOf(file)} contains the dev-only lab`);
   }
 }
 

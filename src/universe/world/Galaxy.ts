@@ -21,11 +21,10 @@ import {
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import type { ManifestBody, ManifestSystem, UniverseManifest } from '../manifest';
-import { hexToLinear } from '../sim/color';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
-import type { PlanetBands } from '../sim/planet';
 import { createRng } from '../sim/rng';
+import { biomeBands, sunBands, sunLook } from './looks';
 import { PlanetMesh } from './PlanetMesh';
 
 export interface GalaxyOptions {
@@ -216,9 +215,8 @@ export class Galaxy implements System {
     view.planet = new PlanetMesh({
       radius: body.radius,
       seed: body.seed,
-      bands: isSun ? sunBands(look.system) : biomeBands(body),
-      // A sun is a smooth ball whose "heights" only choose between its colours.
-      look: isSun ? { ...tuning.planet, reliefShare: 0, seaLevel: -2 } : tuning.planet,
+      bands: isSun ? sunBands(look.system.theme) : biomeBands(body.biome ?? 'terra'),
+      look: isSun ? sunLook() : tuning.planet,
       detail: isSun ? detailSun : isMoon ? detailMoon : detailPlanet,
       nearDetail: isSun || isMoon ? null : detailNear,
       material: isSun ? sunMaterial : look.surface,
@@ -265,28 +263,4 @@ function unitCircle(segments: number): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(points, 3));
   return geometry;
-}
-
-function biomeBands(body: ManifestBody): PlanetBands {
-  const biome = tokens.color.biome[body.biome ?? 'terra'];
-  return {
-    sea: hexToLinear(biome.sea),
-    shore: hexToLinear(biome.shore),
-    low: hexToLinear(biome.low),
-    high: hexToLinear(biome.high),
-    peak: hexToLinear(biome.peak),
-  };
-}
-
-/** A sun in its system's colour family: mostly `base`, with lighter and darker patches. */
-function sunBands(system: ManifestSystem): PlanetBands {
-  const theme = tokens.color.system[system.theme];
-  const base = hexToLinear(theme.base);
-  return {
-    sea: base,
-    shore: hexToLinear(theme.light),
-    low: base,
-    high: base,
-    peak: hexToLinear(theme.shade),
-  };
 }

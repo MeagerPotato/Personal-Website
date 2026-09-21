@@ -4,6 +4,7 @@ import { tuning } from '../../design/tuning';
 import type { ShipSystem } from '../../ship/ShipSystem';
 import type { System } from '../Engine';
 import type { InputSystem } from '../input/InputSystem';
+import { addControls, copyText } from './guiControls';
 import { IntentRecorder, ReplaySource, type Recording } from './IntentRecorder';
 
 /** The blocks of design/tuning.ts that are read every frame, so a change shows at once. */
@@ -16,34 +17,6 @@ const LIVE_BLOCKS = [
   'ship',
   'shading',
 ] as const;
-
-/** A slider needs ends. Three times the starting value either way is room enough to explore. */
-function rangeFor(value: number): [min: number, max: number] {
-  const span = Math.max(Math.abs(value) * 3, 1);
-  return [value < 0 ? -span : 0, span];
-}
-
-function addControls(folder: GUI, target: Record<string, unknown>, onChange: () => void): void {
-  for (const [key, value] of Object.entries(target)) {
-    if (typeof value === 'number') {
-      folder.add(target, key, ...rangeFor(value)).onChange(onChange);
-    } else if (typeof value === 'boolean') {
-      folder.add(target, key).onChange(onChange);
-    } else if (Array.isArray(value)) {
-      value.forEach((item, index) => {
-        if (typeof item !== 'number') return;
-        folder
-          .add(value as unknown as Record<string, number>, String(index), ...rangeFor(item))
-          .name(`${key}[${index}]`)
-          .onChange(onChange);
-      });
-    } else if (value !== null && typeof value === 'object') {
-      const child = folder.addFolder(key);
-      child.close();
-      addControls(child, value as Record<string, unknown>, onChange);
-    }
-  }
-}
 
 /**
  * DEV ONLY (main.ts imports it behind `import.meta.env.DEV`, and verify-dist proves that no build
@@ -69,7 +42,7 @@ export class TweakPanel implements System {
     }
 
     const actions = {
-      'copy tuning as JSON': () => this.copy(this.snapshot()),
+      'copy tuning as JSON': () => copyText(this.snapshot()),
       'record / stop': () => this.toggleRecording(),
       'replay the last recording': () => this.startReplay(),
     };
@@ -90,11 +63,6 @@ export class TweakPanel implements System {
     return JSON.stringify(live, null, 2);
   }
 
-  private copy(text: string): void {
-    console.info(text);
-    void navigator.clipboard?.writeText(text).catch(() => undefined);
-  }
-
   private toggleRecording(): void {
     if (!this.recorder.recording) {
       this.recorder.begin(this.targets.ship.state);
@@ -102,7 +70,7 @@ export class TweakPanel implements System {
       return;
     }
     this.lastRecording = this.recorder.end(tuning.loop.stepHz);
-    if (this.lastRecording) this.copy(JSON.stringify(this.lastRecording));
+    if (this.lastRecording) copyText(JSON.stringify(this.lastRecording));
   }
 
   private startReplay(): void {

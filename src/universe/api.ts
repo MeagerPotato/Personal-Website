@@ -14,6 +14,27 @@ import { boot, type Booted } from './main';
 
 export type { QualityTier } from './core/quality/tiers';
 
+/**
+ * DEV ONLY: the lab, one asset on a turntable (lab/LabScene.ts). The condition is a build-time
+ * constant, so a production build drops the import and everything behind it, lil-gui included
+ * (scripts/verify-dist.mjs checks).
+ */
+export async function createLab(options: {
+  mount: HTMLElement;
+  quality?: QualityTier;
+  onQuality(tier: QualityTier): void;
+}): Promise<{ dispose(): void }> {
+  if (import.meta.env.DEV) {
+    const { bootLab } = await import('./lab/LabScene');
+    return bootLab({
+      mount: options.mount,
+      tier: isTier(options.quality) ? options.quality : 'high',
+      onTier: options.onQuality,
+    });
+  }
+  throw new Error('the lab exists in development only');
+}
+
 export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
   mount: HTMLElement;

@@ -1,0 +1,34 @@
+---
+// DEV ONLY: the asset lab, http://localhost:4321/lab/ under `npm run dev`.
+//
+// The underscore keeps this file out of Astro's file-based routing, so no build contains it;
+// astro.config.ts injects the route for the dev server alone, and scripts/verify-dist.mjs fails
+// a build in which /lab ever shows up. The page is only a full-window host for the engine: what
+// the lab shows lives in src/universe/lab/LabScene.ts, and it is started by the same boot script
+// as every other page (src/shell/boot.ts, behind `import.meta.env.DEV`).
+import { tokensToCss } from '../site/tokens-css';
+import { tokens } from '../universe/design/tokens';
+import '../styles/lab.css';
+---
+
+<!doctype html>
+<html lang="en" data-lab>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Lab (dev only)</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style is:inline set:html={tokensToCss(tokens)}></style>
+  </head>
+  <body>
+    <div id="lab-host"></div>
+    <p class="lab-note">
+      Drag to look around, wheel to zoom. Sliders write to the running copy of
+      <code>design/tuning.ts</code>; “copy tuning as JSON” gives you what to paste back.
+    </p>
+    <script>
+      import '../shell/boot';
+    </script>
+  </body>
+</html>

@@ -1,8 +1,9 @@
 # AGENTS.md
 
 Shared rules for every coding agent in this repo (Claude Code, OpenAI Codex "Astra") and for humans.
-`CLAUDE.md` imports this file. The full reasoning lives in [docs/PLAN.md](docs/PLAN.md); this page
-is the short version you must not break.
+`CLAUDE.md` imports this file. The full reasoning lives in [docs/PLAN.md](docs/PLAN.md), and how
+the pieces fit (layers, the life of a frame, conventions) in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); this page is the short version you must not break.
 
 ## What this is
 
@@ -84,6 +85,15 @@ opens the live tuning panel (sliders for the blocks of `design/tuning.ts` that a
 frame, "copy tuning as JSON" to paste back into that file, and a flight recorder; its replays are
 exact in open space and approximate near planets, which have moved on by then). The panel is
 **dev server only**: `verify-dist` fails a build that contains it.
+
+**The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
+planet of any biome, a moon, a sun, the rocket with its flame, the station, the satellite, in
+front of the real sky and lit and post-processed as in the universe, with sliders for the
+`shading`, `planet`, `world`, `post` and `ship` blocks, the light's direction, and the tier.
+Judge a model, a biome or a shading change here first, then in flight. Its page is
+`src/pages/_lab.astro` (the underscore keeps it out of every build; `astro.config.ts` injects the
+route for the dev server alone) and its scene is `src/universe/lab/LabScene.ts`. A new kind of
+asset gets a subject there.
 
 ## Newer than your training data
 
