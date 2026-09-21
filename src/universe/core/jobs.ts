@@ -1,4 +1,16 @@
-import type { System } from './Engine';
+import type { Frame, System } from './Engine';
+
+/**
+ * How much of a frame the queue may spend: `share` of the time the last frame took, but at least
+ * `minMs` and at most `maxMs`. At 60 fps a quarter of a frame is the usual 4 ms. On a device that
+ * manages 15 fps a fixed 4 ms would stretch building the world over a minute; a share keeps it to
+ * seconds, and costs a frame rate that is already low very little.
+ */
+export interface JobBudget {
+  readonly share: number;
+  readonly minMs: number;
+  readonly maxMs: number;
+}
 
 /**
  * TIME-SLICED WORK. Building a detailed planet takes a few milliseconds, and a few milliseconds
@@ -13,10 +25,15 @@ export class JobQueue implements System {
   private readonly jobs: Array<{ run: Generator<void, unknown>; done: (result: never) => void }> =
     [];
 
+  private readonly budget: JobBudget;
+
+  /** `budget`: a JobBudget, or a plain number of milliseconds per frame. */
   constructor(
-    private readonly budgetMs: number,
+    budget: JobBudget | number,
     private readonly now: () => number = () => performance.now(),
-  ) {}
+  ) {
+    this.budget = typeof budget === 'number' ? { share: 0, minMs: budget, maxMs: budget } : budget;
+  }
 
   get pending(): number {
     return this.jobs.length;
@@ -32,8 +49,10 @@ export class JobQueue implements System {
     };
   }
 
-  frameUpdate(): void {
-    const deadline = this.now() + this.budgetMs;
+  frameUpdate(frame?: Frame): void {
+    const { share, minMs, maxMs } = this.budget;
+    const budgetMs = Math.min(Math.max((frame?.dt ?? 0) * 1000 * share, minMs), maxMs);
+    const deadline = this.now() + budgetMs;
     // Always at least one slice per frame, however late the frame already is: work must finish.
     do {
       const job = this.jobs[0];

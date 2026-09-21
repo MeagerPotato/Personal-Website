@@ -1,7 +1,9 @@
-import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { Color, PerspectiveCamera, Scene, WebGLRenderer, type Camera, type Object3D } from 'three';
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { FixedClock } from './loop';
+import { FrameGovernor } from './quality/governor';
+import type { TierSettings } from './quality/tiers';
 import { computePixelRatio } from './viewport';
 
 export interface Viewport {
@@ -26,7 +28,7 @@ export interface Frame {
  * Anything that lives in the loop. The split is the rule that keeps flight identical on every
  * display (docs/PLAN.md §5.5): SIMULATE in `fixedUpdate`, which always gets the same `dt`;
  * DRAW in `frameUpdate`, interpolating by `frame.alpha`. Whoever creates a GPU resource
- * disposes it, so `dispose` is mandatory. (`setQuality` joins with the quality tiers.)
+ * disposes it, so `dispose` is mandatory.
  */
 export interface System {
   fixedUpdate?(dt: number, simTime: number): void;
@@ -35,11 +37,32 @@ export interface System {
   dispose(): void;
 }
 
+/** Something that draws the scene in place of a plain `renderer.render` (fx/PostFX.ts). */
+export interface RenderPipeline {
+  /** Size of the drawing buffer, in real pixels. */
+  resize(width: number, height: number): void;
+  render(scene: Object3D, camera: Camera): void;
+  dispose(): void;
+}
+
 export interface EngineOptions {
   mount: HTMLElement;
   /** Simulation steps already taken, when the engine is rebuilt from a snapshot (core/snapshot.ts). */
   startSteps?: number;
+  /**
+   * The quality tier's settings (core/quality/tiers.ts). They are fixed for the life of an
+   * engine, because whether the canvas is anti-aliased is decided when its context is created.
+   */
+  quality: TierSettings;
+  /** Builds the post-processing, on the tiers that have it. Injected: core/ does not know fx/. */
+  pipeline?: (renderer: WebGLRenderer, samples: number) => RenderPipeline;
+  /** A phone or a tablet: `(pointer: coarse)`. */
+  coarsePointer: boolean;
+  /** May the first seconds decide that this tier is too much? Not for a forced or the lowest tier. */
+  canDemote: boolean;
   onFirstFrame(): void;
+  /** The probe found the tier too heavy for this device. The owner rebuilds one tier down. */
+  onDemote(): void;
   /**
    * The browser took the WebGL context away. The engine has stopped and is of no further use:
    * the owner takes a snapshot, disposes it, and builds a new one on a fresh canvas (api.ts).
@@ -70,6 +93,10 @@ export class Engine {
     maxStepsPerFrame: tuning.loop.maxStepsPerFrame,
   });
   private readonly frame = { elapsed: 0, dt: 0, alpha: 0, simTime: 0 };
+  private readonly pipeline: RenderPipeline | null;
+  private readonly governor: FrameGovernor;
+  /** Shortest time between two frames, in ms: the 30 fps cap of a tier. 0 = every display frame. */
+  private readonly minFrameMs: number;
   private viewport: Viewport = { width: 1, height: 1, pixelRatio: 1 };
   private frameId = 0;
   private lastTime = 0;
@@ -79,6 +106,7 @@ export class Engine {
   private hasRendered = false;
 
   constructor(private readonly options: EngineOptions) {
+    const { quality } = options;
     this.clock.reset(options.startSteps ?? 0);
     this.canvas = document.createElement('canvas');
     options.mount.append(this.canvas);
@@ -86,7 +114,8 @@ export class Engine {
     try {
       this.renderer = new WebGLRenderer({
         canvas: this.canvas,
-        antialias: false,
+        // With post-processing the anti-aliasing happens on its render target instead.
+        antialias: !quality.post && quality.msaaSamples > 0,
         alpha: false,
         powerPreference: 'default',
         // A software renderer would "work" at 3 fps. Refuse it: the caller falls back to plain mode.
@@ -98,8 +127,24 @@ export class Engine {
     }
 
     // Colour policy (docs/PLAN.md §5.5): sRGB output and NO tone mapping (three's defaults), so
-    // a colour in the scene is exactly the token hex and the 3D world matches the CSS.
-    this.renderer.setClearColor(new Color(tokens.color.space[900]), 1);
+    // a colour in the scene is exactly the token hex and the 3D world matches the CSS. With
+    // post-processing, alpha is the bloom guest list (design/shaders/post.ts), empty by default;
+    // without it, alpha is what the page sees of the canvas, and must be 1.
+    this.renderer.setClearColor(new Color(tokens.color.space[900]), quality.post ? 0 : 1);
+    // A frame may be several render calls (post-processing); count them all, reset once a frame.
+    this.renderer.info.autoReset = false;
+    this.pipeline =
+      quality.post && options.pipeline
+        ? options.pipeline(this.renderer, quality.msaaSamples)
+        : null;
+
+    const maxFps = options.coarsePointer ? quality.maxFpsCoarse : 0;
+    // A few ms of slack: display frames do not arrive on the dot, and being late costs a whole one.
+    this.minFrameMs = maxFps > 0 ? 1000 / maxFps - 4 : 0;
+    this.governor = new FrameGovernor(tuning.quality.governor, {
+      targetFps: maxFps > 0 ? maxFps : 60,
+      canDemote: options.canDemote,
+    });
 
     const { fovDegrees, near, far } = tuning.camera;
     this.camera = new PerspectiveCamera(fovDegrees, 1, near, far);
@@ -113,6 +158,11 @@ export class Engine {
   /** Simulation steps taken so far: the one number that says where every planet is. */
   get steps(): number {
     return this.clock.steps;
+  }
+
+  /** Share of the full resolution being rendered: below 1 when the governor is saving frames. */
+  get resolutionScale(): number {
+    return this.governor.scale;
   }
 
   /** True once dispose() ran: late arrivals (a lazy chunk) must not add themselves any more. */
@@ -148,6 +198,7 @@ export class Engine {
     document.removeEventListener('visibilitychange', this.handleVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
     for (const system of this.systems.splice(0).reverse()) system.dispose();
+    this.pipeline?.dispose();
     // Invariant 9, checked where it can be: whoever created a GPU resource has disposed it by now.
     const { geometries, textures } = this.renderer.info.memory;
     if (import.meta.env.DEV && geometries + textures > 0) {
@@ -181,7 +232,15 @@ export class Engine {
     this.frameId = 0;
     if (!this.shouldRun) return;
 
-    const slice = this.clock.advance((now - this.lastTime) / 1000);
+    // A capped tier sits out the display frames that come too soon.
+    const frameMs = now - this.lastTime;
+    if (frameMs < this.minFrameMs) {
+      this.frameId = requestAnimationFrame(this.tick);
+      return;
+    }
+    const workStarted = performance.now();
+
+    const slice = this.clock.advance(frameMs / 1000);
     this.lastTime = now;
 
     const stepSec = 1 / tuning.loop.stepHz;
@@ -196,15 +255,30 @@ export class Engine {
     frame.alpha = slice.alpha;
     frame.simTime = this.clock.simTime;
     for (const system of this.systems) system.frameUpdate?.(frame);
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
 
     if (!this.hasRendered) {
       this.hasRendered = true;
       this.options.onFirstFrame();
     }
 
+    const action = this.governor.frame(frameMs, performance.now() - workStarted);
+    if (action?.kind === 'scale') {
+      this.resize();
+    } else if (action?.kind === 'demote') {
+      // The owner disposes this engine from inside the callback: do not ask for another frame.
+      this.options.onDemote();
+      if (this.disposed) return;
+    }
+
     this.frameId = requestAnimationFrame(this.tick);
   };
+
+  private draw(): void {
+    this.renderer.info.reset();
+    if (this.pipeline) this.pipeline.render(this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
+  }
 
   // --- environment -----------------------------------------------------------------------------
 
@@ -213,24 +287,26 @@ export class Engine {
     const { clientWidth: width, clientHeight: height } = this.options.mount;
     if (width === 0 || height === 0) return;
 
-    const limits = tuning.viewport;
-    const coarse = window.matchMedia('(pointer: coarse)').matches;
-    const pixelRatio = computePixelRatio(width, height, window.devicePixelRatio, {
-      maxPixelRatio: coarse ? limits.maxPixelRatioCoarse : limits.maxPixelRatio,
-      maxMegapixels: limits.maxMegapixels,
-      minPixelRatio: limits.minPixelRatio,
+    const { quality } = this.options;
+    const { minPixelRatio } = tuning.quality;
+    const full = computePixelRatio(width, height, window.devicePixelRatio, {
+      maxPixelRatio: quality.maxPixelRatio,
+      maxMegapixels: quality.maxMegapixels,
+      minPixelRatio,
     });
+    const pixelRatio = Math.max(minPixelRatio, full * this.governor.scale);
 
     this.viewport = { width, height, pixelRatio };
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false); // CSS owns the canvas's layout size
+    this.pipeline?.resize(this.canvas.width, this.canvas.height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
     for (const system of this.systems) system.resize?.(this.viewport);
     // Resizing clears the drawing buffer, and this frame's tick has already run: draw again now,
     // or every resize would flash one empty frame.
-    if (this.hasRendered) this.renderer.render(this.scene, this.camera);
+    if (this.hasRendered) this.draw();
   }
 
   private readonly handleVisibility = (): void => {

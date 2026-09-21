@@ -14,6 +14,7 @@ export interface FlameParams {
   readonly responsePerSec: number;
   readonly flicker: number;
   readonly intensity: number;
+  readonly bloom: number;
 }
 
 /**
@@ -33,7 +34,9 @@ export class EngineFlame {
     /** The flicker is motion for its own sake. */
     private readonly flickers: boolean,
   ) {
-    const material = scope.track(createGlowMaterial({ intensity: params.intensity }));
+    const material = scope.track(
+      createGlowMaterial({ intensity: params.intensity, bloom: params.bloom }),
+    );
     this.handle = assets.acquire('flame', material);
     scope.onDispose(() => this.handle.release());
     this.handle.object.visible = false;

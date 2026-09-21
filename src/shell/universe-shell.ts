@@ -6,6 +6,7 @@ import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
 import { startPanel, type Panel } from './panel';
+import { asTier, recallTier, rememberTier } from './quality-memory';
 import { startRouter, type Router } from './router';
 import { startFrameWatchdog } from './watchdog';
 
@@ -16,6 +17,7 @@ import { startFrameWatchdog } from './watchdog';
 const WATCHDOG_MS = 8000;
 
 const root = document.documentElement;
+
 let router: Router | undefined;
 let panel: Panel | undefined;
 
@@ -27,6 +29,7 @@ function fallBackToPlain(reason: string): void {
   root.dataset.mode = 'plain';
   root.dataset.modeReason = 'engine-failed';
   delete root.dataset.engine;
+  delete root.dataset.quality;
   // With no canvas to protect there is nothing to gain from soft navigation: links are links.
   router?.dispose();
   router = undefined;
@@ -78,6 +81,8 @@ export async function start(): Promise<void> {
       mount,
       manifest,
       reducedMotion: root.dataset.motion === 'reduced',
+      quality: asTier(flags.get('q')),
+      qualityCeiling: recallTier(() => localStorage, Date.now()),
       debug: { perf: flags.has('perf'), tweak: flags.has('tweak') },
     });
 
@@ -93,6 +98,10 @@ export async function start(): Promise<void> {
       settled = true;
       stopWatchdog();
       root.dataset.engine = 'ready';
+    });
+    universe.on('quality', ({ tier, demoted }) => {
+      root.dataset.quality = tier;
+      if (demoted) rememberTier(() => localStorage, tier, Date.now());
     });
     // `fatal` can arrive long after `ready` (a lost WebGL context), so it bypasses `settled`.
     universe.on('fatal', ({ reason }) => {

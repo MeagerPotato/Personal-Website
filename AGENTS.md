@@ -20,7 +20,9 @@ clock; a procedural rocket flies with keyboard or touch, followed by the chase c
 **galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
 and the satellite, all moving on their orbits. Let go of the controls near a planet and the
 **orbit assist** eases the ship onto a ring around it; planets cannot be crashed into, and space
-has a soft edge. Nothing can be docked with yet. Roadmap: docs/PLAN.md §6.
+has a soft edge. Three **quality tiers** (anti-aliasing everywhere, bloom and a vignette where the
+device can afford them) and a lost WebGL context is survived. Nothing can be docked with yet.
+Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -76,7 +78,8 @@ Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node
 
 **Debug flags** (universe mode, read once at boot, combine with `&`): `?perf` shows frame rate,
 frame time, simulation steps per frame, draw calls, buffer size, the ship's speed and what the
-orbit assist is doing, in **every** build, so it works on a phone against a preview URL. `?tweak`
+orbit assist is doing, in **every** build, so it works on a phone against a preview URL.
+`?q=low`, `?q=medium` or `?q=high` forces a quality tier (and switches the probe off). `?tweak`
 opens the live tuning panel (sliders for the blocks of `design/tuning.ts` that are read every
 frame, "copy tuning as JSON" to paste back into that file, and a flight recorder; its replays are
 exact in open space and approximate near planets, which have moved on by then). The panel is
@@ -89,8 +92,8 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 - **Astro 7** on **Vite 8 (Rolldown)**: `build.rolldownOptions`, not `rollupOptions`. Rust compiler:
   invalid HTML is a build error. Content config is `src/content.config.ts` with `glob()` loaders;
   entries have `id` (no `slug`); `render(entry)` comes from `astro:content`; Zod 4 from `astro/zod`.
-- **three r186**, pinned (`postprocessing` peers `three <0.187`). Types are the separate
-  `@types/three`. Colour management is on by default; custom shaders end with
+- **three r186**, pinned exactly. Types are the separate `@types/three`. three ALWAYS gives the
+  canvas an alpha channel, whatever `alpha` you pass (that option only sets the clear alpha). Colour management is on by default; custom shaders end with
   `#include <colorspace_fragment>`.
 - **TypeScript 6.0**, not 7 (unsupported by `@astrojs/check` and typescript-eslint).
 - **ESLint 10**, flat config only, `defineConfig`/`globalIgnores` from `eslint/config`.
@@ -146,6 +149,10 @@ a logic change: ask for it instead.
 in the header comment (uniform names are the contract with logic). A factory in
 `design/materials.ts` binds tokens and tuning to those uniforms; logic asks for a material by what
 it is for and tracks it in a `Scope`. Custom shaders end with `#include <colorspace_fragment>`.
+**Alpha is the bloom guest list** (`shaders/post.ts`): an opaque shader writes
+`1.0 - uBloomMask` there (or, if it glows, its bloom amount: see `shaders/glow.ts`), and a
+see-through material goes through `keepBloomMask()` so that blending leaves alpha alone. A shader
+that writes a plain 1.0 makes its whole surface bloom.
 Anything that is part of the sky draws at the far plane (`clip.z = clip.w`) and ignores the
 camera's position: see `shaders/sky.ts`.
 

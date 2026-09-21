@@ -1,6 +1,10 @@
 import type { ChaseCamParams } from '../camera/ChaseCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
+import type { JobBudget } from '../core/jobs';
+import type { GovernorParams } from '../core/quality/governor';
+import type { QualityTier, TierSettings } from '../core/quality/tiers';
+import type { PostParams } from '../fx/PostFX';
 import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
@@ -155,8 +159,10 @@ export const tuning = {
       responsePerSec: 14,
       /** Share of the length that flickers. Off under reduced motion. */
       flicker: 0.14,
-      /** 1 until bloom exists; above 1 it will glow (shaders/glow.ts). */
+      /** Brightness of the flame's own colours (1 = exactly the tokens) ... */
       intensity: 1,
+      /** ... and how much of it bleeds into the picture as bloom, 0 to 1 (shaders/glow.ts). */
+      bloom: 1,
     },
   } satisfies ShipLookParams,
 
@@ -200,13 +206,58 @@ export const tuning = {
     portraitDistanceScale: 1.3,
   } satisfies ChaseCamParams,
 
-  viewport: {
-    /** Pixels are the budget on phones. Cap the ratio AND the absolute pixel count. */
-    maxPixelRatio: 2,
-    maxPixelRatioCoarse: 1.5,
-    maxMegapixels: 4,
+  /**
+   * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many
+   * pixels, and what is done to them". Desktops start HIGH and phones MEDIUM; a probe in the
+   * first seconds may demote once; nothing ever promotes. `?q=low|medium|high` forces a tier.
+   */
+  quality: {
+    /** Never render below this pixel ratio, whatever the caps and the governor say. */
     minPixelRatio: 0.5,
+    tiers: {
+      /** Straight to the canvas, anti-aliased by the canvas itself. Phones are held to 30 fps. */
+      low: { maxPixelRatio: 1.25, maxMegapixels: 1, post: false, msaaSamples: 4, maxFpsCoarse: 30 },
+      medium: {
+        maxPixelRatio: 1.5,
+        maxMegapixels: 2.2,
+        post: true,
+        msaaSamples: 2,
+        maxFpsCoarse: 0,
+      },
+      high: { maxPixelRatio: 2, maxMegapixels: 4, post: true, msaaSamples: 4, maxFpsCoarse: 0 },
+    } satisfies Record<QualityTier, TierSettings>,
+    /** The probe and the dynamic resolution (core/quality/governor.ts). Times in seconds. */
+    governor: {
+      warmupSec: 1.5,
+      probeSec: 2,
+      demoteBelowFps: 42,
+      slowFactor: 1.15,
+      scaleDown: 0.1,
+      minScale: 0.6,
+      scaleUp: 0.05,
+      cleanSec: 5,
+      holdSec: 2,
+      cappedJitterMs: 2,
+      cappedJsMs: 8,
+    } satisfies GovernorParams,
   },
+
+  /**
+   * POST-PROCESSING (fx/PostFX.ts, shaders/post.ts), on the tiers that have it. Only things that
+   * ask for it bloom (suns, the flame, a planet's ring: each has a `bloom` knob of its own), so
+   * the pastel world stays crisp however strong the bloom is.
+   */
+  post: {
+    /** How much of the blurred glow is added back, and how far it spreads (0 to 1). */
+    bloomStrength: 0.9,
+    bloomRadius: 0.72,
+    /** Halvings of the picture that are blurred and summed: more = a wider, softer glow. */
+    bloomLevels: 5,
+    /** How much the corners darken (0 = not at all), from and to which distance from the middle
+     * (0.5 is the middle of an edge, 0.71 a corner). */
+    vignette: 0.2,
+    vignetteRange: [0.35, 0.9],
+  } satisfies PostParams,
 
   camera: {
     fovDegrees: 55,
@@ -251,14 +302,20 @@ export const tuning = {
     nearEnterRadii: 8,
     nearExitRadii: 10,
     nearLingerSec: 10,
-    /** Milliseconds per frame that generating meshes may take (core/jobs.ts). */
-    jobBudgetMs: 4,
+    /**
+     * What generating meshes may take out of a frame (core/jobs.ts): this share of the time the
+     * last frame took, within these limits. 4 ms at 60 fps; more only where frames are long anyway.
+     */
+    jobBudget: { share: 0.25, minMs: 4, maxMs: 16 } satisfies JobBudget,
     /** Planets turn on their axis, slowly. Off under reduced motion. */
     spinRadPerSec: 0.04,
     /** A ringed planet: the ring's inner and outer edge in planet radii, and how far it tips. */
     ringInnerRadii: 1.45,
     ringOuterRadii: 2.15,
     ringTiltDeg: 16,
+    /** How much a sun and a planet's ring bleed into the picture as bloom, 0 to 1. */
+    sunBloom: 1,
+    ringBloom: 0.18,
     /** The thin circles that show where things orbit. */
     orbitLineOpacity: 0.2,
     orbitLineSegments: 128,
