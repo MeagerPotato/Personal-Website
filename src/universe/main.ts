@@ -195,9 +195,13 @@ export function boot(
   }
 
   if (options.debug?.perf) {
-    const { assist, orbits } = surroundings;
-    const near = (): string =>
-      assist.body < 0 ? '-' : `${orbits.ids[assist.body] ?? '?'} ${assist.weight.toFixed(2)}`;
+    const { assist, dock, orbits } = surroundings;
+    // Whose pull the ship is under. A carried ship's is its dock's (the assist is not asked while
+    // it is carried, so what it remembers is old news), and a journey is under nobody's.
+    const near = (): string => {
+      const body = dock.phase === 'free' ? assist.body : dock.phase === 'cruise' ? -1 : dock.body;
+      return body < 0 ? '-' : `${orbits.ids[body] ?? '?'} ${assist.weight.toFixed(2)}`;
+    };
     const doing = (): string => {
       const { mode, target } = navigator.state;
       return target === null ? mode : `${mode} ${target}`;

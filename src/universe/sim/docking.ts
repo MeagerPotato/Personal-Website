@@ -24,7 +24,12 @@ import type { FlightInput, FlightParams, ShipState } from './types';
  * Pure and allocation-free, like the rest of sim/.
  */
 
-export type DockPhase = 'free' | 'approach' | 'docked';
+/**
+ * `cruise`: on the way to a body that is out of reach, flown by the autopilot (sim/autopilot.ts).
+ * It is a phase of the DOCK because it is the same promise to the visitor ("you will be in orbit
+ * there"), it ends the same ways, and the pilot takes the controls back the same way.
+ */
+export type DockPhase = 'free' | 'cruise' | 'approach' | 'docked';
 
 export interface DockParams {
   /** The approach hands over to the orbit when the ship is this close to the ring (u) ... */
@@ -86,10 +91,18 @@ function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
   return input.thrust > deadZone || Math.abs(input.turn) > deadZone || input.boost;
 }
 
-/** Ask to dock at body `i`. The ship keeps flying; `stepApproach` takes it from here. */
-export function requestDock(dock: DockState, i: number, pilot: Readonly<FlightInput>): void {
+/**
+ * Ask to dock at body `i`: fly onto its ring from within reach, or (`far`) travel there first.
+ * The ship keeps flying; flyStep (sim/surroundings.ts) takes it from here.
+ */
+export function requestDock(
+  dock: DockState,
+  i: number,
+  pilot: Readonly<FlightInput>,
+  far = false,
+): void {
   if (dock.phase !== 'free' && dock.body === i) return;
-  dock.phase = 'approach';
+  dock.phase = far ? 'cruise' : 'approach';
   dock.body = i;
   dock.phaseSec = 0;
   dock.leftByPilot = false;
@@ -121,8 +134,8 @@ export function pilotLeaves(
   dock.leftByPilot = false;
   if (dock.phase === 'free') return false;
   const steering = isSteering(pilot, params.leaveDeadZone);
-  // Braking is "stop", not "leave": it ends an approach, and a docked ship has already stopped.
-  const active = steering || (dock.phase === 'approach' && pilot.brake > params.leaveDeadZone);
+  // Braking is "stop", not "leave": it ends a journey, and a docked ship has already stopped.
+  const active = steering || (dock.phase !== 'docked' && pilot.brake > params.leaveDeadZone);
   if (!dock.armed) {
     if (!active) dock.armed = true;
     return false;

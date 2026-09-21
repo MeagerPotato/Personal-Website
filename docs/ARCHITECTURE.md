@@ -100,7 +100,8 @@ Each display frame:
    time the state will have _after_ the step. The ship's step is one pure function, `flyStep`
    (`sim/surroundings.ts`): place the bodies at `simTime` → orbit assist mixes a virtual pilot
    into the real pilot's input → cushions and the edge of the world push → `stepFlight` integrates
-   → hard shells put back whatever got through.
+   → hard shells put back whatever got through. On a journey (below) the virtual pilot is the
+   autopilot and the drive is the autopilot's; everything after that is the same step.
 4. **DRAW.** Every system's `frameUpdate(frame)` runs once. `frame.alpha` says how far this frame
    sits between the previous simulation state (0) and the current one (1), and views interpolate:
    that is why flight looks equally smooth at 30, 60 and 144 Hz and why a recorded run replays to
@@ -160,6 +161,27 @@ under a bottom sheet.
   The leftovers of a capture settle on springs that start with the ship's own velocities, so
   there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
   (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
+- **Journeys** (`sim/autopilot.ts`). A destination out of reach is FLOWN to: `goTo(id)` becomes
+  `navigator.travel(id)`, and the dock's phase is `cruise` until the ship is within reach, when
+  the approach above takes over. So a journey is one more phase of the same dock: the same
+  events, the same snapshot fields, and the same rule that fresh steering (or the brake) takes
+  the ship back with exactly the velocity it has. It is three pure pieces, the same structure as
+  a robot's autonomous routine:
+  1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
+     WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
+     over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
+     moving ship's path begins with a short run-up the way it is already going. Bodies that crowd
+     each other give way in proportion so that no gap is ever planned shut, and only the first and
+     last leg may cut a keep-out the ship starts or ends inside. Planning again every second costs
+     nothing in steadiness: the planner remembers which side of each body it went (`walls`) and
+     changes its mind only for a much shorter way.
+  2. **Profile** (`sim/profile.ts`). A speed for every sample: a forward pass (what the drive can
+     reach) and a backward pass (what the brake can still shed, knowing the brake is a drag),
+     under a ceiling that is low inside and beside keep-outs and opens up with room.
+  3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point a second ahead on the path,
+     never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
+     the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
+  Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`).
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
@@ -205,7 +227,7 @@ under a bottom sheet.
 | --- | --- | --- |
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
-| Flight, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
+| Flight, journey, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
@@ -217,7 +239,9 @@ under a bottom sheet.
   speed and a 10,000-step random pilot stays finite and outside every planet; the orbit assist
   captures within half a unit, lets go within 3 s of full thrust, and a kamikaze pilot at full
   boost never gets under a shell; identical end states at 30, 60 and 144 Hz; the governor's every
-  decision; a galaxy layout that is a pure function of each entity's id.
+  decision; a galaxy layout that is a pure function of each entity's id; 200 seeded journeys
+  through a galaxy with moons (from docks and from mid-flight, at any heading and speed) that all
+  dock, touch nothing, keep their distance and never open the throttle with the nose off the path.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
   history rules, the panel, the swap contract.
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
@@ -236,7 +260,7 @@ under a bottom sheet.
 
 | Tool | How | What for |
 | --- | --- | --- |
-| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, what the assist holds |
+| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/code`) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
 | **The lab** | `http://localhost:4321/lab/`, development only | one planet, moon, sun, rocket, station or satellite on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |

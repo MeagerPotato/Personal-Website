@@ -117,13 +117,14 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Orbit assist: how fast and how far out a ship that lets go is eased onto a ring, how early a ship flying at a planet is swung round it | `tuning.assist` |
 | Bumping into things: how deep and how firm the cushion above a surface is, how much bounce is left | `tuning.cushion` |
 | Docking: how close to the ring the ship is taken over, how fast it then goes round, how quickly a capture settles, how hard one must steer to leave | `tuning.dock` |
+| The autopilot (a click on a planet or a nav link flies the ship there): how fast it cruises between systems (`far`) and inside one (`near`), how hard it speeds up and brakes, how slowly it passes close to a body (`keepOutSpeed`) and how quickly that opens up with room (`openSpaceGain`), how wide it swings round bodies (`keepOut`, `path.clearance`), how far ahead it looks | `tuning.cruise` |
 | The dock prompt ("Orbit FishAI", "Leave orbit"): a real button, bottom centre | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on
