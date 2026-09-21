@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output and tool caches
+dist/
+.astro/
+.wrangler/
+coverage/
+playwright-report/
+test-results/
+
+# secrets and local env
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# source art (CAD, .blend, PSD): converted assets go in public/models, sources stay local
+art-src/
+
+# per-machine agent settings (.claude/launch.json IS shared: it defines the preview servers)
+.claude/settings.local.json
+.claude/worktrees/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
