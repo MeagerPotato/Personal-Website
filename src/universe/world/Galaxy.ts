@@ -30,6 +30,8 @@ import { PlanetMesh } from './PlanetMesh';
 
 export interface GalaxyOptions {
   manifest: UniverseManifest;
+  /** The orbits the simulation already follows, so that both agree. Built here when not given. */
+  orbits?: OrbitTable;
   assets: AssetStore;
   jobs: JobQueue;
   /** Whoever the level of detail follows: the ship. */
@@ -74,7 +76,6 @@ interface SystemLook {
  */
 export class Galaxy implements System {
   readonly object = new Group();
-  /** For the simulation (collisions, docking): the same orbits the views follow. */
   readonly orbits: OrbitTable;
 
   private readonly scope = new Scope();
@@ -86,7 +87,7 @@ export class Galaxy implements System {
   constructor(private readonly options: GalaxyOptions) {
     const { manifest } = options;
     this.object.name = 'galaxy';
-    this.orbits = createOrbitTable(manifest.systems, manifest.bodies);
+    this.orbits = options.orbits ?? createOrbitTable(manifest.systems, manifest.bodies);
     this.positions = new Float64Array(this.orbits.count * 2);
     bodyPositions(this.orbits, 0, this.positions);
 

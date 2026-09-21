@@ -18,8 +18,9 @@ the page's content sits in a **panel** over the world (side panel on wide screen
 narrow ones). **Phase 1 (flight) is under way**: the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
 **galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
-and the satellite, all moving on their orbits. Nothing can be docked with or bumped into yet.
-Roadmap: docs/PLAN.md §6.
+and the satellite, all moving on their orbits. Let go of the controls near a planet and the
+**orbit assist** eases the ship onto a ring around it; planets cannot be crashed into, and space
+has a soft edge. Nothing can be docked with yet. Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -73,11 +74,12 @@ Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node
 `VAR=x` prefixes, no shell globs.
 
 **Debug flags** (universe mode, read once at boot, combine with `&`): `?perf` shows frame rate,
-frame time, simulation steps per frame, draw calls and buffer size, in **every** build, so it works
-on a phone against a preview URL. `?tweak` opens the live tuning panel (sliders for the blocks of
-`design/tuning.ts` that are read every frame, "copy tuning as JSON" to paste back into that file,
-and a flight recorder that replays a flight bit for bit). The panel is **dev server only**:
-`verify-dist` fails a build that contains it.
+frame time, simulation steps per frame, draw calls, buffer size, the ship's speed and what the
+orbit assist is doing, in **every** build, so it works on a phone against a preview URL. `?tweak`
+opens the live tuning panel (sliders for the blocks of `design/tuning.ts` that are read every
+frame, "copy tuning as JSON" to paste back into that file, and a flight recorder; its replays are
+exact in open space and approximate near planets, which have moved on by then). The panel is
+**dev server only**: `verify-dist` fails a build that contains it.
 
 ## Newer than your training data
 
@@ -158,6 +160,12 @@ velocity) of every body as a pure function of time: the simulation asks for the 
 a view for the exact time of its frame (`frame.simTime - (1 - frame.alpha) / stepHz`). Anything
 that takes more than a millisecond to build (a planet mesh) is a generator run through
 `core/jobs.ts`, a slice per frame.
+
+**What the world does to the ship** is one pure function, `flyStep` in `sim/surroundings.ts`: the
+orbit assist (`sim/assist.ts`) mixes a virtual pilot into the real pilot's input, the cushions and
+the edge of the world (`sim/collide.ts`) push, `stepFlight` flies, and the shells put back
+whatever got through. Far from everything it is `stepFlight`, bit for bit. Anything new that
+steers or pushes the ship (docking, the autopilot) joins it there, where it can be tested headless.
 
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.

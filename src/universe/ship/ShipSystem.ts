@@ -3,10 +3,11 @@ import type { AssetStore } from '../core/AssetStore';
 import type { Frame, System } from '../core/Engine';
 import { Scope } from '../core/scope';
 import { tuning } from '../design/tuning';
-import { copyShipState, createShipState, stepFlight } from '../sim/flight';
+import { NO_INPUT, copyShipState, createShipState, stepFlight } from '../sim/flight';
 import { TAU, lerp, smoothstep } from '../sim/math';
 import type { SpawnPoint, SpawnRule } from '../sim/spawn';
 import { createSpring, stepSpring } from '../sim/spring';
+import { flyStep, type Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { EngineFlame, type FlameParams } from './EngineFlame';
 import { Rocket } from './Rocket';
@@ -32,6 +33,8 @@ export interface ShipOptions {
   /** Where the visitor starts (sim/spawn.ts). */
   spawn: SpawnPoint;
   pilot: Pilot;
+  /** What the ship flies among: planets to circle and bump into, the edge of the world. */
+  surroundings?: Surroundings;
   assets: AssetStore;
   reducedMotion: boolean;
 }
@@ -59,6 +62,8 @@ export class ShipSystem implements System {
   private readonly previous: ShipState;
   private readonly current: ShipState;
   private readonly pitch = createSpring(0);
+  /** What was flown in the last step: the pilot's input with the orbit assist mixed in. */
+  private readonly flown: FlightInput = { ...NO_INPUT };
 
   constructor(private readonly options: ShipOptions) {
     const look = tuning.ship;
@@ -103,14 +108,28 @@ export class ShipSystem implements System {
     copyShipState(state, this.previous);
   }
 
-  fixedUpdate(dt: number): void {
+  fixedUpdate(dt: number, simTime: number): void {
     copyShipState(this.current, this.previous);
-    stepFlight(this.current, this.options.pilot.current, tuning.flight, dt);
+    const { pilot, surroundings } = this.options;
+    if (surroundings) {
+      flyStep(
+        surroundings,
+        this.current,
+        pilot.current,
+        tuning.flight,
+        tuning,
+        dt,
+        simTime,
+        this.flown,
+      );
+    } else {
+      stepFlight(this.current, Object.assign(this.flown, pilot.current), tuning.flight, dt);
+    }
   }
 
   frameUpdate(frame: Frame): void {
     this.present(frame.alpha, frame.dt, frame.elapsed);
-    this.flame.update(this.options.pilot.current, frame);
+    this.flame.update(this.flown, frame);
   }
 
   dispose(): void {
@@ -133,6 +152,7 @@ export class ShipSystem implements System {
       (this.yawRate / tuning.flight.yawRateSlow) *
       smoothstep(0, look.bankFullSpeed, this.speed);
 
+    // The nod is the PILOT's doing: the assist's gentle throttle should not rock the ship.
     const input = this.options.pilot.current;
     const nod =
       input.brake > 0

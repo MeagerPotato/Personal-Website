@@ -47,14 +47,14 @@ describe('the flight recorder', () => {
     // Fly for a while first, so the recording starts from a state with speed and spin in it.
     for (let i = 0; i < 300; i += 1) {
       input.fixedUpdate();
-      ship.fixedUpdate(STEP);
+      ship.fixedUpdate(STEP, 0);
     }
     recorder.begin(ship.state);
     expect(recorder.recording).toBe(true);
     for (let i = 0; i < 1800; i += 1) {
       input.fixedUpdate();
       recorder.capture(input.current);
-      ship.fixedUpdate(STEP);
+      ship.fixedUpdate(STEP, 0);
     }
     const flown = copyShipState(ship.state, createShipState());
     const recording = recorder.end(tuning.loop.stepHz);
@@ -70,7 +70,7 @@ describe('the flight recorder', () => {
     input.override = replay;
     for (let i = 0; i < 1800; i += 1) {
       input.fixedUpdate();
-      ship.fixedUpdate(STEP);
+      ship.fixedUpdate(STEP, 0);
     }
 
     expect(ship.state).toEqual(flown); // toEqual on numbers is exact: no tolerance
