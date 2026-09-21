@@ -5,7 +5,9 @@
 // and never of waiting for an answer: nothing here can deadlock, and nothing here keeps state
 // about where the ship is.
 //
-//   route  -> ship    a page with a body: goTo(body). Any other page: undock().
+//   route  -> ship    a page with a body: goTo(body). Any other page: undock(), unless the route
+//                     only went there BECAUSE the ship left (below): the pilot may have left
+//                     for somewhere else (a planet they pointed at), and must not be called back.
 //   ship   -> route   docked: open that body's page, unless the page showing is already shown
 //                     from it. Left by the PILOT: leave the page (the router goes home). Left
 //                     because somebody ASKED: that was us, and the route already knows.
@@ -36,6 +38,8 @@ export function startFollowing(options: FollowOptions): Following {
   const { universe, router, destinations } = options;
   /** The body whose page the router has been asked for and has not shown yet. */
   let opening: string | null = null;
+  /** The router is on its way home because the PILOT left: the ship led, it has nothing to hear. */
+  let shipLed = false;
 
   const showsFrom = (id: string): boolean => destinations.idFor(options.pathname()) === id;
 
@@ -61,6 +65,7 @@ export function startFollowing(options: FollowOptions): Following {
         opening = null;
         router.cancel();
       } else if (showsFrom(id)) {
+        shipLed = true;
         router.leave(options.homeHref);
       }
     }),
@@ -69,9 +74,11 @@ export function startFollowing(options: FollowOptions): Following {
   return {
     routeChanged(pathname) {
       opening = null;
+      const led = shipLed && pathname === options.homeHref;
+      shipLed = false;
       const id = destinations.idFor(pathname);
-      if (id === null) universe.undock();
-      else void universe.goTo(id);
+      if (id !== null) void universe.goTo(id);
+      else if (!led) universe.undock();
     },
     dispose() {
       for (const stop of stops) stop();

@@ -21,9 +21,10 @@ export interface PromptOptions {
 const DOCK_KEY = 'KeyE';
 
 /**
- * THE QUIET PROMPT (docs/PLAN.md §3): within reach of a body it offers to orbit it, and in orbit
- * it offers the way out. One real <button>, so it works with a finger, a mouse, a keyboard and a
- * screen reader alike; `E` is the shortcut for a pilot with both hands on the keys.
+ * THE QUIET PROMPT (docs/PLAN.md §3): within reach of a body it offers to orbit it, on the way
+ * to one it says where the ship is going and offers to stop, and in orbit it offers the way out.
+ * One real <button>, so it works with a finger, a mouse, a keyboard and a screen reader alike;
+ * `E` is the shortcut for a pilot with both hands on the keys.
  *
  * It only ever ASKS the navigator. Looks are CSS (`.dock-prompt` in src/styles/global.css).
  */
@@ -31,6 +32,8 @@ export class Prompt implements System {
   private readonly button: HTMLButtonElement;
   private readonly label: HTMLSpanElement;
   private readonly key: HTMLElement;
+  /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
+  private readonly action: HTMLSpanElement;
   private shown = '';
 
   constructor(private readonly options: PromptOptions) {
@@ -40,7 +43,9 @@ export class Prompt implements System {
     this.button.hidden = true;
     this.key = document.createElement('kbd');
     this.label = document.createElement('span');
-    this.button.append(this.key, this.label);
+    this.action = document.createElement('span');
+    this.action.className = 'dock-prompt__action';
+    this.button.append(this.key, this.label, this.action);
     options.overlay.append(this.button);
 
     this.button.addEventListener('click', this.act);
@@ -54,17 +59,25 @@ export class Prompt implements System {
 
     let text = '';
     let key = '';
+    let action = '';
     if (mode === 'flight' && candidate !== null) {
       text = `Orbit ${titleOf(candidate)}`;
       key = 'E';
     } else if (mode === 'docked' && target !== null) {
       text = 'Leave orbit';
+    } else if (target !== null) {
+      // On its way, flown by the autopilot or by the ring's own pilot. Steering takes the ship
+      // back too, but nobody can know that, least of all someone who got here by a tap.
+      text = `Flying to ${titleOf(target)}`;
+      action = 'Stop';
     }
     if (text === this.shown) return;
     this.shown = text;
     this.label.textContent = text;
     this.key.textContent = key;
     this.key.hidden = key === '';
+    this.action.textContent = action;
+    this.action.hidden = action === '';
     this.button.hidden = text === '';
   }
 
@@ -76,7 +89,7 @@ export class Prompt implements System {
 
   private readonly act = (): void => {
     const { navigator } = this.options;
-    if (navigator.state.mode === 'docked') navigator.release('pilot');
+    if (navigator.state.target !== null) navigator.release('pilot');
     else if (navigator.candidate !== null) navigator.approach(navigator.candidate);
     // The button is about to change or go: do not leave the keyboard focus on it.
     this.button.blur();

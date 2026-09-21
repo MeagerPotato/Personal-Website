@@ -14,6 +14,7 @@ import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
+import type { PickerParams } from '../ui/Picker';
 
 /**
  * TUNING: every number that shapes how the universe FEELS. Engine timings are in seconds,
@@ -227,6 +228,20 @@ export const tuning = {
     pointerSteer: false,
     pointerFullTurnShare: 0.6,
   } satisfies TouchParams & PointerSteerParams,
+
+  /** Pointing at a planet to go there (ui/Picker.ts, sim/screen.ts). */
+  picking: {
+    /** A press that travels further (CSS px) or lasts longer than this is steering, not pointing. */
+    tapMaxPx: 10,
+    tapMaxSec: 0.4,
+    /**
+     * However small a body looks, it can be hit within minTargetPx of its middle (a finger gets
+     * the usual 44 px across); one that looks smaller than minVisiblePx (radius, CSS px) cannot be
+     * picked at all, because nobody can see it.
+     */
+    mouse: { minTargetPx: 12, minVisiblePx: 1.5 },
+    touch: { minTargetPx: 22, minVisiblePx: 1.5 },
+  } satisfies PickerParams,
 
   /**
    * How the ship LOOKS while it flies (ship/ShipSystem.ts). None of this reaches the flight model:

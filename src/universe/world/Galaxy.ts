@@ -78,8 +78,10 @@ export class Galaxy implements System {
   readonly object = new Group();
   readonly orbits: OrbitTable;
 
+  /** Where every body is THIS frame, by row of the orbit table: [x0, z0, x1, z1, ...]. Read only. */
+  readonly positions: Float64Array;
+
   private readonly scope = new Scope();
-  private readonly positions: Float64Array;
   private readonly views: BodyView[] = [];
   private readonly lines: OrbitLine[] = [];
   private readonly systems = new Map<string, SystemLook>();

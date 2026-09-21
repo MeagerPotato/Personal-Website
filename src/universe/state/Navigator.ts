@@ -80,14 +80,15 @@ export class Navigator implements System {
 
   /**
    * Fly onto the ring of `id`, which must be within reach. False when it is not, or is unknown:
-   * then `travel` brings the ship there first.
+   * then `travel` brings the ship there first. `by` says whose idea it was, for whatever the
+   * ship leaves behind (see `undocked`): a visitor pointing at a planet is the PILOT.
    */
-  approach(id: string): boolean {
+  approach(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0 || !this.withinReach(id)) return false;
     if (this.current.target === id && this.current.mode !== 'autopilot') return true;
-    this.leave('asked');
+    this.leave(by);
     this.arrival = 'flown';
     requestDock(surroundings.dock, i, pilot.current);
     this.apply({ type: 'approach', to: id });
@@ -98,13 +99,13 @@ export class Navigator implements System {
    * Set out for `id` from wherever the ship is: the autopilot flies it there (sim/autopilot.ts)
    * and the approach takes over within reach. False for an unknown body.
    */
-  travel(id: string): boolean {
+  travel(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0) return false;
     if (this.current.target === id) return true;
-    if (this.withinReach(id)) return this.approach(id);
-    this.leave('asked');
+    if (this.withinReach(id)) return this.approach(id, by);
+    this.leave(by);
     this.arrival = 'flown';
     requestDock(surroundings.dock, i, pilot.current, true);
     this.apply({ type: 'travel', to: id });
@@ -112,12 +113,12 @@ export class Navigator implements System {
   }
 
   /** Be in orbit round `id` at once, at `angle` on its ring. False for an unknown body. */
-  place(id: string, angle = 0, spin = 1): boolean {
+  place(id: string, angle = 0, spin = 1, by: 'pilot' | 'asked' = 'asked'): boolean {
     const { surroundings, ship, params } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0) return false;
     if (this.current.mode === 'docked' && this.current.target === id) return true;
-    this.leave('asked');
+    this.leave(by);
     const state = { ...ship.state };
     dockAt(surroundings.field, state, params.dock, surroundings.dock, i, angle, spin);
     ship.restore(state);

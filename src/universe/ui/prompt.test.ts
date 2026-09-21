@@ -65,16 +65,27 @@ describe('dock prompt', () => {
     expect(navigator.approach).toHaveBeenCalledTimes(1);
   });
 
-  it('goes away during an approach, and offers the way out once docked', () => {
-    const approaching = setup({ mode: 'approach', target: 'project/fishai' }, null);
-    expect(approaching.button.hidden).toBe(true);
-    approaching.prompt.dispose();
+  it('on the way somewhere, says where to and offers to stop', () => {
+    for (const mode of ['autopilot', 'approach'] as const) {
+      const { button, navigator, prompt } = setup({ mode, target: 'project/fishai' }, null);
+      expect(button.hidden).toBe(false);
+      expect(button.textContent).toBe('Flying to FishAIStop');
+      expect(button.querySelector('kbd')?.hidden).toBe(true);
+      expect(button.querySelector('.dock-prompt__action')?.textContent).toBe('Stop');
+      button.click();
+      expect(navigator.release).toHaveBeenCalledWith('pilot');
+      expect(navigator.approach).not.toHaveBeenCalled();
+      prompt.dispose();
+    }
+  });
 
+  it('offers the way out once docked', () => {
     const { button, navigator, prompt } = setup({ mode: 'docked', target: 'project/fishai' }, null);
     cleanup = () => prompt.dispose();
     expect(button.hidden).toBe(false);
     expect(button.textContent).toBe('Leave orbit');
     expect(button.querySelector('kbd')?.hidden).toBe(true);
+    expect(button.querySelector<HTMLElement>('.dock-prompt__action')?.hidden).toBe(true);
     button.click();
     expect(navigator.release).toHaveBeenCalledWith('pilot');
     // E never undocks: it is the key for arriving.

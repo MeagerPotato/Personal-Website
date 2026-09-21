@@ -19,6 +19,8 @@ import { PostFX } from './fx/PostFX';
 import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
+import { BodiesOnScreen } from './ui/BodiesOnScreen';
+import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { copyShipState, createShipState } from './sim/flight';
 import { spawnPoint } from './sim/spawn';
@@ -176,6 +178,36 @@ export function boot(
     dispose: () => undefined,
   });
   engine.add(rig);
+
+  // Pointing at a planet goes there. After the rig and the galaxy: it needs this frame's picture.
+  // It is the visitor's own doing, like the controls, so whatever page was open is left behind
+  // (`by: 'pilot'`) and the page of the new place opens on arrival (shell/follow.ts). Whoever
+  // asked for less motion is put there instead of being flown across the galaxy, as with a link.
+  const onScreen = engine.add(
+    new BodiesOnScreen({
+      camera: engine.camera,
+      positions: galaxy.positions,
+      radii: surroundings.field.radius,
+      count: surroundings.orbits.count,
+    }),
+  );
+  engine.add(
+    new Picker({
+      canvas: engine.canvas,
+      screen: onScreen.map,
+      params: tuning.picking,
+      ignore: () => {
+        const { target } = navigator.state;
+        return target === null ? -1 : surroundings.orbits.indexOf(target);
+      },
+      onPick: (row) => {
+        const id = surroundings.orbits.ids[row];
+        if (id === undefined) return;
+        if (!reducedMotion) navigator.travel(id, 'pilot');
+        else if (!navigator.approach(id, 'pilot')) navigator.place(id, 0, 1, 'pilot');
+      },
+    }),
+  );
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));

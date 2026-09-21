@@ -118,7 +118,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Bumping into things: how deep and how firm the cushion above a surface is, how much bounce is left | `tuning.cushion` |
 | Docking: how close to the ring the ship is taken over, how fast it then goes round, how quickly a capture settles, how hard one must steer to leave | `tuning.dock` |
 | The autopilot (a click on a planet or a nav link flies the ship there): how fast it cruises between systems (`far`) and inside one (`near`), how hard it speeds up and brakes, how slowly it passes close to a body (`keepOutSpeed`) and how quickly that opens up with room (`openSpaceGain`), how wide it swings round bodies (`keepOut`, `path.clearance`), how far ahead it looks | `tuning.cruise` |
-| The dock prompt ("Orbit FishAI", "Leave orbit"): a real button, bottom centre | `.dock-prompt` in `src/styles/global.css` |
+| Pointing at a planet: how small a target may be for a mouse and for a finger, how small a body can look and still be picked, what still counts as a tap | `tuning.picking` (the cursor over a planet: `#universe-host canvas[data-pick]` in `src/styles/global.css`) |
+| The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |

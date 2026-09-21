@@ -117,8 +117,9 @@ Each display frame:
    render resolution, give some back, or (once, early) ask for a lower tier.
 
 Order in `main.ts` today: assets → input → ship → navigator → galaxy → ship lighting → camera
-director → camera rig → sky → stars → dust → jobs → prompt → debug overlays. The camera comes
-after everything it looks at (the ship AND the planets), so that it sees this frame's world.
+director → camera rig → bodies on screen → picker → sky → stars → dust → jobs → prompt → debug
+overlays. The camera comes after everything it looks at (the ship AND the planets), so that it
+sees this frame's world; whoever needs to know where things are ON SCREEN comes after the camera.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`; map and
 cinematic later) only fills in a `Pose`: what to look at, from how far, turned which way, through
@@ -182,6 +183,15 @@ under a bottom sheet.
      never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
      the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
   Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`).
+- **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
+  works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
+  camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
+  not the thumb stick), picks what is under it: a point ON a body beats a point merely near one,
+  the one in front wins, a small body still has a target a finger can hit, and what is too small
+  to see cannot be picked. A pick is the PILOT's doing, like the controls: `travel(id, 'pilot')`,
+  so whatever page was open is left (`undocked` with `by: 'pilot'`) and the new body's page opens
+  on arrival. The prompt says "Flying to FishAI" with a Stop on the way, for someone who got
+  there by a tap and cannot know that steering takes the ship back.
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
@@ -189,7 +199,9 @@ under a bottom sheet.
   `docked` opens that body's page unless it is showing already, and `undocked` with `by: 'pilot'`
   leaves the page (`router.leave`: Back when Back is the open sky, otherwise a new step). Both
   sides are idempotent and neither waits for the other, so there is nothing to deadlock. A page
-  asked for by a dock that the pilot has already left again is called off (`router.cancel`).
+  asked for by a dock that the pilot has already left again is called off (`router.cancel`), and
+  a route that went home only BECAUSE the pilot left does not call the ship back from wherever
+  the pilot was going.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
   DOCKED: a page opened on a body boots in orbit round it (`start.at`), placed before the first
   step, so the state machine is never in `flight`, nothing flies and the camera cuts. The URL
