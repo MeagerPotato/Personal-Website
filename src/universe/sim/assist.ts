@@ -159,6 +159,10 @@ export function chooseBody(
  * What a pilot who wants to circle body `i` would do with the controls right now, written into
  * `out`. Chooses which way round when `assist.spin` is still 0, and follows a pilot who has
  * clearly turned round.
+ *
+ * `hurry` (u/s per unit off the ring) is for a pilot who ASKED to be there (sim/docking.ts): the
+ * further from the ring, the faster the way back to it, up to the normal pace limit. The loose
+ * assist never hurries.
  */
 export function orbitWish(
   field: BodyField,
@@ -168,6 +172,7 @@ export function orbitWish(
   params: AssistParams,
   assist: AssistState,
   out: FlightInput,
+  hurry = 0,
 ): FlightInput {
   const bodyVx = field.velocities[i * 2] ?? 0;
   const bodyVz = field.velocities[i * 2 + 1] ?? 0;
@@ -210,7 +215,10 @@ export function orbitWish(
   dirZ /= length;
 
   // The body moves too: the ring is followed in ITS frame, so its velocity is added on top.
-  const pace = Math.min(params.orbitSpeed, params.orbitMaxRate * ring);
+  const pace = Math.min(
+    params.orbitSpeed,
+    Math.min(params.orbitSpeed, params.orbitMaxRate * ring) + hurry * Math.abs(off),
+  );
   const wantX = pace * dirX + bodyVx;
   const wantZ = pace * dirZ + bodyVz;
   const wantSpeed = Math.hypot(wantX, wantZ);

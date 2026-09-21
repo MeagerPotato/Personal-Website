@@ -115,7 +115,7 @@ Each display frame:
 6. **The governor** (`core/quality/governor.ts`) is told how long the frame took and may lower the
    render resolution, give some back, or (once, early) ask for a lower tier.
 
-Order in `main.ts` today: assets → input → ship → camera → galaxy → ship lighting → sky → stars →
+Order in `main.ts` today: assets → input → ship → navigator → camera → galaxy → ship lighting → sky → stars →
 dust → jobs → debug overlays. The camera comes after the ship so that it sees this frame's ship.
 
 ## 5. Life of a visit
@@ -132,9 +132,18 @@ dust → jobs → debug overlays. The camera comes after the ship so that it see
 - **Context loss.** A phone that backgrounds the tab may take the WebGL context away. Same path:
   snapshot → dispose → boot from the snapshot once the tab is visible. More than three times in a
   minute means the GPU is not going to get better: `fatal`, and the shell goes plain.
+- **Docking.** Within reach of a body the prompt (`ui/Prompt.ts`, a real button in
+  `#universe-overlay`) offers to orbit it. `state/Navigator.ts` is the one owner of where the
+  visitor is headed: it asks the simulation (`sim/docking.ts`) for an approach, in which the
+  orbit assist's virtual pilot flies the ship onto the ring by itself, and once there the ship is
+  no longer flown but CARRIED round the body, so nothing drifts however long someone reads.
+  The leftovers of a capture settle on springs that start with the ship's own velocities, so
+  there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
+  (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
-  position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`, today the
-  ship). Anything a visitor would miss after a rebuild must become a snapshot field.
+  position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
+  and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
+  must become a snapshot field.
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and
   textures in a `Scope` (`core/scope.ts`); in development the engine warns on dispose if
   three.js still counts any.
@@ -160,6 +169,7 @@ dust → jobs → debug overlays. The camera comes after the ship so that it see
 | --- | --- | --- |
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
+| Flight, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |

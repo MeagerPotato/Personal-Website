@@ -12,6 +12,7 @@ const LIVE_BLOCKS = [
   'flight',
   'assist',
   'cushion',
+  'dock',
   'input',
   'chaseCam',
   'ship',

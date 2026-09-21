@@ -22,7 +22,10 @@ clock; a procedural rocket flies with keyboard or touch, followed by the chase c
 and the satellite, all moving on their orbits. Let go of the controls near a planet and the
 **orbit assist** eases the ship onto a ring around it; planets cannot be crashed into, and space
 has a soft edge. Three **quality tiers** (anti-aliasing everywhere, bloom and a vignette where the
-device can afford them) and a lost WebGL context is survived. Nothing can be docked with yet.
+device can afford them) and a lost WebGL context is survived. **Docking** works inside the world:
+within reach of a body a quiet prompt offers to orbit it (`E`, or tap it), the ship is flown onto
+the ring and then carried round it, and steering away leaves. The router does not follow the
+ship yet (E10), and nothing flies itself to a far destination yet (E6).
 Roadmap: docs/PLAN.md §6.
 
 ## Invariants
@@ -200,8 +203,17 @@ texture in a `Scope` (`core/scope.ts`) and dispose the scope in `dispose()`. Pur
 the browser takes the WebGL context (a phone tab in the background), `api.ts` takes a `Snapshot`
 (`core/snapshot.ts`), disposes the engine, canvas and all, and boots a new one from it. So state
 lives in exactly one of two places: it follows from the simulation step count (where every planet
-is), or it is a field of the snapshot (the ship). Anything new that a visitor would miss after a
-rebuild, such as which planet they are docked at, becomes a snapshot field.
+is), or it is a field of the snapshot (the ship, and the dock it is headed for or carried by).
+Anything new that a visitor would miss after a rebuild becomes a snapshot field.
+
+**Where the visitor is headed** has one owner, `state/Navigator.ts`: it turns requests
+(`approach`, `place`, `release`) into simulation state (`sim/docking.ts`), keeps the app state
+machine (`state/appMachine.ts`: flight, autopilot, approach, docked) in step with what the
+simulation then does, and reports it as events, delivered with the frame. Both directions are
+**idempotent** on purpose: the visitor may dock from inside the world and the web layer follows,
+or the route may change and the ship follows, and telling either side what it already knows is
+never an error. Interactive DOM made by the engine (the prompt, later the labels) goes into
+`#universe-overlay`, never into `#universe-host`, which is hidden from assistive technology.
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for

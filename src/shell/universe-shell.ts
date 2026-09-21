@@ -79,6 +79,7 @@ export async function start(): Promise<void> {
     const flags = new URLSearchParams(location.search);
     const created = await createUniverse({
       mount,
+      overlay: document.getElementById('universe-overlay') ?? undefined,
       manifest,
       reducedMotion: root.dataset.motion === 'reduced',
       quality: asTier(flags.get('q')),
