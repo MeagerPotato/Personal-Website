@@ -200,8 +200,14 @@ under a bottom sheet.
   nearer first; never touching, never under the panel or the top bar, and steady (a name that
   shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
   while bodies drift past each other). The name of the body the ship is docked at is on the page
-  already, so it is not shown. Per frame that is a little arithmetic and one `transform` per
-  visible name; layout is read once, when the names are measured.
+  already, so it is not shown. Names also keep off whatever else can be pressed out there: the
+  dock prompt and the boost pad are `obstacles`, room that is taken before the first name is
+  placed (on a phone with the sheet up, the name of where the ship is going used to lie on the
+  prompt that says so). The top bar is the web layer's, so the web layer measures it:
+  `shell/panel-inset.ts` reports how far down its links reach as `top` of `setPanelInset`, which
+  the camera ignores and the names respect (the bar is two rows tall on a phone). Per frame that
+  is a little arithmetic, one `transform` per visible name, and one look at where the few
+  obstacles are, taken before anything is written, while layout is still clean.
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)

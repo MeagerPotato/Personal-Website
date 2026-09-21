@@ -253,8 +253,12 @@ export const tuning = {
     offsetPx: 2,
     /** A body that looks smaller than this (radius, CSS px) gets no name. */
     minVisiblePx: 1.5,
-    /** Names keep this far from the sides and the bottom of the free view, and clear of the top bar. */
+    /** Names keep this far from the sides and the bottom of the free view, and from the top bar. */
     edgePx: 8,
+    /**
+     * No name starts higher than this. The shell measures how far down the top bar's links really
+     * reach (two rows on a phone) and names keep edgePx below that; this is the floor under it.
+     */
     topPx: 84,
     /**
      * Names keep gapPx apart; one that shows already may stay until it is keepPx closer than that

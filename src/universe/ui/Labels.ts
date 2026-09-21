@@ -1,6 +1,12 @@
 import type { System, Viewport } from '../core/Engine';
 import type { ManifestBody } from '../manifest';
-import { createLabelBoxes, declutter, type DeclutterParams } from '../sim/declutter';
+import {
+  createLabelBoxes,
+  createTakenBoxes,
+  declutter,
+  type DeclutterParams,
+  type ScreenBox,
+} from '../sim/declutter';
 import type { ScreenMap } from '../sim/screen';
 
 type BodyKind = ManifestBody['kind'];
@@ -10,8 +16,9 @@ export interface LabelsParams extends DeclutterParams {
   readonly offsetPx: number;
   /** A body that looks smaller than this (radius, CSS px) gets no name: there is nothing to name. */
   readonly minVisiblePx: number;
-  /** Names keep this far from the sides and the bottom of the free view, and clear of the top bar. */
+  /** Names keep this far from the sides and the bottom of the free view, and from the top bar. */
   readonly edgePx: number;
+  /** No name starts higher than this, even if nobody says how tall the top bar is (`setTop`). */
   readonly topPx: number;
 }
 
@@ -31,6 +38,12 @@ export interface LabelsOptions {
   docked(): boolean;
   /** The visitor pressed the name of the body in this row. */
   onPick(row: number): void;
+  /**
+   * Whatever else of the engine's lies over the sky and can be pressed (the dock prompt, the boost
+   * pad): where each one is right now, or null while it is not there. Names keep off them, the
+   * way they keep off each other.
+   */
+  obstacles?: ReadonlyArray<() => Readonly<ScreenBox> | null>;
 }
 
 /** Suns and the home planet name a whole system; moons are the small print. */
@@ -52,12 +65,14 @@ const RANK_STEP = 1e6;
  * touching, never flickering); how they LOOK is CSS (`.body-label` in src/styles/global.css).
  *
  * Add it AFTER ui/BodiesOnScreen.ts. It writes a transform per visible name per frame and nothing
- * else: no layout is read after the names have been measured once.
+ * else. The only layout it reads, once the names are measured, is where its few `obstacles` are,
+ * and it asks before it writes anything, while layout is still clean from the frame before.
  */
 export class Labels implements System {
   private readonly root = document.createElement('div');
   private readonly buttons: HTMLButtonElement[] = [];
   private readonly boxes;
+  private readonly taken;
   private readonly wasShown: Uint8Array;
   private readonly lastX: Float64Array;
   private readonly lastY: Float64Array;
@@ -66,10 +81,12 @@ export class Labels implements System {
   private measured = false;
   private focused = -1;
   private marked = -1;
+  private barBottom = 0;
 
   constructor(private readonly options: LabelsOptions) {
     const count = options.bodies.length;
     this.boxes = createLabelBoxes(count);
+    this.taken = createTakenBoxes(options.obstacles?.length ?? 0);
     this.wasShown = new Uint8Array(count);
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
@@ -106,6 +123,21 @@ export class Labels implements System {
     const docked = this.options.docked();
     const right = this.width * view.freeWidth - params.edgePx;
     const bottom = this.height * view.freeHeight - params.edgePx;
+    const ceiling = Math.max(params.topPx, this.barBottom + params.edgePx);
+
+    // First, while this frame has not touched the page yet: what is in the way.
+    let obstacles = 0;
+    for (const where of this.options.obstacles ?? []) {
+      const box = where();
+      const slot = this.taken.boxes[obstacles];
+      if (!box || !slot) continue;
+      slot.left = box.left;
+      slot.top = box.top;
+      slot.width = box.width;
+      slot.height = box.height;
+      obstacles += 1;
+    }
+    this.taken.count = obstacles;
 
     boxes.count = Math.min(screen.count, bodies.length);
     for (let row = 0; row < boxes.count; row += 1) {
@@ -123,7 +155,7 @@ export class Labels implements System {
       const inView =
         left >= params.edgePx &&
         left + w <= right &&
-        top >= params.topPx &&
+        top >= ceiling &&
         top + (boxes.height[row] ?? 0) <= bottom;
       if (!inView) continue;
 
@@ -133,7 +165,7 @@ export class Labels implements System {
       const rank = row === target ? 0 : row === this.focused ? 0.5 : RANK[kind];
       boxes.priority[row] = rank * RANK_STEP + depth;
     }
-    declutter(boxes, params);
+    declutter(boxes, params, this.taken);
 
     for (let row = 0; row < boxes.count; row += 1) {
       const button = this.buttons[row];
@@ -161,6 +193,15 @@ export class Labels implements System {
       if (now) now.dataset.state = 'target';
       this.marked = target;
     }
+  }
+
+  /**
+   * How far down the page's top bar reaches (CSS px). The bar is the web layer's, so the web layer
+   * measures it (shell/panel-inset.ts): on a phone it is two rows tall, and a name must not lie
+   * on its links.
+   */
+  setTop(px: number): void {
+    this.barBottom = Math.max(0, px);
   }
 
   resize(viewport: Viewport): void {

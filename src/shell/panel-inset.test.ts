@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mirrorInset, panelInset, watchPanelInset, type PanelInset } from './panel-inset';
+import { barReach, mirrorInset, panelInset, watchPanelInset, type PanelInset } from './panel-inset';
 
 const desktop = { width: 1280, height: 800 };
 const phone = { width: 390, height: 844 };
@@ -10,15 +10,15 @@ const sheet = { offsetLeft: 0, offsetTop: 354, offsetWidth: 390, offsetHeight: 4
 
 describe('panel inset', () => {
   it('covers the right of a wide window, from the left edge of the panel', () => {
-    expect(panelInset(column, true, false, desktop)).toEqual({ right: 496, bottom: 0 });
+    expect(panelInset(column, true, false, desktop)).toEqual({ top: 0, right: 496, bottom: 0 });
   });
 
   it('covers the bottom of a narrow window, from the top edge of the sheet', () => {
-    expect(panelInset(sheet, true, true, phone)).toEqual({ right: 0, bottom: 490 });
+    expect(panelInset(sheet, true, true, phone)).toEqual({ top: 0, right: 0, bottom: 490 });
   });
 
   it('covers nothing when the panel is closed, or is not laid out at all (plain mode)', () => {
-    expect(panelInset(column, false, false, desktop)).toEqual({ right: 0, bottom: 0 });
+    expect(panelInset(column, false, false, desktop)).toEqual({ top: 0, right: 0, bottom: 0 });
     expect(
       panelInset(
         { offsetLeft: 0, offsetTop: 0, offsetWidth: 0, offsetHeight: 0 },
@@ -26,20 +26,36 @@ describe('panel inset', () => {
         false,
         desktop,
       ),
-    ).toEqual({ right: 0, bottom: 0 });
+    ).toEqual({ top: 0, right: 0, bottom: 0 });
+  });
+
+  it('passes on how far down the top bar reaches, panel or no panel', () => {
+    expect(panelInset(sheet, true, true, phone, 105)).toEqual({ top: 105, right: 0, bottom: 490 });
+    expect(panelInset(sheet, false, true, phone, 105)).toEqual({ top: 105, right: 0, bottom: 0 });
+  });
+
+  it('measures the top bar by what can be pressed in it, not by its padding', () => {
+    const control = (width: number, bottom: number) => ({
+      getBoundingClientRect: () => ({ width, bottom }),
+    });
+    // The wordmark, a button that is not displayed on this page, and the links on a second row.
+    expect(barReach([control(80, 57), control(0, 0), control(60, 104.6), control(70, 104.6)])).toBe(
+      105,
+    );
+    expect(barReach([])).toBe(0);
   });
 
   it('never goes negative for a panel that is off the screen', () => {
     const away = { offsetLeft: 2000, offsetTop: 2000, offsetWidth: 480, offsetHeight: 700 };
-    expect(panelInset(away, true, false, desktop)).toEqual({ right: 0, bottom: 0 });
-    expect(panelInset(away, true, true, phone)).toEqual({ right: 0, bottom: 0 });
+    expect(panelInset(away, true, false, desktop)).toEqual({ top: 0, right: 0, bottom: 0 });
+    expect(panelInset(away, true, true, phone)).toEqual({ top: 0, right: 0, bottom: 0 });
   });
 });
 
 describe('the inset, for the stylesheet', () => {
   it('goes on the root as two custom properties, and comes off again', () => {
     const root = document.createElement('div');
-    mirrorInset(root, { right: 496, bottom: 0 });
+    mirrorInset(root, { top: 0, right: 496, bottom: 0 });
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('496px');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('0px');
     mirrorInset(root, null);
@@ -72,12 +88,12 @@ describe('watching the panel', () => {
     document.documentElement.dataset.panel = 'open';
     const seen: [PanelInset, boolean][] = [];
     const stop = watchPanelInset((inset, first) => seen.push([inset, first]));
-    expect(seen).toEqual([[{ right: 496, bottom: 0 }, true]]);
+    expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0 }, true]]);
 
     document.documentElement.dataset.panel = 'closed';
     await settle();
     expect(seen).toHaveLength(2);
-    expect(seen[1]).toEqual([{ right: 0, bottom: 0 }, false]);
+    expect(seen[1]).toEqual([{ top: 0, right: 0, bottom: 0 }, false]);
 
     // A resize that changes nothing is not news.
     window.dispatchEvent(new Event('resize'));

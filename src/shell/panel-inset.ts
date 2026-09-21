@@ -6,6 +6,12 @@ export interface PanelInset {
   /** CSS pixels covered, measured from the right edge and from the bottom edge. */
   right: number;
   bottom: number;
+  /**
+   * How far down the LINKS of the top bar reach. The bar covers nothing (the sky shows through
+   * it), so the camera ignores it, but the engine's names over the planets must not lie on its
+   * links, and on a phone the bar is two rows tall.
+   */
+  top: number;
 }
 
 /** The same breakpoint as the stylesheet's bottom sheet. */
@@ -19,17 +25,35 @@ export interface PanelBox {
   readonly offsetHeight: number;
 }
 
-/** Pure: the inset for a panel box in a viewport. */
+/** Pure: the inset for a panel box in a viewport, under a top bar that reaches down to `top`. */
 export function panelInset(
   panel: PanelBox,
   open: boolean,
   narrow: boolean,
   viewport: { width: number; height: number },
+  top = 0,
 ): PanelInset {
-  if (!open || panel.offsetWidth === 0 || panel.offsetHeight === 0) return { right: 0, bottom: 0 };
+  if (!open || panel.offsetWidth === 0 || panel.offsetHeight === 0) {
+    return { top, right: 0, bottom: 0 };
+  }
   return narrow
-    ? { right: 0, bottom: Math.max(0, viewport.height - panel.offsetTop) }
-    : { right: Math.max(0, viewport.width - panel.offsetLeft), bottom: 0 };
+    ? { top, right: 0, bottom: Math.max(0, viewport.height - panel.offsetTop) }
+    : { top, right: Math.max(0, viewport.width - panel.offsetLeft), bottom: 0 };
+}
+
+/**
+ * Pure: the lowest edge of whatever can be pressed in the top bar. Not the bar's own box: that
+ * ends in padding, a soft edge that a name may well sit on. Hidden controls have no size.
+ */
+export function barReach(
+  controls: Iterable<{ getBoundingClientRect(): { width: number; bottom: number } }>,
+): number {
+  let reach = 0;
+  for (const control of controls) {
+    const { width, bottom } = control.getBoundingClientRect();
+    if (width > 0) reach = Math.max(reach, bottom);
+  }
+  return Math.round(reach);
 }
 
 /**
@@ -58,6 +82,8 @@ export function watchPanelInset(
   doc: Document = document,
 ): () => void {
   const panel = doc.querySelector<HTMLElement>('.panel');
+  const bar = doc.querySelector<HTMLElement>('.masthead');
+  const controls = bar ? [...bar.querySelectorAll<HTMLElement>('a, button')] : [];
   const view = doc.defaultView;
   if (!panel || !view) return () => undefined;
 
@@ -66,11 +92,20 @@ export function watchPanelInset(
   let last: PanelInset | null = null;
 
   const report = (): void => {
-    const inset = panelInset(panel, root.dataset.panel === 'open', narrow.matches, {
-      width: view.innerWidth,
-      height: view.innerHeight,
-    });
-    if (last && last.right === inset.right && last.bottom === inset.bottom) return;
+    const inset = panelInset(
+      panel,
+      root.dataset.panel === 'open',
+      narrow.matches,
+      { width: view.innerWidth, height: view.innerHeight },
+      barReach(controls),
+    );
+    if (
+      last &&
+      last.right === inset.right &&
+      last.bottom === inset.bottom &&
+      last.top === inset.top
+    )
+      return;
     const first = last === null;
     last = inset;
     onChange(inset, first);
@@ -80,6 +115,8 @@ export function watchPanelInset(
   attributes.observe(root, { attributes: true, attributeFilter: ['data-panel'] });
   const size = new ResizeObserver(report);
   size.observe(panel);
+  // The bar is taller where its links wrap under the wordmark, and on the page with the button.
+  if (bar) size.observe(bar);
   view.addEventListener('resize', report);
   report();
 

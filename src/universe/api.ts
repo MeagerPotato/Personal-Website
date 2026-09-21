@@ -13,7 +13,7 @@
 import { EventBus } from './core/events';
 import { isTier, lowerTier, startingTier, type QualityTier } from './core/quality/tiers';
 import { RebuildBudget, startingFrom, type Snapshot, type StartOptions } from './core/snapshot';
-import { boot, type Booted } from './main';
+import { boot, type Booted, type ViewInset } from './main';
 import { FLIGHT, type AppState } from './state/appMachine';
 import type { NavigatorEvents } from './state/Navigator';
 
@@ -135,8 +135,14 @@ export interface Universe {
    * How much of the viewport the info panel covers, in CSS pixels from the right and from the
    * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
    * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
+   *
+   * `top` is how far down the page's top bar reaches. The camera does not care (the bar is a
+   * strip of sky with words on it, not a wall), but the names over the bodies keep clear of it.
    */
-  setPanelInset(inset: { right?: number; bottom?: number }, options?: { cut?: boolean }): void;
+  setPanelInset(
+    inset: { top?: number; right?: number; bottom?: number },
+    options?: { cut?: boolean },
+  ): void;
   setPaused(paused: boolean): void;
   dispose(): void;
 }
@@ -168,7 +174,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   /** What the engine knew when it was last taken down: the answer to `snapshot()` until it is back. */
   let last: Snapshot | null = null;
   /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
-  let inset: { right?: number; bottom?: number } = {};
+  let inset: ViewInset = {};
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
   let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
 
@@ -246,7 +252,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     if (disposed) return;
     try {
       current = boot(options, hooks, { tier, forced }, snapshot);
-      current.rig.setInset(inset, true);
+      current.setInset(inset, true);
       current.engine.setPaused(paused);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -305,7 +311,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     setPanelInset: (next, { cut = false } = {}) => {
       inset = { ...next };
       // The panel itself does not slide under reduced motion (global.css); neither does the view.
-      current?.rig.setInset(inset, cut || options.reducedMotion === true);
+      current?.setInset(inset, cut || options.reducedMotion === true);
     },
     setPaused: (value) => {
       paused = value;
