@@ -1,11 +1,13 @@
 import type { UniverseEvents, UniverseOptions } from './api';
 import { Engine } from './core/Engine';
 import { EventBus } from './core/events';
+import { Backdrop } from './world/Backdrop';
+import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 
 /**
- * Composition root: builds the engine and adds systems in an explicit order. Phase 0 has one
- * system (the sky). Flight, camera rig, world, and UI systems are added here from Phase 1.
+ * Composition root: builds the engine and adds systems in an explicit order. So far that is the
+ * sky (backdrop, stars) and the dust; flight, the camera rig, the world and the UI join here.
  */
 export function boot(options: UniverseOptions): {
   engine: Engine;
@@ -21,13 +23,12 @@ export function boot(options: UniverseOptions): {
     onContextLost: () => events.emit('fatal', { reason: 'WebGL context lost' }),
   });
 
-  const starfield = engine.add(
-    new Starfield({
-      coarsePointer: window.matchMedia('(pointer: coarse)').matches,
-      reducedMotion,
-    }),
-  );
-  engine.scene.add(starfield.object);
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+
+  const backdrop = engine.add(new Backdrop());
+  const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
+  const dust = engine.add(new SpaceDust({ coarsePointer, reducedMotion }));
+  engine.scene.add(backdrop.object, starfield.object, dust.object);
 
   engine.start();
   return { engine, events };

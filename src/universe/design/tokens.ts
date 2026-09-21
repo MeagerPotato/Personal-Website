@@ -58,6 +58,13 @@ export const tokens = {
       ember: { sea: '#f2a097', shore: '#c8766f', low: '#8a6a78', high: '#6f5a6e', peak: '#f9cdc7' },
       bloom: { sea: '#9886c9', shore: '#c3b0f0', low: '#e0d6f8', high: '#f9cdc7', peak: '#fff1d6' },
     },
+    /**
+     * How light falls in the 3D world. `shadow` MULTIPLIES a surface's colour on the side facing
+     * away from its sun (white would mean no shading at all): cool and tinted, never black.
+     */
+    shading: {
+      shadow: '#bbbfdd',
+    },
     /** Interactive text and the keyboard focus ring. */
     accent: '#9ac4ee',
     focus: '#f3d88a',
