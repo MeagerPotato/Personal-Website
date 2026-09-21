@@ -13,8 +13,9 @@ shading) on dark navy space. Tone: playful framing, technical substance. The own
 
 Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
-mode. Universe mode is still only a starfield behind them. Phase 1 (flight) has not started, and
-Phase 2's 3D half (router, panel, docking) waits for it. Roadmap: docs/PLAN.md §6.
+mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation), over
+what is still only a starfield. Phase 1 (flight) has not started, and Phase 2's 3D half (panel,
+docking, autopilot) waits for it. Roadmap: docs/PLAN.md §6.
 
 ## Invariants
 
@@ -32,7 +33,10 @@ Phase 2's 3D half (router, panel, docking) waits for it. Roadmap: docs/PLAN.md �
    `src/universe/api.ts`. The engine never imports from the web layer.
 6. **`src/universe/sim/**` and `src/universe/data/**` are pure:** no three.js, no DOM, no clock, no
    `Math.random` (use `sim/rng.ts`). They run headless in Vitest.
-7. **Only `src/shell/router.ts` (Phase 2) may write `history`.** The engine emits intents.
+7. **Only `src/shell/router.ts` may write `history`.** The engine emits intents. And the
+   router's own rule: **a soft navigation is only an optimisation of a hard one.** Both must end
+   in the same DOM, and on any doubt (failed fetch, non-HTML, a new deploy, a plain-only page)
+   the router lets the browser load the page normally. Plain mode never loads the router.
 8. **Colours live in `src/universe/design/tokens.ts` and nowhere else.** CSS reads them as custom
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
    a lit surface is exactly the token hex and 3D matches the DOM.
@@ -89,7 +93,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `world/` … | Claude |
-| `src/shell/**` | client code outside the engine: mode, boot, watchdog, later router and panel | Claude |
+| `src/shell/**` | client code outside the engine: mode, boot, watchdog, router (`navigation.ts` rules, `swap.ts` DOM, `router.ts` history), later the panel | Claude |
 | `src/site/**`, `src/config/**` | framework-neutral build logic and site constants | Claude |
 | `src/pages`, `src/layouts`, `src/components` | markup-only `.astro` | Claude |
 | `src/content/**`, `src/content.config.ts` | Markdown copy with images beside it; the thin collections wrapper | Claude drafts, Allen edits |
@@ -139,6 +143,11 @@ belongs in the main nav is one line in `src/config/site.ts`. For search engines 
 previews, pass `jsonLd` (nodes from `src/site/seo.ts`) and, if the page has a picture of its
 own, `image`; otherwise it gets the site's card, `/og/default.png`, which
 `src/site/og.ts` draws from the tokens. Any new per-page `<head>` node needs `data-page-head`.
+
+**Link to something the router must leave alone.** It already leaves alone other sites, files
+(any path with an extension), downloads, `target`, modified clicks, and anchors on the page that is
+showing. For anything else (the mode switches are the example), add `data-router-ignore` to the
+link or to an ancestor.
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
