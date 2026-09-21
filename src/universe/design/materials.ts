@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   BackSide,
   Color,
+  LineBasicMaterial,
   ShaderMaterial,
   Vector2,
   Vector3,
@@ -75,16 +76,33 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
 
 export type GlowMaterial = ShaderMaterial & { uniforms: { uIntensity: IUniform<number> } };
 
-/** For things that are light themselves (shaders/glow.ts). Colours come from the geometry. */
-export function createGlowMaterial(options: { intensity: number }): GlowMaterial {
+/**
+ * For things that are light themselves, or that no sun should shade (shaders/glow.ts). Colours
+ * come from the geometry; `tint` (a token hex) multiplies them, so a white model can be reused
+ * in any colour.
+ */
+export function createGlowMaterial(options: { intensity: number; tint?: string }): GlowMaterial {
   const material = new ShaderMaterial({
     name: 'glow',
     vertexShader: glow.vertexShader,
     fragmentShader: glow.fragmentShader,
-    uniforms: { uIntensity: { value: options.intensity } },
+    uniforms: {
+      uIntensity: { value: options.intensity },
+      uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
+    },
     vertexColors: true,
   });
   return material as GlowMaterial;
+}
+
+/** Thin guide lines drawn in the world: orbit rings now, motorway lanes later. */
+export function createLineMaterial(options: { color: string; opacity: number }): LineBasicMaterial {
+  return new LineBasicMaterial({
+    color: new Color(options.color),
+    transparent: true,
+    opacity: options.opacity,
+    depthWrite: false,
+  });
 }
 
 export function createBackdropMaterial(): ShaderMaterial {

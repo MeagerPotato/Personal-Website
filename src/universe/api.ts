@@ -13,6 +13,11 @@ export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
   mount: HTMLElement;
   /**
+   * The parsed body of /universe.json (the web layer fetches it). Checked on the way in: a
+   * manifest this engine cannot read makes createUniverse reject, and the shell goes plain.
+   */
+  manifest: unknown;
+  /**
    * The visitor prefers reduced motion but chose the universe anyway (the mode script sends them
    * to plain mode otherwise). The loop still runs, because flying is motion they asked for;
    * everything AMBIENT is calmed: no twinkle, no sky drift, and later no camera flourishes.
