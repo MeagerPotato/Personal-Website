@@ -1,0 +1,43 @@
+---
+import Base from '../layouts/Base.astro';
+import { site } from '../config/site';
+---
+
+<Base
+  title="Allen · a small universe, under construction"
+  description="Allen studies aerospace engineering at UC Berkeley and builds rockets and software. This site is becoming a galaxy you can fly through."
+>
+  <p class="eyebrow">Status: building the launchpad</p>
+  <h1>A small universe is under construction.</h1>
+
+  <p class="lede">
+    I'm Allen. I study aerospace engineering at UC Berkeley, and I build rockets, software, and a
+    bot that takes the card game Canadian Fish far too seriously.
+  </p>
+
+  <p>
+    This site is turning into a galaxy you can fly through: every solar system is something I care
+    about, and every planet is a project. Until launch day, here is where to find me.
+  </p>
+
+  <ul class="links">
+    <li>
+      <a href={site.socials.github} rel="me noopener">
+        GitHub
+      </a>
+      <span>where the projects live</span>
+    </li>
+    <li>
+      <a href={site.socials.linkedin} rel="me noopener">
+        LinkedIn
+      </a>
+      <span>the formal version</span>
+    </li>
+    <li>
+      <a href={site.elsewhere.days2meet} rel="noopener">
+        Days2Meet
+      </a>
+      <span>a scheduling poll I built because when2meet needed a sequel</span>
+    </li>
+  </ul>
+</Base>
