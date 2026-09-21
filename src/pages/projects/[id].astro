@@ -1,13 +1,16 @@
 ---
 // A planet or a moon: one project. Both kinds share this page and this URL shape.
 import type { InferGetStaticPropsType } from 'astro';
+import { getImage } from 'astro:assets';
 import { getCollection, render } from 'astro:content';
 import Crumbs from '../../components/Crumbs.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
 import Shot from '../../components/Shot.astro';
 import Base from '../../layouts/Base.astro';
-import { pageTitle } from '../../site/seo';
+import { OG_SIZE } from '../../site/og';
+import { routes } from '../../site/routes';
+import { breadcrumbLd, pageTitle, projectLd } from '../../site/seo';
 import {
   STATUS_LABEL,
   projectContext,
@@ -30,9 +33,34 @@ const projects = visibleProjects(await getCollection('projects'), import.meta.en
 const context = projectContext(entry, systems, projects);
 const links = projectLinks(data.links);
 const { Content } = await render(entry);
+
+// The link-preview picture: the cover, cropped from the top to the card shape, as the JPEG that
+// preview crawlers insist on.
+const preview = await getImage({
+  src: data.cover.src,
+  ...OG_SIZE,
+  fit: 'cover',
+  position: 'top',
+  format: 'jpg',
+  quality: 82,
+});
+const image = { path: preview.src, alt: data.cover.alt, ...OG_SIZE };
+const jsonLd = [
+  projectLd({
+    id: entry.id,
+    title: data.title,
+    summary: data.summary,
+    date: data.date,
+    stack: data.stack,
+    repo: data.links.repo,
+    parentId: data.parent?.id,
+    imagePath: preview.src,
+  }),
+  breadcrumbLd(context.crumbs, { label: data.title, href: routes.project(entry.id) }),
+];
 ---
 
-<Base title={pageTitle(data.title)} description={data.summary}>
+<Base title={pageTitle(data.title)} description={data.summary} image={image} jsonLd={jsonLd}>
   <Crumbs crumbs={context.crumbs} />
 
   <PageHeader

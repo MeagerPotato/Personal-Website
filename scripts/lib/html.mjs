@@ -152,3 +152,27 @@ export function firstDifference(expected, actual, context = 70) {
   const excerpt = (text) => JSON.stringify(text.slice(from, index + context));
   return { index, expected: excerpt(expected), actual: excerpt(actual) };
 }
+
+// --- <head> metadata -------------------------------------------------------------------------------
+
+const ENTITIES = { '&amp;': '&', '&quot;': '"', '&#39;': "'", '&lt;': '<', '&gt;': '>' };
+
+/** The `content` of the first <meta> whose property or name is `key`, or null. */
+export function metaContent(html, key) {
+  for (const match of html.matchAll(/<meta\b([^>]*)>/gi)) {
+    const attrs = parseAttributes(match[1]);
+    if ((attrs.property ?? attrs.name) === key && 'content' in attrs) {
+      return attrs.content.replace(/&(?:amp|quot|#39|lt|gt);/g, (entity) => ENTITIES[entity]);
+    }
+  }
+  return null;
+}
+
+/** The href of <link rel="canonical">, or null. */
+export function canonicalUrl(html) {
+  for (const match of html.matchAll(/<link\b([^>]*)>/gi)) {
+    const attrs = parseAttributes(match[1]);
+    if ((attrs.rel ?? '').toLowerCase() === 'canonical' && attrs.href) return attrs.href;
+  }
+  return null;
+}

@@ -3,7 +3,8 @@
 //
 //   1. dist/_headers exists and its CSP placeholder was filled
 //   2. the dev-only /lab page did not leak into production
-//   3. every internal link and asset reference resolves, and page links end with "/"
+//   3. every internal link and asset reference resolves, and page links end with "/"; every
+//      page names a link-preview image (og:image) that is absolute, on this site, and exists
 //   4. PLAIN-MODE PURITY: no page can reach three.js through static imports. The engine must
 //      only ever be reachable through a dynamic import(), which plain mode never executes.
 //   5. WEIGHT BUDGETS: what plain mode costs per page, and what the lazy engine costs in total.
@@ -18,11 +19,13 @@ import { posix, relative, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { toPosix, walk } from './lib/fs.mjs';
 import {
+  canonicalUrl,
   extractEagerScripts,
   extractStaticImports,
   extractUrls,
   firstDifference,
   isPlainOnly,
+  metaContent,
   pageSkeleton,
   toSitePath,
 } from './lib/html.mjs';
@@ -103,6 +106,22 @@ for (const file of htmlFiles) {
     } else {
       errors.push(`${pagePath}: broken reference "${url}"`);
     }
+  }
+}
+
+// Link previews are fetched by crawlers from another origin, so the URL must be absolute, and it
+// must point at a file this build actually produced.
+for (const page of pages) {
+  const image = metaContent(page.html, 'og:image');
+  const canonical = canonicalUrl(page.html);
+  if (!image || !canonical) {
+    errors.push(`${page.pagePath}: needs both <link rel="canonical"> and og:image`);
+    continue;
+  }
+  if (!URL.canParse(image) || new URL(image).origin !== new URL(canonical).origin) {
+    errors.push(`${page.pagePath}: og:image "${image}" must be an absolute URL on this site`);
+  } else if (!sitePaths.has(decodeURIComponent(new URL(image).pathname))) {
+    errors.push(`${page.pagePath}: og:image "${image}" does not exist in dist/`);
   }
 }
 
