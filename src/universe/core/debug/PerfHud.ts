@@ -14,6 +14,8 @@ const REFRESH_SEC = 0.5;
  *   steps  simulation steps per frame (1.0 on a 60 Hz display, 0.4 at 144 Hz, 2.0 at 30 fps)
  *   draws  draw calls and triangles of the last frame
  *   px     size of the drawing buffer, and the pixel ratio that produced it
+ *
+ * plus whatever lines the caller adds through `extra` (main.ts: the ship's speed, and the assist).
  */
 export class PerfHud implements System {
   private readonly element: HTMLElement;
@@ -27,6 +29,7 @@ export class PerfHud implements System {
   constructor(
     mount: HTMLElement,
     private readonly renderer: WebGLRenderer,
+    private readonly extra: () => readonly string[] = () => [],
   ) {
     this.element = document.createElement('pre');
     this.element.setAttribute('aria-hidden', 'true');
@@ -65,6 +68,7 @@ export class PerfHud implements System {
       `steps ${(this.steps / this.frames).toFixed(2)}`,
       `draws ${calls}  tris ${triangles}`,
       `px    ${Math.round(width * pixelRatio)} x ${Math.round(height * pixelRatio)} @${pixelRatio.toFixed(2)}`,
+      ...this.extra(),
     ].join('\n');
 
     this.frames = 0;

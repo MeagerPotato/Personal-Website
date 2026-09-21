@@ -2,6 +2,8 @@ import type { ChaseCamParams } from '../camera/ChaseCam';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
 import type { ShipLookParams } from '../ship/ShipSystem';
+import type { AssistParams } from '../sim/assist';
+import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 
@@ -46,6 +48,66 @@ export const tuning = {
     /** Seconds for the turn rate to follow the stick. Below 0.08 feels twitchy, above 0.2 heavy. */
     yawResponseSec: 0.12,
   } satisfies FlightParams,
+
+  /**
+   * ORBIT ASSIST (sim/assist.ts): let go of the controls near a planet and the ship eases onto a
+   * ring around it. A virtual pilot does it with the ordinary stick and throttle, and the real
+   * pilot always wins. The ring of each body is its `dockRadius` in the manifest.
+   */
+  assist: {
+    /** Pace on the ring, u/s, but never more than orbitMaxRate rad/s: small moons are circled calmly. */
+    orbitSpeed: 14,
+    orbitMaxRate: 0.55,
+    /** The assist starts soiRadii ring radii out and is at full strength inside fullRadii. */
+    soiRadii: 1.8,
+    fullRadii: 1.2,
+    /** How steeply the ship is led back to the ring (1 = 45 degrees), reached inwardReach ring radii off it. */
+    inwardGain: 1.2,
+    inwardReach: 0.6,
+    /** Share of the assist that full thrust switches off. 1 = thrust always means "leave me alone". */
+    thrustFade: 0.85,
+    /** Ships passing faster than this (u/s) are left alone: fades out between the two speeds. */
+    freeSpeeds: [30, 55],
+    /** Full stick per radian of heading error, and how hard the pace is chased (1/s). */
+    steerGain: 1.6,
+    speedGain: 2,
+    /** How much harder another body must pull before the assist changes its mind (0 to 1). */
+    switchMargin: 0.15,
+    /** Fly the other way round at this speed (u/s) and the assist follows suit. */
+    spinFlipSpeed: 6,
+    /**
+     * Diving at a surface: the assist swings the nose along it, so the ship sweeps round a planet
+     * instead of ramming it. By time to impact: nothing with deflectSec[1] seconds to spare,
+     * everything at deflectSec[0]. "Impact" is deflectGap u above the surface; ships closing
+     * slower than deflectSpeed u/s are left to settle on the cushion.
+     */
+    deflectSec: [0.5, 1.5],
+    deflectGap: 2,
+    deflectSpeed: 10,
+  } satisfies AssistParams,
+
+  /**
+   * You cannot crash (sim/collide.ts): a damped cushion above every surface, and under it a shell
+   * nothing passes. `accel` is the push where the cushion meets the shell; keep it well above the
+   * boosted thrust (thrustAccel x boostFactor), or a boosting ship rides the shell.
+   */
+  cushion: {
+    depth: 4,
+    shellGap: 1,
+    accel: 130,
+    damping: 9,
+    restitution: 0.2,
+  } satisfies CushionParams,
+
+  /**
+   * You cannot get lost: past the edge of the world (the outermost system plus `margin` u) a pull
+   * toward home grows by pullPerUnit u/s² for every unit travelled. No wall: at 0.08, a boosting
+   * ship stalls about 800 u out, and a ship left alone drifts back.
+   */
+  edge: {
+    margin: 500,
+    pullPerUnit: 0.08,
+  } satisfies EdgeParams,
 
   /** How fingers and the mouse become flight (core/input/). The keyboard has nothing to tune. */
   input: {

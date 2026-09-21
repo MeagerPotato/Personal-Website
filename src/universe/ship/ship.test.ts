@@ -30,7 +30,7 @@ function run(
   let elapsed = 0;
   for (const frameSec of frameTimes) {
     const slice = clock.advance(frameSec);
-    for (let i = 0; i < slice.steps; i += 1) ship.fixedUpdate(STEP);
+    for (let i = 0; i < slice.steps; i += 1) ship.fixedUpdate(STEP, 0);
     elapsed += slice.frameSec;
     const frame = { elapsed, dt: slice.frameSec, alpha: slice.alpha, simTime: clock.simTime };
     ship.frameUpdate(frame);
@@ -67,8 +67,8 @@ describe('the ship', () => {
     const { ship, pilot } = setup();
     ship.placeAt(0, 0, 0);
     pilot.current.thrust = 1;
-    ship.fixedUpdate(STEP);
-    ship.fixedUpdate(STEP);
+    ship.fixedUpdate(STEP, 0);
+    ship.fixedUpdate(STEP, 0);
     const after = ship.state.z;
 
     ship.frameUpdate({ elapsed: 0, dt: STEP, alpha: 1, simTime: 0 });

@@ -15,6 +15,7 @@ import { tuning } from './design/tuning';
 import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { spawnPoint } from './sim/spawn';
+import { createSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
 import { SpaceDust } from './world/SpaceDust';
@@ -57,11 +58,28 @@ export function boot(options: UniverseOptions): {
     nearestNeighbourOf(manifest, home)?.position ?? null,
     tuning.ship.spawn,
   );
-  const ship = engine.add(new ShipSystem({ spawn, pilot: input, assets, reducedMotion }));
+  // The world as the SIMULATION sees it: where the bodies are, how big, and where space ends.
+  const surroundings = createSurroundings(
+    { systems: manifest.systems, bodies: manifest.bodies, home: home.position },
+    tuning.edge.margin,
+  );
+  const ship = engine.add(
+    new ShipSystem({ spawn, pilot: input, surroundings, assets, reducedMotion }),
+  );
   engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
 
   const jobs = new JobQueue(tuning.world.jobBudgetMs);
-  const galaxy = engine.add(new Galaxy({ manifest, assets, jobs, viewer: ship, reducedMotion }));
+  // ...and as the visitor sees it. Both follow the same orbits.
+  const galaxy = engine.add(
+    new Galaxy({
+      manifest,
+      orbits: surroundings.orbits,
+      assets,
+      jobs,
+      viewer: ship,
+      reducedMotion,
+    }),
+  );
   const light = new Vector3();
   engine.add({
     frameUpdate: () => ship.setSun(galaxy.lightAt(ship.position, light)),
@@ -74,7 +92,17 @@ export function boot(options: UniverseOptions): {
   engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
   engine.add(jobs);
 
-  if (options.debug?.perf) engine.add(new PerfHud(options.mount, engine.renderer));
+  if (options.debug?.perf) {
+    const { assist, orbits } = surroundings;
+    const near = (): string =>
+      assist.body < 0 ? '-' : `${orbits.ids[assist.body] ?? '?'} ${assist.weight.toFixed(2)}`;
+    engine.add(
+      new PerfHud(options.mount, engine.renderer, () => [
+        `speed ${ship.speed.toFixed(1)} u/s`,
+        `near  ${near()}`,
+      ]),
+    );
+  }
   // The condition is a build-time constant, so a production build drops the import, and lil-gui
   // with it (scripts/verify-dist.mjs checks).
   if (import.meta.env.DEV && options.debug?.tweak) {
