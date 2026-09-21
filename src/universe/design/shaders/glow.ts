@@ -2,12 +2,13 @@
  * GLOW: things that ARE light and so take none (the engine flame; later suns and beacons). The
  * facet shows its own colour times `uIntensity`, untouched by any sun.
  *
- * Intensity is 1 until post-processing exists. Bloom will key on values above 1, so raising it
- * then makes the flame glow while the pastel world, which never exceeds 1, stays crisp
- * (docs/PLAN.md §5.5).
+ * Whether it BLOOMS is a separate question, answered in the alpha channel: `uBloom` (0 to 1) is
+ * how much of this surface bleeds into the picture around it. Everything else in the world writes
+ * 0 there, which is why the pastel world stays crisp (shaders/post.ts explains the scheme).
  *
- * Uniforms: uIntensity, uTint (linear colour, multiplies the vertex colour). Defines: USE_COLOR
- * (vertex colours; without it the glow is the tint alone).
+ * Uniforms: uIntensity, uBloom, uBloomMask (shared: is anybody reading the alpha channel?),
+ * uTint (linear colour, multiplies the vertex colour). Defines:
+ * USE_COLOR (vertex colours; without it the glow is the tint alone).
  */
 export const glow = {
   vertexShader: /* glsl */ `
@@ -24,11 +25,13 @@ export const glow = {
 
   fragmentShader: /* glsl */ `
     uniform float uIntensity;
+    uniform float uBloom;
+    uniform float uBloomMask;
     uniform vec3 uTint;
     flat varying vec3 vColor;
 
     void main() {
-      gl_FragColor = vec4(vColor * uTint * uIntensity, 1.0);
+      gl_FragColor = vec4(vColor * uTint * uIntensity, mix(1.0, uBloom, uBloomMask));
       #include <colorspace_fragment>
     }
   `,

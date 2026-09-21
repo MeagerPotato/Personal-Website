@@ -91,7 +91,9 @@ export class Galaxy implements System {
     this.positions = new Float64Array(this.orbits.count * 2);
     bodyPositions(this.orbits, 0, this.positions);
 
-    const sunMaterial = this.scope.track(createGlowMaterial({ intensity: 1 }));
+    const sunMaterial = this.scope.track(
+      createGlowMaterial({ intensity: 1, bloom: tuning.world.sunBloom }),
+    );
     const circle = this.scope.track(unitCircle(tuning.world.orbitLineSegments));
 
     for (const system of manifest.systems) {
@@ -102,7 +104,9 @@ export class Galaxy implements System {
         hasSun: center?.kind === 'sun',
         sunPosition: new Vector3(system.position[0], 0, system.position[1]),
         surface: this.scope.track(createToonMaterial({ vertexColors: true })),
-        ring: this.scope.track(createGlowMaterial({ intensity: 1, tint: theme.light })),
+        ring: this.scope.track(
+          createGlowMaterial({ intensity: 1, bloom: tuning.world.ringBloom, tint: theme.light }),
+        ),
         line: this.scope.track(
           createLineMaterial({ color: theme.shade, opacity: tuning.world.orbitLineOpacity }),
         ),

@@ -10,8 +10,11 @@ import { KeyboardInput } from './core/input/KeyboardInput';
 import { PointerSteer } from './core/input/PointerSteer';
 import { TouchControls } from './core/input/TouchControls';
 import { JobQueue } from './core/jobs';
+import { lowerTier, type QualityTier } from './core/quality/tiers';
 import type { Snapshot } from './core/snapshot';
+import { setBloomMask } from './design/materials';
 import { tuning } from './design/tuning';
+import { PostFX } from './fx/PostFX';
 import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { copyShipState, createShipState } from './sim/flight';
@@ -36,6 +39,14 @@ export interface BootHooks {
   onFirstFrame(): void;
   onFirstInput(): void;
   onContextLost(): void;
+  /** The first seconds showed that the tier is too much for this device. */
+  onDemote(): void;
+}
+
+export interface BootQuality {
+  tier: QualityTier;
+  /** Chosen by a person (`?q=`), so the engine must not second-guess it. */
+  forced: boolean;
 }
 
 export interface Booted {
@@ -44,19 +55,32 @@ export interface Booted {
   snapshot(): Snapshot;
 }
 
-export function boot(options: UniverseOptions, hooks: BootHooks, start: Snapshot | null): Booted {
+export function boot(
+  options: UniverseOptions,
+  hooks: BootHooks,
+  quality: BootQuality,
+  start: Snapshot | null,
+): Booted {
   // Before anything is created: a manifest we cannot read must not leave a canvas behind.
   const manifest = readManifest(options.manifest);
   const reducedMotion = options.reducedMotion ?? false;
 
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  const tier = tuning.quality.tiers[quality.tier];
+  setBloomMask(tier.post);
+
   const engine = new Engine({
     mount: options.mount,
     startSteps: start?.steps ?? 0,
+    quality: tier,
+    pipeline: (renderer, samples) => new PostFX(renderer, samples),
+    coarsePointer,
+    canDemote: !quality.forced && lowerTier(quality.tier) !== null,
     onFirstFrame: hooks.onFirstFrame,
+    onDemote: hooks.onDemote,
     onContextLost: hooks.onContextLost,
   });
 
-  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const assets = engine.add(new AssetStore());
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
@@ -81,7 +105,7 @@ export function boot(options: UniverseOptions, hooks: BootHooks, start: Snapshot
   if (start) ship.restore(start.ship);
   engine.add(new CameraRig(engine.camera, new ChaseCam(ship, { reducedMotion })));
 
-  const jobs = new JobQueue(tuning.world.jobBudgetMs);
+  const jobs = new JobQueue(tuning.world.jobBudget);
   // ...and as the visitor sees it. Both follow the same orbits.
   const galaxy = engine.add(
     new Galaxy({
@@ -111,6 +135,7 @@ export function boot(options: UniverseOptions, hooks: BootHooks, start: Snapshot
       assist.body < 0 ? '-' : `${orbits.ids[assist.body] ?? '?'} ${assist.weight.toFixed(2)}`;
     engine.add(
       new PerfHud(options.mount, engine.renderer, () => [
+        `tier  ${quality.tier} x${engine.resolutionScale.toFixed(2)}`,
         `at    ${ship.position.x.toFixed(0)}, ${ship.position.z.toFixed(0)}`,
         `speed ${ship.speed.toFixed(1)} u/s`,
         `near  ${near()}`,

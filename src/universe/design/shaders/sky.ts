@@ -10,10 +10,10 @@
  * Backdrop: navy that is a little lighter along the horizon (the galactic plane), plus a few very
  * large, very soft glows of colour at fixed places in the sky. Glows, not noise clouds: on a
  * calm dark sky procedural noise reads as mud, and the eye finds its lattice at once. Dark
- * gradients band badly in 8 bits, so the last line adds half a code value of noise AFTER the
- * conversion to sRGB.
+ * gradients band badly in 8 bits, so the end adds half a code value of noise in display space.
  *
- * Uniforms: uDeep, uHorizon (linear colours), uHorizonFalloff, and per glow (GLOW_COUNT of them)
+ * Uniforms: uBloomMask (shared, see materials.ts), uDeep, uHorizon (linear colours),
+ * uHorizonFalloff, and per glow (GLOW_COUNT of them)
  * uGlowDirection (unit vector), uGlowColor (linear, already scaled by its strength) and
  * uGlowTightness (higher = smaller).
  */
@@ -34,6 +34,7 @@ export const backdrop = {
   fragmentShader: /* glsl */ `
     #define GLOW_COUNT ${GLOW_COUNT}
 
+    uniform float uBloomMask;
     uniform vec3 uDeep;
     uniform vec3 uHorizon;
     uniform float uHorizonFalloff;
@@ -58,9 +59,14 @@ export const backdrop = {
         color += uGlowColor[i] * pow(facing, uGlowTightness[i]);
       }
 
-      gl_FragColor = vec4(color, 1.0);
+      // Half a step of noise against banding. It has to be added in DISPLAY space, and this
+      // shader does not know who encodes for the display: itself (straight to the canvas) or an
+      // sRGB render target (post-processing). So: encode, add the noise, decode, and let the
+      // usual last line do whatever it does here. The sky is not on the bloom guest list.
+      vec4 shown = sRGBTransferOETF(vec4(color, 1.0 - uBloomMask));
+      shown.rgb += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+      gl_FragColor = sRGBTransferEOTF(max(shown, 0.0));
       #include <colorspace_fragment>
-      gl_FragColor.rgb += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
     }
   `,
 };

@@ -8,8 +8,11 @@
  */
 
 import { EventBus } from './core/events';
+import { isTier, lowerTier, startingTier, type QualityTier } from './core/quality/tiers';
 import { RebuildBudget, type Snapshot } from './core/snapshot';
 import { boot, type Booted } from './main';
+
+export type { QualityTier } from './core/quality/tiers';
 
 export interface UniverseOptions {
   /** Element the engine mounts its own <canvas> into. */
@@ -25,6 +28,13 @@ export interface UniverseOptions {
    * everything AMBIENT is calmed: no twinkle, no sky drift, and later no camera flourishes.
    */
   reducedMotion?: boolean;
+  /** Force a quality tier (`?q=`). The engine then neither probes nor demotes. */
+  quality?: QualityTier;
+  /**
+   * The tier this device was demoted to on an earlier visit. The web layer remembers it (see the
+   * `quality` event); the engine never starts above it, and never promotes itself.
+   */
+  qualityCeiling?: QualityTier;
   /**
    * `perf`: a small frame-rate readout, in every build (for phones on a preview URL).
    * `tweak`: the live tuning panel. Development only; ignored in a production build.
@@ -37,6 +47,11 @@ export type UniverseEvents = {
   ready: undefined;
   /** The visitor steered for the first time: they know how to fly, so hints can go. */
   firstinput: undefined;
+  /**
+   * The quality tier in use: once at the start, and again if the first seconds showed that the
+   * device needs a lower one (`demoted`: worth remembering for the next visit).
+   */
+  quality: { tier: QualityTier; demoted: boolean };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -76,16 +91,42 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let current: Booted | null = null;
   let waiting: (() => void) | null = null;
 
+  const forced = isTier(options.quality);
+  let tier: QualityTier = isTier(options.quality)
+    ? options.quality
+    : startingTier(
+        {
+          coarsePointer: window.matchMedia('(pointer: coarse)').matches,
+          deviceMemory: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+        },
+        isTier(options.qualityCeiling) ? options.qualityCeiling : null,
+      );
+
   const hooks = {
     onFirstFrame: (): void => {
       if (announcedReady) return;
       announcedReady = true;
+      // From the first frame, like `ready` and just before it: a listener attached right after
+      // `await createUniverse()` hears both.
+      events.emit('quality', { tier, demoted: false });
       events.emit('ready', undefined);
     },
     onFirstInput: (): void => {
       if (announcedInput) return;
       announcedInput = true;
       events.emit('firstinput', undefined);
+    },
+    onDemote: (): void => {
+      const lower = lowerTier(tier);
+      if (disposed || !current || !lower) return;
+      // A tier decides what kind of canvas there is, so a new tier is a new engine.
+      const snapshot = current.snapshot();
+      current.engine.dispose();
+      current = null;
+      tier = lower;
+      events.emit('quality', { tier, demoted: true });
+      rebuild(snapshot);
     },
     onContextLost: (): void => {
       if (disposed || !current) return;
@@ -103,7 +144,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   function rebuild(snapshot: Snapshot): void {
     if (disposed) return;
     try {
-      current = boot(options, hooks, snapshot);
+      current = boot(options, hooks, { tier, forced }, snapshot);
       current.engine.setPaused(paused);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -129,7 +170,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     document.addEventListener('visibilitychange', onChange);
   }
 
-  current = boot(options, hooks, null);
+  current = boot(options, hooks, { tier, forced }, null);
 
   return {
     on: (event, listener) => events.on(event, listener),

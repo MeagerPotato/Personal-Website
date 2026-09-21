@@ -96,7 +96,10 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `sky.ts` (backdrop and stars), `dust.ts` |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (suns, the flame, rings), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
+| WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
+| Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
 | The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
 | Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
 | Space dust: count, size, brightness, streak length | `tuning.dust` |
@@ -123,6 +126,11 @@ JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a 
 the horizon line of the chase camera, and `tuning.chaseCam.up` with `lookAheadBase` decide where
 that line is on screen. It belongs about a third of the way down: higher and the planets hide under
 the top bar, with three quarters of the screen empty below them.
+
+**Judge a look on every tier.** `/?universe&q=low`, `&q=medium` and `&q=high` show the three
+side by side in three tabs. LOW has no bloom and no vignette, so nothing may DEPEND on them: they
+are seasoning. Only things that ask for it bloom (the knobs above), so the pastel world stays crisp
+however strong the bloom is.
 
 Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
 procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8

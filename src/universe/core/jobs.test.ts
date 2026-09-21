@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Frame } from './Engine';
 import { JobQueue } from './jobs';
 
 function* countTo(n: number, log: number[]): Generator<void, string> {
@@ -8,6 +9,8 @@ function* countTo(n: number, log: number[]): Generator<void, string> {
   }
   return `counted to ${n}`;
 }
+
+const frameOf = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 0, simTime: 0 });
 
 describe('JobQueue', () => {
   it('runs a job across frames, stopping each frame when the budget is spent', () => {
@@ -45,6 +48,31 @@ describe('JobQueue', () => {
     queue.add(countTo(3, log), () => undefined);
     queue.frameUpdate();
     expect(log).toEqual([1]);
+  });
+
+  it('spends a share of the frame, within its limits: more where frames are long anyway', () => {
+    // Every slice "takes" 1 ms, so the slices run in a frame are the budget in milliseconds.
+    const slicesIn = (dt: number): number => {
+      let clock = 0;
+      const log: number[] = [];
+      const queue = new JobQueue({ share: 0.25, minMs: 4, maxMs: 16 }, () => clock);
+      queue.add(
+        (function* () {
+          for (const step of countTo(100, log)) {
+            clock += 1;
+            yield step;
+          }
+        })(),
+        () => undefined,
+      );
+      queue.frameUpdate(frameOf(dt));
+      return log.length;
+    };
+
+    expect(slicesIn(1 / 144)).toBe(4); // never less than the floor
+    expect(slicesIn(1 / 60)).toBe(5); // a quarter of 16.7 ms
+    expect(slicesIn(1 / 30)).toBe(9);
+    expect(slicesIn(0.25)).toBe(16); // never more than the ceiling
   });
 
   it('runs jobs in order, and never reports a cancelled one', () => {

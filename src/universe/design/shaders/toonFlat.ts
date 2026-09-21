@@ -12,7 +12,8 @@
  * Uniforms (names are the contract with design/materials.ts):
  *   uSunPosition  world position of the light            uShadowTint  linear multiplier for shade
  *   uTint         linear colour, multiplies vertex colour uBandEdges   facing thresholds (x < y)
- *   uMidLevel     how lit the middle band is, 0..1
+ *   uMidLevel     how lit the middle band is, 0..1      uBloomMask   shared: 1 while post-processing
+ *                                                       reads alpha as the bloom guest list
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
  *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies).
  */
@@ -61,10 +62,13 @@ export const toonFlat = {
   `,
 
   fragmentShader: /* glsl */ `
+    uniform float uBloomMask;
     flat varying vec3 vColor;
 
     void main() {
-      gl_FragColor = vec4(vColor, 1.0);
+      // Alpha is the bloom guest list (shaders/post.ts), and a lit surface is not on it: 0 when
+      // somebody reads the list, plain opaque 1 when the picture goes straight to the canvas.
+      gl_FragColor = vec4(vColor, 1.0 - uBloomMask);
       #include <colorspace_fragment>
     }
   `,

@@ -1,15 +1,22 @@
 import {
-  AdditiveBlending,
   BackSide,
   Color,
+  CustomBlending,
   LineBasicMaterial,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
   ShaderMaterial,
+  SrcAlphaFactor,
   Vector2,
   Vector3,
+  ZeroFactor,
   type IUniform,
+  type Material,
+  type Texture,
 } from 'three';
 import { dust } from './shaders/dust';
 import { glow } from './shaders/glow';
+import { bloomDown, bloomUp, composite } from './shaders/post';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
 import { tokens } from './tokens';
@@ -39,6 +46,19 @@ const toonLook = {
   uMidLevel: { value: tuning.shading.midLevel },
 };
 
+/**
+ * THE BLOOM GUEST LIST lives in the picture's alpha channel (shaders/post.ts), but only while
+ * somebody reads it. three.js always gives the canvas an alpha channel, so a picture that goes
+ * straight to the canvas must be opaque there, or the page would shine through it. One switch,
+ * shared by reference with every material that writes alpha: 1 = write the list, 0 = write 1.
+ */
+const bloomMask = { value: 1 };
+
+/** main.ts says which, once, from the quality tier: is there post-processing to read the list? */
+export function setBloomMask(enabled: boolean): void {
+  bloomMask.value = enabled ? 1 : 0;
+}
+
 /** Re-read the look constants after tuning changed at run time (the dev panel). */
 export function refreshToonLook(): void {
   toonLook.uBandEdges.value.set(...tuning.shading.bandEdges);
@@ -65,6 +85,7 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     fragmentShader: toonFlat.fragmentShader,
     uniforms: {
       ...toonLook,
+      uBloomMask: bloomMask,
       uSunPosition: { value: KEY_LIGHT_POSITION.clone() },
       uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
     },
@@ -74,20 +95,28 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
   return material as ToonMaterial;
 }
 
-export type GlowMaterial = ShaderMaterial & { uniforms: { uIntensity: IUniform<number> } };
+export type GlowMaterial = ShaderMaterial & {
+  uniforms: { uIntensity: IUniform<number>; uBloom: IUniform<number> };
+};
 
 /**
  * For things that are light themselves, or that no sun should shade (shaders/glow.ts). Colours
  * come from the geometry; `tint` (a token hex) multiplies them, so a white model can be reused
- * in any colour.
+ * in any colour. `bloom` (0 to 1) is how much of it bleeds into the picture around it.
  */
-export function createGlowMaterial(options: { intensity: number; tint?: string }): GlowMaterial {
+export function createGlowMaterial(options: {
+  intensity: number;
+  bloom?: number;
+  tint?: string;
+}): GlowMaterial {
   const material = new ShaderMaterial({
     name: 'glow',
     vertexShader: glow.vertexShader,
     fragmentShader: glow.fragmentShader,
     uniforms: {
       uIntensity: { value: options.intensity },
+      uBloom: { value: options.bloom ?? 0 },
+      uBloomMask: bloomMask,
       uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
     },
     vertexColors: true,
@@ -95,14 +124,32 @@ export function createGlowMaterial(options: { intensity: number; tint?: string }
   return material as GlowMaterial;
 }
 
+/**
+ * The alpha channel of the picture is the bloom guest list (shaders/post.ts), so anything
+ * SEE-THROUGH must blend its colour and leave alpha as it found it, or every star and every
+ * orbit line would glow a little. `additive`: light that adds up (stars, dust) instead of paint
+ * that covers (lines).
+ */
+function keepBloomMask<T extends Material>(material: T, additive: boolean): T {
+  material.blending = CustomBlending;
+  material.blendSrc = SrcAlphaFactor;
+  material.blendDst = additive ? OneFactor : OneMinusSrcAlphaFactor;
+  material.blendSrcAlpha = ZeroFactor;
+  material.blendDstAlpha = OneFactor;
+  return material;
+}
+
 /** Thin guide lines drawn in the world: orbit rings now, motorway lanes later. */
 export function createLineMaterial(options: { color: string; opacity: number }): LineBasicMaterial {
-  return new LineBasicMaterial({
-    color: new Color(options.color),
-    transparent: true,
-    opacity: options.opacity,
-    depthWrite: false,
-  });
+  return keepBloomMask(
+    new LineBasicMaterial({
+      color: new Color(options.color),
+      transparent: true,
+      opacity: options.opacity,
+      depthWrite: false,
+    }),
+    false,
+  );
 }
 
 export function createBackdropMaterial(): ShaderMaterial {
@@ -125,6 +172,7 @@ export function createBackdropMaterial(): ShaderMaterial {
     vertexShader: backdrop.vertexShader,
     fragmentShader: backdrop.fragmentShader,
     uniforms: {
+      uBloomMask: bloomMask,
       uDeep: { value: new Color(tokens.color.space[950]) },
       uHorizon: { value: new Color(tokens.color.space[800]) },
       uHorizonFalloff: { value: horizonFalloff },
@@ -159,9 +207,8 @@ export function createStarMaterial(options: { twinkle: boolean }): StarMaterial 
     },
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
   });
-  return material as StarMaterial;
+  return keepBloomMask(material, true) as StarMaterial;
 }
 
 export type DustMaterial = ShaderMaterial & {
@@ -190,7 +237,77 @@ export function createDustMaterial(options: { streaks: boolean }): DustMaterial 
     },
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
   });
-  return material as DustMaterial;
+  return keepBloomMask(material, true) as DustMaterial;
+}
+
+// --- post-processing (fx/PostFX.ts) ------------------------------------------------------------------
+
+/** A pass reads pictures and writes one: nothing to test against, nothing to blend with. */
+function createPassMaterial(
+  name: string,
+  shader: { vertexShader: string; fragmentShader: string },
+  uniforms: Record<string, IUniform>,
+  defines: Record<string, string> = {},
+): ShaderMaterial {
+  return new ShaderMaterial({
+    name,
+    ...shader,
+    uniforms,
+    defines,
+    depthTest: false,
+    depthWrite: false,
+  });
+}
+
+export type BloomDownMaterial = ShaderMaterial & {
+  uniforms: { tInput: IUniform<Texture | null>; uTexel: IUniform<Vector2> };
+};
+
+/** Halves a picture. `masked`: the first halving, which reads the scene through its guest list. */
+export function createBloomDownMaterial(options: { masked: boolean }): BloomDownMaterial {
+  return createPassMaterial(
+    options.masked ? 'bloomDownMasked' : 'bloomDown',
+    bloomDown,
+    { tInput: { value: null }, uTexel: { value: new Vector2() } },
+    options.masked ? { MASKED: '' } : {},
+  ) as BloomDownMaterial;
+}
+
+export type BloomUpMaterial = ShaderMaterial & {
+  uniforms: {
+    tInput: IUniform<Texture | null>;
+    tBase: IUniform<Texture | null>;
+    uTexel: IUniform<Vector2>;
+    uRadius: IUniform<number>;
+  };
+};
+
+export function createBloomUpMaterial(): BloomUpMaterial {
+  return createPassMaterial('bloomUp', bloomUp, {
+    tInput: { value: null },
+    tBase: { value: null },
+    uTexel: { value: new Vector2() },
+    uRadius: { value: tuning.post.bloomRadius },
+  }) as BloomUpMaterial;
+}
+
+export type CompositeMaterial = ShaderMaterial & {
+  uniforms: {
+    tScene: IUniform<Texture | null>;
+    tBloom: IUniform<Texture | null>;
+    uBloomStrength: IUniform<number>;
+    uVignette: IUniform<number>;
+    uVignetteRange: IUniform<Vector2>;
+  };
+};
+
+export function createCompositeMaterial(): CompositeMaterial {
+  return createPassMaterial('composite', composite, {
+    tScene: { value: null },
+    tBloom: { value: null },
+    uBloomStrength: { value: tuning.post.bloomStrength },
+    uVignette: { value: tuning.post.vignette },
+    uVignetteRange: { value: new Vector2(...tuning.post.vignetteRange) },
+  }) as CompositeMaterial;
 }
