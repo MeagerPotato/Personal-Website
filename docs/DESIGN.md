@@ -45,6 +45,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system: lit side, highlight, tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text; the keyboard focus ring |
 | `color.star` | `warm cool white` | starfield tints |
+| `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
 
 Rules: body text at least 4.5:1, large text 3:1, re-measure whenever either side of a pairing
 changes. Each system owns one family; a planet's label, lane colour and panel accent all come from
@@ -87,6 +88,23 @@ map view is the same perspective camera at a very narrow field of view (so nothi
 flatten to discs in map mode, motorway lanes are rounded and colour-coded by system.
 A2 decides: shading band positions and softness, biome colour bands, starfield density and size,
 backdrop treatment, post-processing amounts, the look of map mode and of the lanes.
+
+**Where each knob lives (first pass, all free to change):**
+
+| What | Where |
+| --- | --- |
+| The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| The colour of shadow | `tokens.color.shading.shadow` |
+| Which token feeds which shader input | `design/materials.ts` |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `sky.ts` (backdrop and stars), `dust.ts` |
+| The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
+| Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
+| Space dust: count, size, brightness, streak length | `tuning.dust` |
+
+Two things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
+procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8
+bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that
+line if you rewrite the shader.
 
 ## Accessibility bar (non-negotiable)
 

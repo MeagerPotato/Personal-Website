@@ -52,8 +52,59 @@ export const tuning = {
 
   camera: {
     fovDegrees: 55,
-    near: 0.1,
-    far: 2000,
+    /**
+     * Nothing comes closer to the camera than a few units, and a far-away system must still draw,
+     * so the depth range is pushed out at both ends. (The sky ignores it: see shaders/sky.ts.)
+     */
+    near: 0.5,
+    far: 12000,
+  },
+
+  /** The three bands of the toon shader (shaders/toonFlat.ts). */
+  shading: {
+    /**
+     * A facet's "facing" is the cosine of the angle between its normal and the direction to the
+     * sun: 1 faces it, 0 is edge-on, -1 faces away. Below the first edge a facet is in shade;
+     * above the second it is fully lit; between them it is the middle band.
+     */
+    bandEdges: [-0.12, 0.38],
+    /** How lit the middle band is: 0 = same as shade, 1 = same as lit. */
+    midLevel: 0.55,
+  },
+
+  /** The backdrop behind the stars (world/Backdrop.ts). */
+  backdrop: {
+    /** Higher = a thinner, sharper glow along the horizon. */
+    horizonFalloff: 3.2,
+    /**
+     * Up to four huge, soft glows of colour at fixed places in the sky. `theme` picks a colour
+     * family from tokens (its shade); `direction` is [x, y, z] and need not be normalised (y is
+     * up: the chase camera looks slightly down, so glows below the horizon are seen the most);
+     * `tightness` is how small the glow is (4 = a third of the sky, 12 = a patch); `strength` is
+     * how much colour is added at its centre. Keep them whisper-quiet.
+     */
+    glows: [
+      { theme: 'lilac', direction: [-0.7, -0.35, -0.6], tightness: 5, strength: 0.075 },
+      { theme: 'sky', direction: [0.8, 0.1, -0.55], tightness: 7, strength: 0.065 },
+      { theme: 'coral', direction: [0.25, -0.5, 0.85], tightness: 9, strength: 0.05 },
+      { theme: 'mint', direction: [-0.6, 0.45, 0.65], tightness: 8, strength: 0.04 },
+    ],
+  },
+
+  /** Space dust: the motes that slide past and tell you that you are moving (world/SpaceDust.ts). */
+  dust: {
+    seed: 'allenkh-dust',
+    count: 520,
+    countCoarse: 260,
+    /** The motes live in a box this size (x, y, z in units) that follows the ship. */
+    box: [260, 70, 260],
+    /** World radius of an average mote, in units, and how much sizes vary around it. */
+    radius: 0.075,
+    sizeVariation: 0.6,
+    brightnessMin: 0.25,
+    opacity: 0.6,
+    /** A streak shows this many seconds of motion. 0 under reduced motion. */
+    streakSec: 0.045,
   },
 
   starfield: {
@@ -61,9 +112,6 @@ export const tuning = {
     seed: 'allenkh-starfield',
     count: 4000,
     countCoarse: 2000,
-    /** Stars live on a thick shell around the camera, far enough to read as "infinitely far". */
-    radiusMin: 400,
-    radiusMax: 1000,
     /** Point size in CSS px. Sizes are cubed-random: many small stars, few large ones. */
     sizeMin: 1.1,
     sizeMax: 3.4,

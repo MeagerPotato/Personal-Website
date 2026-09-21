@@ -90,7 +90,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, (later) materials, shaders, asset manifest | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), later the asset manifest | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `core/`, `sim/`, `world/` … | Claude |
@@ -128,6 +128,13 @@ a logic change: ask for it instead.
 
 **Add a design token.** Add the key to `tokens.ts`. It is now also the CSS custom property
 `--<path-in-kebab-case>` on `:root`. Use it; never copy its value.
+
+**Add a material or a shader.** GLSL goes in `design/shaders/<name>.ts` with its uniforms listed
+in the header comment (uniform names are the contract with logic). A factory in
+`design/materials.ts` binds tokens and tuning to those uniforms; logic asks for a material by what
+it is for and tracks it in a `Scope`. Custom shaders end with `#include <colorspace_fragment>`.
+Anything that is part of the sky draws at the far plane (`clip.z = clip.w`) and ignores the
+camera's position: see `shaders/sky.ts`.
 
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.
