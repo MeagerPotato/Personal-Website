@@ -285,7 +285,8 @@ catches what a schema cannot: a missing `system`/`parent`/`related` target, a mo
 published moon under a draft planet, two systems claiming one `order`, a system grown too large.
 It lists every problem at once, and its output is the static `/universe.json` the engine reads.
 
-**Add a log post.** Arrives with the blog (Phase 5).
+**Add a log post.** The blog will be its own site at `blog.allenkh.com` (Phase 5, docs/PLAN.md §9);
+nothing on this site hosts posts.
 
 ## Working together
 

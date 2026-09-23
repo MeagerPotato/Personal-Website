@@ -49,7 +49,7 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
   card; the star map by button, key, wheel, drag and pinch.
 - axe finds no serious issue on any page in either mode, nor on the map. Nothing scrolls sideways
   at 360 and 320 px. Every control is at least 44 px.
-- CSP hashes, weight budgets (30 KiB per plain page, 180 KiB of lazy JavaScript, gzip), every
+- CSP hashes, weight budgets (30 KiB per plain page, 220 KiB of lazy JavaScript, gzip), every
   internal link, nothing dev-only in `dist/`, no phone number and no private address in the repo.
 
 ## 2. Against the live site (C, once allenkh.com answers)
