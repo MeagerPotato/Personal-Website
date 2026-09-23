@@ -6,6 +6,14 @@
  * tokens (src/universe/design/tokens.ts), exposed here as --custom-properties. Never write a hex
  * colour in this file.
  *
+ * THE LOOK (A1, "roadmap"): Mini Motorways taken literally. The UI is signage and map legend on a
+ * flat navy ground: one geometric face (Outfit), solid pill chips, the system families used as
+ * FILLS (route signs, tags, primary buttons, the panel's top band), and thin route lines with
+ * stations as the only ornament: a list of projects is a transit line, moons branch off on a
+ * dotted spur, a career is a line of stops. Over the 3D world every control is a chip on a navy
+ * plate (--hud) opaque enough to read on the brightest thing behind it. Tiles cast a flat hard
+ * ledge (--ledge) instead of a soft shadow; nothing has a gradient on its surface.
+ *
  * Structure:  0. typefaces (candidates for A1: a face that no token names is never downloaded)
  *             1. base = PLAIN MODE (also what no-JS visitors and print get)
  *                1a. page frame   1b. type   1c. theme and biome colours   1d. components
@@ -87,6 +95,25 @@
   box-sizing: border-box;
 }
 
+/*
+ * The design's own vocabulary, read by the rules below. Not tokens: nothing outside this file
+ * needs them.
+ *   --ground     what lies under a route line, so a station can cut the line where it sits
+ *   --line       the width of a route line
+ *   --stop       the size of a planet's station on a line
+ *   --ledge      the flat, hard shadow under a tile or a key (Mini Motorways' blocks cast one)
+ *   --theme-*    the colour family in force: a solar system's (1c), else the home system's butter
+ */
+:root {
+  --ground: var(--color-space-900);
+  --line: 0.1875rem;
+  --stop: 3rem;
+  --ledge: 0.1875rem;
+  --theme-base: var(--color-system-butter-base);
+  --theme-light: var(--color-system-butter-light);
+  --theme-shade: var(--color-system-butter-shade);
+}
+
 html {
   color-scheme: dark;
   -webkit-text-size-adjust: 100%;
@@ -94,19 +121,23 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Flat navy ground with a faint map grid: a transit map drawn in space. */
 body {
   margin: 0;
   min-height: 100dvh;
   color: var(--color-ink-high);
-  background:
-    radial-gradient(ellipse 80% 60% at 15% -10%, var(--color-space-700), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 100% 110%, var(--color-space-800), transparent 70%),
-    var(--color-space-900);
-  background-attachment: fixed;
+  background-color: var(--color-space-900);
+  background-image: radial-gradient(
+    circle,
+    var(--color-space-700) 0.0625rem,
+    transparent 0.09375rem
+  );
+  background-size: 1.5rem 1.5rem;
   font-family: var(--font-body);
   font-size: var(--text-base);
-  line-height: 1.65;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
 }
 
 #universe-host,
@@ -119,9 +150,9 @@ body {
   grid-template-rows: auto 1fr auto;
   gap: var(--space-12);
   min-height: 100dvh;
-  max-width: 44rem;
+  max-width: 45rem;
   margin-inline: auto;
-  padding: var(--space-8) max(var(--space-6), env(safe-area-inset-left))
+  padding: var(--space-6) max(var(--space-6), env(safe-area-inset-left))
     max(var(--space-8), env(safe-area-inset-bottom)) max(var(--space-6), env(safe-area-inset-right));
 }
 
@@ -130,61 +161,83 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0 var(--space-6);
+  gap: var(--space-2) var(--space-6);
 }
 
 .site-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-4);
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/*
+ * The nav is a row of chips. The chip you can see is 36 px tall; the transparent border makes the
+ * link itself a 44 px touch target without making the chip chunky.
+ */
 .site-nav a {
-  /* 44 px touch target. */
-  display: inline-block;
-  padding: var(--space-3) var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-block: 0.25rem solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: padding-box;
   color: var(--color-ink-mid);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1;
   text-decoration: none;
+  transition:
+    color var(--motion-fast) var(--motion-ease-out),
+    background-color var(--motion-fast) var(--motion-ease-out);
 }
 
-.site-nav a:hover,
-.site-nav a[aria-current] {
+.site-nav a:hover {
   color: var(--color-ink-high);
+  background-color: var(--color-surface-raised);
 }
 
-.site-nav a[aria-current] {
-  text-decoration: underline;
-  text-decoration-color: var(--color-focus);
-  text-decoration-thickness: 0.14em;
-  text-underline-offset: 0.45em;
+/* You are here: the one filled chip in the row. */
+.site-nav a[aria-current],
+.site-nav a[aria-current]:hover {
+  color: var(--color-space-900);
+  background-color: var(--color-ink-high);
 }
 
+.site-nav a:focus-visible {
+  outline-offset: -0.0625rem;
+}
+
+/* The wordmark: the name, then a little transit line of three stations. */
 .wordmark {
-  display: inline-block;
-  padding: var(--space-2) 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
   color: var(--color-ink-high);
   font-size: var(--text-lg);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
   text-decoration: none;
 }
 
 .wordmark::after {
   content: '';
-  display: inline-block;
-  width: 0.5em;
+  flex: none;
+  width: 1.9em;
   height: 0.5em;
-  margin-left: 0.35em;
-  border-radius: var(--radius-pill);
-  background: var(--color-system-coral-base);
-  box-shadow:
-    0.85em 0 0 -0.08em var(--color-system-butter-base),
-    1.6em 0 0 -0.14em var(--color-system-mint-base);
+  margin-left: 0.45em;
+  background:
+    radial-gradient(circle closest-side, var(--color-system-coral-base) 92%, transparent) 0 50% /
+      0.5em 0.5em no-repeat,
+    radial-gradient(circle closest-side, var(--color-system-butter-base) 92%, transparent) 50% 50% /
+      0.5em 0.5em no-repeat,
+    radial-gradient(circle closest-side, var(--color-system-mint-base) 92%, transparent) 100% 50% /
+      0.5em 0.5em no-repeat,
+    linear-gradient(var(--color-ink-low), var(--color-ink-low)) 50% 50% / 90% 0.1em no-repeat;
 }
 
 main {
@@ -209,28 +262,36 @@ h3,
 
 h1 {
   font-size: var(--text-display);
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
   text-wrap: balance;
 }
 
+/* A route sign: the kind of place this is, on a plate in the colour of its system. */
 .eyebrow {
-  color: var(--color-system-butter-base);
-  font-family: var(--font-mono);
+  width: fit-content;
+  padding: 0.35em 0.8em 0.3em;
+  border-radius: var(--radius-sm);
+  color: var(--color-space-900);
+  background: var(--theme-base);
+  font-family: var(--font-display);
   font-size: var(--text-xs);
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .eyebrow + h1 {
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .lede {
   color: var(--color-ink-high);
   font-size: var(--text-lg);
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 1.45;
   text-wrap: pretty;
 }
 
@@ -242,8 +303,8 @@ p {
 
 a {
   color: var(--color-accent);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.2em;
+  text-decoration-thickness: 0.09em;
+  text-underline-offset: 0.22em;
   transition: color var(--motion-fast) var(--motion-ease-out);
 }
 
@@ -266,9 +327,10 @@ h1[tabindex='-1']:focus-visible {
   outline: none;
 }
 
+/* A legend: the name, a dotted leader, what it is. */
 .links {
   display: grid;
-  gap: var(--space-3);
+  gap: 0;
   padding: 0;
   list-style: none;
 }
@@ -276,40 +338,53 @@ h1[tabindex='-1']:focus-visible {
 .links li {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-4);
-  padding: var(--space-4) var(--space-6);
-  border: 1px solid var(--color-surface-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-panel);
+  align-items: center;
+  gap: 0 var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-surface-line);
+}
+
+.links li:first-child {
+  border-top: 1px solid var(--color-surface-line);
+}
+
+.links li::before {
+  content: '';
+  order: 1;
+  flex: 1 1 2rem;
+  min-width: 2rem;
+  border-bottom: 0.125rem dotted var(--color-surface-line);
 }
 
 .links a {
-  /* 44 px touch target without changing the visual rhythm. */
-  display: inline-block;
-  min-width: 6.5rem;
-  padding-block: var(--space-2);
-  font-weight: 700;
+  /* 44 px touch target. */
+  display: inline-flex;
+  align-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  font-weight: 600;
 }
 
 .links span {
-  color: var(--color-ink-low);
+  order: 2;
+  color: var(--color-ink-mid);
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 
 /* 1b. Type ------------------------------------------------------------------------------------ */
 
 h2 {
   font-size: var(--text-lg);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
 h3 {
   font-size: var(--text-base);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -340,35 +415,49 @@ main > .resume-section {
 /* 1c. Theme and biome colours ---------------------------------------------------------------------
  * A solar system's colour family (data-theme) and a planet's surface palette (data-biome), as
  * local custom properties. A new token key needs a block here, which is one reason keys are API.
+ *
+ * A page whose header names a family (a system, a project) hands it to everything in the page and
+ * to the panel round it, through :has(): route lines, chips, the panel's top band. Anything
+ * without one is in the home system, which is butter (:root, 1a).
  */
 
-[data-theme='coral'] {
+[data-theme='coral'],
+.panel:has(> main > .page-header[data-theme='coral']) {
   --theme-base: var(--color-system-coral-base);
   --theme-light: var(--color-system-coral-light);
+  --theme-shade: var(--color-system-coral-shade);
 }
 
-[data-theme='butter'] {
+[data-theme='butter'],
+.panel:has(> main > .page-header[data-theme='butter']) {
   --theme-base: var(--color-system-butter-base);
   --theme-light: var(--color-system-butter-light);
+  --theme-shade: var(--color-system-butter-shade);
 }
 
-[data-theme='mint'] {
+[data-theme='mint'],
+.panel:has(> main > .page-header[data-theme='mint']) {
   --theme-base: var(--color-system-mint-base);
   --theme-light: var(--color-system-mint-light);
+  --theme-shade: var(--color-system-mint-shade);
 }
 
-[data-theme='sky'] {
+[data-theme='sky'],
+.panel:has(> main > .page-header[data-theme='sky']) {
   --theme-base: var(--color-system-sky-base);
   --theme-light: var(--color-system-sky-light);
+  --theme-shade: var(--color-system-sky-shade);
 }
 
-[data-theme='lilac'] {
+[data-theme='lilac'],
+.panel:has(> main > .page-header[data-theme='lilac']) {
   --theme-base: var(--color-system-lilac-base);
   --theme-light: var(--color-system-lilac-light);
+  --theme-shade: var(--color-system-lilac-shade);
 }
 
 [data-theme] .eyebrow {
-  color: var(--theme-base);
+  background: var(--theme-base);
 }
 
 [data-biome='terra'] {
@@ -421,27 +510,42 @@ main > .resume-section {
 
 /* 1d. Components ---------------------------------------------------------------------------------- */
 
+/* Where this page sits, drawn as a route: Projects ── Code. */
 .crumbs ol {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-2);
-  margin: 0;
+  align-items: center;
+  gap: 0 var(--space-1);
+  /* The links' side padding hangs into the margin, so the first word lines up with the page. */
+  margin: 0 0 0 -0.3125rem;
   padding: 0;
   color: var(--color-ink-low);
   font-size: var(--text-sm);
   list-style: none;
 }
 
+.crumbs li {
+  display: flex;
+  align-items: center;
+}
+
+/* A flex item: the space the markup puts after the segment collapses, so the margin spaces it. */
 .crumbs li + li::before {
-  content: '/';
-  /* The markup already puts a space between the slash and the link. */
+  content: '';
+  width: 1rem;
+  height: 0.125rem;
   margin-right: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--theme-base);
 }
 
 .crumbs a {
   display: inline-block;
-  padding-block: var(--space-3);
+  min-width: 2.75rem;
+  padding: var(--space-3) 0.3125rem;
   color: var(--color-ink-mid);
+  text-align: center;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -457,64 +561,99 @@ main > .resume-section {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-3) var(--space-3);
   padding: 0;
   list-style: none;
 }
 
+/*
+ * Buttons are keys: a flat pill on a hard ledge, which it drops onto when pressed. The primary
+ * one is filled in the page's family (sky on a project in the Code system).
+ */
 .button {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0 var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  border: 1px solid var(--color-surface-line);
+  padding: var(--space-3) 1.25rem;
+  border: 0;
   border-radius: var(--radius-pill);
   color: var(--color-ink-high);
   background: var(--color-surface-raised);
-  font-weight: 700;
+  box-shadow: 0 var(--ledge) 0 var(--color-space-950);
+  font-weight: 600;
+  line-height: 1.5;
   text-decoration: none;
   transition:
     color var(--motion-fast) var(--motion-ease-out),
-    background-color var(--motion-fast) var(--motion-ease-out),
-    border-color var(--motion-fast) var(--motion-ease-out);
+    background-color var(--motion-fast) var(--motion-ease-out);
 }
 
 .button:hover {
-  border-color: var(--color-accent);
+  color: var(--color-ink-high);
+  background: var(--color-surface-line);
+}
+
+.button:active {
+  box-shadow: none;
+  transform: translateY(var(--ledge));
 }
 
 .button--primary {
-  border-color: transparent;
   color: var(--color-space-900);
-  background: var(--color-accent);
+  background: var(--theme-base);
+  box-shadow: 0 var(--ledge) 0 var(--theme-shade);
 }
 
 .button--primary:hover {
   color: var(--color-space-900);
-  background: var(--color-ink-high);
+  background: var(--theme-light);
 }
 
 .button__host {
   font-size: var(--text-sm);
   font-weight: 400;
-  opacity: 0.8;
 }
 
+/*
+ * A list of projects is a transit line: every planet is a station on one route line in its
+ * system's colour, running from the first station to an end-of-line bar. Moons branch off on a
+ * dotted spur. No boxes: this is a legend, not a stack of cards.
+ */
 .cards {
+  position: relative;
   display: grid;
-  gap: var(--space-4);
-  padding: 0;
+  gap: var(--space-8);
+  padding: 0 0 var(--space-6);
   list-style: none;
+}
+
+.cards::before,
+.cards::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  background: var(--theme-base);
+}
+
+/* The line... */
+.cards::before {
+  top: calc(var(--stop) / 2);
+  left: calc(var(--stop) / 2 - var(--line) / 2);
+  width: var(--line);
+}
+
+/* ...and where it ends. */
+.cards::after {
+  left: calc(var(--stop) / 2 - 0.625rem);
+  width: 1.25rem;
+  height: var(--line);
 }
 
 .card {
   display: flex;
   gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--color-surface-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-panel);
 }
 
 .card__body {
@@ -522,6 +661,7 @@ main > .resume-section {
   flex: 1;
   gap: var(--space-2);
   min-width: 0;
+  padding-top: 0.55rem;
 }
 
 .card__body > * {
@@ -530,14 +670,16 @@ main > .resume-section {
 
 .card__title {
   font-size: var(--text-lg);
+  font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .card__title a,
 .card__moons a {
   /* A tall touch target that does not loosen the card's rhythm. */
   display: inline-block;
-  margin-block: calc(var(--space-2) * -1);
+  margin-block: calc(var(--space-3) * -1);
   padding-block: var(--space-3);
   color: var(--color-ink-high);
   text-decoration: none;
@@ -551,46 +693,88 @@ main > .resume-section {
 
 .card__summary {
   font-size: var(--text-sm);
+  line-height: 1.55;
 }
 
-.card__meta {
-  color: var(--color-ink-low);
-  font-family: var(--font-mono);
+/* Status as a chip in the legend. */
+.card__body > .card__meta {
+  width: fit-content;
+  margin-top: var(--space-1);
+  padding: 0.3em 0.75em 0.25em;
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-mid);
   font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.3;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.card__moons {
+.card__body > .card__moons {
   display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
-  padding: var(--space-4) 0 0;
-  border-top: 1px dashed var(--color-surface-line);
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  padding: 0;
   list-style: none;
 }
 
 .card__moons li {
+  position: relative;
   display: flex;
   gap: var(--space-3);
 }
 
+/* The spur: dotted, from the planet's text down to each moon in turn. */
+.card__moons li::before,
+.card__moons li::after {
+  content: '';
+  position: absolute;
+  left: calc(0.75rem - 0.0625rem);
+  border-left: 0.125rem dotted var(--theme-base);
+}
+
+.card__moons li::before {
+  top: calc(var(--space-4) * -1);
+  height: calc(var(--space-4) + 0.85rem);
+}
+
+.card__moons li:first-child::before {
+  top: calc(var(--space-3) * -1);
+  height: calc(var(--space-3) + 0.85rem);
+}
+
+.card__moons li::after {
+  top: 0.85rem;
+  bottom: 0;
+}
+
+.card__moons li:last-child::after {
+  display: none;
+}
+
 .card__moons a {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .card__moon-summary {
   display: block;
-  color: var(--color-ink-low);
+  margin-top: var(--space-1);
+  color: var(--color-ink-mid);
   font-size: var(--text-sm);
+  line-height: 1.55;
 }
 
 /* A toy planet, flat-shaded like the 3D ones: sea, two landmasses with a shoreline, a polar cap,
-   and a tinted (never black) shadow side. Colours come from the nearest data-biome. */
+   and a tinted (never black) shadow side. Colours come from the nearest data-biome. On a route
+   line it is a station: a ring of the ground cuts the line, and a ring of the line's colour
+   holds the planet. */
 .planet-dot {
+  position: relative;
+  z-index: 1;
   flex: none;
-  width: 3rem;
-  height: 3rem;
+  width: var(--stop);
+  height: var(--stop);
   border-radius: var(--radius-pill);
   background:
     radial-gradient(ellipse 16% 9% at 56% 9%, var(--planet-peak) 98%, transparent),
@@ -600,20 +784,72 @@ main > .resume-section {
     radial-gradient(ellipse 19% 13% at 70% 72%, var(--planet-low) 98%, transparent),
     radial-gradient(ellipse 24% 18% at 70% 72%, var(--planet-shore) 98%, transparent),
     var(--planet-sea);
-  box-shadow: inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent);
+  box-shadow:
+    inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.1875rem var(--ground),
+    0 0 0 calc(0.1875rem + var(--line)) var(--theme-base);
 }
 
 .planet-dot--moon {
   width: 1.5rem;
   height: 1.5rem;
   margin-top: 0.1rem;
-  box-shadow: inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent);
+  box-shadow:
+    inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.125rem var(--ground),
+    0 0 0 0.25rem var(--theme-base);
+}
+
+/*
+ * A solar system on the projects page: its sun is the first station (the terminus), and one
+ * line in its family runs from it through every planet to the end-of-line bar.
+ */
+.system {
+  position: relative;
+  padding-bottom: var(--space-6);
+}
+
+.system::before,
+.system::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  background: var(--theme-base);
+}
+
+.system::before {
+  top: 1.5rem;
+  left: calc(var(--stop) / 2 - var(--line) / 2);
+  width: var(--line);
+}
+
+.system::after {
+  left: calc(var(--stop) / 2 - 0.625rem);
+  width: 1.25rem;
+  height: var(--line);
+}
+
+.system .cards {
+  padding-bottom: 0;
+}
+
+.system .cards::before,
+.system .cards::after {
+  display: none;
 }
 
 .system > h2 {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 1.625rem;
+  min-height: 3rem;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
+
+.system > p {
+  padding-left: calc(var(--stop) + var(--space-4));
 }
 
 .system > h2 a {
@@ -628,22 +864,30 @@ main > .resume-section {
 }
 
 .sun-dot {
+  position: relative;
+  z-index: 1;
   flex: none;
-  width: 0.8em;
-  height: 0.8em;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: calc(var(--stop) / 2 - 0.875rem);
   border-radius: var(--radius-pill);
   background: var(--theme-base);
-  box-shadow: 0 0 0 0.22em color-mix(in srgb, var(--theme-base) 28%, transparent);
+  box-shadow:
+    0 0 0 0.25rem var(--ground),
+    0 0 0 calc(0.25rem + var(--line)) var(--theme-base);
 }
 
+/* The facts about a project: a legend plate with its system's colour band across the top. */
 .facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--space-4) var(--space-6);
-  padding: var(--space-6);
-  border: 1px solid var(--color-surface-line);
+  padding: calc(var(--space-6) + 0.25rem) var(--space-6) var(--space-6);
   border-radius: var(--radius-md);
   background: var(--color-surface-panel);
+  box-shadow:
+    inset 0 0.25rem 0 var(--theme-base),
+    0 var(--ledge) 0 var(--color-space-950);
 }
 
 .facts > div {
@@ -655,10 +899,10 @@ main > .resume-section {
 }
 
 .facts dt {
-  color: var(--color-ink-low);
-  font-family: var(--font-mono);
+  color: var(--theme-light);
   font-size: var(--text-xs);
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
@@ -667,6 +911,7 @@ main > .resume-section {
   color: var(--color-ink-high);
 }
 
+/* What it is built with: chips filled in the system's colour. */
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -677,12 +922,13 @@ main > .resume-section {
 }
 
 .tags li {
-  padding: 0.1em 0.75em;
-  border: 1px solid var(--color-surface-line);
+  padding: 0.2em 0.75em 0.15em;
   border-radius: var(--radius-pill);
-  color: var(--color-ink-mid);
-  background: var(--color-surface-raised);
+  color: var(--color-space-900);
+  background: var(--theme-base);
   font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 picture {
@@ -713,7 +959,7 @@ picture {
 
 .gallery figcaption {
   margin-top: var(--space-2);
-  color: var(--color-ink-low);
+  color: var(--color-ink-mid);
   font-size: var(--text-sm);
 }
 
@@ -727,8 +973,21 @@ picture {
   margin-top: var(--space-4);
 }
 
+/* Headings in running text are stops along the page: a station ring in the page's family. */
 .prose > h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   margin-top: var(--space-12);
+}
+
+.prose > h2::before {
+  content: '';
+  flex: none;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  border: var(--line) solid var(--theme-base);
+  border-radius: var(--radius-pill);
 }
 
 .prose > h3 {
@@ -739,7 +998,7 @@ picture {
 .prose--lede > p:first-child {
   color: var(--color-ink-high);
   font-size: var(--text-lg);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .prose ul,
@@ -754,11 +1013,12 @@ picture {
 }
 
 .prose li::marker {
-  color: var(--color-ink-low);
+  color: var(--theme-base);
 }
 
 .prose strong {
   color: var(--color-ink-high);
+  font-weight: 600;
 }
 
 .prose code {
@@ -766,7 +1026,7 @@ picture {
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
 
 .prose pre {
@@ -785,12 +1045,12 @@ picture {
 .prose blockquote {
   margin-inline: 0;
   padding-left: var(--space-4);
-  border-left: 3px solid var(--color-surface-line);
+  border-left: var(--line) solid var(--theme-base);
 }
 
 .prose hr {
   border: 0;
-  border-top: 1px solid var(--color-surface-line);
+  border-top: 0.125rem dotted var(--color-surface-line);
 }
 
 .prose table {
@@ -810,28 +1070,48 @@ picture {
 }
 
 .prose th {
-  color: var(--color-ink-low);
-  font-family: var(--font-mono);
+  border-bottom: var(--line) solid var(--theme-base);
+  color: var(--color-ink-mid);
   font-size: var(--text-xs);
-  font-weight: 400;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
+}
+
+.prose td:first-child {
+  color: var(--color-ink-high);
+  font-weight: 600;
 }
 
 /* 1f. The resume -------------------------------------------------------------------------------- */
 
+/* How to reach Allen: a row of outlined chips (36 px to see, 44 px to press). */
 .resume-contact {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-6);
+  gap: 0 var(--space-2);
   padding: 0;
   font-size: var(--text-sm);
   list-style: none;
 }
 
 .resume-contact a {
-  display: inline-block;
-  padding-block: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border-block: 0.25rem solid transparent;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--color-surface-line);
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color var(--motion-fast) var(--motion-ease-out),
+    box-shadow var(--motion-fast) var(--motion-ease-out);
+}
+
+.resume-contact a:hover {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
 .resume-section > h2 {
@@ -839,11 +1119,40 @@ picture {
   border-bottom: 1px solid var(--color-surface-line);
 }
 
+/* A career is a route too: each role a station on a thin line down the left. */
 .entries {
+  position: relative;
   display: grid;
   gap: var(--space-6);
-  padding: 0;
+  padding: 0 0 0 1.75rem;
   list-style: none;
+}
+
+.entries::before {
+  content: '';
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.25rem;
+  left: calc(0.4375rem - 0.0625rem);
+  width: 0.125rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-line);
+}
+
+.entry {
+  position: relative;
+}
+
+.entry::before {
+  content: '';
+  position: absolute;
+  top: 0.3rem;
+  left: -1.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 0.1875rem solid var(--theme-base);
+  border-radius: var(--radius-pill);
+  background: var(--ground);
 }
 
 .entry > * {
@@ -855,19 +1164,24 @@ picture {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0 var(--space-4);
+  gap: var(--space-1) var(--space-4);
 }
 
 .entry__head > * {
   margin-block: 0;
 }
 
+/* When, as a timetable chip. */
 .entry__when {
-  color: var(--color-ink-low);
-  font-family: var(--font-mono);
+  padding: 0.15em 0.7em 0.1em;
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-mid);
   font-size: var(--text-xs);
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .entry__sub {
@@ -897,7 +1211,7 @@ picture {
 
 .skills dt {
   color: var(--color-ink-high);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .skills dd {
@@ -913,11 +1227,15 @@ picture {
 }
 
 .awards li::marker {
-  color: var(--color-ink-low);
+  color: var(--theme-base);
+}
+
+.awards__title {
+  color: var(--color-ink-high);
 }
 
 .awards__detail {
-  color: var(--color-ink-low);
+  color: var(--color-ink-mid);
 }
 
 .awards__detail::before {
@@ -929,11 +1247,14 @@ picture {
   top: var(--space-4);
   left: var(--space-4);
   z-index: 10;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
   color: var(--color-space-900);
   background: var(--color-focus);
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
   transform: translateY(-300%);
 }
@@ -953,10 +1274,12 @@ picture {
   white-space: nowrap;
 }
 
+/* The end of the page: the way into the other mode, as a chip. */
 .footer {
   display: grid;
   gap: var(--space-3);
-  color: var(--color-ink-low);
+  justify-items: start;
+  color: var(--color-ink-mid);
   font-size: var(--text-sm);
 }
 
@@ -966,8 +1289,37 @@ picture {
 }
 
 .mode-link {
-  display: inline-block;
-  padding-block: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-high);
+  background: var(--color-surface-panel);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color var(--motion-fast) var(--motion-ease-out),
+    background-color var(--motion-fast) var(--motion-ease-out),
+    border-color var(--motion-fast) var(--motion-ease-out);
+}
+
+/* A station marker, so the chip reads as a way in, not a label. */
+.mode-link::before {
+  content: '';
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 0.125rem solid var(--color-accent);
+  border-radius: var(--radius-pill);
+}
+
+.mode-link:hover {
+  color: var(--color-ink-high);
+  border-color: var(--color-accent);
+  background: var(--color-surface-raised);
 }
 
 /* 2. Universe mode ------------------------------------------------------------------------
@@ -975,7 +1327,11 @@ picture {
    becomes a PANEL over the world: a side panel on wide screens, a bottom sheet on narrow ones.
    Whether the panel shows is html[data-panel], set by src/shell/panel.ts; before that script
    runs, the home page (which marks itself with data-home) starts closed, so nothing flashes.
-   Screen only: on paper every page is the plain layout. */
+   Screen only: on paper every page is the plain layout.
+
+   Every control over the world is a CHIP on a navy plate (--hud), opaque enough that its text
+   passes AA over the brightest thing in the world (a white peak, a pale ring, a sun): the
+   contrast never depends on what happens to be behind it. */
 
 .panel {
   align-self: start;
@@ -993,6 +1349,9 @@ picture {
     /* The boost pad, and how far it keeps from the bottom: the dock prompt steps over both. */
     --boost-pad-size: 4.75rem;
     --boost-pad-bottom: max(var(--space-8), calc(env(safe-area-inset-bottom) + var(--space-4)));
+    /* The plate under every chip over the world. */
+    --hud: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
+    --hud-edge: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
   }
 
   html[data-mode='universe'],
@@ -1050,15 +1409,16 @@ picture {
 
   /*
    * Touch controls. The engine creates them and moves them (core/input/TouchControls.ts); this is
-   * how they look. The stick appears under the first finger; the boost pad appears with the first
-   * touch and stays. `--stick-radius` comes from tuning.input.stickRadiusPx.
+   * how they look: white rings and a white knob, like the round tools of Mini Motorways. The stick
+   * appears under the first finger; the boost pad appears with the first touch and stays.
+   * `--stick-radius` comes from tuning.input.stickRadiusPx.
    */
   .touch-stick,
   .touch-boost {
     position: absolute;
-    border: 2px solid color-mix(in srgb, var(--color-ink-high) 30%, transparent);
+    border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 45%, transparent);
     border-radius: 50%;
-    background: color-mix(in srgb, var(--color-surface-panel) 40%, transparent);
+    background: color-mix(in srgb, var(--color-space-950) 35%, transparent);
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -1081,7 +1441,8 @@ picture {
     height: 3rem;
     margin: -1.5rem 0 0 -1.5rem;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--color-ink-high) 65%, transparent);
+    background: color-mix(in srgb, var(--color-ink-high) 85%, transparent);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 50%, transparent);
   }
 
   .touch-boost {
@@ -1091,18 +1452,22 @@ picture {
     place-items: center;
     width: var(--boost-pad-size);
     height: var(--boost-pad-size);
-    color: var(--color-ink-mid);
+    border-color: color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+    color: var(--color-ink-high);
+    background: var(--hud);
     font-size: var(--text-xs);
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     touch-action: none;
   }
 
+  /* Pressed: the pad lights up in coral, the colour of the flame. */
   .touch-boost[data-active] {
-    border-color: var(--color-system-coral-base);
-    background: color-mix(in srgb, var(--color-system-coral-base) 60%, transparent);
-    color: var(--color-space-950);
+    border-color: var(--color-system-coral-light);
+    background: var(--color-system-coral-base);
+    color: var(--color-space-900);
+    transform: scale(0.94);
   }
 
   .touch-stick[hidden],
@@ -1132,24 +1497,27 @@ picture {
   }
 
   /*
-   * How to fly, said once (shell/hints.ts): a card over the open sky for a first-time visitor,
-   * gone for good once they have steered. Only while the world has the whole screen: with the
-   * panel open someone is reading. Keys for a mouse, thumbs for a finger.
+   * How to fly, said once (shell/hints.ts): a legend card over the open sky for a first-time
+   * visitor, gone for good once they have steered. Only while the world has the whole screen:
+   * with the panel open someone is reading. Keys for a mouse, thumbs for a finger.
    */
   html[data-mode='universe'][data-engine='ready'][data-panel='closed'] .flight-hint:not([hidden]) {
     position: fixed;
     z-index: 2;
     left: max(var(--space-6), env(safe-area-inset-left));
-    bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-12));
+    bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-16));
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
     justify-items: start;
     max-width: min(22rem, calc(100% - 2 * var(--space-6)));
-    padding: var(--space-4) var(--space-6);
-    border: 1px solid var(--color-surface-line);
+    padding: calc(var(--space-4) + 0.25rem) var(--space-6) var(--space-4);
+    border: 1px solid var(--hud-edge);
     border-radius: var(--radius-md);
     color: var(--color-ink-mid);
-    background: color-mix(in srgb, var(--color-surface-raised) 86%, transparent);
+    background: var(--color-surface-panel);
+    box-shadow:
+      inset 0 0.25rem 0 var(--color-system-butter-base),
+      0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
     font-size: var(--text-sm);
     line-height: 1.5;
     animation: flight-hint-in var(--motion-slow) var(--motion-ease-out) both;
@@ -1157,28 +1525,36 @@ picture {
 
   .flight-hint ul {
     display: grid;
-    gap: var(--space-2);
+    gap: var(--space-3);
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .flight-hint li {
+    color: var(--color-ink-mid);
   }
 
   .flight-hint .flight-hint__touch {
     display: none;
   }
 
+  /* Key caps: small white keys on a ledge. */
   .flight-hint kbd {
     display: inline-grid;
     place-items: center;
     min-width: 1.5rem;
     height: 1.5rem;
     margin-right: var(--space-1);
-    padding: 0 var(--space-1);
-    border: 1px solid var(--color-ink-low);
+    padding: 0 0.375rem;
     border-radius: var(--radius-sm);
-    color: var(--color-ink-high);
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+    box-shadow: 0 0.125rem 0 var(--color-ink-low);
     font: inherit;
     font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
   }
 
   @media (pointer: coarse) {
@@ -1222,7 +1598,8 @@ picture {
    * Names over the bodies (universe/ui/Labels.ts): real buttons, so a name can be tapped, tabbed
    * to and read out. The engine moves them and decides which may show (`data-shown`) and which
    * one the ship is headed for (`data-state='target'`); this is how they look. The box is a 44 px
-   * touch target with the name at its top, close to the body it belongs to.
+   * touch target with the name at its top, close to the body it belongs to; the name sits on a
+   * small navy tag (::after, the height of the name alone), like a label on a transit map.
    */
   .body-labels {
     position: absolute;
@@ -1241,17 +1618,14 @@ picture {
     min-height: 2.75rem;
     padding: var(--space-1) var(--space-3) 0;
     border: 0;
-    color: var(--color-ink-mid);
+    color: var(--color-ink-high);
     background: none;
     font: inherit;
     font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     line-height: 1.4;
     white-space: nowrap;
-    text-shadow:
-      0 1px 2px var(--color-space-950),
-      0 0 8px var(--color-space-950);
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
@@ -1265,6 +1639,20 @@ picture {
     will-change: transform;
   }
 
+  /* The tag. will-change above makes the button a stacking context, so -1 is still inside it. */
+  .body-label::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: calc(1.4em + 2 * var(--space-1));
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+    transition: background-color var(--motion-fast) var(--motion-ease-out);
+  }
+
   .body-label[data-shown] {
     opacity: 1;
     visibility: visible;
@@ -1272,43 +1660,72 @@ picture {
     transition-delay: 0s;
   }
 
-  /* A sun, or the home planet, names a whole system: set like a name on a map. */
+  /* A sun, or the home planet, names a whole system: set like a district on a map. */
   .body-label[data-kind='sun'],
   .body-label[data-kind='home'] {
+    font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
   .body-label[data-kind='moon'] {
-    color: var(--color-ink-low);
-    font-weight: 400;
+    color: var(--color-ink-mid);
+    font-weight: 500;
   }
 
   .body-label:hover,
-  .body-label:focus-visible,
-  .body-label[data-state='target'] {
+  .body-label:focus-visible {
     color: var(--color-ink-high);
   }
 
-  /* In the padding, out of the flow: the engine measured the name without it. */
-  .body-label[data-state='target']::before {
-    content: '';
-    position: absolute;
-    top: calc(var(--space-1) + 0.5em);
-    left: 0.15rem;
-    width: 0.4em;
-    height: 0.4em;
-    border-radius: var(--radius-pill);
+  .body-label:hover::after {
+    background: var(--color-surface-raised);
+  }
+
+  /* The ring goes round the tag, not round the 44 px box. */
+  .body-label:focus-visible {
+    outline: none;
+  }
+
+  .body-label:focus-visible::after {
+    box-shadow:
+      0 0 0 0.125rem var(--color-space-950),
+      0 0 0 0.25rem var(--color-focus);
+  }
+
+  /* Where the ship is headed: the one tag filled in, with a station dot. */
+  .body-label[data-state='target'],
+  .body-label[data-state='target']:hover {
+    color: var(--color-space-900);
+  }
+
+  /* The tag grows to the left to hold the dot: out of the flow, because the engine measured the
+     name without it. */
+  .body-label[data-state='target']::after {
+    left: -0.75rem;
     background: var(--color-focus);
   }
 
-  html[data-motion='reduced'] .body-label {
+  .body-label[data-state='target']::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--space-1) + 0.45em);
+    left: -0.125rem;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: var(--radius-pill);
+    background: var(--color-space-900);
+  }
+
+  html[data-motion='reduced'] .body-label,
+  html[data-motion='reduced'] .body-label::after {
     transition: none;
   }
 
   /*
    * The dock prompt (universe/ui/Prompt.ts): "Orbit FishAI" within reach of a body, "Leave orbit"
-   * once there. Bottom centre, between the thumbs, clear of the stick and the boost pad.
+   * once there. Bottom centre, between the thumbs, clear of the stick and the boost pad. A chip
+   * with a butter key cap: the one thing in the sky that asks to be pressed.
    */
   .dock-prompt {
     position: absolute;
@@ -1319,14 +1736,15 @@ picture {
     gap: var(--space-3);
     min-height: 2.75rem; /* 44 px touch target */
     max-width: calc(100% - 2 * var(--space-6));
-    padding: 0 var(--space-6);
-    border: 1px solid var(--color-surface-line);
+    padding: 0 var(--space-6) 0 var(--space-4);
+    border: 1px solid var(--hud-edge);
     border-radius: var(--radius-pill);
     color: var(--color-ink-high);
-    background: color-mix(in srgb, var(--color-surface-raised) 86%, transparent);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
     font: inherit;
     font-size: var(--text-sm);
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transform: translateX(-50%);
@@ -1339,6 +1757,7 @@ picture {
 
   .dock-prompt:hover {
     border-color: var(--color-ink-low);
+    background: var(--color-surface-raised);
   }
 
   .dock-prompt span {
@@ -1349,14 +1768,17 @@ picture {
   .dock-prompt kbd {
     display: inline-grid;
     place-items: center;
-    min-width: 1.5rem;
-    height: 1.5rem;
+    min-width: 1.625rem;
+    height: 1.625rem;
     padding: 0 var(--space-1);
-    border: 1px solid var(--color-ink-low);
     border-radius: var(--radius-sm);
-    color: var(--color-ink-mid);
+    color: var(--color-space-900);
+    background: var(--color-focus);
+    box-shadow: 0 0.125rem 0 var(--color-system-butter-shade);
     font: inherit;
     font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
   }
 
   .dock-prompt kbd[hidden] {
@@ -1377,6 +1799,10 @@ picture {
 
   /* A finger has no E key. */
   @media (pointer: coarse) {
+    .dock-prompt {
+      padding-left: var(--space-6);
+    }
+
     .dock-prompt kbd {
       display: none;
     }
@@ -1406,6 +1832,7 @@ picture {
    * The Map button (universe/ui/StarMap.ts): "Map" while flying, "Close map" on the map. Top
    * right of the free view, just under the links of the top bar, whose reach the shell measures
    * (--panel-inset-top, src/shell/panel-inset.ts); the fallback is the bar on a wide screen.
+   * While the map is up it is the filled chip: a toggle that is on.
    */
   .map-toggle {
     position: absolute;
@@ -1415,22 +1842,29 @@ picture {
     align-items: center;
     gap: var(--space-2);
     min-height: 2.75rem; /* 44 px touch target */
-    padding: 0 var(--space-4);
-    border: 1px solid var(--color-surface-line);
+    padding: 0 var(--space-4) 0 var(--space-3);
+    border: 1px solid var(--hud-edge);
     border-radius: var(--radius-pill);
-    color: var(--color-ink-mid);
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    color: var(--color-ink-high);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
     font: inherit;
     font-size: var(--text-sm);
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
   }
 
-  .map-toggle:hover,
-  .map-toggle[data-state='open'] {
-    color: var(--color-ink-high);
+  .map-toggle:hover {
     border-color: var(--color-ink-low);
+    background: var(--color-surface-raised);
+  }
+
+  .map-toggle[data-state='open'],
+  .map-toggle[data-state='open']:hover {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
   }
 
   .map-toggle kbd {
@@ -1439,11 +1873,20 @@ picture {
     min-width: 1.5rem;
     height: 1.5rem;
     padding: 0 var(--space-1);
-    border: 1px solid var(--color-ink-low);
     border-radius: var(--radius-sm);
-    color: var(--color-ink-mid);
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+    box-shadow: 0 0.125rem 0 var(--color-ink-low);
     font: inherit;
     font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .map-toggle[data-state='open'] kbd {
+    color: var(--color-ink-high);
+    background: var(--color-space-900);
+    box-shadow: none;
   }
 
   @media (pointer: coarse) {
@@ -1454,6 +1897,7 @@ picture {
 
     .map-toggle {
       right: max(var(--space-4), env(safe-area-inset-right));
+      padding-left: var(--space-4);
     }
   }
 
@@ -1469,12 +1913,13 @@ picture {
     position: fixed;
     inset: 0 0 auto;
     z-index: 3;
-    padding: max(var(--space-2), env(safe-area-inset-top))
+    gap: var(--space-2) var(--space-3);
+    padding: max(var(--space-3), env(safe-area-inset-top))
       max(var(--space-6), env(safe-area-inset-right)) var(--space-6)
       max(var(--space-6), env(safe-area-inset-left));
     background: linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--color-space-950) 72%, transparent),
+      color-mix(in srgb, var(--color-space-950) 60%, transparent),
       transparent
     );
     pointer-events: none;
@@ -1484,34 +1929,74 @@ picture {
     pointer-events: auto;
   }
 
+  /* Over the world the wordmark is a chip like everything else, so it reads on anything. */
+  html[data-mode='universe'] .wordmark {
+    padding: 0 var(--space-4);
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+    font-size: var(--text-base);
+  }
+
   html[data-mode='universe'] .site-nav {
     margin-left: auto;
+  }
+
+  html[data-mode='universe'] .site-nav a {
+    background-color: var(--hud);
+  }
+
+  html[data-mode='universe'] .site-nav a:hover {
+    color: var(--color-ink-high);
+    background-color: var(--color-surface-raised);
+  }
+
+  html[data-mode='universe'] .site-nav a[aria-current],
+  html[data-mode='universe'] .site-nav a[aria-current]:hover {
+    color: var(--color-space-900);
+    background-color: var(--color-ink-high);
   }
 
   .panel-button {
     min-height: 2.75rem; /* 44 px touch target */
     padding: 0 var(--space-4);
-    border: 1px solid var(--color-surface-line);
+    border: 1px solid var(--hud-edge);
     border-radius: var(--radius-pill);
-    color: var(--color-ink-mid);
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    color: var(--color-ink-high);
+    background: var(--hud);
     font: inherit;
     font-size: var(--text-sm);
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
+    transition:
+      color var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out);
   }
 
   .panel-button:hover {
-    color: var(--color-ink-high);
     border-color: var(--color-ink-low);
+    background: var(--color-surface-raised);
+  }
+
+  /* On: the welcome text is showing, or the sheet is pulled all the way up. */
+  .panel-button[aria-expanded='true'],
+  .panel-button[aria-pressed='true'],
+  .panel-button[aria-expanded='true']:hover,
+  .panel-button[aria-pressed='true']:hover {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
   }
 
   /* The home page's welcome text waits behind this button; every other page IS an open panel. */
   html[data-mode='universe'][data-panel-home] .panel-toggle {
     display: inline-block;
-    margin-left: var(--space-4);
   }
 
+  /*
+   * The panel: a legend plate over the world, with a band across the top in the colour of the
+   * system the page belongs to (butter for the home system's pages).
+   */
   html[data-mode='universe'] .panel {
     /* A narrow column at any window size: pin the fluid type scale to its narrow end. */
     --text-xs: var(--text-narrow-xs);
@@ -1520,6 +2005,7 @@ picture {
     --text-lg: var(--text-narrow-lg);
     --text-xl: var(--text-narrow-xl);
     --text-display: var(--text-narrow-display);
+    --ground: var(--color-surface-panel);
 
     position: fixed;
     z-index: 2;
@@ -1532,9 +2018,10 @@ picture {
     display: flex;
     flex-direction: column;
     width: min(30rem, calc(100vw - 2 * var(--space-4)));
-    border: 1px solid var(--color-surface-line);
+    border: 1px solid var(--hud-edge);
+    border-top: 0.3125rem solid var(--theme-base);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
+    background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
     font-size: var(--text-base);
@@ -1549,6 +2036,22 @@ picture {
     justify-content: flex-end;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-3) 0;
+  }
+
+  /* Inside the plate the buttons need no plate of their own. */
+  html[data-mode='universe'] .panel-bar .panel-button {
+    border-color: var(--color-surface-line);
+    background: var(--color-surface-raised);
+  }
+
+  html[data-mode='universe'] .panel-bar .panel-button:hover {
+    border-color: var(--color-ink-low);
+    background: var(--color-surface-line);
+  }
+
+  html[data-mode='universe'] .panel-bar .panel-button[aria-pressed='true'] {
+    border-color: transparent;
+    background: var(--color-ink-high);
   }
 
   /* Expanding only means something for the bottom sheet. */
@@ -1574,9 +2077,24 @@ picture {
   }
 
   html[data-mode='universe'] .links li,
-  html[data-mode='universe'] .card,
+  html[data-mode='universe'] .card {
+    background: none;
+  }
+
   html[data-mode='universe'] .facts {
-    background: color-mix(in srgb, var(--color-surface-raised) 70%, transparent);
+    background: var(--color-surface-raised);
+  }
+
+  html[data-mode='universe'] .button {
+    box-shadow: 0 var(--ledge) 0 var(--color-space-900);
+  }
+
+  html[data-mode='universe'] .button--primary {
+    box-shadow: 0 var(--ledge) 0 var(--theme-shade);
+  }
+
+  html[data-mode='universe'] .button:active {
+    box-shadow: none;
   }
 
   /* What is left of the footer is the way out to the plain version: a corner of the HUD. */
@@ -1588,6 +2106,17 @@ picture {
     margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  html[data-mode='universe'] .mode-link {
+    border-color: var(--hud-edge);
+    background: var(--hud);
+    font-size: var(--text-sm);
+  }
+
+  html[data-mode='universe'] .mode-link:hover {
+    border-color: var(--color-ink-low);
+    background: var(--color-surface-raised);
   }
 
   /* Narrow screens: the panel is a sheet that rises from the bottom edge. */
@@ -1609,6 +2138,7 @@ picture {
 
     html[data-mode='universe'] .site-nav ul {
       justify-content: space-between;
+      margin-inline: 0;
     }
 
     html[data-mode='universe'] .panel {
@@ -1618,7 +2148,7 @@ picture {
       left: 0;
       width: auto;
       height: 58svh;
-      border-width: 1px 0 0;
+      border-width: 0.3125rem 0 0;
       border-radius: var(--radius-lg) var(--radius-lg) 0 0;
       transition:
         transform var(--motion-slow) var(--motion-ease-out),
@@ -1626,8 +2156,10 @@ picture {
         visibility 0s;
     }
 
+    /* All the way up, but never over the top bar's links (two rows on a phone): the shell
+       measures how far down they reach (--panel-inset-top, src/shell/panel-inset.ts). */
     html[data-mode='universe'][data-panel-size='full'] .panel {
-      height: calc(100svh - 4.5rem);
+      height: calc(100svh - var(--panel-inset-top, 6.75rem) - var(--space-2));
     }
 
     /* A sheet pulled all the way up leaves no sky for the engine's own controls to sit in: the
@@ -1652,6 +2184,43 @@ picture {
   }
 }
 
+/*
+ * Phones, plain mode: the nav takes a row of its own under the wordmark and spreads across it,
+ * each chip's text lined up with the page's edges (the chips reach into the gutter).
+ */
+@media (max-width: 29.99rem) {
+  .site-nav {
+    flex-basis: 100%;
+  }
+
+  .site-nav ul {
+    justify-content: space-between;
+    margin-inline: -0.75rem;
+  }
+}
+
+/* The narrowest phones: a little less gutter, the nav chips pull in, and a long route sign
+   ("Aerospace engineering · UC Berkeley") still fits on one plate. */
+@media (max-width: 22.49rem) {
+  .page {
+    padding-inline: max(var(--space-4), env(safe-area-inset-left))
+      max(var(--space-4), env(safe-area-inset-right));
+  }
+
+  .site-nav a {
+    padding-inline: 0.5rem;
+  }
+
+  .site-nav ul {
+    margin-inline: -0.5rem;
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+  }
+}
+
 /* 3. Mode-dependent notices and links ------------------------------------------------------- */
 
 .notice,
@@ -1660,7 +2229,7 @@ picture {
 }
 
 html[data-mode='universe'] .mode-link--to-plain {
-  display: inline-block;
+  display: inline-flex;
 }
 
 html[data-mode='universe'] .mode-link--to-universe,
@@ -1787,6 +2356,40 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   html[data-mode='universe'] .links li {
     border-color: black;
     background: none;
+    box-shadow: none;
+  }
+
+  /* The route ornaments are for the screen: paper gets plain lists. */
+  .cards::before,
+  .cards::after,
+  .system::before,
+  .system::after,
+  .entries::before,
+  .entry::before,
+  .links li::before,
+  .card__moons li::before,
+  .card__moons li::after {
+    display: none;
+  }
+
+  .entries {
+    padding-left: 0;
+  }
+
+  .entry__when {
+    padding: 0;
+    border: 0;
+  }
+
+  .resume-contact {
+    gap: 0 var(--space-6);
+  }
+
+  .resume-contact a {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
   }
 
   .resume-section {
