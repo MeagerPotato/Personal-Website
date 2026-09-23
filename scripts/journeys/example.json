@@ -1,0 +1,24 @@
+{
+  "galaxies": ["real", 4],
+  "variants": [
+    { "name": "today" },
+    {
+      "name": "closer, longLeg follows",
+      "layout": { "slotDistance": 700, "maxSystemRadius": 320, "minSystemGap": 100 },
+      "tuning": { "cruise": { "longLeg": 400 } }
+    },
+    {
+      "name": "faster ends",
+      "tuning": {
+        "cruise": { "keepOutSpeed": 40, "openSpaceGain": 3 },
+        "assist": { "orbitSpeed": 20 }
+      }
+    }
+  ],
+  "sample": {
+    "between": "all",
+    "within": "all",
+    "spawn": true,
+    "starts": { "real": 3, "grown": 1 }
+  }
+}
