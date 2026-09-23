@@ -4,6 +4,7 @@
 // page is byte-identical outside <main> and [data-page-head] (docs/PLAN.md §5.1).
 import modeScript from '../shell/mode.inline.js?raw';
 import { site } from '../config/site';
+import { buildStamp } from '../site/build-stamp';
 import { DEFAULT_PREVIEW, absoluteUrl, serializeLd, type PreviewImage } from '../site/seo';
 import { tokensToCss } from '../site/tokens-css';
 import { tokens } from '../universe/design/tokens';
@@ -20,9 +21,8 @@ interface Props {
 
 const { title, description, noindex = false, image = DEFAULT_PREVIEW, jsonLd = [] } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
-// Commit SHA, for version-skew detection once the router exists. Workers Builds and GitHub
-// Actions both provide one; local builds say "dev".
-const build = process.env.WORKERS_CI_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'dev';
+// Which deploy this page belongs to: the router's version-skew check reads it (src/site/build-stamp.ts).
+const build = buildStamp(process.env);
 ---
 
 <meta charset="utf-8" />
