@@ -7,9 +7,11 @@
   "name": "allenkh-com",
   "compatibility_date": "2026-09-20",
 
-  // workers.dev + preview URLs stay on so PR previews work. Preview hostnames are served with
-  // X-Robots-Tag: noindex (see config/headers.template).
-  "workers_dev": true,
+  // The site lives on allenkh.com (a Custom Domain, set in the dashboard): its public
+  // allenkh-com.<account>.workers.dev twin is switched off. Preview URLs are a separate setting and
+  // stay on, so every PR and branch still gets one; they are served with X-Robots-Tag: noindex
+  // (config/headers.template).
+  "workers_dev": false,
   "preview_urls": true,
 
   "assets": {

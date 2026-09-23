@@ -81,14 +81,22 @@ A Custom Domain matches one exact hostname, so `www` needs a redirect.
 Do not touch any other DNS record while you are in there. In particular, leave the `MX` and `TXT`
 records alone: they are Cloudflare Email Routing, which is what makes email on this domain work.
 
-## 4. Two zone settings to switch off
+## 4. Three zone settings
 
-Both rewrite HTML on its way out, which would break the site's Content Security Policy and add
-scripts to plain mode. They only affect traffic proxied by Cloudflare, so the project sites
-(DNS-only records pointing at Vercel) are unaffected.
+They only affect traffic proxied by Cloudflare (the orange cloud), so the project sites (DNS-only
+records pointing at Vercel) are unaffected.
+
+Two to switch **off**, because both rewrite HTML on its way out, which would break the site's
+Content Security Policy and add scripts to plain mode:
 
 - **Rocket Loader**: off. (Zone → **Speed** → **Optimization** → **Content Optimization**.)
 - **Email Address Obfuscation**: off. (Zone → **Scrape Shield**, or search the dashboard for it.)
+
+One to switch **on**, because without it `http://allenkh.com` serves the site unencrypted
+instead of sending the visitor to `https://` (checked on 2026-09-23: it answered 200):
+
+- **Always Use HTTPS**: on. (Zone → **SSL/TLS** → **Edge Certificates**.) Afterwards
+  `curl.exe -sI http://allenkh.com/about/` answers `301` with `location: https://allenkh.com/about/`.
 
 ## 5. Web Analytics
 
@@ -103,7 +111,9 @@ scripts to plain mode. They only affect traffic proxied by Cloudflare, so the pr
 Send Claude: "Cloudflare is connected" plus the analytics token. Claude then opens the follow-up
 PR (Phase 0 step 9: turns off the public `workers.dev` hostname, and puts the token in
 `ANALYTICS_TOKEN` in `src/config/analytics.ts`, the one line that turns counting on) and runs the
-Phase 0 checks in docs/PLAN.md §7.
+Phase 0 checks in docs/PLAN.md §7. (As it happened, on 2026-09-23 the domain was connected
+first and the token is still to come: the `workers.dev` half of step 9 is done, the token half
+waits.)
 
 Re-run every command from step 0. **The output must match the snapshot.** Then:
 

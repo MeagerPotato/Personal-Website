@@ -287,6 +287,8 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 8. (H, ~10 min, following the runbook) Cloudflare dashboard: Workers & Pages → Import repository (GitHub App for this repo only); Worker name `allenkh-com`; build `npm run build`, deploy `npx wrangler deploy`, non-production deploy `npx wrangler versions upload`; enable non-production branch builds; add `allenkh.com` as a **Custom Domain**; `www` proxied placeholder record + Redirect Rule to apex; Rocket Loader and Email Obfuscation off; add the site in Web Analytics (manual snippet; automatic injection off).
 9. (A) Follow-up PR: `workers_dev:false`, analytics token; run the Phase 0 checks (§7).
 
+**As built, Phase 0 steps 8 and 9 (2026-09-23).** Allen connected the Worker to allenkh.com (step 8); every merge to `main` now deploys the live site. Checked read-only from outside: the CSP, `nosniff`, the referrer and permissions policies, HSTS without `includeSubDomains`, `immutable` on `/_astro/*`, a real 404 on `/nope/`, `/index.html` → 307, `www` → 301 to the apex with path and query kept; days2meet and fishai still resolve to their Vercel CNAMEs and answer 200 from Vercel. Two things were wrong. **`http://` served the site (200) instead of redirecting**: the zone's "Always Use HTTPS" is off, a dashboard setting (Allen's; now in the runbook, §4). **`<meta name="build">` said `main`, not a commit**: Workers Builds is documented to inject the commit hash, but the first, dashboard-triggered build got the branch name, and a stamp that every deploy shares would blind the router's version-skew check. The stamp is now a pure function (`src/site/build-stamp.ts`): a commit hash when it is one, otherwise the build's own id. Step 9: `workers_dev` is off (the Custom Domain is the one public address; preview URLs are a separate setting and stay on). The analytics token has not arrived, so counting stays off.
+
 ### Phase 1 steps (≈ one PR each; trivial ones may be batched)
 
 1. `core/{loop,events,scope}.ts` + tests (identical end state at 30/60/144 Hz; 5 s stall clamps).
@@ -394,7 +396,7 @@ npm i -D typescript@~6.0.3 @astrojs/check@^0.9.10 @types/three@~0.186.0 @types/n
 
 ```jsonc
 // wrangler.jsonc
-{ "name": "allenkh-com", "compatibility_date": "2026-09-20", "workers_dev": true, "preview_urls": true,
+{ "name": "allenkh-com", "compatibility_date": "2026-09-20", "workers_dev": false, "preview_urls": true,
   "assets": { "directory": "./dist", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" } }
 ```
 
