@@ -39,8 +39,12 @@ const ENGINE_MARKER = /THREE\.[A-Z]\w+/;
 const BUDGET = {
   /** HTML + CSS + every script a page loads WITHOUT a dynamic import: the cost of plain mode. */
   plainPage: 30 * 1024,
-  /** All JavaScript reachable only through import(). Split per chunk when PostFX lands (Phase 1). */
-  lazyScripts: 180 * 1024,
+  /**
+   * All JavaScript reachable only through import(): what universe mode costs on top. 180 KiB until
+   * 2026-09-23, when Allen raised it to 220 for Phase 3 (the map, the lanes, the traffic, a glTF
+   * loader): docs/PLAN.md §9. Plain mode never downloads any of it.
+   */
+  lazyScripts: 220 * 1024,
 };
 
 const errors = [];

@@ -172,6 +172,11 @@ Contrast AA. Touch targets 44×44 px. Works at 360 px with no horizontal scroll.
 (`--color-focus`) on everything focusable. Reduced motion honoured. Colour is never the only
 signal. All content reachable by keyboard and readable with JavaScript off.
 
+One-key shortcuts (W A S D, E, M, and `+` `-` on the map) never act inside the panel or a form
+field, never do anything that cannot be undone at once, and plain mode (a link on every page) is
+the same site with none at all: the "conforming alternate version" that WCAG 2.1.4 accepts. A new
+one-key shortcut must keep all three true.
+
 ## How to work in the design surface
 
 Astra edits `src/universe/design/**`, `src/styles/**` and `public/models/**`. **Values are free to

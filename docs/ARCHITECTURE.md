@@ -17,7 +17,7 @@ two ways:
 The content is written once, the URL is the same, and search engines, link previews, screen
 readers and recruiters in a hurry all get the plain truth. `scripts/verify-dist.mjs` fails the
 build if three.js ever becomes reachable without a dynamic `import()`, or if a page outgrows its
-weight budget (30 KiB for a plain page, 180 KiB for everything lazy, gzip).
+weight budget (30 KiB for a plain page, 220 KiB for everything lazy, gzip).
 
 ```
 mode.inline.js        the only inline script; sets html[data-mode] before first paint
