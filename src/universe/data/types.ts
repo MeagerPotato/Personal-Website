@@ -11,7 +11,7 @@ export interface SystemInput {
   name: string;
   href: string;
   theme: ThemeKey;
-  /** Slot on the galaxy spiral, 1 upwards (slot 0 is the home system). Explicit, so it is stable. */
+  /** Slot in the galaxy's honeycomb, 1 upwards (slot 0 is the home system). Explicit, so it is stable. */
   order: number;
   position: 'auto' | readonly [number, number];
 }

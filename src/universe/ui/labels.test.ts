@@ -150,6 +150,20 @@ describe('Labels', () => {
     expect(button('Code').style.transform).toBe(`translate(${900 - 26}px, 314px)`);
   });
 
+  it('measures the names again when told their size may have changed (the star map)', () => {
+    const { labels, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    const name = button('FishAI');
+    Object.defineProperty(name, 'offsetWidth', { value: 100, configurable: true });
+    labels.frameUpdate();
+    // Measured once: the new size is not read on every frame...
+    expect(name.style.transform).toBe('translate(367px, 442px)');
+    // ...but on request, and the name is centred under its body again.
+    labels.remeasure();
+    labels.frameUpdate();
+    expect(name.style.transform).toBe('translate(350px, 442px)');
+  });
+
   it('follows the bodies from frame to frame', () => {
     const { labels, screen, button } = setup(SPREAD);
     cleanup = () => labels.dispose();

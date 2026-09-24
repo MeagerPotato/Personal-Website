@@ -129,6 +129,8 @@ export class Labels implements System {
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
 
+    // A finger that moves on a name moves the map (ui/StarMap.ts), never the page: `touch-action`
+    // on `.body-labels` in src/styles/global.css.
     this.root.className = 'body-labels';
     this.root.setAttribute('role', 'group');
     this.root.setAttribute('aria-label', 'Fly to');
@@ -398,6 +400,16 @@ export class Labels implements System {
     this.height = viewport.height;
     // A breakpoint may have changed the type size.
     this.measured = false;
+    this.leadMeasured = false;
+  }
+
+  /**
+   * Measure the names again before they are next placed: the stylesheet may set them in another
+   * size now (on the star map, `html[data-map]`, where they are read from further off).
+   */
+  remeasure(): void {
+    this.measured = false;
+    // The target's tag too: it is set in the same size as the names.
     this.leadMeasured = false;
   }
 

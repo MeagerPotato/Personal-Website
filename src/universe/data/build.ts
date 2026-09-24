@@ -1,11 +1,14 @@
 import { tuning } from '../design/tuning';
 import {
   dockRadius,
+  homeReach,
+  homeRings,
   orbitPeriod,
   orbitPhase,
   reach,
   round,
   slotPosition,
+  slotRoomProblems,
   stackRings,
 } from './layout';
 import type {
@@ -193,12 +196,8 @@ function buildHomeSystem(pages: readonly PageInput[]): {
   ];
 
   // Both rings are always reserved, station inside satellite, whether or not their pages exist
-  // yet: publishing one can then never move the other.
-  const slots = (['station', 'satellite'] as const).map((kind) => {
-    const radius = kind === 'station' ? L.home.stationRadius : L.home.satelliteRadius;
-    return { kind, radius, footprint: dockRadius(radius) };
-  });
-  const rings = stackRings(slots, centerDock + L.moonGap, L.moonGap);
+  // yet: publishing one can then never move the other (data/layout.ts, homeRings).
+  const rings = homeRings();
   for (const { item: slot, radius: orbitRadius } of rings) {
     const page = pages.find((candidate) => candidate.dock === slot.kind);
     if (page === undefined) continue;
@@ -223,7 +222,7 @@ function buildHomeSystem(pages: readonly PageInput[]): {
       name: 'Home',
       theme: L.home.theme,
       position: [0, 0],
-      radius: round(reach(rings, centerDock)),
+      radius: round(homeReach()),
       center: centerId,
     },
     bodies,
@@ -242,6 +241,10 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   const home = buildHomeSystem(input.pages);
   const systems: ManifestSystem[] = [home.system];
   const bodies: ManifestBody[] = [...home.bodies];
+  // A slot too small for what the build accepts is refused, not moved (data/layout.ts).
+  if (input.systems.some((system) => system.position === 'auto')) {
+    problems.push(...slotRoomProblems());
+  }
 
   const sunDock = dockRadius(L.sunRadius);
   for (const system of [...input.systems].sort((a, b) => a.order - b.order)) {
@@ -294,8 +297,7 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
       );
     }
 
-    const [x, z] =
-      system.position === 'auto' ? slotPosition(system.order, system.id) : system.position;
+    const [x, z] = system.position === 'auto' ? slotPosition(system.order) : system.position;
     systems.push({
       id: system.id,
       name: system.name,

@@ -131,14 +131,14 @@ describe('the route follows the ship', () => {
 
   it('leaves the page when the PILOT leaves the orbit', () => {
     const h = harness('/about/');
-    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.emit('undocked', { id: 'page/about', by: 'pilot', halting: false });
     expect(h.log).toEqual(['leave /']);
   });
 
   it('does not call the ship back from wherever the pilot went: the route went home BECAUSE it left', () => {
     const h = harness('/about/');
     // The pilot pointed at another planet: the ship has left, and is on its way there.
-    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.emit('undocked', { id: 'page/about', by: 'pilot', halting: false });
     h.show('/');
     expect(h.log).toEqual(['leave /']);
 
@@ -151,26 +151,26 @@ describe('the route follows the ship', () => {
   it('ignores a dock that ended because somebody asked: that was the route, and it knows', () => {
     const h = harness('/about/');
     h.show('/projects/fishai/');
-    h.emit('undocked', { id: 'page/about', by: 'asked' });
+    h.emit('undocked', { id: 'page/about', by: 'asked', halting: false });
     expect(h.log).toEqual(['goTo project/fishai']);
   });
 
   it('ignores a pilot who gives up an approach that no page was opened for', () => {
     const h = harness('/');
-    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.emit('undocked', { id: 'page/about', by: 'pilot', halting: false });
     expect(h.log).toEqual([]);
   });
 
   it('calls a page off when the pilot left again before it arrived', () => {
     const h = harness();
     h.emit('docked', { id: 'page/about' });
-    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.emit('undocked', { id: 'page/about', by: 'pilot', halting: false });
     expect(h.log).toEqual(['navigate /about/', 'cancel']);
 
     // Only once, and only for THAT page: after it has arrived, leaving is leaving.
     h.emit('docked', { id: 'page/about' });
     h.show('/about/');
-    h.emit('undocked', { id: 'page/about', by: 'pilot' });
+    h.emit('undocked', { id: 'page/about', by: 'pilot', halting: false });
     expect(h.log.slice(2)).toEqual(['navigate /about/', 'goTo page/about', 'leave /']);
   });
 

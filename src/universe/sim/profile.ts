@@ -22,17 +22,44 @@ export interface ProfileParams {
    * (brakeDrag + forwardDrag).
    */
   readonly brakeRate: number;
-  /** rad/s: no bend is taken faster than the ship can turn. Keep it below the ship's own limit. */
+  /**
+   * rad/s: no bend is taken faster than the ship can turn. Keep it below the ship's own limit.
+   * (A ship turns faster when it is slow: see `TurnCurve`.)
+   */
   readonly yawRate: number;
   /** u/s. The profile never asks for less: a ship told to stand still never arrives. */
   readonly minSpeed: number;
 }
 
 /**
+ * How fast a ship turns at every speed (sim/flight.ts, maxYawRate): `slow` rad/s at rest, falling
+ * in a straight line to `fast` at `fastSpeed` u/s and above.
+ */
+export interface TurnCurve {
+  slow: number;
+  fast: number;
+  fastSpeed: number;
+}
+
+/**
+ * The fastest a bend of curvature `bend` (1/u) can be taken, u/s, by a ship that turns at `turn`:
+ * the speed at which going round the bend asks for exactly the turn rate the ship has there.
+ */
+export function bendSpeed(bend: number, turn: Readonly<TurnCurve>): number {
+  if (!(bend > 1e-9)) return Infinity;
+  const fall = turn.fastSpeed > 0 ? (turn.slow - turn.fast) / turn.fastSpeed : 0;
+  // Below fastSpeed: v * bend = slow - fall * v.
+  const slowly = turn.slow / (bend + fall);
+  return slowly <= turn.fastSpeed ? slowly : turn.fast / bend;
+}
+
+/**
  * Fill `speeds` (one per sample of `path`) and return the seconds the journey will take. The
  * ship has `startSpeed` now and should have `endSpeed` for the last `endRun` units of the path:
  * whoever takes over near the end (the docking approach) takes over somewhere along that stretch.
- * `ceiling`, when given, caps the speed at every sample on top of everything else.
+ * `ceiling`, when given, caps the speed at every sample on top of everything else. `turn`, when
+ * given, is how much faster than `params.yawRate` the ship turns when it is slow: tight bends
+ * that a fast ship could not take at all, a slow one takes briskly.
  *
  * A ship that is too fast for what lies ahead cannot be helped by arithmetic: the profile then
  * simply starts lower than the ship is, and the pursuit brakes as hard as it can.
@@ -45,6 +72,7 @@ export function speedProfile(
   params: ProfileParams,
   speeds: Float64Array,
   ceiling: Float64Array | null = null,
+  turn: Readonly<TurnCurve> | null = null,
 ): number {
   const { count, s, curvature } = path;
   if (count === 0) return 0;
@@ -61,7 +89,10 @@ export function speedProfile(
       (s[i] ?? 0) >= slowFrom ? slow : params.cruiseSpeed,
       ceiling ? (ceiling[i] ?? Infinity) : Infinity,
       bend > 1e-9
-        ? Math.min(Math.sqrt(params.lateralAccel / bend), params.yawRate / bend)
+        ? Math.min(
+            Math.sqrt(params.lateralAccel / bend),
+            turn ? Math.max(params.yawRate / bend, bendSpeed(bend, turn)) : params.yawRate / bend,
+          )
         : Infinity,
     );
     const ds = (s[i + 1] ?? 0) - (s[i] ?? 0);

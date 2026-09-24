@@ -32,12 +32,34 @@ export interface MapBounds {
   readonly maxZ: number;
 }
 
+/** The same rectangle, to be written into (`takeIn`). */
+export type MapBoundsOut = { -readonly [K in keyof MapBounds]: MapBounds[K] };
+
 export interface MapViewParams {
-  /** The closest and the furthest the map may zoom (world units across the shorter side). */
+  /** The closest the map may zoom (world units across the shorter side). */
   readonly spanMin: number;
-  readonly spanMax: number;
-  /** Showing everything leaves this much room round it: 1.25 = a quarter more than it needs. */
+  /**
+   * The furthest, as a share of the view that shows everything (`fitSpan`): 1 is not an inch
+   * further. Past it there is only empty space, and names too small to read.
+   */
+  readonly zoomOutPastFit: number;
+  /** Showing everything leaves this much room round it: 1.25 = a quarter more than it needs... */
   readonly fitMargin: number;
+  /**
+   * ...and this much more on every side, in CSS px: a body at the edge of the galaxy has its name
+   * beside it (ui/Labels.ts), and a margin in pixels is the same room for it on any screen. Never
+   * more than a sixth of the frame, though (padOf).
+   */
+  readonly fitPadPx: number;
+}
+
+/**
+ * The padding on the sides of a frame `size` px across: fitPadPx, but never more than a sixth of
+ * it. On a phone with a page open the map is the strip above the panel, some 150 px tall, and 44 px
+ * above and below the galaxy left it 62 px of it: no room for a single name.
+ */
+function padOf(size: number, params: MapViewParams): number {
+  return Math.min(Math.max(0, params.fitPadPx), Math.max(1, size) / 6);
 }
 
 /** The rectangle that holds every system, its outermost orbit included. */
@@ -57,23 +79,43 @@ export function boundsOf(
   return systems.length > 0 ? { minX, maxX, minZ, maxZ } : { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
 }
 
+/**
+ * `bounds` grown to take in the point (x, z), written to `out`: what the map shows is the galaxy
+ * AND the ship, which may be out beyond its edge (sim/collide.ts lets it go that far).
+ */
+export function takeIn(bounds: MapBounds, x: number, z: number, out: MapBoundsOut): MapBoundsOut {
+  out.minX = Math.min(bounds.minX, x);
+  out.maxX = Math.max(bounds.maxX, x);
+  out.minZ = Math.min(bounds.minZ, z);
+  out.maxZ = Math.max(bounds.maxZ, z);
+  return out;
+}
+
 export function unitsPerPx(span: number, frame: MapFrame): number {
   return span / Math.max(1, Math.min(frame.width, frame.height));
 }
 
 /**
- * The span at which `bounds` fits the frame, margin and all. It may be MORE than `spanMax`: the
- * whole galaxy can always be shown, however much it has grown since the limits were chosen.
+ * The span at which `bounds` fits the frame snugly, margin and padding and all: as close as the
+ * map can be and still show everything. However much the galaxy has grown, it always fits.
  */
 export function fitSpan(bounds: MapBounds, frame: MapFrame, params: MapViewParams): number {
   const width = Math.max(1, frame.width);
   const height = Math.max(1, frame.height);
+  // The padding comes off every side: the galaxy always has two thirds of the frame, at least.
+  const innerWidth = width - 2 * padOf(width, params);
+  const innerHeight = height - 2 * padOf(height, params);
   // X runs across the screen and Z up it.
   const perPx = Math.max(
-    ((bounds.maxX - bounds.minX) * params.fitMargin) / width,
-    ((bounds.maxZ - bounds.minZ) * params.fitMargin) / height,
+    ((bounds.maxX - bounds.minX) * params.fitMargin) / innerWidth,
+    ((bounds.maxZ - bounds.minZ) * params.fitMargin) / innerHeight,
   );
   return Math.max(params.spanMin, perPx * Math.min(width, height));
+}
+
+/** The furthest the map may zoom out: the view that shows everything (never closer than spanMin). */
+export function spanLimit(bounds: MapBounds, frame: MapFrame, params: MapViewParams): number {
+  return Math.max(params.spanMin, fitSpan(bounds, frame, params) * params.zoomOutPastFit);
 }
 
 /** The view that shows everything: what the map opens on. */
@@ -89,21 +131,35 @@ export function fitView(
   return out;
 }
 
-/** Keep the middle of the view over the galaxy, and the zoom within its limits. */
+/**
+ * Keep the zoom within its limits, and the view on the galaxy: a view smaller than the galaxy
+ * (one way, or both) can be moved up to its edge and fitPadPx past it, not further; one bigger
+ * than it keeps all of it in view, fitPadPx inside its edges. So nothing is ever dragged off, and
+ * the empty space round the galaxy is never more than the view that shows all of it has.
+ */
 export function clampView(
   view: MapView,
   bounds: MapBounds,
   frame: MapFrame,
   params: MapViewParams,
 ): MapView {
-  view.span = clamp(
-    view.span,
-    params.spanMin,
-    Math.max(params.spanMax, fitSpan(bounds, frame, params)),
-  );
-  view.x = clamp(view.x, bounds.minX, bounds.maxX);
-  view.z = clamp(view.z, bounds.minZ, bounds.maxZ);
+  view.span = clamp(view.span, params.spanMin, spanLimit(bounds, frame, params));
+  const perPx = unitsPerPx(view.span, frame);
+  const width = Math.max(1, frame.width);
+  const height = Math.max(1, frame.height);
+  view.x = keepOn(view.x, bounds.minX, bounds.maxX, (width / 2 - padOf(width, params)) * perPx);
+  view.z = keepOn(view.z, bounds.minZ, bounds.maxZ, (height / 2 - padOf(height, params)) * perPx);
   return view;
+}
+
+/**
+ * The middle of a view that reaches `half` either side of it, kept where the view shows nothing
+ * outside [min, max]; or, when it is wider than that, where all of [min, max] is in it.
+ */
+function keepOn(at: number, min: number, max: number, half: number): number {
+  const low = min + half;
+  const high = max - half;
+  return clamp(at, Math.min(low, high), Math.max(low, high));
 }
 
 /**

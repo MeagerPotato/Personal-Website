@@ -10,7 +10,7 @@ import { TAU, angleDelta } from './math';
  *
  * Shortest is not only short. The rest of a shortest way is itself the shortest way from
  * wherever you are on it, so planning again a second later, from a little further along, gives
- * the same way again: a ship at 280 u/s is never told that the other side of the sun would have
+ * the same way again: a ship at 700 u/s is never told that the other side of the sun would have
  * been better after all. (Guessing a corner at a time, which this file used to do, tied itself
  * in knots wherever bodies crowd: round a sun with a planet close by, between a planet and its
  * moons.) That holds for a ship ON its path. One that is not yet (it is still turning round)
@@ -23,7 +23,7 @@ import { TAU, angleDelta } from './math';
  * path bends there: all the speed profile (sim/profile.ts) and the pursuit (sim/autopilot.ts)
  * need.
  *
- * Planning runs about once a second while the autopilot flies, never per step. It still does not
+ * Planning runs twice a second while the autopilot flies, never per step. It still does not
  * allocate: a Path owns its buffers and is planned into again and again, and the search works in
  * scratch arrays of this module.
  */
@@ -137,6 +137,13 @@ const nodeX = new Float64Array(MAX_NODES);
 const nodeZ = new Float64Array(MAX_NODES);
 const cost = new Float64Array(MAX_NODES);
 const cameFrom = new Int16Array(MAX_NODES);
+/**
+ * The points a plan is asked to go through first (the stretch of the last plan the ship is on)
+ * lie ON a way round a disc, not a little outside it as the search's legs do: the lines between
+ * them may cut this far into a keep-out (a share of it). The curve through them bows back out,
+ * and what does not is mended like any other curve.
+ */
+const AHEAD_MARGIN = 0.98;
 /** 0 = not seen yet, 1 = reached, 2 = done with. */
 const mark = new Uint8Array(MAX_NODES);
 
@@ -155,7 +162,10 @@ const mark = new Uint8Array(MAX_NODES);
  * back. The caller carries them from plan to plan (the discs of one plan are not always the
  * discs of the next) and clears them when a new journey begins.
  *
- * (vx, vz) is how the ship is moving, u/s (see PathParams.leadSec).
+ * (vx, vz) is how the ship is moving, u/s (see PathParams.leadSec). `ahead` holds `aheadCount`
+ * points [x0, z0, x1, z1, ...] that the way should go through first, in order: the stretch of the
+ * last plan that the ship is on (sim/autopilot.ts). When the straight lines between them are not
+ * all clear, they are ignored, and the way begins the way the ship is going.
  */
 export function planPath(
   path: Path,
@@ -169,6 +179,8 @@ export function planPath(
   walls: Float64Array | null = null,
   vx = 0,
   vz = 0,
+  ahead: Readonly<Float64Array> | null = null,
+  aheadCount = 0,
 ): Path {
   const { corners, x, z } = path;
   const used = Math.min(discCount, MAX_DISCS);
@@ -193,15 +205,33 @@ export function planPath(
   keepsSeenFrom(x0, z0, discs, used, startKeep);
   keepsSeenFrom(x1, z1, discs, used, goalKeep);
 
-  // The way the ship is going, as far as it is clear (half as far, a quarter as far: a ship
+  // The stretch of the last plan the ship is on, when there is one and it is clear. Otherwise
+  // the way the ship is going, as far as it is clear (half as far, a quarter as far: a ship
   // heading for a body gets less of a run-up), and never more than half the way to the goal.
   // A ship with no clear run-up at all gets none: it is slow, or about to be, and a slow ship
   // goes where its pilot points it.
   corners[0] = x0;
   corners[1] = z0;
   let first = 0;
+  if (ahead && aheadCount > 0 && aheadCount + 2 <= MAX_CORNERS) {
+    let fromX = x0;
+    let fromZ = z0;
+    let clear = true;
+    for (let k = 0; k < aheadCount && clear; k += 1) {
+      const px = ahead[k * 2] ?? 0;
+      const pz = ahead[k * 2 + 1] ?? 0;
+      clear = isClear(fromX, fromZ, px, pz, discs, used, FROM_START, AHEAD_MARGIN);
+      fromX = px;
+      fromZ = pz;
+    }
+    if (clear) {
+      for (let k = 0; k < aheadCount * 2; k += 1) corners[k + 2] = ahead[k] ?? 0;
+      first = aheadCount;
+      keepsSeenFrom(fromX, fromZ, discs, used, startKeep);
+    }
+  }
   const speed = Math.hypot(vx, vz);
-  let lead = Math.min(speed * params.leadSec, Math.hypot(x1 - x0, z1 - z0) / 2);
+  let lead = first > 0 ? 0 : Math.min(speed * params.leadSec, Math.hypot(x1 - x0, z1 - z0) / 2);
   for (let tries = 0; tries < 3 && lead >= params.sampleStep * 2; tries += 1) {
     const px = x0 + (vx / speed) * lead;
     const pz = z0 + (vz / speed) * lead;
@@ -517,6 +547,7 @@ function isClear(
   discs: readonly Readonly<Disc>[],
   used: number,
   ends = 0,
+  scale = margin,
 ): boolean {
   const lx = bx - ax;
   const lz = bz - az;
@@ -526,7 +557,7 @@ function isClear(
     let r = keep[j] ?? 0;
     if ((ends & FROM_START) !== 0) r = Math.min(r, startKeep[j] ?? 0);
     if ((ends & TO_GOAL) !== 0) r = Math.min(r, goalKeep[j] ?? 0);
-    r *= margin;
+    r *= scale;
     if (!disc || !(r > 0)) continue;
     const t = span < 1e-12 ? 0 : ((disc.x - ax) * lx + (disc.z - az) * lz) / span;
     const c = t < 0 ? 0 : t > 1 ? 1 : t;

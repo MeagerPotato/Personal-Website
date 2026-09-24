@@ -26,10 +26,21 @@ const FLYING: Snapshot = {
   steps: 5400,
   ship: { x: 64, z: -99, vx: 3, vz: -12.5, heading: 7.2, yawRate: -0.4 },
   dock: null,
+  halting: false,
+  guarding: false,
 };
+/** STOP was pressed a moment ago: still braking to rest. */
+const STOPPING: Snapshot = { ...FLYING, halting: true };
+/** The pilot took a journey back at speed a moment ago: the reflex is still on. */
+const GUARDED: Snapshot = { ...FLYING, guarding: true };
 const DOCKED: Snapshot = {
   ...FLYING,
-  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1 },
+  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0 },
+};
+/** Half a second into a hop: the journey must still last a second before it may arrive. */
+const HEADED: Snapshot = {
+  ...FLYING,
+  dock: { id: 'project/fishai', docked: false, angle: 0, spin: 1, holdSec: 1 },
 };
 /** What a snapshot looks like after a night in sessionStorage. */
 const stored = (snapshot: unknown): unknown => JSON.parse(JSON.stringify(snapshot));
@@ -38,6 +49,22 @@ describe('a snapshot that has been away', () => {
   it('comes back as it left', () => {
     expect(parseSnapshot(stored(FLYING))).toEqual(FLYING);
     expect(parseSnapshot(stored(DOCKED))).toEqual(DOCKED);
+    expect(parseSnapshot(stored(HEADED))).toEqual(HEADED);
+    expect(parseSnapshot(stored(STOPPING))).toEqual(STOPPING);
+    expect(parseSnapshot(stored(GUARDED))).toEqual(GUARDED);
+    // Written before STOP braked, or before a ship taken back was guarded: neither.
+    const older: Record<string, unknown> = { ...STOPPING };
+    delete older.halting;
+    expect(parseSnapshot(older)?.halting).toBe(false);
+    const oldGuard: Record<string, unknown> = { ...GUARDED };
+    delete oldGuard.guarding;
+    expect(parseSnapshot(oldGuard)?.guarding).toBe(false);
+    // Headed somewhere, or docked, is never braking to a stop, nor handed back.
+    expect(parseSnapshot({ ...HEADED, halting: true })?.halting).toBe(false);
+    expect(parseSnapshot({ ...HEADED, guarding: true })?.guarding).toBe(false);
+    // Written before a journey's hold was kept: nothing to wait for.
+    const before = { id: 'project/fishai', docked: false, angle: 0, spin: 1 };
+    expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.holdSec).toBe(0);
     // A key that was dropped on the way is the same as no dock.
     expect(parseSnapshot({ steps: 1, ship: FLYING.ship })).toEqual({ ...FLYING, steps: 1 });
   });
@@ -63,6 +90,16 @@ describe('a snapshot that has been away', () => {
       { ...DOCKED, dock: { ...DOCKED.dock, docked: 'yes' } },
       { ...DOCKED, dock: { ...DOCKED.dock, angle: null } },
       { ...DOCKED, dock: { ...DOCKED.dock, spin: 0 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: -1 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: 3600 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: '1' } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: null } },
+      { ...FLYING, halting: 'yes' },
+      { ...FLYING, halting: null },
+      { ...FLYING, guarding: 1 },
+      { ...FLYING, guarding: null },
+      // Stopped AND taken back by the controls: no engine writes that.
+      { ...FLYING, halting: true, guarding: true },
     ];
     for (const data of broken) expect(parseSnapshot(data)).toBeNull();
   });
@@ -88,6 +125,7 @@ describe('where a visit starts', () => {
 
   it('carries on from a remembered snapshot: a reload in open sky, or on the same orbit', () => {
     expect(startingFrom({ snapshot: stored(FLYING) })).toEqual({ snapshot: FLYING, at: null });
+    expect(startingFrom({ snapshot: stored(STOPPING) })).toEqual({ snapshot: STOPPING, at: null });
     expect(startingFrom({ at: 'project/fishai', snapshot: stored(DOCKED) })).toEqual({
       snapshot: DOCKED,
       at: 'project/fishai',
@@ -102,5 +140,40 @@ describe('where a visit starts', () => {
     // The home page is open sky, whatever the ship was doing when it was last seen.
     const home = startingFrom({ snapshot: stored(DOCKED) });
     expect(home).toEqual({ snapshot: { ...DOCKED, dock: null }, at: null });
+  });
+
+  it('brakes a journey it does not take up: a page load on the way somewhere is a STOP', () => {
+    // A planet pointed at flies with the URL on the sky: a reload there, or the router's full
+    // page load after a deploy, must not hand the ship back at the autopilot's speed.
+    expect(startingFrom({ snapshot: stored(HEADED) })).toEqual({
+      snapshot: { ...HEADED, dock: null, halting: true, guarding: false },
+      at: null,
+    });
+    // Another body's page: put in orbit there (main.ts), which ends the braking at once.
+    expect(startingFrom({ at: 'page/resume', snapshot: stored(HEADED) }).snapshot).toEqual({
+      ...HEADED,
+      dock: null,
+      halting: true,
+    });
+    // Its own page keeps the dock: main.ts puts the ship in orbit there, so nothing is left to
+    // brake. A settled orbit let go of is not braked either.
+    expect(startingFrom({ at: 'project/fishai', snapshot: stored(HEADED) }).snapshot).toEqual(
+      HEADED,
+    );
+    expect(startingFrom({ snapshot: stored(DOCKED) }).snapshot?.halting).toBe(false);
+  });
+
+  it('brakes an orbit still settling, as a key or a link would', () => {
+    // Half a second into an orbit the springs still carry the ship round at speed (sim/docking.ts,
+    // onJourney): let go of there by a page load, it must not coast into the body's cushion.
+    const settling: Snapshot = { ...DOCKED, ship: { ...DOCKED.ship, vx: 40, vz: -22 } };
+    expect(startingFrom({ snapshot: stored(settling) }).snapshot?.halting).toBe(true);
+    expect(startingFrom({ at: 'page/resume', snapshot: stored(settling) }).snapshot?.halting).toBe(
+      true,
+    );
+    // On its own page the orbit is kept, settling and all.
+    expect(startingFrom({ at: 'project/fishai', snapshot: stored(settling) }).snapshot).toEqual(
+      settling,
+    );
   });
 });

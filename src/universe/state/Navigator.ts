@@ -1,7 +1,16 @@
 import type { System } from '../core/Engine';
 import type { Snapshot } from '../core/snapshot';
 import { pullOf, type AssistParams } from '../sim/assist';
-import { dockAt, releaseDock, requestDock, type DockParams } from '../sim/docking';
+import type { CruiseParams } from '../sim/autopilot';
+import {
+  dockAt,
+  guardDock,
+  haltDock,
+  onJourney,
+  releaseDock,
+  requestDock,
+  type DockParams,
+} from '../sim/docking';
 import type { Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { FLIGHT, transition, type AppEvent, type AppState } from './appMachine';
@@ -17,14 +26,17 @@ export type NavigatorEvents = {
   /**
    * An approach or a dock ended. `by` says where that came from: the `pilot` (the controls, the
    * prompt: the web layer should now follow), or somebody `asked` through the API (the route
-   * changed, another destination was chosen: the web layer already knows).
+   * changed, another destination was chosen: the web layer already knows). `halting`: the ship
+   * now brakes to rest by itself (Stop, the brake, or a journey let go of on the way), rather than
+   * flying on under its pilot or to somewhere else.
    */
-  undocked: { id: string; by: 'pilot' | 'asked' };
+  undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
 };
 
 export interface NavigatorParams {
   readonly assist: AssistParams;
   readonly dock: DockParams;
+  readonly cruise: Pick<CruiseParams, 'minJourneySec'>;
 }
 
 export interface NavigatorOptions {
@@ -38,6 +50,10 @@ export interface NavigatorOptions {
   params: NavigatorParams;
   emit<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
 }
+
+/** How a ship was handed back to its pilot, as a snapshot keeps it (core/snapshot.ts). */
+export type HandBack = Pick<Snapshot, 'halting' | 'guarding'>;
+const NOT_HANDED_BACK: HandBack = Object.freeze({ halting: false, guarding: false });
 
 /** The prompt must not flicker at the very edge of a sphere of influence. */
 const SOI_ENTER_PULL = 0.08;
@@ -53,7 +69,8 @@ export class Navigator implements System {
   private current: AppState = FLIGHT;
   private near: string | null = null;
   private arrival: 'flown' | 'cut' = 'flown';
-  private readonly queue: Array<() => void> = [];
+  /** What to tell the world with the next frame; `left`: the news that the ship left that body. */
+  private readonly queue: Array<{ readonly left?: string; readonly deliver: () => void }> = [];
 
   constructor(private readonly options: NavigatorOptions) {}
 
@@ -84,30 +101,44 @@ export class Navigator implements System {
    * ship leaves behind (see `undocked`): a visitor pointing at a planet is the PILOT.
    */
   approach(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
+    return this.approachWith(id, by, 0);
+  }
+
+  /** `approach`, not captured before `holdSec` (a whole journey: see `travel`). */
+  private approachWith(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0 || !this.withinReach(id)) return false;
     if (this.current.target === id && this.current.mode !== 'autopilot') return true;
     this.leave(by);
+    this.headedFor(id);
     this.arrival = 'flown';
-    requestDock(surroundings.dock, i, pilot.current);
+    requestDock(surroundings.dock, i, pilot.current, false, holdSec);
     this.apply({ type: 'approach', to: id });
     return true;
   }
 
   /**
    * Set out for `id` from wherever the ship is: the autopilot flies it there (sim/autopilot.ts)
-   * and the approach takes over within reach. False for an unknown body.
+   * and takes it into orbit beside the ring; from within reach, the approach flies it. Either
+   * way it takes at least cruise.minJourneySec. False for an unknown body.
    */
   travel(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
+    return this.setOut(id, by, this.options.params.cruise.minJourneySec);
+  }
+
+  /** `travel`, not taken into orbit before `holdSec` (a journey picked up after a rebuild). */
+  private setOut(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0) return false;
     if (this.current.target === id) return true;
-    if (this.withinReach(id)) return this.approach(id, by);
+    // Within reach, the ring's own pilot flies it; still a journey, and no quicker than one.
+    if (this.withinReach(id)) return this.approachWith(id, by, holdSec);
     this.leave(by);
+    this.headedFor(id);
     this.arrival = 'flown';
-    requestDock(surroundings.dock, i, pilot.current, true);
+    requestDock(surroundings.dock, i, pilot.current, true, holdSec);
     this.apply({ type: 'travel', to: id });
     return true;
   }
@@ -119,12 +150,13 @@ export class Navigator implements System {
     if (i < 0) return false;
     if (this.current.mode === 'docked' && this.current.target === id) return true;
     this.leave(by);
+    this.headedFor(id);
     const state = { ...ship.state };
     dockAt(surroundings.field, state, params.dock, surroundings.dock, i, angle, spin);
     ship.restore(state);
     this.arrival = 'cut';
     this.apply({ type: 'place', at: id });
-    this.queue.push(() => this.options.emit('docked', { id }));
+    this.queue.push({ deliver: () => this.options.emit('docked', { id }) });
     return true;
   }
 
@@ -133,20 +165,80 @@ export class Navigator implements System {
     const { dock } = this.options.surroundings;
     const id = this.current.target;
     if (id === null || dock.phase === 'free') return null;
-    return { id, docked: dock.phase === 'docked', angle: dock.angle, spin: dock.spin };
+    const docked = dock.phase === 'docked';
+    // On the way, the journey must still last what is left of its hold: a rebuild in the middle
+    // of a hop neither starts the shortest journey over nor lets the ship arrive early.
+    const holdSec = docked ? 0 : Math.max(0, dock.holdSec - dock.phaseSec);
+    return { id, docked, angle: dock.angle, spin: dock.spin, holdSec };
   }
 
-  /** Pick up where a snapshot left off. The ship's own state must have been restored already. */
-  restore(from: Snapshot['dock']): void {
-    if (!from) return;
-    if (from.docked) this.place(from.id, from.angle, from.spin);
-    else this.travel(from.id);
+  /**
+   * Pick up where a snapshot left off. The ship's own state must have been restored already. A
+   * visitor who asked for less motion (`cut`) is never flown across the galaxy: a journey that was
+   * under way is taken up as the short approach when the body is within reach, and as a cut
+   * otherwise, exactly as their links and their pointing are (api.ts goTo, main.ts flyToRow: an
+   * approach with no hold, since theirs is no journey). A ship braking after a STOP (`halting`,
+   * with no dock) goes on braking, and one taken back at speed by its pilot (`guarding`) keeps its
+   * reflex. A journey to a body this world does not have (a snapshot from another deploy) cannot
+   * be taken up: it is a STOP, as a journey let go of anywhere else is (`release`).
+   */
+  restore(from: Snapshot['dock'], cut = false, after: HandBack = NOT_HANDED_BACK): void {
+    if (!from) {
+      // Stopped a moment ago, and still braking: it carries on braking.
+      if (after.halting) this.stop();
+      else if (after.guarding) {
+        const { surroundings, pilot, params } = this.options;
+        guardDock(surroundings.dock, pilot.current, params.dock.leaveDeadZone);
+      }
+      return;
+    }
+    if (from.docked) {
+      this.place(from.id, from.angle, from.spin);
+      return;
+    }
+    const going = cut
+      ? this.approach(from.id) || this.place(from.id)
+      : this.setOut(from.id, 'asked', from.holdSec);
+    if (!going) this.stop();
   }
 
-  /** Let go: back to free flight, from exactly where and how the ship is. */
+  /**
+   * Let go: back to free flight, from exactly where and how the ship is. Out of an orbit that is
+   * all ("Leave orbit": a docked ship is slow). On the way somewhere it is a STOP: the web layer
+   * lets go of a journey whenever the route moves to a page with no body (Projects, the wordmark,
+   * Close or Back to the sky: shell/follow.ts), and a ship let go of at the autopilot's speed
+   * would coast on into whatever lies ahead at the pilot's own top speed (sim/docking.ts, haltDock).
+   * So is an orbit a journey has only just arrived in, while it still carries the journey's speed
+   * (sim/docking.ts, onJourney): Close pressed as the page opens.
+   */
   release(by: 'pilot' | 'asked' = 'asked'): void {
+    const { dock, field } = this.options.surroundings;
+    if (onJourney(field, dock)) {
+      this.stop(by);
+      return;
+    }
     this.leave(by);
     this.apply({ type: 'release' });
+  }
+
+  /**
+   * STOP (the prompt's button on the way somewhere, and `release` then too): let go, and brake the
+   * ship to rest where it is (sim/docking.ts, haltDock). Steering takes over at once.
+   */
+  stop(by: 'pilot' | 'asked' = 'asked'): void {
+    this.leave(by, true);
+    haltDock(this.options.surroundings.dock, this.options.surroundings.assist);
+    this.apply({ type: 'release' });
+  }
+
+  /** Is the ship braking to rest after a STOP? (core/snapshot.ts keeps it through a rebuild.) */
+  get halting(): boolean {
+    return this.options.surroundings.dock.halting;
+  }
+
+  /** Is the reflex still on for a ship its pilot took back at speed? (Kept through a rebuild too.) */
+  get guarding(): boolean {
+    return this.options.surroundings.dock.guarding;
   }
 
   fixedUpdate(): void {
@@ -156,15 +248,21 @@ export class Navigator implements System {
     // What did the last simulation step do with the dock?
     if (dock.leftByPilot && this.current.target !== null) {
       const id = this.current.target;
-      this.queue.push(() => this.options.emit('undocked', { id, by: 'pilot' }));
+      // (The brake, on the way somewhere, is a Stop: sim/docking.ts, pilotLeaves.)
+      const { halting } = dock;
+      this.queue.push({
+        left: id,
+        deliver: () => this.options.emit('undocked', { id, by: 'pilot', halting }),
+      });
       this.apply({ type: 'release' });
-    } else if (dock.phase === 'approach' && this.current.mode === 'autopilot') {
-      // The journey came within reach: the ring's own pilot has taken over.
-      if (this.current.target !== null) this.apply({ type: 'approach', to: this.current.target });
-    } else if (dock.phase === 'docked' && this.current.mode === 'approach') {
+    } else if (
+      dock.phase === 'docked' &&
+      (this.current.mode === 'approach' || this.current.mode === 'autopilot')
+    ) {
+      // On the ring: the approach got there, or the journey arrived beside it.
       const id = this.current.target;
       this.apply({ type: 'capture' });
-      if (id !== null) this.queue.push(() => this.options.emit('docked', { id }));
+      if (id !== null) this.queue.push({ deliver: () => this.options.emit('docked', { id }) });
     }
 
     // Within reach of something? Only free flight is offered a dock.
@@ -176,32 +274,47 @@ export class Navigator implements System {
     }
     if (near !== this.near) {
       this.near = near;
-      this.queue.push(() => this.options.emit('soi', { id: near }));
+      this.queue.push({ deliver: () => this.options.emit('soi', { id: near }) });
     }
   }
 
   frameUpdate(): void {
     // Listeners run here, between simulation steps, where they may safely ask for anything.
-    for (const deliver of this.queue.splice(0)) deliver();
+    for (const { deliver } of this.queue.splice(0)) deliver();
   }
 
   dispose(): void {
     this.queue.length = 0;
   }
 
-  /** End whatever approach or dock is going on, and say so. */
-  private leave(by: 'pilot' | 'asked'): void {
+  /** End whatever approach or dock is going on, and say so (`halting`: a Stop follows). */
+  private leave(by: 'pilot' | 'asked', halting = false): void {
     const { surroundings } = this.options;
     const id = this.current.target;
     if (surroundings.dock.phase === 'free' || id === null) return;
     releaseDock(surroundings.dock, surroundings.assist);
-    this.queue.push(() => this.options.emit('undocked', { id, by }));
+    this.queue.push({
+      left: id,
+      deliver: () => this.options.emit('undocked', { id, by, halting }),
+    });
+  }
+
+  /**
+   * Headed for `id` again before the world has heard that the ship left it (three requests in one
+   * frame: point at a planet, at another, then a link back to the first): that news is no longer
+   * true, and delivered after this, it would cancel the journey's promise (api.ts goTo) and send
+   * the page the link just opened home (shell/follow.ts).
+   */
+  private headedFor(id: string): void {
+    for (let k = this.queue.length - 1; k >= 0; k -= 1) {
+      if (this.queue[k]?.left === id) this.queue.splice(k, 1);
+    }
   }
 
   private apply(event: AppEvent): void {
     const next = transition(this.current, event);
     if (!next) return;
     this.current = next;
-    this.queue.push(() => this.options.emit('statechange', next));
+    this.queue.push({ deliver: () => this.options.emit('statechange', next) });
   }
 }

@@ -1,0 +1,23 @@
+{
+  "galaxies": ["real", 4],
+  "variants": [
+    { "name": "today" },
+    {
+      "name": "the old spiral",
+      "slotExponent": 0.5
+    },
+    {
+      "name": "faster ends",
+      "tuning": {
+        "cruise": { "keepOutSpeed": 60, "openSpaceGain": 6 },
+        "assist": { "orbitSpeed": 20 }
+      }
+    }
+  ],
+  "sample": {
+    "between": "all",
+    "within": "all",
+    "spawn": true,
+    "starts": { "real": 3, "grown": 1 }
+  }
+}

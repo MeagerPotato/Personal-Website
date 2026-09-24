@@ -10,11 +10,14 @@ export interface ChaseCamParams {
   readonly up: number;
   readonly lookAheadBase: number;
   readonly lookAheadPerSpeed: number;
+  readonly lookAheadMax: number;
   readonly positionOmega: number;
   readonly maxTrail: number;
   readonly yawOmega: number;
+  readonly maxYawRate: number;
   readonly fovBoostDegrees: number;
   readonly fovBoostSpeeds: readonly [from: number, to: number];
+  readonly fovOmega: number;
   readonly fovDolly: number;
   readonly minHorizontalFovDegrees: number;
   readonly maxFovDegrees: number;
@@ -54,6 +57,9 @@ export class ChaseCam implements CameraMode {
   private readonly x = createSpring();
   private readonly z = createSpring();
   private readonly yaw = createSpring();
+  /** How much of the speed's widening of the lens is on (0 to 1), and how far ahead it looks (u). */
+  private readonly rush = createSpring();
+  private readonly ahead = createSpring();
   private readonly eye = new Vector3();
   private readonly look = new Matrix4();
   private lastX = 0;
@@ -83,16 +89,43 @@ export class ChaseCam implements CameraMode {
     const { x, z } = target.position;
     const dt = frame.dt;
 
+    // The lens widens with speed, and the view looks further ahead. Both EASE there (fovOmega):
+    // the autopilot goes from rest to 700 u/s in a second, and a lens that followed the speed
+    // step for step swung 13 degrees in five frames. A pilot's own boost ends at the same lens.
+    const [slow, fast] = params.fovBoostSpeeds;
+    const rushTo = this.options.reducedMotion ? 0 : smoothstep(slow, fast, target.speed);
+    // Never further than lookAheadMax: at the autopilot's 700 u/s it would be 140 u, and from
+    // 4.4 u up the view would lie flat along the plane (a pitch of 1.5 degrees; 3.2 at the cap).
+    const aheadTo = Math.min(
+      params.lookAheadMax,
+      params.lookAheadBase + params.lookAheadPerSpeed * target.speed,
+    );
     if (!this.following) {
       snapSpring(this.x, x);
       snapSpring(this.z, z);
       snapSpring(this.yaw, target.heading);
+      snapSpring(this.rush, rushTo);
+      snapSpring(this.ahead, aheadTo);
       this.following = true;
     } else if (dt > 0) {
       stepSpring(this.x, x, params.positionOmega, dt, (x - this.lastX) / dt);
       stepSpring(this.z, z, params.positionOmega, dt, (z - this.lastZ) / dt);
       const turned = (target.heading - this.lastHeading) / dt;
+      const from = this.yaw.value;
       stepSpring(this.yaw, target.heading, params.yawOmega, dt, turned);
+      // The view never swings faster than maxYawRate, and under reduced motion never faster than a
+      // pilot can turn the ship by hand: the autopilot snaps round at 7 rad/s, and a view that
+      // kept up spun the whole world past at 380 degrees a second. The ship turns in the frame
+      // instead, and the view comes round after it.
+      const most = this.options.reducedMotion
+        ? Math.min(params.maxYawRate, tuning.flight.yawRateSlow)
+        : params.maxYawRate;
+      if (Math.abs(this.yaw.value - from) > most * dt) {
+        this.yaw.value = from + Math.sign(this.yaw.value - from) * most * dt;
+        this.yaw.velocity = clamp(this.yaw.velocity, -most, most);
+      }
+      stepSpring(this.rush, rushTo, params.fovOmega, dt);
+      stepSpring(this.ahead, aheadTo, params.fovOmega, dt);
     }
     this.lastX = x;
     this.lastZ = z;
@@ -111,9 +144,7 @@ export class ChaseCam implements CameraMode {
     const anchorZ = z - trailZ * held;
 
     const base = tuning.camera.fovDegrees;
-    const [slow, fast] = params.fovBoostSpeeds;
-    const rush = this.options.reducedMotion ? 0 : smoothstep(slow, fast, target.speed);
-    const wanted = base + params.fovBoostDegrees * rush;
+    const wanted = base + params.fovBoostDegrees * clamp(this.rush.value, 0, 1);
     const halfHorizontal = (params.minHorizontalFovDegrees / 2) * RAD_PER_DEG;
     const needed = (2 * Math.atan(Math.tan(halfHorizontal) / aspect)) / RAD_PER_DEG;
     // The free strip sees `strip` of the lens's height (in tangents: the view offset keeps the
@@ -141,7 +172,7 @@ export class ChaseCam implements CameraMode {
 
     const forwardX = Math.sin(this.yaw.value);
     const forwardZ = Math.cos(this.yaw.value);
-    const ahead = params.lookAheadBase + params.lookAheadPerSpeed * target.speed;
+    const ahead = this.ahead.value;
     out.focus.set(anchorX + forwardX * ahead, 0, anchorZ + forwardZ * ahead);
     this.eye.set(
       anchorX - forwardX * params.back * reach,

@@ -2,6 +2,20 @@ import { maxYawRate, speedOf } from './flight';
 import { angleDelta, angleOf, clamp, smoothstep } from './math';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
+/** An approach gives way to another body out to this many of its ring radii (see orbitWish). */
+const GIVE_WAY = 1.25;
+/**
+ * A pilot who asked to be on the ring and goes more than this many times as fast as it wants to
+ * (an approach begun while the autopilot raced past) brakes the rest off as the autopilot would
+ * (WishPace.brakeGain, not the assist's gentle speedGain), but no harder than FAR_DECEL u/s²: a
+ * firm stop, not a wall. Past the reflex's limit it brakes as hard as it takes. (Firmer than the
+ * autopilot's cruise.comfortDecel: an approach has no plan that began slowing it early. Held to
+ * 700, a moon asked for at 440 u/s from 2 u inside its reach was passed 1.1 u above the sun
+ * beyond it; at 1,000, 2.7 u.)
+ */
+const FAR_ABOVE = 2;
+const FAR_DECEL = 1000;
+
 /**
  * ORBIT ASSIST: let go of the controls near a planet and the ship eases onto a ring around it
  * and keeps circling, so a planet is a place to arrive at and not a thing to fly past.
@@ -156,13 +170,39 @@ export function chooseBody(
 }
 
 /**
+ * The pace of a pilot who ASKED to be on the ring (sim/docking.ts), instead of the loose assist's
+ * `orbitSpeed` and `orbitMaxRate`: they want to be there, not to drift there.
+ */
+export interface WishPace {
+  /** u/s along the ring ... */
+  readonly speed: number;
+  /** ... but never more than this many radians per second round the body. */
+  readonly maxRate: number;
+  /** u/s faster for every unit still off the ring, up to `speed`. */
+  readonly hurry: number;
+  /**
+   * 1/s: how hard it brakes when it goes faster than it wants to (the loose assist's speedGain is
+   * gentle: a pilot who asked to be on the ring at 30 u/s and passes it at 200 wants that gone).
+   */
+  readonly brakeGain: number;
+  /** u/s: never faster than this, whatever the ring wants (the reflex, sim/reflex.ts). */
+  readonly limit: number;
+  /**
+   * u/s: past this, the full brake. The reflex for the body it is going to (sim/reflex.ts,
+   * ownLimits): a ship past it is diving at the body whose ring it wants, not passing another.
+   */
+  readonly brakeAt: number;
+}
+
+/**
  * What a pilot who wants to circle body `i` would do with the controls right now, written into
  * `out`. Chooses which way round when `assist.spin` is still 0, and follows a pilot who has
  * clearly turned round.
  *
- * `hurry` (u/s per unit off the ring) is for a pilot who ASKED to be there (sim/docking.ts): the
- * further from the ring, the faster the way back to it, up to the normal pace limit. The loose
- * assist never hurries.
+ * `pace` is for a pilot who ASKED to be there (sim/docking.ts): its own pace, a hurry (the further
+ * from the ring, the faster the way back to it), and the brake when the ship is too fast for it.
+ * It also gives way: see GIVE_WAY below. The loose assist never hurries, and never brakes: that
+ * is the pilot's to do.
  */
 export function orbitWish(
   field: BodyField,
@@ -172,7 +212,7 @@ export function orbitWish(
   params: AssistParams,
   assist: AssistState,
   out: FlightInput,
-  hurry = 0,
+  pace: Readonly<WishPace> | null = null,
 ): FlightInput {
   const bodyVx = field.velocities[i * 2] ?? 0;
   const bodyVz = field.velocities[i * 2 + 1] ?? 0;
@@ -215,19 +255,45 @@ export function orbitWish(
   dirZ /= length;
 
   // The body moves too: the ring is followed in ITS frame, so its velocity is added on top.
-  const pace = Math.min(
-    params.orbitSpeed,
-    Math.min(params.orbitSpeed, params.orbitMaxRate * ring) + hurry * Math.abs(off),
-  );
-  const wantX = pace * dirX + bodyVx;
-  const wantZ = pace * dirZ + bodyVz;
+  const top = pace ? pace.speed : params.orbitSpeed;
+  const rate = pace ? pace.maxRate : params.orbitMaxRate;
+  const speed = Math.min(top, Math.min(top, rate * ring) + (pace ? pace.hurry : 0) * Math.abs(off));
+  let wantX = speed * dirX + bodyVx;
+  let wantZ = speed * dirZ + bodyVz;
+  if (pace) {
+    // An approach gives way. Inside another body's ring it never closes on that body, whatever
+    // its own ring wants, and slides round it instead (fading out by GIVE_WAY rings): a moon that
+    // lies between the ship and its planet's ring, or the moon it is leaving, is gone round, not
+    // skimmed. The cushions (sim/collide.ts) would stop the ship too, but only at the shell.
+    // (From proposal/warp.)
+    for (let j = 0; j < field.count; j += 1) {
+      if (j === i) continue;
+      const surface = field.radius[j] ?? 0;
+      if (!(surface > 0)) continue;
+      const inner = Math.max(field.ringRadius[j] ?? 0, surface);
+      const reach = GIVE_WAY * inner;
+      const rx = state.x - (field.positions[j * 2] ?? 0);
+      const rz = state.z - (field.positions[j * 2 + 1] ?? 0);
+      const dj = Math.hypot(rx, rz);
+      if (dj >= reach || dj < 1e-9) continue;
+      const nx = rx / dj;
+      const nz = rz / dj;
+      const closing =
+        (wantX - (field.velocities[j * 2] ?? 0)) * nx +
+        (wantZ - (field.velocities[j * 2 + 1] ?? 0)) * nz;
+      if (closing >= 0) continue;
+      const weight = clamp((reach - dj) / (reach - inner), 0, 1);
+      wantX -= closing * weight * nx;
+      wantZ -= closing * weight * nz;
+    }
+  }
   const wantSpeed = Math.hypot(wantX, wantZ);
 
   // Feed-forward. To stay on a circle the nose has to keep turning, and a turning ship slides
   // outward a little (the grip is finite): so ask for the turn rate of the ring up front, and
   // point the nose into the turn by the slip angle. What is left for the feedback is the error.
   const share = Math.max(0, spin * (dirX * alongX + dirZ * alongZ));
-  const ringRate = spin * (pace / ring) * share * share;
+  const ringRate = spin * (speed / ring) * share * share;
   const noseTarget = angleOf(wantX, wantZ) + Math.atan2(ringRate, flight.lateralGrip);
   const error = angleDelta(state.heading, noseTarget);
 
@@ -235,8 +301,32 @@ export function orbitWish(
   // Throttle: hold the pace against drag and close the gap, but only once the nose has come round.
   const forwardSpeed = state.vx * noseX + state.vz * noseZ;
   const push = flight.forwardDrag * wantSpeed + params.speedGain * (wantSpeed - forwardSpeed);
-  out.thrust = clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
-  out.brake = 0;
+  // A pilot who asked to be there also brakes, when the ship is faster than it wants to be: gently
+  // by the assist's own gain; firmly when far faster than that; and as hard as it takes when the
+  // course it is on is running out (the reflex, WishPace.limit). That counts the speed along the
+  // nose EITHER way: a ship sliding backward at a body (asked somewhere while it dived at one)
+  // brakes as a ship flying at it nose first does; the brake takes out what goes along the nose.
+  const risky = pace ? Math.abs(forwardSpeed) - pace.limit : -Infinity;
+  const slow = pace
+    ? Math.max(
+        -push,
+        Math.min(pace.brakeGain * (forwardSpeed - FAR_ABOVE * wantSpeed), FAR_DECEL),
+        pace.brakeGain * risky,
+      )
+    : 0;
+  out.thrust =
+    risky > 0 ? 0 : clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
+  // Diving at the body whose ring it wants (WishPace.brakeAt), the full brake. By how far over the
+  // limit it was, the brake fell behind the limit, which shrinks as the ship closes: a body asked
+  // for just after one beside it (the journey harness's `reachBack`), the ship closing on it at
+  // 44 u/s from 8 u above, had its shell touched at 14 u/s. (The full brake past every body's
+  // limit would be a wall, not a firm stop: 2,600 u/s² at 440 u/s beside a moon it passes.)
+  const diving = pace !== null && Math.abs(forwardSpeed) > pace.brakeAt;
+  out.brake = diving
+    ? 1
+    : slow > 0
+      ? clamp(slow / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1)
+      : 0;
   out.boost = false;
   return out;
 }

@@ -27,7 +27,7 @@ export const systemSchema = () =>
     name: z.string().min(1).max(32),
     tagline: z.string().min(1).max(120),
     theme: z.enum(THEME_KEYS),
-    /** Slot on the galaxy spiral, from 1 (0 is home). Never reuse or renumber: it IS the position. */
+    /** Slot in the galaxy's honeycomb, from 1 (0 is home). Never reuse or renumber: it IS the position. */
     order: z.number().int().min(1),
     position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).default('auto'),
   });

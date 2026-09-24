@@ -47,7 +47,12 @@ src/pages/universe.json.ts -----------------> dist/universe.json      the galaxy
 
 `/universe.json` is fetched only in universe mode. The engine reads it through
 `src/universe/manifest.ts` and never imports anything from Astro. Layout is seeded per entity id,
-so adding a project never moves an existing planet.
+so adding a project never moves an existing planet. Systems sit on a honeycomb of slots round home
+(`slotPosition`): where slot k is follows from its `order` and three keys alone
+(`tuning.layout.homeRoom`, `slotRoom`, `clusterAxisDeg`), never from the size of a body or a
+ring, so a new system moves no other, and nothing but those keys can move one (a test pins orders
+1 to 8 until `galaxy.lock.json` does). The build refuses rooms that no longer fit the tripwires
+(a system no wider than `maxSystemRadius`, and `minSystemGap` between two).
 
 The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
 `/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
@@ -192,29 +197,90 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   orbit assist's virtual pilot flies the ship onto the ring by itself, and once there the ship is
   no longer flown but CARRIED round the body, so nothing drifts however long someone reads.
   The leftovers of a capture settle on springs that start with the ship's own velocities, so
-  there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
+  there is no jolt, and an approach is taken only once it goes round no faster than 2.5 times its
+  own pace (`CAPTURE_PACE`): a ship skimming the ring faster flies on and brakes first. An
+  approach gives way to every other body inside its ring (`GIVE_WAY` in `sim/assist.ts`): a moon
+  between the ship and its planet is gone round, not skimmed. Fresh steering always leaves. The navigator keeps the app state machine
   (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
 - **Journeys** (`sim/autopilot.ts`). A destination out of reach is FLOWN to: `goTo(id)` becomes
-  `navigator.travel(id)`, and the dock's phase is `cruise` until the ship is within reach, when
-  the approach above takes over. So a journey is one more phase of the same dock: the same
-  events, the same snapshot fields, and the same rule that fresh steering (or the brake) takes
-  the ship back with exactly the velocity it has. It is three pure pieces, the same structure as
-  a robot's autonomous routine:
+  `navigator.travel(id)`, and the dock's phase is `cruise` until the ship arrives beside the
+  ring, travelling along it, when it is taken into orbit right there (`arrive`: the springs of
+  the dock bring it onto the ring). A body that is within reach already is approached instead,
+  held for as long as the shortest journey (`cruise.minJourneySec`), which no journey undercuts:
+  a hop still reads as a journey. The hold is `DockState.holdSec`, and what is left of it is a
+  snapshot field, so a rebuilt engine does not start it over. So a journey is one more phase of
+  the same dock: the same events, the same snapshot fields, and the same rule that fresh steering
+  (or the brake) takes the ship back with exactly the velocity it has; what the pilot's own drive
+  could never make then drains away at `cruise.dropOutPerSec` (`dropOutOfWarp` in `flyStep`), so
+  a ship let go of at 700 u/s is back to its own top speed within some 160 u. **Stop** (the
+  prompt's button, `navigator.stop`) lets go the same way and then holds the brake for the pilot
+  until the ship is at rest, in space or beside the body nearest to it, whose cushion may be
+  carrying it along (`haltDock`, `haltingInput` in `sim/docking.ts`): stopped anywhere, in a
+  bend or a step before it arrives, it comes to rest within 155 u and meets nothing. A tap
+  of the brake mid-journey is a Stop too (`pilotLeaves`). A turn or the throttle is the pilot
+  flying again, but the pilot's own top speed (81 u/s) is still more than a cushion stops, and a
+  journey ends among its target's moons: so the reflex (below) stays on for them, with the
+  pilot's own brake, until the ship is slow enough for the cushions or they open the throttle
+  afresh with nothing left to guard: at a speed their own drive gives (with boost, if they
+  boost), and where the ship would
+  coast to rest short of everything on its course (`guardInput`, `DockState.guarding`: a second
+  tap of W while the speed is still the autopilot's is not that); steering out of a Stop while
+  still fast does the same. The web layer letting go of a journey (`undock`: the route moved to a
+  page with no body) is a Stop too (`Navigator.release` on the way somewhere), and so is a page
+  load that does not take the journey up (`startingFrom`, below). An orbit a journey has only
+  just arrived in, still carried round faster than the cushions stop, counts as the journey
+  (`onJourney`): let go of, it is a Stop, and steered off, it is guarded. Nowhere near anything,
+  that is the pilot's input exactly. `halting` and `guarding` are snapshot fields, and
+  `undocked` says whether the ship now brakes to rest (`halting`). It is three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
-     moving ship's path begins with a short run-up the way it is already going. Bodies that crowd
-     each other give way in proportion so that no gap is ever planned shut, and only the first and
-     last leg may cut a keep-out the ship starts or ends inside. Planning again every second costs
+     ship on its way keeps to the next half second of its last plan (`keepStretch`: a new plan
+     that began straight ahead would straighten every bend the ship is halfway round); one that
+     is not on a plan yet gets a short run-up the way it is going. Bodies that crowd each other
+     give way in proportion so that no gap is ever planned shut, and only the first and last leg
+     may cut a keep-out the ship starts or ends inside. Planning again twice a second costs
      nothing in steadiness: the planner remembers which side of each body it went (`walls`) and
      changes its mind only for a much shorter way.
   2. **Profile** (`sim/profile.ts`). A speed for every sample: a forward pass (what the drive can
      reach) and a backward pass (what the brake can still shed, knowing the brake is a drag),
-     under a ceiling that is low inside and beside keep-outs and opens up with room.
-  3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point a second ahead on the path,
+     under a ceiling that is low where the path closes on a keep-out and opens up with room
+     (`passingLimit`: going PAST one, only the speed toward it counts; going away, none does),
+     counting on the drive turning faster when it is slow (`bendSpeed`).
+  3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point half a second ahead on the path,
      never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
-     the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
-  Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`).
+     the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`. It
+     brakes for the plan no harder than `cruise.comfortDecel` (a replan that finds a bend close
+     ahead used to brake for it in one step, a jolt of 2,200 u/s²).
+  A plan for a moving ship starts from what the ship does ALONG it (`alongPath`: a new
+  destination behind the ship starts the profile at rest, not at the ship's full speed), and a
+  ship faster than its plan brakes to be down to it where the plan will be. Under all three sits
+  **the reflex** (`sim/reflex.ts`): whatever the plan says, the ship may go no faster on its own
+  COURSE (the way it is going, and the way its nose points) than `openSpaceGain` times the way
+  left before it would pass 3 u above a body it is not going to. On a plan being flown it asks
+  for nothing; it is what brakes a ship that is off its plan (a new destination chosen at speed,
+  a bend taken wide), as hard as the brake goes, whichever way the nose points (a ship sliding
+  backward at a body brakes too). The approach, which has no plan, uses it too,
+  with a berth that widens with speed (`REFLEX_LEAD_SEC`): a body within reach asked for while
+  the autopilot races past it is approached from cruise speed, braking off what it does not want
+  at up to 1,000 u/s² (`FAR_DECEL` in `sim/assist.ts`). The approach also counts the body it is
+  for, with the plain 3 u berth and the full brake past it (`ownLimits`): its ring is 6 u or more
+  above the surface, so the way onto the ring is never braked, and a ship already diving at the
+  body is. `npm run journeys` with `"stress": true`
+  (`scripts/journeys/stress.ts`) is what checks all of it: redirects every 0.1 s, Stop every
+  0.25 s and just before arrival, a body within reach at speed, Stop then E, a tap of the brake,
+  an arrow or the throttle instead of Stop, a double tap (the throttle twice, an arrow then the
+  throttle, a thumb lifted off the stick and put back), the web layer letting go, a body raced
+  past and then back, chains of 4 to 8 names in a row, and the engine rebuilt from its snapshot
+  mid-journey.
+  Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`), or the short approach
+  within reach, and a journey picked up from a snapshot (`navigator.restore`) is taken up the same
+  way. The camera follows at any speed: the chase camera looks ahead no further than
+  `chaseCam.lookAheadMax`, swings round no faster than `chaseCam.maxYawRate` (about 195 degrees a
+  second while the autopilot snaps round at 7 rad/s; under reduced motion no faster than the
+  pilot's own turn, which is what an approach or an E press shows them), and the dust slides past
+  no faster than `dust.maxFieldSpeed` (its box moves with the ship; `sim/dustField.ts` and the
+  `uField` uniform), so the view neither spins, nor lies flat, nor strobes at 700 u/s.
 - **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
   works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
   camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
@@ -265,9 +331,17 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
   work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
   by pixels and zooming about a point are pure maths in `sim/mapView.ts`), eased on springs and
-  fitted into what the panel, the top bar and the Map button leave free. While it is open the
+  fitted into what the panel, the top bar and the Map button leave free. It opens on everything
+  (the galaxy, and the ship if it is out beyond it), snugly, with room in pixels for the names at
+  the edge, zooms out no further than that, and never lets the galaxy be dragged off (zoomed in,
+  the view stays on it; further out, all of it stays in view): past it there is only empty space,
+  and names too small to matter. While it is open the
   flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
   and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
+  The names lie over the map and on a phone cover much of it, so to a finger they are the map
+  too: one that goes down on a name and moves further than a tap (`picking.tapMaxPx`) drags, one
+  that comes down while another is on the map pinches, and only a tap presses the name. The
+  names are measured again when the map opens and closes (their size may differ there).
   Pointing at a body or its name goes there and closes the map; a nav link leaves it open, so
   that journey is watched from above. **Sizes on the map** are `displayScales` (pure): every
   body is drawn at least a few pixels big, by kind, and a body whose disc would touch its
@@ -281,7 +355,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
-  means the ship goes there: `goTo(id)`. Any other page means `undock()`. The other way round,
+  means the ship goes there: `goTo(id)`. Any other page means `undock()` (on the way somewhere,
+  a Stop: the ship brakes to rest rather than coast on at speed). The other way round,
   `docked` opens that body's page unless it is showing already, and `undocked` with `by: 'pilot'`
   leaves the page (`router.leave`: Back when Back is the open sky, otherwise a new step). Both
   sides are idempotent and neither waits for the other, so there is nothing to deadlock. A page
@@ -295,8 +370,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   began with a link does not count, because that visitor was reading.
 - **What the ship does, said aloud** (`shell/announcer.ts`). One polite `role="status"` region,
   in the layout from the start and empty, because a screen reader listens to the regions it found
-  when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI." or "Stopped.", and
-  that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
+  when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI.", "Stopped." or,
+  when an arrow or the throttle took the journey back and the ship flies on, "Flying by hand."
+  (`undocked`'s `halting`), and that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
   link, a cut under reduced motion), nor about leaving: there a page opens or closes, the focus
   moves, and the heading says it better.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
@@ -306,13 +382,18 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   sessionStorage when the page goes away (`shell/pose-memory.ts`) and hands it to the next
   engine (`start.snapshot`), which checks every field before believing it. So a reload, or a
   navigation the router had to hand to the browser, carries on in the same world at the same
-  time with the ship where it was. When the two disagree the URL wins.
+  time with the ship where it was. When the two disagree the URL wins, and a journey it does not
+  take up is a Stop: one pointed at in the world flies with the URL on the sky, and reloaded
+  there the ship would otherwise coast on at the pilot's top speed. A journey to a body the
+  manifest no longer has is a Stop as well (`Navigator.restore`).
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
   must become a snapshot field. (What the web layer last ASKED for is not the engine's state:
   `api.ts` keeps the panel's inset, the pause and whether the map is open, and tells the new
-  engine, with a cut.)
+  engine, with a cut. And what the old navigator had queued for its next frame, a Stop pressed
+  since the last one say, is delivered before the snapshot is taken: the new engine only reports
+  what it does itself.)
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and
   textures in a `Scope` (`core/scope.ts`); in development the engine warns on dispose if
   three.js still counts any.
@@ -321,7 +402,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 
 | Thing | Convention |
 | --- | --- |
-| Space | Flight happens on the flat **XZ plane**, **Y is up**. 1 unit (`u`) is about a metre at toy scale: the rocket is 2 u long, planets 5 to 12 u in radius, systems about 1000 u apart. |
+| Space | Flight happens on the flat **XZ plane**, **Y is up**. 1 unit (`u`) is about a metre at toy scale: the rocket is 2 u long, planets 5 to 12 u in radius, neighbouring systems some 600 u apart (centre to centre). |
 | Angles | Radians, **counter-clockwise seen from above, 0 along +Z**. The unit vector of angle `a` is `(sin a, cos a)`. This is exactly three's `rotation.y`, so a heading goes straight onto a mesh. Headings are never wrapped, so interpolation is a plain lerp. `angleDelta(from, to)` is positive counter-clockwise. |
 | Turning | `turn > 0` steers to the pilot's **left** (counter-clockwise). `yawRate > 0` likewise. |
 | Orbits | The tangent for counter-clockwise travel around a body is `(r.z, -r.x)` for the unit radius vector `r`. |
@@ -338,7 +419,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | --- | --- | --- |
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
-| Flight, journey, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
+| Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
@@ -351,9 +432,19 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   speed and a 10,000-step random pilot stays finite and outside every planet; the orbit assist
   captures within half a unit, lets go within 3 s of full thrust, and a kamikaze pilot at full
   boost never gets under a shell; identical end states at 30, 60 and 144 Hz; the governor's every
-  decision; a galaxy layout that is a pure function of each entity's id; 200 seeded journeys
-  through a galaxy with moons (from docks and from mid-flight, at any heading and speed) that all
-  dock, touch nothing, keep their distance and never open the throttle with the nose off the path;
+  decision; a galaxy layout that is a pure function of each entity's id, with the systems pinned
+  where they are; 200 seeded journeys through a galaxy with moons (from docks and from mid-flight,
+  at any heading and speed) that all dock, touch nothing, keep their distance and never open the
+  throttle with the nose off the path, and 200 more swept step by step against every shell (at
+  700 u/s a step is 12 u: no step may pass through one); Stop pressed at a journey's top
+  speed, every quarter second and just before it arrives, after which the ship brakes to rest
+  within 160 u, and into nothing; a new destination every tenth of a second of a journey, and a
+  body within reach asked for at cruise speed, each docked without passing closer than half a
+  cushion to anything; a tap of the brake, an arrow or the throttle at any moment of a journey
+  in the live galaxy (frozen as it was on 2026-09-23), after which the ship meets nothing (the
+  journey harness's `stress` mode does all of this in bigger galaxies); an approach begun diving
+  at its own body, which meets the shell only from nearer than the brake could stop in; a chase
+  camera that never swings faster than its limit, nor under reduced motion than a pilot turns;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and

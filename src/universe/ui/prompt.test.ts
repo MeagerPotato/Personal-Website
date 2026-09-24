@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../state/appMachine';
 import { Prompt, type PromptNavigator } from './Prompt';
 
-function setup(state: AppState, candidate: string | null) {
+function setup(state: AppState, candidate: string | null, quiet?: () => boolean) {
   document.body.innerHTML = '<div id="overlay"></div><main data-flight-keys="off"><input /></main>';
   const overlay = document.getElementById('overlay') as HTMLElement;
   const navigator = {
@@ -11,11 +11,13 @@ function setup(state: AppState, candidate: string | null) {
     candidate,
     approach: vi.fn(() => true),
     release: vi.fn(),
+    stop: vi.fn(),
   };
   const prompt = new Prompt({
     overlay,
     navigator: navigator as PromptNavigator,
     titleOf: (id) => (id === 'project/fishai' ? 'FishAI' : id),
+    quiet,
   });
   prompt.frameUpdate();
   const button = overlay.querySelector('button') as HTMLButtonElement;
@@ -38,6 +40,40 @@ describe('dock prompt', () => {
     cleanup = () => prompt.dispose();
     expect(button.type).toBe('button');
     expect(button.hidden).toBe(true);
+  });
+
+  it('keeps its offers out of sight while it is told to, and brings them back as they were', () => {
+    let squeezed = true;
+    const { button, navigator, prompt } = setup(
+      { mode: 'docked', target: 'project/fishai' },
+      null,
+      () => squeezed,
+    );
+    cleanup = () => prompt.dispose();
+    expect(button.hidden).toBe(true);
+    expect(prompt.box()).toBeNull();
+    squeezed = false;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe('Leave orbit');
+    squeezed = true;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(true);
+    // E does what it always does.
+    navigator.state = { mode: 'flight', target: null };
+    navigator.candidate = 'project/fishai';
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(true);
+    press('KeyE');
+    expect(navigator.approach).toHaveBeenCalledWith('project/fishai');
+    // But a journey's Stop is never hushed: on a phone there is no other way to stop.
+    navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    navigator.candidate = null;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe('Flying to FishAIStop');
+    button.click();
+    expect(navigator.stop).toHaveBeenCalledWith('pilot');
   });
 
   it('offers to orbit the body within reach, by its name, and says which key does it', () => {
@@ -65,7 +101,7 @@ describe('dock prompt', () => {
     expect(navigator.approach).toHaveBeenCalledTimes(1);
   });
 
-  it('on the way somewhere, says where to and offers to stop', () => {
+  it('on the way somewhere, says where to and offers to stop, which brakes the ship to rest', () => {
     for (const mode of ['autopilot', 'approach'] as const) {
       const { button, navigator, prompt } = setup({ mode, target: 'project/fishai' }, null);
       expect(button.hidden).toBe(false);
@@ -75,7 +111,8 @@ describe('dock prompt', () => {
       // The words before the name are their own element: a phone short of room sets them aside.
       expect(button.querySelector('.dock-prompt__lead')?.textContent).toBe('Flying to ');
       button.click();
-      expect(navigator.release).toHaveBeenCalledWith('pilot');
+      expect(navigator.stop).toHaveBeenCalledWith('pilot');
+      expect(navigator.release).not.toHaveBeenCalled();
       expect(navigator.approach).not.toHaveBeenCalled();
       prompt.dispose();
     }
@@ -91,6 +128,8 @@ describe('dock prompt', () => {
     expect(button.querySelector<HTMLElement>('.dock-prompt__action')?.hidden).toBe(true);
     button.click();
     expect(navigator.release).toHaveBeenCalledWith('pilot');
+    // Leaving orbit is no stop: the ship leaves at its orbit's pace, and the assist may hold it.
+    expect(navigator.stop).not.toHaveBeenCalled();
     // E never undocks: it is the key for arriving.
     press('KeyE');
     expect(navigator.approach).not.toHaveBeenCalled();

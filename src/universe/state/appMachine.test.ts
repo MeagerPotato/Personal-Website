@@ -59,10 +59,18 @@ describe('app state machine', () => {
     expect(transition({ mode: 'approach', target: 'a' }, { type: 'travel', to: 'a' })).toBeNull();
   });
 
-  it('only captures out of an approach', () => {
+  it('captures out of an approach, or straight out of the autopilot, and nothing else', () => {
     expect(transition(FLIGHT, { type: 'capture' })).toBeNull();
-    expect(transition({ mode: 'autopilot', target: 'a' }, { type: 'capture' })).toBeNull();
     expect(transition({ mode: 'docked', target: 'a' }, { type: 'capture' })).toBeNull();
+    expect(transition({ mode: 'approach', target: 'a' }, { type: 'capture' })).toEqual({
+      mode: 'docked',
+      target: 'a',
+    });
+    // A journey's arrival IS its capture: the springs of the dock settle the ship onto the ring.
+    expect(transition({ mode: 'autopilot', target: 'a' }, { type: 'capture' })).toEqual({
+      mode: 'docked',
+      target: 'a',
+    });
   });
 
   it('can be placed in orbit from anywhere: a page opened on a planet never passes through flight', () => {

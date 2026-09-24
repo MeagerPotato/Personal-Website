@@ -10,6 +10,7 @@ export interface PromptNavigator {
   readonly candidate: string | null;
   approach(id: string): boolean;
   release(by: 'pilot' | 'asked'): void;
+  stop(by: 'pilot' | 'asked'): void;
 }
 
 export interface PromptOptions {
@@ -18,6 +19,13 @@ export interface PromptOptions {
   navigator: PromptNavigator;
   /** The name a visitor knows a body by. */
   titleOf(id: string): string;
+  /**
+   * While this says so, the prompt keeps its offers out of sight ("Orbit ...", "Leave orbit"),
+   * and brings them back as they were when it stops saying so: the star map on a narrow screen,
+   * squeezed into the strip above an open page, where the prompt would sit on the galaxy itself
+   * (main.ts). `E` still works. "Flying to ... Stop" always shows: on a phone it is the only Stop.
+   */
+  quiet?: () => boolean;
 }
 
 const DOCK_KEY = 'KeyE';
@@ -44,6 +52,7 @@ export class Prompt implements System {
   /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
   private readonly action: HTMLSpanElement;
   private shown = '';
+  private hushed = false;
   private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(private readonly options: PromptOptions) {
@@ -87,8 +96,10 @@ export class Prompt implements System {
       text = titleOf(target);
       action = 'Stop';
     }
-    if (lead + text === this.shown) return;
+    const hushed = this.options.quiet?.() ?? false;
+    if (lead + text === this.shown && hushed === this.hushed) return;
     this.shown = lead + text;
+    this.hushed = hushed;
     this.lead.textContent = lead;
     this.lead.hidden = lead === '';
     this.name.data = text;
@@ -96,7 +107,8 @@ export class Prompt implements System {
     this.key.hidden = key === '';
     this.action.textContent = action;
     this.action.hidden = action === '';
-    this.button.hidden = text === '';
+    // Hushed, the offers go; a journey's Stop stays (a phone has no other way to stop).
+    this.button.hidden = text === '' || (hushed && action === '');
   }
 
   /** Where the prompt is on the page, or null while it does not show: names keep off it. */
@@ -112,7 +124,10 @@ export class Prompt implements System {
 
   private readonly act = (): void => {
     const { navigator } = this.options;
-    if (navigator.state.target !== null) navigator.release('pilot');
+    const { mode, target } = navigator.state;
+    // "Leave orbit" lets go; "Stop", on the way somewhere, also brakes the ship to rest.
+    if (mode === 'docked') navigator.release('pilot');
+    else if (target !== null) navigator.stop('pilot');
     else if (navigator.candidate !== null) navigator.approach(navigator.candidate);
     // The button is about to change or go: do not leave the keyboard focus on it.
     this.button.blur();

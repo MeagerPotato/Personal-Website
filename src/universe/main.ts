@@ -156,7 +156,7 @@ export function boot(
   if (start?.dock || at !== null) {
     syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
-  if (start?.dock) navigator.restore(start.dock);
+  if (start) navigator.restore(start.dock, reducedMotion, start);
   // Boost only multiplies the pilot's own thrust: outside free flight a finger's boost pad would
   // light up and do nothing, so it is put away (the stick stays: it is how the pilot leaves).
   engine.add({
@@ -178,14 +178,18 @@ export function boot(
       canvas: engine.canvas,
       overlay: options.overlay,
       bounds: boundsOf(manifest.systems),
+      ship: () => ship.state,
       view: rig.shape,
       params: tuning.map,
       reducedMotion,
+      tapMaxPx: tuning.picking.tapMaxPx,
       onChange: (open, cut) => {
         input.setEnabled(!open);
         // Now, not with the next frame: a cut to the map is then a cut in every part of it.
         direct(cut);
         hooks.onMap(open);
+        // The names may be set in another size on the map: measure them in the one they now have.
+        labels?.remeasure();
       },
     }),
   );
@@ -346,6 +350,10 @@ export function boot(
         overlay: options.overlay,
         navigator,
         titleOf: (id) => titles.get(id) ?? id,
+        // The map on a narrow screen with a page open is the strip above the sheet: the prompt's
+        // offers would sit on the galaxy. They are back when the map closes; a journey's Stop
+        // shows all along.
+        quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
   }
@@ -396,6 +404,8 @@ export function boot(
       steps: engine.steps,
       ship: copyShipState(ship.state, createShipState()),
       dock: navigator.snapshot(),
+      halting: navigator.halting,
+      guarding: navigator.guarding,
     }),
   };
 }
