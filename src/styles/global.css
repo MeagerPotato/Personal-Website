@@ -1790,6 +1790,12 @@ picture {
     --hud-edge: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
   }
 
+  /* With the map up the button reads "Close map": its row keeps clear of that. (A journey's
+     "Name | Stop" shares that row on a phone with a page open, the map up or not.) */
+  html[data-mode='universe'][data-map] {
+    --map-chip: 8.75rem;
+  }
+
   /* Asked for more contrast, or in forced colours: nothing of the world shows through any plate. */
   @media (prefers-contrast: more), (forced-colors: active) {
     html[data-mode='universe'] {
@@ -2615,6 +2621,11 @@ picture {
        shares its row (the hint card, a phone's dock prompt) keeps clear of. */
     html[data-mode='universe'] {
       --map-chip: 4.25rem;
+    }
+
+    /* "Close map", on the map: the same, a size up. */
+    html[data-mode='universe'][data-map] {
+      --map-chip: 6.75rem;
     }
 
     .map-toggle kbd {

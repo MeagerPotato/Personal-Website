@@ -23,6 +23,11 @@ import {
 //   stopDock   press Stop, then E at the first body the prompt offers, at the same moments as stop
 //   tap        take the controls back instead of pressing Stop: the brake, an arrow or the throttle
 //              held for 4 to 8 steps and let go, at the same moments as stop
+//   doubleTap  take them back with two quick presses, the second while the ship is still fast: the
+//              throttle twice, an arrow then the throttle, a thumb lifted off the stick and put
+//              back; 3 steps each, 2 to 30 steps apart, at the same moments as stop
+//   undock     the web layer lets go instead (api.ts undock: the route moved to a page with no
+//              body, Projects or the sky), at the same moments as stop
 //   reachBack  point at a body the ship is racing past, then a third of a second later back at
 //              where it was going, every 0.25 s that there is one
 //   chain      point at 4 to 8 bodies one after another, 0.03 to 0.43 s apart (sometimes back at
@@ -30,10 +35,10 @@ import {
 //   rebuild    the engine is rebuilt from its snapshot (a lost WebGL context), at the same moments
 //              as stop; the journey must still arrive, and the table says how much later
 //
-// Every flight must end docked where it was sent (or at rest, after a Stop or a tap) without
-// touching a shell or passing closer than half a cushion to anything it was not going to: a
-// failure is a failure, and the gate for a change to the autopilot, the approach, Stop or the
-// snapshot is none. By default the journeys are between systems; `kinds` adds journeys within one
+// Every flight must end docked where it was sent (or at rest, after a Stop, a tap or an undock)
+// without touching a shell or passing closer than half a cushion to anything it was not going to:
+// a failure is a failure, and the gate for a change to the autopilot, the approach, Stop, the
+// guard or the snapshot is none. By default the journeys are between systems; `kinds` adds journeys within one
 // and from the spawn point.
 
 export const STRESS_MODES = [
@@ -42,6 +47,8 @@ export const STRESS_MODES = [
   'reach',
   'stopDock',
   'tap',
+  'doubleTap',
+  'undock',
   'reachBack',
   'chain',
   'rebuild',
@@ -68,6 +75,18 @@ export const STRESS_DEFAULTS: StressOptions = {
 /** Steps before the autopilot's last step at which to Stop or redirect: "just before it arrives". */
 const BEFORE_ARRIVAL = [1, 2, 3, 6, 12, 20];
 const TAP_INPUTS: readonly TapInput[] = ['brake', 'turn', 'thrust'];
+/**
+ * doubleTap: the two presses (a turn either way, seeded), each held DOUBLE_STEPS steps, and the
+ * gaps between them: one short, one long (seeded), for each pair at each moment.
+ */
+const DOUBLE_PAIRS: readonly (readonly [TapInput | 'arrow', TapInput])[] = [
+  ['thrust', 'thrust'],
+  ['arrow', 'thrust'],
+  ['stick', 'stick'],
+];
+const DOUBLE_STEPS = 3;
+const SHORT_GAPS = [2, 3, 4];
+const LONG_GAPS = [6, 10, 15, 22, 30];
 /** A tap holds its control this many steps, or up to TAP_MORE more (seeded): 67 to 133 ms. */
 const TAP_STEPS = 4;
 const TAP_MORE = 4;
@@ -218,12 +237,32 @@ export function stress(
             add(mode, { kind: 'tap', atSec, input, steps, coastSec: options.coastSec });
           }
         }
+      } else if (mode === 'doubleTap') {
+        // A seed of its own: the modes that were here before it keep the flights they had.
+        const pick = createRng(`${seed}|${galaxy.name}|${spec.from ?? 'spawn'}|${spec.to}|double`);
+        for (const atSec of stopMoments) {
+          for (const [first, second] of DOUBLE_PAIRS) {
+            for (const gaps of [SHORT_GAPS, LONG_GAPS]) {
+              const gapSteps = gaps[Math.floor(pick() * gaps.length)] ?? 2;
+              const input: TapInput = first === 'arrow' ? (pick() < 0.5 ? 'turn' : 'left') : first;
+              add(mode, {
+                kind: 'tap',
+                atSec,
+                input,
+                steps: DOUBLE_STEPS,
+                coastSec: options.coastSec,
+                again: { gapSteps, input: second, steps: DOUBLE_STEPS },
+              });
+            }
+          }
+        }
       } else if (mode === 'rebuild') {
         for (const atSec of stopMoments) add(mode, { kind: 'rebuild', atSec });
       } else {
         const thenDock = mode === 'stopDock';
+        const route = mode === 'undock';
         for (const atSec of stopMoments) {
-          add(mode, { kind: 'stop', atSec, coastSec: options.coastSec, thenDock });
+          add(mode, { kind: 'stop', atSec, coastSec: options.coastSec, thenDock, route });
         }
       }
     }
@@ -252,12 +291,16 @@ function describeFlight(flight: StressFlight): string {
         ? `sent to ${[interrupt.to, ...interrupt.then.map(({ to }) => to)].join(', then ')}${within}`
         : `sent to ${interrupt.to}${within}`
       : interrupt.kind === 'tap'
-        ? `${interrupt.input} held ${interrupt.steps} steps`
+        ? interrupt.again
+          ? `${interrupt.input}, ${interrupt.again.gapSteps} steps off, ${interrupt.again.input}; ${interrupt.steps} steps each`
+          : `${interrupt.input} held ${interrupt.steps} steps`
         : interrupt.kind === 'rebuild'
           ? 'rebuilt'
           : interrupt.thenDock
             ? `Stop, then E${done?.to ? ` at ${done.to}` : ' (nothing offered)'}`
-            : 'Stop';
+            : interrupt.route
+              ? 'let go by the web layer'
+              : 'Stop';
   return (
     `${result.from} -> ${result.to} @${result.askedAt.toFixed(2)} s: ${what} ` +
     `${f1(done?.atSec ?? NaN)} s in, at ${f1(done?.atSpeed ?? NaN)} u/s`
@@ -293,12 +336,18 @@ export function stressTable(flights: readonly StressFlight[]): string {
         `  |${Math.round(quantile(accel, 1)).toString().padStart(16)}${f1(least(closest)).padStart(11)}` +
         `${f2(least(shell)).padStart(9)}`,
     );
-    if (mode === 'stop' || mode === 'stopDock' || mode === 'tap') {
+    if (
+      mode === 'stop' ||
+      mode === 'stopDock' ||
+      mode === 'tap' ||
+      mode === 'doubleTap' ||
+      mode === 'undock'
+    ) {
       const stops = group.flatMap((flight) => (flight.result.stop ? [flight.result.stop] : []));
       const slide = stops.map((stop) => stop.slideU);
       const docked = group.filter((flight) => flight.result.interrupt?.to != null).length;
       lines.push(
-        `            slid after ${mode === 'tap' ? 'the tap' : 'Stop'}: median ${f1(quantile(slide, 0.5))}  p90 ${f1(quantile(slide, 0.9))}  max ${f1(quantile(slide, 1))} u` +
+        `            slid after ${mode === 'tap' || mode === 'doubleTap' ? 'the tap' : mode === 'undock' ? 'letting go' : 'Stop'}: median ${f1(quantile(slide, 0.5))}  p90 ${f1(quantile(slide, 0.9))}  max ${f1(quantile(slide, 1))} u` +
           (mode === 'stopDock' ? `; E docked ${docked} of ${group.length}` : ''),
       );
     }

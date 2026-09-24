@@ -202,6 +202,26 @@ describe('taking the controls back mid-journey', () => {
     expect(run.world.dock.guarding).toBe(false);
   });
 
+  it('keeps the reflex on through a second tap of the throttle while the speed is the autopilot’s', () => {
+    // FishAI -> About, 211 u/s: W for 50 ms, let go for 33 ms, W again (at 140 u/s), hands off.
+    // The second press used to end the guard as the pilot's own "I am flying this now", and the
+    // ship coasted on into a shell of the home system (1.0 u from a surface). Its speed was not
+    // theirs. (Found by the review's double taps: up to 41 u/s at impact, 1.3% of such taps.)
+    const run = setOut('project/fishai', 'page/about', 12679, 4.114, 1);
+    for (let k = 0; k < 186; k += 1) step(run);
+    expect(run.world.dock.phase).toBe('cruise');
+    expect(speedOf(run.state)).toBeGreaterThan(200);
+    tap(run, THRUST, 3);
+    expect(run.world.dock.guarding).toBe(true);
+    tap(run, NO_INPUT, 2);
+    tap(run, THRUST, 3);
+    expect(run.world.dock.guarding).toBe(true);
+    const seen = watch(run, 6);
+    expect(seen.touches).toBe(0);
+    expect(seen.gap).toBeGreaterThan(tuning.cushion.depth * 0.5);
+    expect(run.world.dock.guarding).toBe(false);
+  });
+
   it('meets nothing after a tap at any moment of a journey, whichever control it was', () => {
     // Every 0.1 s of journeys between the two systems, and on each of their last 20 steps: the
     // brake, either arrow, or the throttle, held for 67 ms, and then nobody at the controls.
@@ -359,7 +379,7 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(watch(bare, 3).touches).toBeGreaterThan(0);
   });
 
-  it('ends once the ship is slow, or at a fresh press of the throttle, and never with Stop', () => {
+  it('ends once the ship is slow, or at a fresh press of the throttle at the pilot’s own pace, and never with Stop', () => {
     const slow = diving(200);
     slow.state.vx = 20;
     guardDock(slow.world.dock, NO_INPUT, tuning.dock.leaveDeadZone);
@@ -367,8 +387,10 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(slow.world.dock.guarding).toBe(false);
 
     // Taken back WITH the throttle: that press is not news, and the guard stays on while it is
-    // held; let go and pressed again, it is the pilot flying at the planet on purpose.
-    const run = diving(200);
+    // held; let go and pressed again at a speed the pilot's own drive gives (42.5 u/s), it is the
+    // pilot flying at the planet on purpose.
+    const own = tuning.flight.thrustAccel / tuning.flight.forwardDrag;
+    const run = diving(200, own - 2);
     guardDock(run.world.dock, THRUST, tuning.dock.leaveDeadZone);
     step(run, THRUST);
     expect(run.world.dock.guarding).toBe(true);
@@ -376,6 +398,27 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(run.world.dock.guarding).toBe(true);
     step(run, THRUST);
     expect(run.world.dock.guarding).toBe(false);
+
+    // At that pace but closer in, let go of it would coast into the planet's cushion: there is
+    // still something to guard, and the guard stays until the ship is slow.
+    const close = diving(20, own - 2);
+    guardDock(close.world.dock, THRUST, tuning.dock.leaveDeadZone);
+    step(close, THRUST);
+    step(close);
+    step(close, THRUST);
+    expect(close.world.dock.guarding).toBe(true);
+
+    // Faster than that, the speed is still the autopilot's: a fresh press is the pilot flying, and
+    // the reflex stays on for them until the ship is slow, however the throttle comes and goes.
+    const fast = diving(200, 60);
+    guardDock(fast.world.dock, THRUST, tuning.dock.leaveDeadZone);
+    step(fast, THRUST);
+    step(fast);
+    step(fast, THRUST);
+    expect(fast.world.dock.guarding).toBe(true);
+    step(fast);
+    step(fast, { ...THRUST, boost: true });
+    expect(fast.world.dock.guarding).toBe(true);
 
     // A Stop brakes to rest instead, and steering out of it while still fast is guarded.
     const stopped = diving(200);
@@ -409,8 +452,8 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(stopped.world.dock.guarding).toBe(false);
 
     // ...and a guard still guards. Nor is a held Shift a throttle held from before: the first
-    // press of the throttle with it is fresh, and ends the guard.
-    const guarded = diving(200);
+    // press of the throttle with it is fresh, and (at the pilot's own pace) ends the guard.
+    const guarded = diving(200, 40);
     guardDock(guarded.world.dock, SHIFT, tuning.dock.leaveDeadZone);
     step(guarded, SHIFT);
     expect(guarded.world.dock.guarding).toBe(true);

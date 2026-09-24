@@ -385,6 +385,49 @@ describe('Navigator, travelling', () => {
     expect(Math.hypot(h.state.x - x0, h.state.z - z0)).toBeLessThan(150);
   });
 
+  it('takes a journey let go of by the web layer as a STOP: it brakes to rest, and Leave orbit is still only that', () => {
+    // The route moved to a page with no body (Projects, the wordmark, Close, Back to the sky)
+    // while the ship was on its way: api.ts undock, shell/follow.ts. Let go of at the autopilot's
+    // speed, it coasted on at the pilot's own top speed into whatever lay ahead.
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(1.2);
+    expect(Math.hypot(h.state.vx, h.state.vz)).toBeGreaterThan(200);
+    h.heard.length = 0;
+    const x0 = h.state.x;
+    const z0 = h.state.z;
+    h.navigator.release('asked');
+    expect(h.navigator.halting).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'asked' }],
+      ['statechange', { mode: 'flight', target: null }],
+    ]);
+    h.run(4);
+    expect(h.navigator.halting).toBe(false);
+    expect(Math.hypot(h.state.vx, h.state.vz)).toBeLessThan(1);
+    expect(Math.hypot(h.state.x - x0, h.state.z - z0)).toBeLessThan(150);
+
+    // The same on the ring's own approach, however it began.
+    const near = harness(0, -40, Math.PI / 2);
+    near.run(0.2);
+    near.navigator.approach('page/about');
+    near.run(0.3);
+    near.navigator.release('asked');
+    expect(near.navigator.halting).toBe(true);
+
+    // Out of an orbit, letting go is all it does: a docked ship is slow already.
+    const docked = harness(0, -40, Math.PI / 2);
+    docked.run(0.2);
+    docked.navigator.approach('page/about');
+    docked.run(8);
+    expect(docked.navigator.state.mode).toBe('docked');
+    docked.navigator.release('asked');
+    expect(docked.navigator.halting).toBe(false);
+    expect(docked.navigator.state).toEqual({ mode: 'flight', target: null });
+  });
+
   it('goes on braking after a rebuild, if it was stopped a moment before', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);

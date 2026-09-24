@@ -89,9 +89,9 @@ export interface DockState {
   /**
    * A journey was handed back by a turn or the throttle (pilotLeaves), or a STOP was steered out
    * of while the ship was still fast (haltingInput): the pilot flies, but until the ship is slow
-   * enough for the cushions to stop (GUARD_SPEED), or the pilot opens the throttle afresh, the
-   * reflex still brakes it for whatever lies on its course (guardInput). Never together with
-   * `halting`. Survives a rebuilt engine (core/snapshot.ts).
+   * enough for the cushions to stop (GUARD_SPEED), or the pilot opens the throttle afresh with
+   * nothing left to guard, the reflex still brakes it for whatever lies on its course
+   * (guardInput). Never with `halting`. Survives a rebuilt engine (core/snapshot.ts).
    */
   guarding: boolean;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
@@ -229,6 +229,19 @@ const GUARD_SPEED = 25;
 const GUARD_SHARE = 0.8;
 /** 1/s: how hard the guard closes on the reflex's limit when the ship is faster than it. */
 const GUARD_CATCH = 6;
+/**
+ * A fresh press of the throttle ends the guard only while the ship is no faster than this share
+ * over the pilot's own top speed (thrustAccel / forwardDrag, unboosted: 42.5 u/s). Faster, the
+ * speed is still the autopilot's: a second tap of W at 110 u/s, and hands off, met a shell a
+ * second later (41 u/s at impact). A held throttle only comes down to its own top speed from
+ * above, never quite onto it: hence the share.
+ */
+const OWN_PACE_SHARE = 1.05;
+/**
+ * Scratch: the limits on the ship's course for a ship left to coast (the reflex's rule with the
+ * drag for its gain: no faster than drag alone stops short of every berth).
+ */
+const coast = new Float64Array(2);
 /** Scratch: what a guarded ship flies. */
 const guarded: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: false };
 
@@ -238,8 +251,11 @@ const guarded: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: false };
  * way it goes, or the way its nose points, sim/reflex.ts): taken back from a journey among the
  * target's moons at 200 u/s, a ship would otherwise coast on into one of them at the pilot's own
  * top speed, more than a cushion stops. Nothing is on its course in open space, and there it is
- * the pilot's input exactly. The guard ends once the ship is slow (GUARD_SPEED), or the pilot opens
- * the throttle afresh: someone flying at a planet on purpose is left to fly at it.
+ * the pilot's input exactly. The guard ends once the ship is slow (GUARD_SPEED): someone flying at
+ * a planet on purpose is then left to fly at it. It ends at a fresh press of the throttle too,
+ * once there is nothing left to guard: the speed is what the pilot's own drive could have given
+ * it (OWN_PACE_SHARE), and let go of there, the ship would coast to rest short of everything on
+ * its course. (A second tap at 40 u/s beside a moon, hands off, grazed its cushion otherwise.)
  */
 export function guardInput(
   field: BodyField,
@@ -253,7 +269,11 @@ export function guardInput(
   const thrusting = isThrusting(pilot, params.leaveDeadZone);
   if (!dock.armed && !thrusting) dock.armed = true;
   const speed = speedOf(state);
-  if (dock.phase !== 'free' || speed < GUARD_SPEED || (dock.armed && thrusting)) {
+  if (
+    dock.phase !== 'free' ||
+    speed < GUARD_SPEED ||
+    (dock.armed && thrusting && idle(field, state, speed, flight))
+  ) {
     dock.guarding = false;
     return pilot;
   }
@@ -273,6 +293,20 @@ export function guardInput(
   guarded.brake = brake;
   guarded.boost = pilot.boost;
   return guarded;
+}
+
+/**
+ * Would a guard have nothing left to do for a ship going `speed`: is that a speed the pilot's own
+ * drive gives, and would the ship, let go of now, coast to rest short of every body on its course?
+ */
+function idle(
+  field: BodyField,
+  state: Readonly<ShipState>,
+  speed: number,
+  flight: FlightParams,
+): boolean {
+  if (speed > (OWN_PACE_SHARE * flight.thrustAccel) / flight.forwardDrag) return false;
+  return speed <= (courseLimits(field, state, -1, 0, flight.forwardDrag, 0, coast)[0] ?? Infinity);
 }
 
 /**

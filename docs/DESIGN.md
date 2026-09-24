@@ -307,7 +307,9 @@ of, is in the table under The 3D world.
 - **"About this site"** (the home page only): the welcome text waits behind it, and it wears the
   cream face while the text shows.
 - **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
-  in the cream face. A finger gets no key cap and a fixed width.
+  in the cream face. A finger gets no key cap and a fixed width. Whatever shares its row keeps
+  --space-3 clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`,
+  where a journey's "Name | Stop" beside it on a phone lets its name give way).
 - **The names** over the bodies are real buttons: a 44 px target with the name on a small navy
   tag at the end nearest its body (the top below it, the bottom above it), like a label on a
   transit map, 13 px at every width and on the map. A sun or the

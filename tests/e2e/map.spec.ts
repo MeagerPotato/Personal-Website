@@ -10,6 +10,7 @@ import {
   nameOf,
   openUniverse,
   pointAt,
+  softNavigate,
   test,
   universe,
   watchText,
@@ -414,6 +415,41 @@ test.describe('on a phone', () => {
     await expect
       .poll(async () => (await said()).find(({ text }) => text.includes('Flying to Code')))
       .toMatchObject({ path: '/' });
+  });
+});
+
+test.describe('on the narrowest phone, with a page open', () => {
+  test.skip(({ isMobile }) => !isMobile, 'fingers');
+  test.use({ viewport: { width: 320, height: 700 } });
+
+  test('a journey’s Stop shares the row of Close map, clear of it, and takes a finger', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/about/');
+    await expect(html(page)).toHaveAttribute('data-panel', 'open');
+    await openButton(page).tap();
+    await mapOpen(page);
+    const told = await watchText(page, '[data-announcer]');
+
+    // A link with the map up: the page opens at once, and the ship sets out behind it, for the
+    // body with the longest name there is.
+    await softNavigate(page, '/projects/fish-onboarding/');
+    const stop = prompt(page).locator('.dock-prompt__action');
+    await expect(stop).toHaveText('Stop');
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+    // "Close map" is wider than "Map": the name gives way to it (the stylesheet's --map-chip),
+    // as everything in the HUD keeps a --space-3 (12 px) from its neighbours.
+    const row = await prompt(page).boundingBox();
+    const toggle = await closeButton(page).boundingBox();
+    if (!row || !toggle) throw new Error('the prompt or the Map button is not on screen');
+    expect(row.x + row.width + 12).toBeLessThanOrEqual(toggle.x + 0.5);
+
+    // A real finger on Stop, not a click from script: nothing lies over it.
+    await pointAt(page, stop, true);
+    await expect
+      .poll(async () => (await told()).some(({ text }) => text === 'Stopped.'))
+      .toBe(true);
+    await expect(prompt(page)).not.toContainText('Stop');
   });
 });
 

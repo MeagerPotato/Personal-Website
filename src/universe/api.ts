@@ -124,7 +124,10 @@ export interface Universe {
    * or the body is unknown. Asking for where the ship already is resolves `arrived` at once.
    */
   goTo(id: string, options?: { mode?: 'fly' | 'instant' }): Promise<'arrived' | 'cancelled'>;
-  /** Let go of whatever the ship is docked at or headed for. */
+  /**
+   * Let go of whatever the ship is docked at or headed for. On the way somewhere that is a Stop,
+   * the prompt's: the ship brakes to rest where it is, instead of coasting on at speed.
+   */
   undock(): void;
   /** Is the star map open (or on its way to being)? */
   readonly mapOpen: boolean;
@@ -235,6 +238,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       const lower = lowerTier(tier);
       if (disposed || !current || !lower) return;
       // A tier decides what kind of canvas there is, so a new tier is a new engine.
+      if (!deliverPending()) return;
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
@@ -262,7 +266,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       events.emit('map', { open });
     },
     onContextLost: (): void => {
-      if (disposed || !current) return;
+      if (disposed || !current || !deliverPending()) return;
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
@@ -273,6 +277,17 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       whenVisible(() => rebuild(snapshot));
     },
   };
+
+  /**
+   * Before an engine is taken down: what its navigator has queued for the next frame (a Stop or
+   * a Leave orbit pressed since the last one, a body pointed at in this frame) is news the web
+   * layer must still hear, or a journey's promise never settles and the page it left stays open.
+   * A new engine only reports what it does itself. False when a listener disposed of it all.
+   */
+  function deliverPending(): boolean {
+    current?.navigator.frameUpdate();
+    return !disposed && current !== null;
+  }
 
   function rebuild(snapshot: Snapshot): void {
     if (disposed) return;

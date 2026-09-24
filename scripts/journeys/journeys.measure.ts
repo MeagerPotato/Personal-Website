@@ -41,13 +41,15 @@ import { measure, optionsFromEnv } from './measure';
 //                  before it arrives), "stop" (every 0.25 s, at its fastest, 1 to 20 steps before it
 //                  arrives), "reach" (a body it races past, within reach, every 0.1 s there is one),
 //                  "stopDock" (Stop, then E at the first body offered), "tap" (the brake, an arrow
-//                  or the throttle for 67 to 133 ms instead of Stop), "reachBack" (a body raced
+//                  or the throttle for 67 to 133 ms instead of Stop), "doubleTap" (two presses,
+//                  2 to 30 steps apart, the second while the ship is still fast), "undock" (the
+//                  web layer lets go: a page with no body), "reachBack" (a body raced
 //                  past, then back), "chain" (4 to 8 bodies in a row, 0.03 to 0.43 s apart),
 //                  "rebuild" (the engine rebuilt from its snapshot, as after a lost WebGL context).
 //                  Every flight must dock where it was sent (or come to rest) without touching a
 //                  shell or passing closer than half a cushion to anything: 0 failures is the gate
-//                  for a change to the autopilot, the approach, Stop or the snapshot. A few minutes
-//                  for all four galaxies
+//                  for a change to the autopilot, the approach, Stop, the guard or the snapshot.
+//                  Ten minutes or so for all four galaxies
 //   seed, includeDrafts, rows (print every journey), out (write every journey as JSON)
 //
 // JOURNEYS_OUT=<file.json> also writes every journey. A formula that JSON cannot say goes in a

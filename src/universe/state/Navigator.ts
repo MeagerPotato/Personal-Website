@@ -189,15 +189,26 @@ export class Navigator implements System {
     else if (!this.approach(from.id)) this.place(from.id);
   }
 
-  /** Let go: back to free flight, from exactly where and how the ship is. */
+  /**
+   * Let go: back to free flight, from exactly where and how the ship is. Out of an orbit that is
+   * all ("Leave orbit": a docked ship is slow). On the way somewhere it is a STOP: the web layer
+   * lets go of a journey whenever the route moves to a page with no body (Projects, the wordmark,
+   * Close or Back to the sky: shell/follow.ts), and a ship let go of at the autopilot's speed
+   * would coast on into whatever lies ahead at the pilot's own top speed (sim/docking.ts, haltDock).
+   */
   release(by: 'pilot' | 'asked' = 'asked'): void {
+    const { phase } = this.options.surroundings.dock;
+    if (phase === 'cruise' || phase === 'approach') {
+      this.stop(by);
+      return;
+    }
     this.leave(by);
     this.apply({ type: 'release' });
   }
 
   /**
-   * STOP (the prompt's button on the way somewhere): let go, as `release` does, and brake the ship
-   * to rest where it is (sim/docking.ts, haltDock). Steering takes over at once.
+   * STOP (the prompt's button on the way somewhere, and `release` then too): let go, and brake the
+   * ship to rest where it is (sim/docking.ts, haltDock). Steering takes over at once.
    */
   stop(by: 'pilot' | 'asked' = 'asked'): void {
     this.leave(by);

@@ -172,6 +172,9 @@ export interface JourneyResult {
  *   stop      press Stop (Navigator.stop, as ui/Prompt.ts does) and watch the ship for coastSec.
  *             With `thenDock`, press E (the prompt's "Orbit ...") the first moment the prompt
  *             offers a body after that (Navigator.candidate), and fly on until docked there.
+ *             With `route`, it is the web layer that lets go instead (Navigator.release('asked'),
+ *             api.ts undock): the route moved to a page with no body (Projects, the wordmark,
+ *             Close or Back to the sky: shell/follow.ts).
  *   redirect  point at another body, `to` (Navigator.travel, as main.ts flyToRow does): the
  *             journey goes there instead, on the autopilot, or by the approach when `to` is
  *             within reach (a body the ship is racing past). With `then`, change your mind again,
@@ -179,34 +182,49 @@ export interface JourneyResult {
  *             past, then back where it was going; a visitor pointing at one name after another).
  *   tap       take the controls back for a moment instead of pressing Stop: hold the brake, an
  *             arrow or the throttle for `steps` steps, let go, and watch the ship for coastSec.
+ *             With `again`, a double tap: let go for `gapSteps` steps, then hold `again.input`
+ *             for `again.steps` (the throttle pressed afresh while the speed is still the
+ *             autopilot's, a thumb lifted off the stick and put back), then let go.
  *   rebuild   the engine is thrown away and built again from its snapshot (core/snapshot.ts, as a
  *             lost WebGL context does: api.ts): a fresh world and Navigator, restored from what
  *             parseSnapshot makes of a JSON round trip, and the journey flown on from there.
  */
 export type Interrupt =
-  | { kind: 'stop'; atSec: number; coastSec: number; thenDock?: boolean }
+  | { kind: 'stop'; atSec: number; coastSec: number; thenDock?: boolean; route?: boolean }
   | {
       kind: 'redirect';
       atSec: number;
       to: string;
       then?: readonly { readonly afterSec: number; readonly to: string }[];
     }
-  | { kind: 'tap'; atSec: number; input: TapInput; steps: number; coastSec: number }
+  | {
+      kind: 'tap';
+      atSec: number;
+      input: TapInput;
+      steps: number;
+      coastSec: number;
+      again?: { readonly gapSteps: number; readonly input: TapInput; readonly steps: number };
+    }
   | { kind: 'rebuild'; atSec: number };
 
-/** Which control a `tap` takes the ship back with. */
-export type TapInput = 'brake' | 'turn' | 'thrust';
+/**
+ * Which control a `tap` takes the ship back with: the brake, an arrow either way, the throttle,
+ * or a thumb on the stick (some throttle, some turn).
+ */
+export type TapInput = 'brake' | 'turn' | 'left' | 'thrust' | 'stick';
 const TAPS: Record<TapInput, Readonly<FlightInput>> = {
   brake: { thrust: 0, turn: 0, brake: 1, boost: false },
   turn: { thrust: 0, turn: 1, brake: 0, boost: false },
+  left: { thrust: 0, turn: -1, brake: 0, boost: false },
   thrust: { thrust: 1, turn: 0, brake: 0, boost: false },
+  stick: { thrust: 0.5, turn: 0.3, brake: 0, boost: false },
 };
 
 /** Press Stop `atSec` into the journey, then watch it coast for coastSec. */
 export type StopSpec = Extract<Interrupt, { kind: 'stop' }>;
 
 export interface InterruptOutcome {
-  kind: 'stop' | 'stopDock' | 'redirect' | 'tap' | 'rebuild';
+  kind: 'stop' | 'stopDock' | 'undock' | 'redirect' | 'tap' | 'rebuild';
   /** When it was done (s since the request), and how fast the ship was going then, u/s. */
   atSec: number;
   atSpeed: number;
@@ -409,8 +427,10 @@ export function fly(
   const pilotTop = (sim.flight.thrustAccel * sim.flight.boostFactor) / sim.flight.forwardDrag;
   let stopped: (StopOutcome & { x: number; z: number }) | null = null;
   let coasting = false;
-  /** Steps a tap still holds its control for. */
+  /** Steps a tap still holds its control for; then, for a double tap, steps until the second. */
   let tapLeft = 0;
+  let gapLeft = 0;
+  let again = interrupt?.kind === 'tap' ? (interrupt.again ?? null) : null;
   /** How many of a redirect's `then` have been done, and when the last change of mind was (s). */
   let changes = 0;
   let changedAt = 0;
@@ -453,7 +473,14 @@ export function fly(
       navigator.state.mode === 'autopilot'
     ) {
       done = {
-        kind: interrupt.kind !== 'stop' ? interrupt.kind : interrupt.thenDock ? 'stopDock' : 'stop',
+        kind:
+          interrupt.kind !== 'stop'
+            ? interrupt.kind
+            : interrupt.thenDock
+              ? 'stopDock'
+              : interrupt.route
+                ? 'undock'
+                : 'stop',
         atSec: t,
         atSpeed: speedOf(state),
         to: null,
@@ -478,6 +505,10 @@ export function fly(
         // pilotLeaves), and the ship is the pilot's from there.
         pilot.current = TAPS[interrupt.input];
         tapLeft = interrupt.steps;
+      } else if (interrupt.route === true) {
+        // The web layer lets go (api.ts undock): a page with no body opened on the way.
+        navigator.release('asked');
+        navigator.frameUpdate();
       } else {
         // Stop, as the prompt's button does it: the journey is let go of and the ship brakes to
         // rest by itself (Navigator.stop), nobody touching the controls.
@@ -510,7 +541,18 @@ export function fly(
     if (coasting && stopped !== null && done !== null) {
       if (tapLeft > 0) {
         tapLeft -= 1;
-        if (tapLeft === 0) pilot.current = NO_INPUT;
+        if (tapLeft === 0) {
+          pilot.current = NO_INPUT;
+          if (again !== null) gapLeft = again.gapSteps;
+        }
+      } else if (gapLeft > 0) {
+        gapLeft -= 1;
+        if (gapLeft === 0 && again !== null) {
+          // The second press of a double tap.
+          pilot.current = TAPS[again.input];
+          tapLeft = again.steps;
+          again = null;
+        }
       }
       // Stop, then E: the first body the prompt offers (ui/Prompt.ts, "Orbit ..." in free flight).
       const offered = navigator.candidate;

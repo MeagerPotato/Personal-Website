@@ -220,8 +220,11 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   flying again, but the pilot's own top speed (81 u/s) is still more than a cushion stops, and a
   journey ends among its target's moons: so the reflex (below) stays on for them, with the
   pilot's own brake, until the ship is slow enough for the cushions or they open the throttle
-  afresh (`guardInput`, `DockState.guarding`); steering out of a Stop while still fast does the
-  same. Nowhere near anything, that is the pilot's input exactly. `halting` and `guarding` are
+  afresh with nothing left to guard: at a speed their own drive gives, and where the ship would
+  coast to rest short of everything on its course (`guardInput`, `DockState.guarding`: a second
+  tap of W while the speed is still the autopilot's is not that); steering out of a Stop while
+  still fast does the same. The web layer letting go of a journey (`undock`: the route moved to a page
+  with no body) is a Stop too (`Navigator.release` on the way somewhere). Nowhere near anything, that is the pilot's input exactly. `halting` and `guarding` are
   snapshot fields. It is three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
@@ -260,8 +263,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   body is. `npm run journeys` with `"stress": true`
   (`scripts/journeys/stress.ts`) is what checks all of it: redirects every 0.1 s, Stop every
   0.25 s and just before arrival, a body within reach at speed, Stop then E, a tap of the brake,
-  an arrow or the throttle instead of Stop, a body raced past and then back, chains of 4 to 8
-  names in a row, and the engine rebuilt from its snapshot mid-journey.
+  an arrow or the throttle instead of Stop, a double tap (the throttle twice, an arrow then the
+  throttle, a thumb lifted off the stick and put back), the web layer letting go, a body raced
+  past and then back, chains of 4 to 8 names in a row, and the engine rebuilt from its snapshot
+  mid-journey.
   Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`), or the short approach
   within reach, and a journey picked up from a snapshot (`navigator.restore`) is taken up the same
   way. The camera follows at any speed: the chase camera looks ahead no further than
@@ -344,7 +349,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
   `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
-  means the ship goes there: `goTo(id)`. Any other page means `undock()`. The other way round,
+  means the ship goes there: `goTo(id)`. Any other page means `undock()` (on the way somewhere,
+  a Stop: the ship brakes to rest rather than coast on at speed). The other way round,
   `docked` opens that body's page unless it is showing already, and `undocked` with `by: 'pilot'`
   leaves the page (`router.leave`: Back when Back is the open sky, otherwise a new step). Both
   sides are idempotent and neither waits for the other, so there is nothing to deadlock. A page
@@ -375,7 +381,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
   must become a snapshot field. (What the web layer last ASKED for is not the engine's state:
   `api.ts` keeps the panel's inset, the pause and whether the map is open, and tells the new
-  engine, with a cut.)
+  engine, with a cut. And what the old navigator had queued for its next frame, a Stop pressed
+  since the last one say, is delivered before the snapshot is taken: the new engine only reports
+  what it does itself.)
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and
   textures in a `Scope` (`core/scope.ts`); in development the engine warns on dispose if
   three.js still counts any.

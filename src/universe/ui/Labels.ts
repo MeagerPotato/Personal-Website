@@ -409,6 +409,8 @@ export class Labels implements System {
    */
   remeasure(): void {
     this.measured = false;
+    // The target's tag too: it is set in the same size as the names.
+    this.leadMeasured = false;
   }
 
   dispose(): void {
