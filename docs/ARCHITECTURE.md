@@ -49,6 +49,11 @@ src/pages/universe.json.ts -----------------> dist/universe.json      the galaxy
 `src/universe/manifest.ts` and never imports anything from Astro. Layout is seeded per entity id,
 so adding a project never moves an existing planet.
 
+The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
+`/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
+drawings from `src/site/favicon.ts` and `src/site/og.ts` (rasterised with `sharp`), so a palette
+change repaints them. Nothing in `public/` carries a colour of its own.
+
 Astro is used thinly on purpose (PLAN §5.1): it pre-renders pages and owns the content layer, and
 that is all. No islands, no `<ClientRouter/>`, no scoped styles, no per-page scripts. The client
 code in `src/shell/` and the whole of `src/universe/` would survive a change of framework.

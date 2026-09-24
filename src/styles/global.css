@@ -1783,7 +1783,7 @@ picture {
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
-     * ink.mid 7.2, butter 9.4. ink.low would be 4.49, a hair under AA, so ink.low is NEVER text
+     * ink.mid 7.2, butter 9.3. ink.low would be 4.49, a hair under AA, so ink.low is NEVER text
      * on this plate (the same test holds all of these).
      */
     --hud: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
@@ -2434,7 +2434,7 @@ picture {
   }
 
   /* "Flying to FishAI | Stop": the label is news, this is what pressing the button does, set
-     apart by a hairline and in butter (9.4:1 on the plate over white). */
+     apart by a hairline and in butter (9.3:1 on the plate over white). */
   .dock-prompt .dock-prompt__action {
     flex: none;
     padding-left: var(--space-3);

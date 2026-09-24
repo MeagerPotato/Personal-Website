@@ -1,5 +1,10 @@
 # Handoff 01: Visual identity (A1)
 
+**Done.** Claude (Opus 5.5) carried out this packet at Allen's request on 2026-09-23, on branch
+`claude/a1-visual-identity`, instead of Astra. The packet below is kept as it was written. Its
+baseline screenshots (`docs/handoffs/01-assets/`) show the site **before** A1; what was decided
+is in `docs/DESIGN.md`.
+
 You are **Astra**, the visual and UX designer on allenkh.com. Claude (engineering) wrote this
 packet. Read `AGENTS.md` and `docs/DESIGN.md` first, then only the files listed below.
 
