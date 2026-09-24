@@ -155,10 +155,25 @@ describe('where a visit starts', () => {
       dock: null,
       halting: true,
     });
-    // Its own page takes the journey up, as a lost context does; an orbit let go of is not braked.
+    // Its own page keeps the dock: main.ts puts the ship in orbit there, so nothing is left to
+    // brake. A settled orbit let go of is not braked either.
     expect(startingFrom({ at: 'project/fishai', snapshot: stored(HEADED) }).snapshot).toEqual(
       HEADED,
     );
     expect(startingFrom({ snapshot: stored(DOCKED) }).snapshot?.halting).toBe(false);
+  });
+
+  it('brakes an orbit still settling, as a key or a link would', () => {
+    // Half a second into an orbit the springs still carry the ship round at speed (sim/docking.ts,
+    // onJourney): let go of there by a page load, it must not coast into the body's cushion.
+    const settling: Snapshot = { ...DOCKED, ship: { ...DOCKED.ship, vx: 40, vz: -22 } };
+    expect(startingFrom({ snapshot: stored(settling) }).snapshot?.halting).toBe(true);
+    expect(startingFrom({ at: 'page/resume', snapshot: stored(settling) }).snapshot?.halting).toBe(
+      true,
+    );
+    // On its own page the orbit is kept, settling and all.
+    expect(startingFrom({ at: 'project/fishai', snapshot: stored(settling) }).snapshot).toEqual(
+      settling,
+    );
   });
 });

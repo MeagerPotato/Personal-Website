@@ -1,3 +1,4 @@
+import { GUARD_SPEED } from '../sim/docking';
 import { createShipState } from '../sim/flight';
 import type { ShipState } from '../sim/types';
 
@@ -114,7 +115,10 @@ export interface StartOptions {
  * so a reload in the middle of it, a phone that threw the tab away, or the router's fallback to
  * a full page load (every navigation after a deploy) loads a page with no `at`, and the ship
  * would otherwise coast on at the pilot's top speed into whatever lay ahead (sim/docking.ts,
- * haltDock). Put in orbit round `at` instead, it is not braking anything.
+ * haltDock). Put in orbit round `at` instead, it is not braking anything. The same goes for an
+ * orbit let go of in its first half second, while the springs still carry the ship round faster
+ * than the cushions can stop (GUARD_SPEED, as sim/docking.ts onJourney decides for a key or a
+ * link): it brakes too. A settled orbit goes round far slower than that, and is simply let go.
  */
 export function startingFrom(start: StartOptions | undefined): {
   snapshot: Snapshot | null;
@@ -125,7 +129,8 @@ export function startingFrom(start: StartOptions | undefined): {
   if (!saved) return { snapshot: null, at };
   if (saved.dock === null || saved.dock.id === at) return { snapshot: saved, at };
   // (A snapshot with a dock is neither halting nor guarding: parseSnapshot.)
-  return { snapshot: { ...saved, dock: null, halting: !saved.dock.docked }, at };
+  const fast = Math.hypot(saved.ship.vx, saved.ship.vz) > GUARD_SPEED;
+  return { snapshot: { ...saved, dock: null, halting: !saved.dock.docked || fast }, at };
 }
 
 /**

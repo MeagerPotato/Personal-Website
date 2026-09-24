@@ -250,7 +250,7 @@ function atRest(field: BodyField, state: Readonly<ShipState>): boolean {
  * cushions stop a ship that meets them head on at about 30 u/s by themselves (sim/collide.ts), and
  * below freeSpeeds the orbit assist is there too.
  */
-const GUARD_SPEED = 25;
+export const GUARD_SPEED = 25;
 /**
  * The guard's reflex gain (sim/reflex.ts), as a share of what the pilot's own brake can do
  * (brakeDrag + forwardDrag of tuning.flight): below 1, so that a ship held to it never meets a shell.
