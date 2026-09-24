@@ -5,6 +5,7 @@ import { angleDelta, angleOf, clamp, lerp, smoothstep } from './math';
 import { bodyPositionAt, type OrbitTable } from './orbits';
 import { createPath, planPath, pointAlong, type Disc, type Path, type PathParams } from './path';
 import { speedProfile, type ProfileParams, type TurnCurve } from './profile';
+import { courseLimits } from './reflex';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
 /**
@@ -77,6 +78,13 @@ export interface CruiseParams {
   readonly cornerCut: number;
   /** 1/s: how hard the throttle chases the speed the profile asks for. */
   readonly speedGain: number;
+  /**
+   * u/s². The hardest the throttle brakes for the PLAN. A plan made at a replan can find a bend
+   * or a moon close ahead that the last one did not, and ask for more at once than the profile's
+   * own decel; chasing that in one step was a jolt of 2,200 u/s². The reflex (sim/reflex.ts), for
+   * the ship's own course, brakes as hard as the brake goes.
+   */
+  readonly comfortDecel: number;
   /**
    * u/s. INSIDE a keep-out (leaving a ring, arriving beside a moon, squeezing between a planet
    * and its moon) there is no room for error, and this is the most it goes.
@@ -497,7 +505,13 @@ export function planCruise(
     turning.fastSpeed = flight.yawRateFastSpeed;
     eta = speedProfile(
       path,
-      speed,
+      // What the ship ALREADY does along the path: all of its speed when it goes the way the
+      // path begins (every plan of a ship on its way), none when the path begins across its
+      // course or back the way it came (a new destination, chosen at speed, behind it). The
+      // rest is speed the plan has no room for, and the pursuit brakes it away while the nose
+      // comes round: coasting on at 300 u/s for a whole replanSec while it did, the ship met
+      // whatever lay ahead on its old course.
+      Math.max(0, alongPath(path, state)),
       handOverSpeed(ring, dock),
       reach * ARRIVAL_RUN,
       profile,
@@ -617,6 +631,26 @@ function blendProfile(
   out.brakeRate = lerp(near.brakeRate, far.brakeRate, share);
   out.yawRate = lerp(near.yawRate, far.yawRate, share);
   out.minSpeed = lerp(near.minSpeed, far.minSpeed, share);
+}
+
+/** Scratch: where the path is FEED_SEC of flight from its start (alongPath). */
+const chord = new Float64Array(2);
+
+/**
+ * The ship's velocity along the way the path begins, u/s (below 0: back the way it came). The
+ * way it begins is where it is FEED_SEC of flight on, not its first sample: a plan that keeps to
+ * the stretch of the last one begins where the ship is, a unit or two beside that stretch, and
+ * its first sample, 4 u on, points across it. Measured by that, a ship at 450 u/s had "300 u/s"
+ * along its own path at every replan, and braked 2,200 u/s² for a step to get there.
+ */
+function alongPath(path: Readonly<Path>, state: Readonly<ShipState>): number {
+  const speed = speedOf(state);
+  if (path.count < 2) return speed;
+  pointAlong(path, Math.max(path.s[1] ?? 0, speed * FEED_SEC), 0, chord);
+  const tx = (chord[0] ?? 0) - (path.x[0] ?? 0);
+  const tz = (chord[1] ?? 0) - (path.z[0] ?? 0);
+  const run = Math.hypot(tx, tz);
+  return run < 1e-9 ? speed : (state.vx * tx + state.vz * tz) / run;
 }
 
 /** What the last plan remembers of each body goes into a plan with that body's disc. */
@@ -788,25 +822,47 @@ export function cruiseInput(
   const aim = facing ? clamp((Math.cos(off) - AIM_NONE) / (AIM_FULL - AIM_NONE), 0, 1) : 0;
   const v0 = speeds[index] ?? 0;
   const v1 = speeds[index + 1] ?? v0;
-  const wanted = v0 + (v1 - v0) * (along / leg);
   // What the profile asks of the throttle over the next FEED_SEC, not over the next sample: a
   // profile ripples a little from sample to sample (the spline's bends), and a feed-forward
   // that followed every ripple would have the throttle and the brake taking turns at speed.
   const span = Math.max(speed * FEED_SEC, leg - along);
-  const later = speedAlong(path, speeds, here + span, index);
-  const ahead = (later * later - wanted * wanted) / (2 * span);
+  // THE REFLEX (sim/reflex.ts). The plan keeps the PATH clear of everything, and slows it down
+  // beside things; the reflex keeps the ship's own COURSE clear, against every body as it is
+  // now. On the path it asks for nothing. Off it (a new destination chosen at speed, behind the
+  // ship or across its course; a plan that turns back on itself; a bend taken too wide) it is
+  // what brakes the ship before it meets something there.
+  courseLimits(field, state, i, span, params.openSpaceGain, 0, reflex);
+  const planned = v0 + (v1 - v0) * (along / leg);
+  const plannedLater = speedAlong(path, speeds, here + span, index);
+  const wanted = Math.min(planned, reflex[0] ?? Infinity);
+  const later = Math.min(plannedLater, reflex[1] ?? Infinity);
+  const reflexBinds = wanted < planned || later < plannedLater;
   const forward = state.vx * Math.sin(state.heading) + state.vz * Math.cos(state.heading);
+  // Speeding up with the profile waits for the nose, like the throttle: a ship still coming
+  // round has none of the profile's acceleration to count on. Slowing down does not wait, and a
+  // ship that is FASTER than the profile slows by what it takes to be down to the profile's speed
+  // where the profile will be: chasing the profile's own slope from above, it lagged behind a
+  // hard slowdown (a moon beside the path, a new destination behind it) by decel / speedGain,
+  // 100 u/s, all the way into the moon.
+  const follow = (later * later - wanted * wanted) / (2 * span);
+  const catchUp = (later * later - forward * Math.abs(forward)) / (2 * span);
+  const ahead = Math.min(aim * follow, catchUp);
   const push = ahead + params.speedGain * (wanted - forward) + flight.forwardDrag * forward;
   if (push >= 0) {
     out.thrust = aim > 0 ? clamp((aim * Math.cos(error) * push) / flight.thrustAccel, 0, 1) : 0;
   } else {
-    out.brake = clamp(-push / (flight.brakeDrag * Math.max(forward, 1)), 0, 1);
+    // The plan's braking is held to comfortDecel; the reflex's is not.
+    const decel = reflexBinds ? -push : Math.min(-push, params.comfortDecel);
+    out.brake = clamp(decel / (flight.brakeDrag * Math.max(forward, 1)), 0, 1);
   }
   return out;
 }
 
 /** s. The throttle's feed-forward reads the profile this far ahead (see cruiseInput). */
 const FEED_SEC = 0.1;
+
+/** Scratch: the reflex's speed limits here and FEED_SEC ahead (sim/reflex.ts). */
+const reflex = new Float64Array(2);
 
 /** The profile's speed at distance `at` along the path, u/s (searching from sample `from`). */
 function speedAlong(path: Readonly<Path>, speeds: Float64Array, at: number, from: number): number {

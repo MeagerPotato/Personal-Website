@@ -9,8 +9,9 @@ import { measure, optionsFromEnv } from './measure';
 //
 //   npm run journeys
 //
-// runs every default: the real galaxy from src/content, and 4, 6 and 8 systems (the real ones
-// plus typical future ones in the free slots, laid out by the real layout code). Options come from
+// runs every default in about 30 s (a minute with "stop"): the real galaxy from src/content, and
+// 4, 6 and 8 systems (the real ones plus typical future ones in the free slots, laid out by the
+// real layout code). Options come from
 // JOURNEYS, JSON or the path of a JSON file (see scripts/journeys/example.json):
 //
 //   PowerShell  $env:JOURNEYS = '{"galaxies":["real",4],"layout":{"slotRoom":860,"maxSystemRadius":350}}'; npm run journeys
@@ -31,8 +32,18 @@ import { measure, optionsFromEnv } from './measure';
 //                    "starts": n | { "real": 6, "grown": 1 } }
 //   limitSec       60: not docked by then is a failure
 //   stop           true or { "coastSec": 10 }: also fly every journey between systems again and
-//                  press Stop at its fastest moment, then watch it coast: how far it slides,
+//                  press Stop at its fastest moment, then watch it brake: how far it slides,
 //                  how close it comes to anything, whether it touches a shell
+//   stress         true or { "journeys": 60, "modes": [...], "coastSec": 10 }: a VISITOR WHO
+//                  CHANGES THEIR MIND (stress.ts). A seeded sample of journeys between systems,
+//                  each flown again and again with one thing done to it: "redirect" (another body
+//                  every 0.1 s and just before it arrives), "stop" (every 0.25 s, at its fastest,
+//                  1 to 20 steps before it arrives), "reach" (a body it races past, within reach,
+//                  every 0.1 s there is one), "stopDock" (Stop, then E at the first body offered).
+//                  Every flight must dock where it was sent (or come to rest) without touching a
+//                  shell or passing closer than half a cushion to anything: 0 failures is the gate
+//                  for a change to the autopilot, the approach or Stop. About 2 minutes for all
+//                  four galaxies
 //   seed, includeDrafts, rows (print every journey), out (write every journey as JSON)
 //
 // JOURNEYS_OUT=<file.json> also writes every journey. A formula that JSON cannot say goes in a

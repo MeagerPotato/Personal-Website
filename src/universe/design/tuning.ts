@@ -143,6 +143,12 @@ export const tuning = {
     cornerCut: 2.5,
     /** 1/s: how hard the throttle chases the profile's speed. */
     speedGain: 6,
+    /**
+     * u/s². ...but it never brakes harder than this for the plan (a replan that finds a bend
+     * close ahead asked for 2,200 in one step): a little more than `far.decel`. Braking for the
+     * ship's own course (sim/reflex.ts) is not held to it.
+     */
+    comfortDecel: 700,
     /** u/s. Inside a keep-out (leaving a ring, arriving beside a moon): no faster than this... */
     keepOutSpeed: 50,
     /** ...and outside, this much more (1/s) for each unit of room from the nearest one... */

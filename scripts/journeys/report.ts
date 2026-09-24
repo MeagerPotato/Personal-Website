@@ -1,4 +1,4 @@
-import type { JourneyKind, JourneyResult } from './fly';
+import { VALLEY_U_S, type JourneyKind, type JourneyResult } from './fly';
 
 // Numbers for people: per kind of journey, how long they take, the worst one and why.
 
@@ -11,6 +11,11 @@ export interface Stats {
   /** Share of journeys that docked within 5 s. */
   within5: number;
   peakSpeed: number;
+  /** The hardest the ship's velocity changed in one step, over every journey, u/s² (JourneyResult.peakAccel). */
+  peakAccel: number;
+  /** Share of journeys with a speed valley (JourneyResult.valleys), and with one 150 u/s deep. */
+  withValley: number;
+  withDeepValley: number;
   longestU: number;
   failures: number;
   /** Closest to a passing body's surface, and to any shell, over the whole of every step, u. */
@@ -42,6 +47,9 @@ export function statsOf(rows: readonly JourneyResult[]): Stats {
     mean: seconds.reduce((sum, value) => sum + value, 0) / (seconds.length || 1),
     within5: rows.filter((row) => row.docked && row.seconds <= 5).length / (rows.length || 1),
     peakSpeed: rows.reduce((top, row) => Math.max(top, row.peakSpeed), 0),
+    peakAccel: rows.reduce((top, row) => Math.max(top, row.peakAccel), 0),
+    withValley: rows.filter((row) => row.valleys > 0).length / (rows.length || 1),
+    withDeepValley: rows.filter((row) => row.deepestValley >= 150).length / (rows.length || 1),
     longestU: rows.reduce((top, row) => Math.max(top, row.straightU), 0),
     failures: rows.filter((row) => row.failure !== null).length,
     closestGapU: rows.reduce((least, row) => Math.min(least, row.closestGapU), Infinity),
@@ -115,7 +123,7 @@ export function stopTable(rows: readonly JourneyResult[], coastSec: number): str
 /** The table for one galaxy under one variant. */
 export function table(rows: readonly JourneyResult[]): string {
   const lines = [
-    '           n  median    p90    max   mean  <=5 s  peak u/s  longest u  fail  closest u  shell u  | on ring: median    max',
+    '           n  median    p90    max   mean  <=5 s  peak u/s  u/s²  valleys  longest u  fail  closest u  shell u  | on ring: median    max',
   ];
   const all: Array<[string, readonly JourneyResult[]]> = [
     ...KINDS.map((kind): [string, JourneyResult[]] => [
@@ -130,7 +138,9 @@ export function table(rows: readonly JourneyResult[]): string {
     lines.push(
       `${label.padEnd(8)}${pad(String(s.n), 5)}${pad(f1(s.median), 8)}${pad(f1(s.p90), 7)}` +
         `${pad(f1(s.max), 7)}${pad(f1(s.mean), 7)}${pad(`${Math.round(s.within5 * 100)}%`, 7)}` +
-        `${pad(s.peakSpeed.toFixed(0), 10)}${pad(s.longestU.toFixed(0), 11)}${pad(String(s.failures), 6)}` +
+        `${pad(s.peakSpeed.toFixed(0), 10)}${pad(s.peakAccel.toFixed(0), 6)}` +
+        `${pad(`${Math.round(s.withValley * 100)}/${Math.round(s.withDeepValley * 100)}%`, 9)}` +
+        `${pad(s.longestU.toFixed(0), 11)}${pad(String(s.failures), 6)}` +
         `${pad(f1(s.closestGapU), 11)}${pad(f1(s.shellClearU), 9)}` +
         `  |${pad(f1(s.settledMedian), 16)}${pad(f1(s.settledMax), 7)}`,
     );
@@ -139,6 +149,9 @@ export function table(rows: readonly JourneyResult[]): string {
     const worst = statsOf(rows.filter((row) => row.kind === kind)).worst;
     if (worst) lines.push(`worst ${kind}: ${describe(worst)}\n    ${phasesOf(worst)}`);
   }
+  lines.push(
+    `(valleys: share of journeys whose speed dipped by ${VALLEY_U_S} u/s or more and came back, / by 150 or more)`,
+  );
   const failed = rows.filter((row) => row.failure !== null);
   for (const row of failed.slice(0, 8)) {
     lines.push(

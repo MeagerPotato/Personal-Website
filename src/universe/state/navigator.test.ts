@@ -361,6 +361,54 @@ describe('Navigator, travelling', () => {
     expect(h.surroundings.dock.phase).toBe('free');
   });
 
+  it('stops where the pilot says STOP: brakes to rest, and says the pilot ended the journey', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(1.2);
+    const fast = Math.hypot(h.state.vx, h.state.vz);
+    expect(fast).toBeGreaterThan(200);
+    h.heard.length = 0;
+    const x0 = h.state.x;
+    const z0 = h.state.z;
+    h.navigator.stop('pilot');
+    expect(h.navigator.halting).toBe(true);
+    h.run(0.1);
+    expect(story(h)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['statechange', { mode: 'flight', target: null }],
+    ]);
+    h.run(4);
+    // At rest where it was stopped (not coasting on toward where it was going), braking no more.
+    expect(h.navigator.halting).toBe(false);
+    expect(Math.hypot(h.state.vx, h.state.vz)).toBeLessThan(1);
+    expect(Math.hypot(h.state.x - x0, h.state.z - z0)).toBeLessThan(150);
+  });
+
+  it('goes on braking after a rebuild, if it was stopped a moment before', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(1.2);
+    h.navigator.stop('pilot');
+    h.run(0.1);
+    // What core/snapshot.ts keeps: no dock, and a ship still braking.
+    expect(h.navigator.snapshot()).toBeNull();
+    expect(h.navigator.halting).toBe(true);
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(null, false, true);
+    expect(again.navigator.halting).toBe(true);
+    expect(again.navigator.state).toEqual({ mode: 'flight', target: null });
+    again.run(4);
+    expect(Math.hypot(again.state.vx, again.state.vz)).toBeLessThan(1);
+    // And a rebuild of a ship that was not stopped leaves it be.
+    const idle = harness(0, 0, 0, WIDE_GALAXY);
+    idle.navigator.restore(null);
+    expect(idle.navigator.halting).toBe(false);
+  });
+
   it('changes destination mid-journey when asked for somewhere else', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);
@@ -475,5 +523,7 @@ describe('Navigator, travelling', () => {
     syncSurroundings(close.surroundings, near.time());
     close.navigator.restore(near.navigator.snapshot(), true);
     expect(close.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+    // With no hold, as pointing at it would be: theirs is no journey.
+    expect(close.surroundings.dock.holdSec).toBe(0);
   });
 });

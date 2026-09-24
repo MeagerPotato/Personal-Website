@@ -3,7 +3,8 @@ import { buildUniverse } from '../data/build';
 import type { ProjectInput, UniverseInput } from '../data/types';
 import { tuning } from '../design/tuning';
 import { beginCruise, cruiseArrived, passingLimit, planCruise } from './autopilot';
-import { approachPace, dockAt, releaseDock, requestDock } from './docking';
+import { pullOf } from './assist';
+import { approachPace, dockAt, haltDock, releaseDock, requestDock } from './docking';
 import { NO_INPUT, copyShipState, createShipState, speedOf, stepFlight } from './flight';
 import { angleDelta } from './math';
 import { createRng } from './rng';
@@ -159,6 +160,8 @@ interface Report {
    * than 100 u/s: a slalom, or a nose hunting for its course.
    */
   reversals: number;
+  /** The hardest the velocity changed in one step, u/s²: what a passenger would feel as a jolt. */
+  hardest: number;
 }
 
 /** Set out for `target` and fly until docked (or for a minute), watching what a passenger would mind. */
@@ -176,12 +179,19 @@ function travel(journey: Journey, target: string, from = -1, limitSec = 60): Rep
     touched: false,
     handOverPace: 0,
     reversals: 0,
+    hardest: 0,
   };
   const began = journey.t;
   let lastSide = 0;
   let phase = world.dock.phase;
   while (journey.t - began < limitSec) {
+    const vx = journey.state.vx;
+    const vz = journey.state.vz;
     step(journey);
+    report.hardest = Math.max(
+      report.hardest,
+      Math.hypot(journey.state.vx - vx, journey.state.vz - vz) / STEP,
+    );
     const speed = speedOf(journey.state);
     report.topSpeed = Math.max(report.topSpeed, speed);
     report.touched ||= world.touched >= 0;
@@ -208,6 +218,134 @@ function travel(journey: Journey, target: string, from = -1, limitSec = 60): Rep
   }
   report.seconds = journey.t - began;
   return report;
+}
+
+/** What `watchWhole` saw. */
+interface Watched {
+  docked: boolean;
+  seconds: number;
+  touched: boolean;
+  /** Least clearance to ANY body's shell over the whole of every step, u (below 0: through one). */
+  shellClear: number;
+  /** Least gap to the surface of a body not in `except`, over the whole of every step, u, and which. */
+  gap: number;
+  gapBody: string;
+  /** The hardest the velocity changed in one step, u/s². */
+  accel: number;
+  /** The furthest from where the watch began, u. */
+  slide: number;
+  /** How far from there it was when it was first no faster than `below`, u (NaN if never). */
+  dropU: number;
+}
+
+/**
+ * Fly on with nobody at the controls for `limitSec`, or until docked and a second more (the dock's
+ * springs settle the ship then), watching the WHOLE of every step: the straight line the ship
+ * flew, seen from each body (which moved too). At 700 u/s a step is 12 u, and a small moon's shell
+ * is 4.4 u across.
+ */
+function watchWhole(
+  journey: Journey,
+  except: readonly number[],
+  limitSec: number,
+  below = 0,
+): Watched {
+  const { world, state } = journey;
+  const { positions, radius, count } = world.field;
+  const before = new Float64Array(count * 2);
+  const seen: Watched = {
+    docked: false,
+    seconds: limitSec,
+    touched: false,
+    shellClear: Infinity,
+    gap: Infinity,
+    gapBody: '',
+    accel: 0,
+    slide: 0,
+    dropU: NaN,
+  };
+  const x0 = state.x;
+  const z0 = state.z;
+  const began = journey.t;
+  let dockedAt = -1;
+  while (journey.t - began < limitSec - STEP / 2 && (dockedAt < 0 || journey.t - dockedAt < 1)) {
+    before.set(positions);
+    const fromX = state.x;
+    const fromZ = state.z;
+    const vx = state.vx;
+    const vz = state.vz;
+    step(journey);
+    seen.accel = Math.max(seen.accel, Math.hypot(state.vx - vx, state.vz - vz) / STEP);
+    seen.touched ||= world.touched >= 0;
+    const away = Math.hypot(state.x - x0, state.z - z0);
+    seen.slide = Math.max(seen.slide, away);
+    if (Number.isNaN(seen.dropU) && speedOf(state) <= below) seen.dropU = away;
+    for (let j = 0; j < count; j += 1) {
+      const ax = fromX - (before[j * 2] ?? 0);
+      const az = fromZ - (before[j * 2 + 1] ?? 0);
+      const dx = state.x - (positions[j * 2] ?? 0) - ax;
+      const dz = state.z - (positions[j * 2 + 1] ?? 0) - az;
+      const span = dx * dx + dz * dz;
+      const t = span < 1e-12 ? 0 : Math.min(1, Math.max(0, -(ax * dx + az * dz) / span));
+      const surface = Math.hypot(ax + dx * t, az + dz * t) - (radius[j] ?? 0);
+      seen.shellClear = Math.min(seen.shellClear, surface - tuning.cushion.shellGap);
+      if (!except.includes(j) && surface < seen.gap) {
+        seen.gap = surface;
+        seen.gapBody = world.orbits.ids[j] ?? '';
+      }
+    }
+    if (dockedAt < 0 && world.dock.phase === 'docked') {
+      dockedAt = journey.t;
+      seen.docked = true;
+      seen.seconds = journey.t - began;
+    }
+  }
+  return seen;
+}
+
+/**
+ * A new destination, as Navigator.travel asks for it: the autopilot, or the approach for a body
+ * that is within reach (the ship racing past it), and never quicker than a journey.
+ */
+function sendTo(journey: Journey, id: string): void {
+  const { world, state } = journey;
+  const i = world.orbits.indexOf(id);
+  const within = pullOf(world.field, i, state.x, state.z, tuning.assist) > 0;
+  releaseDock(world.dock, world.assist);
+  requestDock(world.dock, i, NO_INPUT, !within, tuning.cruise.minJourneySec);
+}
+
+/** Journeys between systems in MANIFEST, each from a dock at a given moment, place and way round. */
+const CROSSINGS: ReadonlyArray<readonly [string, string, number, number, 1 | -1]> = [
+  ['page/about', 'project/research', 0, 0.3, 1],
+  ['project/fishai', 'project/staged-recovery', 400, 2.1, -1],
+  ['project/research', 'project/days2meet', 130, 4.4, 1],
+  ['page/contact', 'project/arc-team', 700, 1.2, -1],
+  ['project/l1-cert', 'project/club', 260, 5.5, 1],
+  ['project/payload', 'page/resume', 820, 3.3, -1],
+];
+
+/** Set out on crossing `c`; and how many steps it flies on the autopilot before it is handed over. */
+function setOutOn(c: (typeof CROSSINGS)[number]): Journey {
+  const [from, to, t0, angle, spin] = c;
+  const journey = dockedAt(from, t0, angle, spin);
+  sendTo(journey, to);
+  return journey;
+}
+function cruiseStepsOf(c: (typeof CROSSINGS)[number]): { steps: number; peakAt: number } {
+  const journey = setOutOn(c);
+  let peak = 0;
+  let peakAt = 0;
+  let k = 0;
+  while (journey.world.dock.phase === 'cruise' && k < 1200) {
+    step(journey);
+    k += 1;
+    if (speedOf(journey.state) > peak) {
+      peak = speedOf(journey.state);
+      peakAt = k;
+    }
+  }
+  return { steps: k - 1, peakAt };
 }
 
 describe('the autopilot', () => {
@@ -249,6 +387,7 @@ describe('the autopilot', () => {
     let quickest = Infinity;
     let closest = Infinity;
     let total = 0;
+    let hardest = 0;
     const revs: number[] = [];
     for (let run = 0; run < 200; run += 1) {
       const t0 = range(0, 900);
@@ -293,6 +432,7 @@ describe('the autopilot', () => {
       total += report.seconds;
       quickest = Math.min(quickest, report.seconds);
       revs.push(report.reversals);
+      hardest = Math.max(hardest, report.hardest);
     }
     // The longest trip in this galaxy is some 1,500 u, and most are across a system or two.
     expect(slowest).toBeLessThan(6);
@@ -306,6 +446,10 @@ describe('the autopilot', () => {
     revs.sort((a, b) => a - b);
     expect(revs[180]).toBeLessThanOrEqual(1);
     expect(revs[199]).toBeLessThanOrEqual(8);
+    // And no jolts: the plan's braking is held to cruise.comfortDecel, so the hardest the velocity
+    // changes in a step is that, the drag and a bend: 898 u/s², measured. (A replan that found a
+    // bend close ahead used to brake for it in one step, 2,200 u/s².)
+    expect(hardest).toBeLessThan(1000);
   });
 
   it('never passes through a shell between two steps: 200 journeys, every step swept', () => {
@@ -360,13 +504,13 @@ describe('the autopilot', () => {
       }
       expect(docked, label).toBeGreaterThanOrEqual(0);
     }
-    // At full speed, and never through a shell, whatever it went past or came to. The least,
-    // measured: 0.63 u, run 171, a moon passed at 250 u/s just after a replan that kept to a
-    // stretch of the old plan 19 degrees off the ship's course (keepStretch). That is closer than
-    // the half cushion the test above pins at the end of each step; the journey harness, flying
-    // from real docks, comes no nearer than 4 u to a body it passes (npm run journeys).
+    // At full speed, and never through a shell, whatever it went past or came to: the least,
+    // measured, is 3.1 u, leaving the ship's own dock (run 155). It was 0.63 u (run 171): a moon
+    // passed at 250 u/s just after a replan that kept to a stretch of the old plan 19 degrees off
+    // the ship's course (keepStretch). The plan still does that; the reflex (sim/reflex.ts), which
+    // looks along the ship's own course, now brakes for the moon.
     expect(fastest).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
-    expect(least, where).toBeGreaterThan(0);
+    expect(least, where).toBeGreaterThan(tuning.cushion.depth * 0.5);
   });
 
   it('turns round first when asked while flying the other way at full boost', () => {
@@ -503,79 +647,213 @@ describe('the autopilot', () => {
     expect(warp.vz).toBeCloseTo(top + (2000 - top) * Math.exp(-0.5), 9);
   });
 
-  it('stops within a couple of hundred units when Stop is pressed at full speed', () => {
-    // Stop (ui/Prompt.ts) lets go of the journey (Navigator.release, releaseDock) at the fastest
-    // point of a crossing between systems. Nobody flies the ship from there: it drops out of warp
-    // and coasts, and it must not coast on into the next system, or into a planet.
+  it('brakes to rest when Stop is pressed, at any moment of a journey, and meets nothing', () => {
+    // Stop (ui/Prompt.ts, Navigator.stop) lets go of the journey and brakes the ship to rest where
+    // it is (haltDock): at its fastest, every 0.25 s, and 1 to 12 steps before it is handed over.
+    // The autopilot's speed goes at once (dropOutOfWarp) and the brake takes the rest: it must not
+    // coast on into the next moon, or the next system. (Coasting, as Stop did at first, a Stop in
+    // a bend or just before the ship arrived slid on into a moon.)
     const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
     const top = (thrustAccel * boostFactor) / forwardDrag;
-    const pairs: Array<[string, string]> = [
-      ['page/about', 'project/research'],
-      ['project/fishai', 'project/staged-recovery'],
-      ['project/research', 'project/days2meet'],
-      ['page/contact', 'project/arc-team'],
-      ['project/l1-cert', 'project/club'],
-      ['project/payload', 'page/resume'],
-    ];
-    let peakMost = 0;
+    let fastest = 0;
     let dropMost = 0;
     let slideMost = 0;
     let closest = Infinity;
-    for (const [from, to] of pairs) {
-      for (const t0 of [0, 400]) {
-        const label = `${from} -> ${to} at ${t0} s`;
-        const setOut = (): Journey => {
-          const journey = dockedAt(from, t0);
-          releaseDock(journey.world.dock, journey.world.assist);
-          requestDock(journey.world.dock, journey.world.orbits.indexOf(to), NO_INPUT, true);
-          return journey;
-        };
-        // The journey as flown to the end, to find its fastest moment (flights are exact
-        // repeats: see 'flies the same journey the same way every time')...
-        const whole = setOut();
-        let peak = 0;
-        let peakAt = 0;
-        for (let k = 1; k <= 600 && whole.world.dock.phase === 'cruise'; k += 1) {
-          step(whole);
-          if (speedOf(whole.state) > peak) {
-            peak = speedOf(whole.state);
-            peakAt = k;
-          }
-        }
-        // ...and again, Stop pressed right there.
-        const journey = setOut();
-        const { world } = journey;
-        for (let k = 0; k < peakAt; k += 1) step(journey);
+    let closestAt = '';
+    for (const c of CROSSINGS) {
+      const { steps, peakAt } = cruiseStepsOf(c);
+      const moments = new Set([peakAt, ...[1, 2, 3, 6, 12].map((back) => steps + 1 - back)]);
+      for (let k = 15; k < steps; k += 15) moments.add(k);
+      for (const at of moments) {
+        const label = `${c[0]} -> ${c[1]}, Stop after ${at} steps`;
+        const journey = setOutOn(c);
+        for (let k = 0; k < at; k += 1) step(journey);
+        const { world, state } = journey;
         expect(world.dock.phase, label).toBe('cruise');
-        expect(speedOf(journey.state), label).toBe(peak);
-        peakMost = Math.max(peakMost, peak);
-
-        releaseDock(world.dock, world.assist);
-        const x0 = journey.state.x;
-        const z0 = journey.state.z;
-        let dropped = -1;
-        let slide = 0;
-        for (let k = 0; k < 600; k += 1) {
-          step(journey, NO_INPUT);
-          expect(world.touched, label).toBe(-1);
-          const away = Math.hypot(journey.state.x - x0, journey.state.z - z0);
-          slide = Math.max(slide, away);
-          if (dropped < 0 && speedOf(journey.state) <= top + 1e-9) dropped = away;
-          for (let j = 0; j < world.field.count; j += 1)
-            closest = Math.min(closest, gap(journey, j));
+        fastest = Math.max(fastest, speedOf(state));
+        haltDock(world.dock, world.assist);
+        const seen = watchWhole(journey, [], 8, top);
+        expect(seen.touched, label).toBe(false);
+        // At rest by then (or in an orbit the assist found there), and nobody braking any more.
+        expect(world.dock.halting, label).toBe(false);
+        dropMost = Math.max(dropMost, seen.dropU);
+        slideMost = Math.max(slideMost, seen.slide);
+        if (seen.gap < closest) {
+          closest = seen.gap;
+          closestAt = `${label}: ${seen.gapBody}`;
         }
-        expect(dropped, label).toBeGreaterThan(0);
-        dropMost = Math.max(dropMost, dropped);
-        slideMost = Math.max(slideMost, slide);
       }
     }
-    // Stopped at 698 u/s: back to the pilot's own top speed (81 u/s) within 160 u, and at
-    // rest (or in an orbit the assist found) within 259 u, never a system further on. (Without
-    // dropOutOfWarp it coasted some 875 u, and a Stop in the wrong place met a planet.)
-    expect(peakMost).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
-    expect(dropMost).toBeLessThan(170);
-    expect(slideMost).toBeLessThan(280);
-    expect(closest).toBeGreaterThan(tuning.cushion.depth * 0.5);
+    // Stopped at 698 u/s: back to the pilot's own top speed (81 u/s) within 94 u, and at rest
+    // within 139 u, measured over 105 Stops. Never closer than 5.5 u to anything.
+    expect(fastest).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
+    expect(dropMost).toBeLessThan(110);
+    expect(slideMost).toBeLessThan(160);
+    expect(closest, closestAt).toBeGreaterThan(tuning.cushion.depth * 0.5);
+  });
+
+  it('changes its mind at any moment of a journey, at any speed, and meets nothing', () => {
+    // A visitor pointing at one body and then another: a new destination every 0.1 s of a
+    // journey between systems and on its very last step, somewhere different each time, asked
+    // for as Navigator.travel does it (sendTo). The plan starts from the way the ship is really
+    // going (sim/autopilot.ts, alongPath), and the reflex (sim/reflex.ts) brakes whatever it runs
+    // at. The journey harness does the same over bigger galaxies (npm run journeys, "stress").
+    const rng = createRng('redirect');
+    const ids = begin().world.orbits.ids;
+    let flights = 0;
+    let slowest = 0;
+    let fastest = 0;
+    let closest = Infinity;
+    let closestAt = '';
+    let shellClear = Infinity;
+    for (const c of CROSSINGS) {
+      const { steps } = cruiseStepsOf(c);
+      const moments: number[] = [];
+      for (let k = 6; k < steps; k += 6) moments.push(k);
+      moments.push(steps);
+      for (const at of moments) {
+        let to = c[1];
+        while (to === c[1]) to = ids[Math.floor(rng() * ids.length)] ?? c[1];
+        const label = `${c[0]} -> ${c[1]}, after ${at} steps to ${to}`;
+        const journey = setOutOn(c);
+        for (let k = 0; k < at; k += 1) step(journey);
+        expect(journey.world.dock.phase, label).toBe('cruise');
+        fastest = Math.max(fastest, speedOf(journey.state));
+        sendTo(journey, to);
+        const { orbits } = journey.world;
+        const seen = watchWhole(journey, [orbits.indexOf(c[0]), orbits.indexOf(to)], 20);
+        expect(seen.docked, label).toBe(true);
+        expect(journey.world.dock.body, label).toBe(orbits.indexOf(to));
+        expect(seen.touched, label).toBe(false);
+        slowest = Math.max(slowest, seen.seconds);
+        shellClear = Math.min(shellClear, seen.shellClear);
+        if (seen.gap < closest) {
+          closest = seen.gap;
+          closestAt = `${label}: ${seen.gapBody}`;
+        }
+        flights += 1;
+      }
+    }
+    // 185 new destinations, asked for at up to 698 u/s: all docked within 6.5 s, never closer
+    // than 4.1 u to a surface (3.1 u to a shell), measured.
+    expect(flights).toBeGreaterThan(150);
+    expect(fastest).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
+    expect(slowest).toBeLessThan(8);
+    expect(shellClear).toBeGreaterThan(0);
+    expect(closest, closestAt).toBeGreaterThan(tuning.cushion.depth * 0.5);
+  });
+
+  it('takes a body within reach asked for at cruise speed onto its ring: a firm stop, not a wall', () => {
+    // Pointing at a moon the autopilot is racing past: it is within reach, so the Navigator hands
+    // it to the APPROACH (sendTo), from whatever speed the ship has. The approach brakes off what
+    // it does not want as the autopilot would (sim/docking.ts, approachInput; sim/assist.ts,
+    // orbitWish), with the reflex keeping a wider berth for a ship with no plan (REFLEX_LEAD_SEC).
+    let flights = 0;
+    let fastest = 0;
+    let hardest = 0;
+    let hardestAt = '';
+    let slowest = 0;
+    let closest = Infinity;
+    let closestAt = '';
+    for (const c of CROSSINGS) {
+      const probe = setOutOn(c);
+      const chances: Array<{ at: number; id: string; speed: number }> = [];
+      const { orbits, field } = probe.world;
+      for (let k = 1; probe.world.dock.phase === 'cruise' && k < 1200; k += 1) {
+        step(probe);
+        if (probe.world.dock.phase !== 'cruise' || speedOf(probe.state) < 60) continue;
+        for (let j = 0; j < field.count; j += 1) {
+          const id = orbits.ids[j] ?? '';
+          if (id === c[0] || id === c[1]) continue;
+          if (pullOf(field, j, probe.state.x, probe.state.z, tuning.assist) > 0) {
+            chances.push({ at: k, id, speed: speedOf(probe.state) });
+          }
+        }
+      }
+      for (const chance of chances.filter((_, index) => index % 3 === 0)) {
+        const label = `${c[0]} -> ${c[1]}, after ${chance.at} steps to ${chance.id} at ${chance.speed.toFixed(0)} u/s`;
+        const journey = setOutOn(c);
+        for (let k = 0; k < chance.at; k += 1) step(journey);
+        sendTo(journey, chance.id);
+        expect(journey.world.dock.phase, label).toBe('approach');
+        fastest = Math.max(fastest, chance.speed);
+        const to = orbits.indexOf(chance.id);
+        const seen = watchWhole(journey, [orbits.indexOf(c[0]), to], 20);
+        expect(seen.docked, label).toBe(true);
+        expect(journey.world.dock.body, label).toBe(to);
+        expect(seen.touched, label).toBe(false);
+        slowest = Math.max(slowest, seen.seconds);
+        if (seen.accel > hardest) {
+          hardest = seen.accel;
+          hardestAt = label;
+        }
+        if (seen.gap < closest) {
+          closest = seen.gap;
+          closestAt = `${label}: ${seen.gapBody}`;
+        }
+        flights += 1;
+      }
+    }
+    // And faster than any journey here passes a body: a sun, a planet and a moon skimmed at up to
+    // full cruise speed, going past it and cutting in; wherever the autopilot could be going that
+    // fast (the plans and the reflex allow openSpaceGain u/s for each unit of room: no other body
+    // nearer than speed / openSpaceGain, and no faster toward this one than its room allows).
+    let fastCases = 0;
+    for (const id of ['system/berkeley', 'system/code', 'project/research', 'project/payload']) {
+      for (const speed of [440, 700]) {
+        for (const inward of [0, 0.4, 0.8]) {
+          for (let angle = 0; angle < 6.2; angle += 0.5) {
+            const probe = begin(300);
+            const i = probe.world.orbits.indexOf(id);
+            const reach = tuning.assist.soiRadii * (probe.world.field.ringRadius[i] ?? 0);
+            const journey = flyingNear(
+              id,
+              reach - 2,
+              angle,
+              angle + Math.PI / 2 + inward,
+              speed,
+              300,
+            );
+            let room = Infinity;
+            for (let j = 0; j < journey.world.field.count; j += 1) {
+              if (j !== i) room = Math.min(room, gap(journey, j));
+            }
+            const toward = speed * Math.sin(inward);
+            const own = gap(journey, i) - tuning.cushion.depth;
+            if (room < speed / tuning.cruise.openSpaceGain) continue;
+            if (toward > tuning.cruise.openSpaceGain * own) continue;
+            fastCases += 1;
+            fastest = Math.max(fastest, speed);
+            sendTo(journey, id);
+            const label = `${id} at ${speed} u/s, ${inward} rad in, from ${angle}`;
+            expect(journey.world.dock.phase, label).toBe('approach');
+            const seen = watchWhole(journey, [i], 20);
+            expect(seen.docked, label).toBe(true);
+            expect(seen.touched, label).toBe(false);
+            slowest = Math.max(slowest, seen.seconds);
+            if (seen.accel > hardest) {
+              hardest = seen.accel;
+              hardestAt = label;
+            }
+            if (seen.gap < closest) {
+              closest = seen.gap;
+              closestAt = `${label}: ${seen.gapBody}`;
+            }
+            flights += 1;
+          }
+        }
+      }
+    }
+    // 66 approaches, 21 of them begun at 440 u/s: all docked within 5.4 s, never closer than
+    // 2.7 u to a surface. The hardest the velocity changed in a step was 1,336 u/s² (the approach
+    // brakes off what it does not want at up to 1,000 u/s², sim/assist.ts FAR_DECEL, while it turns
+    // for the ring; the reflex may brake harder), measured: a firm stop from cruise speed, not a
+    // wall (the brake could do 2,750 u/s² at 440 u/s).
+    expect(fastCases).toBeGreaterThan(15);
+    expect(flights).toBeGreaterThan(50);
+    expect(slowest).toBeLessThan(8);
+    expect(hardest, hardestAt).toBeLessThan(1400);
+    expect(closest, closestAt).toBeGreaterThan(tuning.cushion.depth * 0.5);
   });
 
   it('ignores controls that were already held when the journey was asked for', () => {

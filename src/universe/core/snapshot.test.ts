@@ -26,7 +26,10 @@ const FLYING: Snapshot = {
   steps: 5400,
   ship: { x: 64, z: -99, vx: 3, vz: -12.5, heading: 7.2, yawRate: -0.4 },
   dock: null,
+  halting: false,
 };
+/** STOP was pressed a moment ago: still braking to rest. */
+const STOPPING: Snapshot = { ...FLYING, halting: true };
 const DOCKED: Snapshot = {
   ...FLYING,
   dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0 },
@@ -44,6 +47,13 @@ describe('a snapshot that has been away', () => {
     expect(parseSnapshot(stored(FLYING))).toEqual(FLYING);
     expect(parseSnapshot(stored(DOCKED))).toEqual(DOCKED);
     expect(parseSnapshot(stored(HEADED))).toEqual(HEADED);
+    expect(parseSnapshot(stored(STOPPING))).toEqual(STOPPING);
+    // Written before STOP braked: not braking.
+    const older: Record<string, unknown> = { ...STOPPING };
+    delete older.halting;
+    expect(parseSnapshot(older)?.halting).toBe(false);
+    // Headed somewhere, or docked, is never braking to a stop.
+    expect(parseSnapshot({ ...HEADED, halting: true })?.halting).toBe(false);
     // Written before a journey's hold was kept: nothing to wait for.
     const before = { id: 'project/fishai', docked: false, angle: 0, spin: 1 };
     expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.holdSec).toBe(0);
@@ -76,6 +86,8 @@ describe('a snapshot that has been away', () => {
       { ...HEADED, dock: { ...HEADED.dock, holdSec: 3600 } },
       { ...HEADED, dock: { ...HEADED.dock, holdSec: '1' } },
       { ...HEADED, dock: { ...HEADED.dock, holdSec: null } },
+      { ...FLYING, halting: 'yes' },
+      { ...FLYING, halting: null },
     ];
     for (const data of broken) expect(parseSnapshot(data)).toBeNull();
   });
@@ -101,6 +113,7 @@ describe('where a visit starts', () => {
 
   it('carries on from a remembered snapshot: a reload in open sky, or on the same orbit', () => {
     expect(startingFrom({ snapshot: stored(FLYING) })).toEqual({ snapshot: FLYING, at: null });
+    expect(startingFrom({ snapshot: stored(STOPPING) })).toEqual({ snapshot: STOPPING, at: null });
     expect(startingFrom({ at: 'project/fishai', snapshot: stored(DOCKED) })).toEqual({
       snapshot: DOCKED,
       at: 'project/fishai',

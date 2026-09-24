@@ -11,6 +11,7 @@ function setup(state: AppState, candidate: string | null) {
     candidate,
     approach: vi.fn(() => true),
     release: vi.fn(),
+    stop: vi.fn(),
   };
   const prompt = new Prompt({
     overlay,
@@ -65,7 +66,7 @@ describe('dock prompt', () => {
     expect(navigator.approach).toHaveBeenCalledTimes(1);
   });
 
-  it('on the way somewhere, says where to and offers to stop', () => {
+  it('on the way somewhere, says where to and offers to stop, which brakes the ship to rest', () => {
     for (const mode of ['autopilot', 'approach'] as const) {
       const { button, navigator, prompt } = setup({ mode, target: 'project/fishai' }, null);
       expect(button.hidden).toBe(false);
@@ -73,7 +74,8 @@ describe('dock prompt', () => {
       expect(button.querySelector('kbd')?.hidden).toBe(true);
       expect(button.querySelector('.dock-prompt__action')?.textContent).toBe('Stop');
       button.click();
-      expect(navigator.release).toHaveBeenCalledWith('pilot');
+      expect(navigator.stop).toHaveBeenCalledWith('pilot');
+      expect(navigator.release).not.toHaveBeenCalled();
       expect(navigator.approach).not.toHaveBeenCalled();
       prompt.dispose();
     }
@@ -88,6 +90,8 @@ describe('dock prompt', () => {
     expect(button.querySelector<HTMLElement>('.dock-prompt__action')?.hidden).toBe(true);
     button.click();
     expect(navigator.release).toHaveBeenCalledWith('pilot');
+    // Leaving orbit is no stop: the ship leaves at its orbit's pace, and the assist may hold it.
+    expect(navigator.stop).not.toHaveBeenCalled();
     // E never undocks: it is the key for arriving.
     press('KeyE');
     expect(navigator.approach).not.toHaveBeenCalled();

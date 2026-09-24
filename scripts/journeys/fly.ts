@@ -31,6 +31,8 @@ const SETTLED_U = 0.5;
 const SETTLED_SPEED = 2;
 /** How long after docking the harness keeps watching for the ship to settle, s. */
 const SETTLE_WATCH_SEC = 5;
+/** u/s. A dip in speed this deep, and a surge back by as much, is a valley (JourneyResult.valleys). */
+export const VALLEY_U_S = 40;
 
 /** The tuning blocks the simulation reads, as the engine passes them to flyStep and the Navigator. */
 type SimBlocks = Pick<typeof tuning, 'flight' | 'cruise' | 'assist' | 'cushion' | 'edge' | 'dock'>;
@@ -140,21 +142,59 @@ export interface JourneyResult {
   /** The approach ran out of time and the ship was captured where it was (dock.approachTimeoutSec). */
   approachTimedOut: boolean;
   /**
+   * SPEED VALLEYS while the autopilot flew: how often it braked by VALLEY_U_S or more and then
+   * sped up again by as much (the throttle and the brake taking turns, a nod of the camera each
+   * time), and the deepest such dip, u/s.
+   */
+  valleys: number;
+  deepestValley: number;
+  /**
+   * The hardest the ship's velocity changed in one step, from the request until it docked, u/s²
+   * (world frame: a bend flown at speed counts, and so does a cushion's push).
+   */
+  peakAccel: number;
+  /**
    * timeout: not docked within the limit. shell: touched a shell. tunnel: a step passed through a
    * shell (shellClearU < 0). graze: came closer than half a cushion to a body it was only passing
    * (the bound the autopilot's own test pins), anywhere along a step. A journey that was STOPPED
-   * (`stop`) fails only by a shell or a graze while it coasts.
+   * (`interrupt`) and not sent anywhere after fails only by a shell or a graze while it coasts.
    */
   failure: Failure | null;
-  /** What happened after Stop, when the journey was stopped on purpose (fly's `stop`). */
+  /** What happened after Stop, when the journey was stopped on purpose (fly's `interrupt`). */
   stop: StopOutcome | null;
+  /** What was done to the journey on the way (fly's `interrupt`), and what came of it. */
+  interrupt: InterruptOutcome | null;
 }
 
-/** Press Stop `atSec` into the journey (Navigator.release, as ui/Prompt.ts does), then watch it coast. */
-export interface StopSpec {
+/**
+ * Something a visitor does to a journey while the autopilot flies it, `atSec` after asking:
+ *   stop      press Stop (Navigator.stop, as ui/Prompt.ts does) and watch the ship for coastSec.
+ *             With `thenDock`, press E (the prompt's "Orbit ...") the first moment the prompt
+ *             offers a body after that (Navigator.candidate), and fly on until docked there.
+ *   redirect  point at another body, `to` (Navigator.travel, as main.ts flyToRow does): the
+ *             journey goes there instead, on the autopilot, or by the approach when `to` is
+ *             within reach (a body the ship is racing past).
+ */
+export type Interrupt =
+  | { kind: 'stop'; atSec: number; coastSec: number; thenDock?: boolean }
+  | { kind: 'redirect'; atSec: number; to: string };
+
+/** Press Stop `atSec` into the journey, then watch it coast for coastSec. */
+export type StopSpec = Extract<Interrupt, { kind: 'stop' }>;
+
+export interface InterruptOutcome {
+  kind: 'stop' | 'stopDock' | 'redirect';
+  /** When it was done (s since the request), and how fast the ship was going then, u/s. */
   atSec: number;
-  /** How long to watch the ship after Stop, s. */
-  coastSec: number;
+  atSpeed: number;
+  /** Where the ship was sent: the redirect's body, the body E docked at, or null (a plain Stop, or no body offered). */
+  to: string | null;
+  /** How the Navigator took it: a new journey on the autopilot, or the approach of a body within reach. */
+  how: 'travel' | 'approach' | null;
+  /** From sending it to `to` until docked there, s. NaN if it never was. */
+  dockSec: number;
+  /** The hardest the ship's velocity changed in one step after the interrupt, u/s². */
+  peakAccel: number;
 }
 
 export interface StopOutcome {
@@ -195,7 +235,7 @@ export function fly(
   sim: SimTuning,
   limitSec = 60,
   watch?: (view: StepView) => void,
-  stop?: StopSpec,
+  interrupt?: Interrupt,
 ): JourneyResult {
   const { manifest } = galaxy;
   const dt = 1 / sim.stepHz;
@@ -241,9 +281,14 @@ export function fly(
   navigator.frameUpdate();
   for (let k = Math.round(spec.dwellSec * sim.stepHz); k > 0; k -= 1) step();
 
-  const target = orbits.indexOf(spec.to);
+  // Where the journey goes: spec.to, until an interrupt sends it somewhere else.
+  let goal = spec.to;
+  let target = orbits.indexOf(spec.to);
   const start = spec.from === null ? -1 : orbits.indexOf(spec.from);
   if (target < 0) throw new Error(`${galaxy.name}: no body "${spec.to}"`);
+  if (interrupt?.kind === 'redirect' && orbits.indexOf(interrupt.to) < 0) {
+    throw new Error(`${galaxy.name}: no body "${interrupt.to}"`);
+  }
   const bodyX = (i: number): number => field.positions[i * 2] ?? 0;
   const bodyZ = (i: number): number => field.positions[i * 2 + 1] ?? 0;
   const straightU = Math.hypot(state.x - bodyX(target), state.z - bodyZ(target));
@@ -302,22 +347,63 @@ export function fly(
   let docked = false;
   const pilotTop = (sim.flight.thrustAccel * sim.flight.boostFactor) / sim.flight.forwardDrag;
   let stopped: (StopOutcome & { x: number; z: number }) | null = null;
+  let coasting = false;
+  let done: InterruptOutcome | null = null;
+  let peakAccel = 0;
+  let vx = state.vx;
+  let vz = state.vz;
+  // Speed valleys: the highest speed since the last valley, and the lowest since that.
+  let valleys = 0;
+  let deepestValley = 0;
+  let crest = 0;
+  let trough = Infinity;
+  /** Send the journey to `id` instead, as pointing at it does. */
+  const sendTo = (outcome: InterruptOutcome, id: string, t: number): void => {
+    if (!navigator.travel(id, 'pilot')) throw new Error(`${galaxy.name}: cannot go to "${id}"`);
+    navigator.frameUpdate();
+    goal = id;
+    target = orbits.indexOf(id);
+    outcome.to = id;
+    outcome.how = navigator.state.mode === 'autopilot' ? 'travel' : 'approach';
+    outcome.dockSec = t;
+    dockings.length = 0;
+  };
 
   while ((steps - began) * dt < limitSec) {
     remember();
     step();
     const t = (steps - began) * dt;
     sweep();
+    const accel = Math.hypot(state.vx - vx, state.vz - vz) / dt;
+    vx = state.vx;
+    vz = state.vz;
+    peakAccel = Math.max(peakAccel, accel);
+    if (done !== null) done.peakAccel = Math.max(done.peakAccel, accel);
 
     if (
-      stop &&
-      stopped === null &&
-      t >= stop.atSec - dt / 2 &&
+      interrupt &&
+      done === null &&
+      t >= interrupt.atSec - dt / 2 &&
       navigator.state.mode === 'autopilot'
     ) {
-      // Stop, as the prompt's button does it: the journey is let go of, nobody flies the ship.
-      navigator.release('pilot');
+      done = {
+        kind: interrupt.kind === 'redirect' ? 'redirect' : interrupt.thenDock ? 'stopDock' : 'stop',
+        atSec: t,
+        atSpeed: speedOf(state),
+        to: null,
+        how: null,
+        dockSec: NaN,
+        peakAccel: 0,
+      };
+      if (interrupt.kind === 'redirect') {
+        sendTo(done, interrupt.to, t);
+        continue;
+      }
+      // Stop, as the prompt's button does it: the journey is let go of and the ship brakes to rest
+      // by itself (Navigator.stop), nobody touching the controls.
+      navigator.stop('pilot');
       navigator.frameUpdate();
+      coasting = true;
       stopped = {
         atSec: t,
         atSpeed: speedOf(state),
@@ -333,7 +419,14 @@ export function fly(
       };
       continue;
     }
-    if (stopped !== null) {
+    if (coasting && stopped !== null && done !== null) {
+      // Stop, then E: the first body the prompt offers (ui/Prompt.ts, "Orbit ..." in free flight).
+      const offered = navigator.candidate;
+      if (interrupt?.kind === 'stop' && interrupt.thenDock === true && offered !== null) {
+        sendTo(done, offered, t);
+        coasting = false;
+        continue;
+      }
       const away = Math.hypot(state.x - stopped.x, state.z - stopped.z);
       stopped.slideU = Math.max(stopped.slideU, away);
       if (Number.isNaN(stopped.dropU) && speedOf(state) <= pilotTop + 1e-9) {
@@ -349,11 +442,22 @@ export function fly(
         }
       }
       stopped.endSpeed = speedOf(state);
-      if (t - stopped.atSec >= (stop?.coastSec ?? 0) - dt / 2) break;
+      if (interrupt?.kind === 'stop' && t - stopped.atSec >= interrupt.coastSec - dt / 2) break;
       continue;
     }
 
     peakSpeed = Math.max(peakSpeed, speedOf(state));
+    if (navigator.state.mode === 'autopilot') {
+      const speed = speedOf(state);
+      if (speed > crest && trough === Infinity) crest = speed;
+      else if (speed < crest - VALLEY_U_S || trough < Infinity) trough = Math.min(trough, speed);
+      if (trough < Infinity && speed > trough + VALLEY_U_S) {
+        valleys += 1;
+        deepestValley = Math.max(deepestValley, crest - trough);
+        crest = speed;
+        trough = Infinity;
+      }
+    }
     if (world.touched >= 0) shellTouches += 1;
     for (let j = 0; j < field.count; j += 1) {
       if (j === start || j === target) continue;
@@ -385,9 +489,10 @@ export function fly(
       if (Math.abs(d - ring) < onRingBand) onRing = t;
     }
     watch?.({ t, state, world, flown, mode: navigator.state.mode });
-    if (dockings.includes(spec.to)) {
+    if (dockings.includes(goal)) {
       docked = true;
       seconds = t;
+      if (done !== null && done.to === goal) done.dockSec = t - done.dockSec;
       break;
     }
   }
@@ -422,8 +527,12 @@ export function fly(
   const takeoff = Math.min(clear >= 0 ? clear : handedOver, handedOver);
   const ringAt = onRing >= 0 ? Math.min(onRing, end) : end;
   const approachSec = ringAt - handedOver;
+  if (done !== null && !docked) done.dockSec = NaN;
+  // Stopped and then sent somewhere (Stop, then E): what it did while it coasted counts too.
+  const touches = shellTouches + (stopped?.shellTouches ?? 0);
+  const passedAt = Math.min(closestGapU, stopped?.closestGapU ?? Infinity);
   const failure: Failure | null =
-    stopped !== null
+    stopped !== null && done?.to === null
       ? stopped.shellTouches > 0
         ? 'shell'
         : stopped.closestGapU < grazeBelow
@@ -431,11 +540,11 @@ export function fly(
           : null
       : !docked
         ? 'timeout'
-        : shellTouches > 0
+        : touches > 0
           ? 'shell'
           : shellClearU < 0
             ? 'tunnel'
-            : closestGapU < grazeBelow
+            : passedAt < grazeBelow
               ? 'graze'
               : null;
 
@@ -468,7 +577,11 @@ export function fly(
     shellTouches,
     approachTimedOut:
       docked && handOff >= 0 && end - handOff >= sim.dock.approachTimeoutSec - dt / 2,
+    valleys,
+    deepestValley,
+    peakAccel,
     failure,
+    interrupt: done,
     stop:
       stopped === null
         ? null
@@ -509,7 +622,7 @@ export function stopAtPeak(
     }
   });
   if (atSec < 0) return null;
-  return fly(galaxy, spec, sim, limitSec, undefined, { atSec, coastSec });
+  return fly(galaxy, spec, sim, limitSec, undefined, { kind: 'stop', atSec, coastSec });
 }
 
 // --- which journeys ----------------------------------------------------------------------------
@@ -525,7 +638,8 @@ export interface Sample {
   starts: number;
 }
 
-function pick<T>(items: T[], count: 'all' | number, seed: string): T[] {
+/** A seeded sample of `count` of `items`, in their own order (all of them for 'all'). */
+export function sampleOf<T>(items: T[], count: 'all' | number, seed: string): T[] {
   if (count === 'all' || count >= items.length) return items;
   const rng = createRng(seed);
   const order = items.map((item, index) => ({ item, index, key: rng() }));
@@ -562,10 +676,10 @@ export function planJourneys(galaxy: Galaxy, sample: Sample, seed: string): Jour
       specs.push({ kind, from, to, startSec, angle, spin, dwellSec });
     }
   };
-  for (const [a, b] of pick(between, sample.between, `${seed}|${galaxy.name}|between`)) {
+  for (const [a, b] of sampleOf(between, sample.between, `${seed}|${galaxy.name}|between`)) {
     add('between', a, b);
   }
-  for (const [a, b] of pick(within, sample.within, `${seed}|${galaxy.name}|within`)) {
+  for (const [a, b] of sampleOf(within, sample.within, `${seed}|${galaxy.name}|within`)) {
     add('within', a, b);
   }
   if (sample.spawn) for (const body of bodies) add('spawn', null, body.id);

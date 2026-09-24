@@ -29,6 +29,12 @@ export interface Snapshot {
      */
     readonly holdSec: number;
   } | null;
+  /**
+   * STOP was pressed a moment ago, and the ship is still braking to rest by itself (sim/docking.ts,
+   * DockState.halting): it carries on braking. Only ever with no dock. A snapshot written before
+   * this field existed reads as false.
+   */
+  readonly halting: boolean;
 }
 
 const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;
@@ -48,7 +54,7 @@ const isNumber = (value: unknown): value is number =>
  */
 export function parseSnapshot(data: unknown): Snapshot | null {
   if (typeof data !== 'object' || data === null) return null;
-  const { steps, ship, dock } = data as Record<string, unknown>;
+  const { steps, ship, dock, halting = false } = data as Record<string, unknown>;
   if (!isNumber(steps) || !Number.isInteger(steps) || steps < 0 || steps > MAX_STEPS) return null;
   if (typeof ship !== 'object' || ship === null) return null;
 
@@ -59,13 +65,15 @@ export function parseSnapshot(data: unknown): Snapshot | null {
     state[field] = value;
   }
 
-  if (dock === null || dock === undefined) return { steps, ship: state, dock: null };
+  if (typeof halting !== 'boolean') return null;
+  if (dock === null || dock === undefined) return { steps, ship: state, dock: null, halting };
   if (typeof dock !== 'object') return null;
   const { id, docked, angle, spin, holdSec = 0 } = dock as Record<string, unknown>;
   if (typeof id !== 'string' || typeof docked !== 'boolean' || !isNumber(angle)) return null;
   if (spin !== 1 && spin !== -1) return null;
   if (!isNumber(holdSec) || holdSec < 0 || holdSec > MAX_HOLD_SEC) return null;
-  return { steps, ship: state, dock: { id, docked, angle, spin, holdSec } };
+  // A ship that is headed somewhere, or docked, is not braking to a stop.
+  return { steps, ship: state, dock: { id, docked, angle, spin, holdSec }, halting: false };
 }
 
 /** Where a visit starts: what the web layer knows when it creates the universe. */

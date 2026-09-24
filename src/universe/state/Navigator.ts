@@ -2,7 +2,7 @@ import type { System } from '../core/Engine';
 import type { Snapshot } from '../core/snapshot';
 import { pullOf, type AssistParams } from '../sim/assist';
 import type { CruiseParams } from '../sim/autopilot';
-import { dockAt, releaseDock, requestDock, type DockParams } from '../sim/docking';
+import { dockAt, haltDock, releaseDock, requestDock, type DockParams } from '../sim/docking';
 import type { Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { FLIGHT, transition, type AppEvent, type AppState } from './appMachine';
@@ -158,19 +158,40 @@ export class Navigator implements System {
    * Pick up where a snapshot left off. The ship's own state must have been restored already. A
    * visitor who asked for less motion (`cut`) is never flown across the galaxy: a journey that was
    * under way is taken up as the short approach when the body is within reach, and as a cut
-   * otherwise, as their links and their pointing are (api.ts goTo, main.ts flyToRow).
+   * otherwise, exactly as their links and their pointing are (api.ts goTo, main.ts flyToRow: an
+   * approach with no hold, since theirs is no journey). A ship braking after a STOP (`halting`,
+   * with no dock) goes on braking.
    */
-  restore(from: Snapshot['dock'], cut = false): void {
-    if (!from) return;
+  restore(from: Snapshot['dock'], cut = false, halting = false): void {
+    if (!from) {
+      // Stopped a moment ago, and still braking: it carries on braking.
+      if (halting) this.stop();
+      return;
+    }
     if (from.docked) this.place(from.id, from.angle, from.spin);
     else if (!cut) this.setOut(from.id, 'asked', from.holdSec);
-    else if (!this.approachWith(from.id, 'asked', from.holdSec)) this.place(from.id);
+    else if (!this.approach(from.id)) this.place(from.id);
   }
 
   /** Let go: back to free flight, from exactly where and how the ship is. */
   release(by: 'pilot' | 'asked' = 'asked'): void {
     this.leave(by);
     this.apply({ type: 'release' });
+  }
+
+  /**
+   * STOP (the prompt's button on the way somewhere): let go, as `release` does, and brake the ship
+   * to rest where it is (sim/docking.ts, haltDock). Steering takes over at once.
+   */
+  stop(by: 'pilot' | 'asked' = 'asked'): void {
+    this.leave(by);
+    haltDock(this.options.surroundings.dock, this.options.surroundings.assist);
+    this.apply({ type: 'release' });
+  }
+
+  /** Is the ship braking to rest after a STOP? (core/snapshot.ts keeps it through a rebuild.) */
+  get halting(): boolean {
+    return this.options.surroundings.dock.halting;
   }
 
   fixedUpdate(): void {
@@ -182,9 +203,6 @@ export class Navigator implements System {
       const id = this.current.target;
       this.queue.push(() => this.options.emit('undocked', { id, by: 'pilot' }));
       this.apply({ type: 'release' });
-    } else if (dock.phase === 'approach' && this.current.mode === 'autopilot') {
-      // The journey came within reach: the ring's own pilot has taken over.
-      if (this.current.target !== null) this.apply({ type: 'approach', to: this.current.target });
     } else if (
       dock.phase === 'docked' &&
       (this.current.mode === 'approach' || this.current.mode === 'autopilot')

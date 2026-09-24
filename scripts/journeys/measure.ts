@@ -13,6 +13,14 @@ import {
 } from './fly';
 import { buildGalaxy, grow, readRealInput, type LayoutOverrides } from './galaxies';
 import { describe as describeRow, phasesOf, statsOf, stopTable, table } from './report';
+import {
+  STRESS_DEFAULTS,
+  STRESS_MODES,
+  stress,
+  stressTable,
+  type StressFlight,
+  type StressOptions,
+} from './stress';
 
 // The harness as a function: galaxies x variants in, every journey out. journeys.measure.ts runs
 // it from the JOURNEYS environment variable; a proposal can import `measure` in its own
@@ -46,10 +54,16 @@ export interface MeasureOptions {
   trace: { from: string; to: string; everySec?: number } | null;
   /**
    * STOP MID-JOURNEY as well: every journey between systems is flown a second time and stopped at
-   * its fastest moment (Stop, Navigator.release), then watched for `coastSec`: how far the ship
+   * its fastest moment (Stop, Navigator.stop), then watched for `coastSec`: how far the ship
    * slides, how close it comes to anything, whether it touches a shell. Null: not done.
    */
   stop: { coastSec: number } | null;
+  /**
+   * A VISITOR WHO CHANGES THEIR MIND (stress.ts): a sample of journeys between systems, each flown
+   * again and again with a redirect, a Stop, a body within reach asked for at speed, or a Stop and
+   * then E, at every moment of the flight. Null: not done.
+   */
+  stress: StressOptions | null;
   log: (text: string) => void;
 }
 
@@ -64,6 +78,7 @@ export const DEFAULTS: MeasureOptions = {
   rows: false,
   trace: null,
   stop: null,
+  stress: null,
   log: (text) => console.log(text),
 };
 
@@ -76,6 +91,8 @@ export interface GalaxyReport {
   rows: JourneyResult[];
   /** The journeys between systems again, stopped at their fastest (MeasureOptions.stop). */
   stops: JourneyResult[];
+  /** The stress test's flights (MeasureOptions.stress). */
+  stress: StressFlight[];
   wallSec: number;
 }
 
@@ -153,6 +170,7 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         error: null,
         rows: [],
         stops: [],
+        stress: [],
         wallSec: 0,
       };
       reports.push(report);
@@ -175,7 +193,8 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         ...options.sample,
         starts: typeof starts === 'number' ? starts : spec === 'real' ? starts.real : starts.grown,
       };
-      for (const journey of planJourneys(galaxy, sample, options.seed)) {
+      const journeys = planJourneys(galaxy, sample, options.seed);
+      for (const journey of journeys) {
         const traced =
           options.trace !== null &&
           (journey.from ?? 'spawn') === options.trace.from &&
@@ -198,12 +217,23 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
           if (stopped !== null) report.stops.push(stopped);
         }
       }
+      if (options.stress !== null) {
+        report.stress = stress(
+          galaxy,
+          journeys,
+          sim,
+          options.stress,
+          options.seed,
+          options.limitSec,
+        );
+      }
       report.wallSec = (performance.now() - began) / 1000;
       log(
         `\n== ${variant.name} / ${name}: ${bodies.length} bodies, ${report.rows.length} journeys ` +
           `(${report.wallSec.toFixed(0)} s to simulate)\n${describeSystems(systems)}\n${table(report.rows)}`,
       );
       if (options.stop !== null) log(stopTable(report.stops, options.stop.coastSec));
+      if (options.stress !== null) log(stressTable(report.stress));
     }
   }
 
@@ -229,6 +259,18 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         `${between.worst ? `${between.worst.from} -> ${between.worst.to}` : '-'}`,
     );
   }
+  if (options.stress !== null) {
+    log(
+      '\n== stress: flights that touched a shell, grazed, tunnelled or never docked (0 is the gate)',
+    );
+    for (const report of reports) {
+      if (report.error !== null) continue;
+      const failed = report.stress.filter((flight) => flight.result.failure !== null).length;
+      log(
+        `${labelOf(report).padEnd(width)}${String(report.stress.length).padStart(9)} flights  ${failed} failed`,
+      );
+    }
+  }
   return reports;
 }
 
@@ -245,6 +287,7 @@ const OPTION_KEYS = [
   'rows',
   'trace',
   'stop',
+  'stress',
   'out',
 ] as const;
 
@@ -288,6 +331,17 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): EnvOptions
         : raw.stop === false || raw.stop === null
           ? null
           : { coastSec: 10, ...(raw.stop as Partial<{ coastSec: number }>) };
+  }
+  if (raw.stress !== undefined) {
+    const given = raw.stress === true ? {} : (raw.stress as Partial<StressOptions> | null | false);
+    options.stress = given === false || given === null ? null : { ...STRESS_DEFAULTS, ...given };
+    for (const mode of options.stress?.modes ?? []) {
+      if (!(STRESS_MODES as readonly string[]).includes(mode)) {
+        throw new Error(
+          `JOURNEYS: unknown stress mode "${mode}" (known: ${STRESS_MODES.join(', ')})`,
+        );
+      }
+    }
   }
   if (raw.sample !== undefined) {
     options.sample = { ...DEFAULTS.sample, ...(raw.sample as Partial<MeasureOptions['sample']>) };

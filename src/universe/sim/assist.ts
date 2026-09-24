@@ -4,6 +4,17 @@ import type { FlightInput, FlightParams, ShipState } from './types';
 
 /** An approach gives way to another body out to this many of its ring radii (see orbitWish). */
 const GIVE_WAY = 1.25;
+/**
+ * A pilot who asked to be on the ring and goes more than this many times as fast as it wants to
+ * (an approach begun while the autopilot raced past) brakes the rest off as the autopilot would
+ * (WishPace.brakeGain, not the assist's gentle speedGain), but no harder than FAR_DECEL u/s²: a
+ * firm stop, not a wall. Past the reflex's limit it brakes as hard as it takes. (Firmer than the
+ * autopilot's cruise.comfortDecel: an approach has no plan that began slowing it early. Held to
+ * 700, a moon asked for at 440 u/s from 2 u inside its reach was passed 1.1 u above the sun
+ * beyond it; at 1,000, 2.7 u.)
+ */
+const FAR_ABOVE = 2;
+const FAR_DECEL = 1000;
 
 /**
  * ORBIT ASSIST: let go of the controls near a planet and the ship eases onto a ring around it
@@ -169,6 +180,13 @@ export interface WishPace {
   readonly maxRate: number;
   /** u/s faster for every unit still off the ring, up to `speed`. */
   readonly hurry: number;
+  /**
+   * 1/s: how hard it brakes when it goes faster than it wants to (the loose assist's speedGain is
+   * gentle: a pilot who asked to be on the ring at 30 u/s and passes it at 200 wants that gone).
+   */
+  readonly brakeGain: number;
+  /** u/s: never faster than this, whatever the ring wants (the reflex, sim/reflex.ts). */
+  readonly limit: number;
 }
 
 /**
@@ -278,10 +296,20 @@ export function orbitWish(
   // Throttle: hold the pace against drag and close the gap, but only once the nose has come round.
   const forwardSpeed = state.vx * noseX + state.vz * noseZ;
   const push = flight.forwardDrag * wantSpeed + params.speedGain * (wantSpeed - forwardSpeed);
-  out.thrust = clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
-  // A pilot who asked to be there also brakes, when the ship is faster than the pace it wants.
-  out.brake =
-    pace && push < 0 ? clamp(-push / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1) : 0;
+  // A pilot who asked to be there also brakes, when the ship is faster than it wants to be: gently
+  // by the assist's own gain; firmly when far faster than that; and as hard as it takes when the
+  // course it is on is running out (the reflex, WishPace.limit).
+  const risky = pace ? forwardSpeed - pace.limit : -Infinity;
+  const slow = pace
+    ? Math.max(
+        -push,
+        Math.min(pace.brakeGain * (forwardSpeed - FAR_ABOVE * wantSpeed), FAR_DECEL),
+        pace.brakeGain * risky,
+      )
+    : 0;
+  out.thrust =
+    risky > 0 ? 0 : clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
+  out.brake = slow > 0 ? clamp(slow / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1) : 0;
   out.boost = false;
   return out;
 }

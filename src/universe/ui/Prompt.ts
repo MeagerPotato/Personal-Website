@@ -10,6 +10,7 @@ export interface PromptNavigator {
   readonly candidate: string | null;
   approach(id: string): boolean;
   release(by: 'pilot' | 'asked'): void;
+  stop(by: 'pilot' | 'asked'): void;
 }
 
 export interface PromptOptions {
@@ -97,7 +98,10 @@ export class Prompt implements System {
 
   private readonly act = (): void => {
     const { navigator } = this.options;
-    if (navigator.state.target !== null) navigator.release('pilot');
+    const { mode, target } = navigator.state;
+    // "Leave orbit" lets go; "Stop", on the way somewhere, also brakes the ship to rest.
+    if (mode === 'docked') navigator.release('pilot');
+    else if (target !== null) navigator.stop('pilot');
     else if (navigator.candidate !== null) navigator.approach(navigator.candidate);
     // The button is about to change or go: do not leave the keyboard focus on it.
     this.button.blur();

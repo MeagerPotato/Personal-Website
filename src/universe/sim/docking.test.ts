@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
-import { approachPace, arrive, dockAt, releaseDock, requestDock } from './docking';
+import {
+  approachPace,
+  arrive,
+  dockAt,
+  haltDock,
+  haltingInput,
+  releaseDock,
+  requestDock,
+} from './docking';
 import { NO_INPUT, createShipState, speedOf } from './flight';
 import { TAU } from './math';
 import { createRng } from './rng';
@@ -291,6 +299,39 @@ describe('docking', () => {
     // A touch that is not meant: below the dead zone nothing happens.
     fly(flight, 1, { ...NO_INPUT, turn: tuning.dock.leaveDeadZone * 0.9 });
     expect(flight.world.dock.phase).toBe('docked');
+  });
+
+  it('brakes to rest after STOP, and gives the controls back at a touch', () => {
+    // STOP on the way somewhere (Navigator.stop): let go, and the brake is held for the pilot.
+    const flight = start(300, -300, 0);
+    flight.state.vz = 80;
+    request(flight, 'home');
+    haltDock(flight.world.dock, flight.world.assist);
+    expect(flight.world.dock.phase).toBe('free');
+    expect(flight.world.dock.halting).toBe(true);
+    const held = haltingInput(flight.world.dock, NO_INPUT, flight.state, tuning.dock);
+    expect(held).toEqual({ thrust: 0, turn: 0, brake: 1, boost: false });
+    // In open space it comes to rest, and then the brake is let go of by itself.
+    let t = 0;
+    while (flight.world.dock.halting && t < 10) {
+      step(flight);
+      t += STEP;
+    }
+    expect(flight.world.dock.halting).toBe(false);
+    expect(speedOf(flight.state)).toBeLessThan(0.5);
+    expect(t).toBeLessThan(4);
+    // Any steering of the pilot's own ends it at once, and is flown as it is.
+    const again = start(300, -300, 0);
+    again.state.vz = 80;
+    haltDock(again.world.dock, again.world.assist);
+    const left = { ...NO_INPUT, turn: 1 };
+    expect(haltingInput(again.world.dock, left, again.state, tuning.dock)).toBe(left);
+    expect(again.world.dock.halting).toBe(false);
+    // A new request is no longer a Stop.
+    const asked = start(300, -300, 0);
+    haltDock(asked.world.dock, asked.world.assist);
+    request(asked, 'home');
+    expect(asked.world.dock.halting).toBe(false);
   });
 
   it('leaves without a jolt, and full thrust is clear of the ring in 3 seconds', () => {

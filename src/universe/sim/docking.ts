@@ -1,5 +1,7 @@
 import { orbitWish, type AssistParams, type AssistState, type BodyField } from './assist';
+import { REFLEX_LEAD_SEC, courseLimits } from './reflex';
 import { TAU, angleOf } from './math';
+import { speedOf } from './flight';
 import { createSpring, stepSpring, type SpringState } from './spring';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
@@ -76,6 +78,11 @@ export interface DockState {
    * rebuilt engine (core/snapshot.ts).
    */
   holdSec: number;
+  /**
+   * STOP was pressed (haltDock): the ship, free again, brakes to rest by itself (haltingInput),
+   * until it is at rest or the pilot takes the controls. Survives a rebuilt engine (core/snapshot.ts).
+   */
+  halting: boolean;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
   angle: number;
   readonly rate: SpringState;
@@ -95,6 +102,7 @@ export function createDockState(): DockState {
     armed: false,
     leftByPilot: false,
     holdSec: 0,
+    halting: false,
     angle: 0,
     rate: createSpring(0),
     offset: createSpring(0),
@@ -124,6 +132,7 @@ export function requestDock(
   dock.body = i;
   dock.phaseSec = 0;
   dock.holdSec = holdSec;
+  dock.halting = false;
   dock.leftByPilot = false;
   // Held controls are not news: they only count once they have been let go of.
   dock.armed = !isSteering(pilot, 0) && !(pilot.brake > 0);
@@ -138,6 +147,45 @@ export function releaseDock(dock: DockState, assist: AssistState): void {
   dock.phase = 'free';
   dock.body = -1;
   dock.phaseSec = 0;
+}
+
+/**
+ * STOP: let go of the body, the way releaseDock does, and brake the ship to rest where it is. A
+ * journey stopped between two moons at 200 u/s would otherwise coast on into one of them: the
+ * autopilot's speed is gone at once (sim/surroundings.ts, dropOutOfWarp), but the pilot's own top
+ * speed is still more than a cushion can stop.
+ */
+export function haltDock(dock: DockState, assist: AssistState): void {
+  releaseDock(dock, assist);
+  dock.halting = true;
+}
+
+/** u/s. A halting ship this slow is at rest: the orbit assist may have it from here. */
+const HALT_REST = 0.5;
+/** The brake held, nothing else: what STOP flies (haltingInput). */
+const HALT: Readonly<FlightInput> = Object.freeze({ thrust: 0, turn: 0, brake: 1, boost: false });
+
+/**
+ * FREE FLIGHT, before the assist: what the pilot flies. After STOP it is the brake, held for them
+ * until the ship is at rest (the assist still turns it along a surface it is diving at); any
+ * steering of their own ends that at once, and so does being at rest.
+ */
+export function haltingInput(
+  dock: DockState,
+  pilot: Readonly<FlightInput>,
+  state: Readonly<ShipState>,
+  params: DockParams,
+): Readonly<FlightInput> {
+  if (!dock.halting) return pilot;
+  if (
+    dock.phase !== 'free' ||
+    isSteering(pilot, params.leaveDeadZone) ||
+    speedOf(state) < HALT_REST
+  ) {
+    dock.halting = false;
+    return pilot;
+  }
+  return HALT;
 }
 
 /**
@@ -165,18 +213,31 @@ export function pilotLeaves(
   return true;
 }
 
-/** Scratch: the approach's pace, filled from DockParams on every call. */
-const pace = { speed: 0, maxRate: 0, hurry: 0 };
+/** Scratch: the approach's pace, filled from DockParams on every call, and the reflex's limits. */
+const pace = { speed: 0, maxRate: 0, hurry: 0, brakeGain: 0, limit: Infinity };
+const reflex = new Float64Array(2);
+
+/** What the approach needs of the autopilot's own tuning (sim/autopilot.ts, CruiseParams). */
+export interface ApproachDrive {
+  /** The drive it flies with. */
+  readonly flight: FlightParams;
+  /** 1/s: how hard it brakes off speed it does not want (the autopilot's throttle gain). */
+  readonly speedGain: number;
+  /** 1/s: the reflex's gain (sim/reflex.ts). */
+  readonly openSpaceGain: number;
+}
 
 /**
  * APPROACH, before the flight step: what the virtual pilot flies, written into `out`. Fly it with
- * `drive`, the autopilot's (CruiseParams.flight). The way round is the assist's choice, so an
- * approach out of a loose orbit carries straight on.
+ * `drive.flight`, the autopilot's (CruiseParams.flight). The way round is the assist's choice, so
+ * an approach out of a loose orbit carries straight on. An approach can begin at any speed (a body
+ * asked for while the autopilot races past it), and brakes off what it does not want as the
+ * autopilot would, with the same reflex for whatever lies on its course (sim/reflex.ts).
  */
 export function approachInput(
   field: BodyField,
   state: Readonly<ShipState>,
-  drive: FlightParams,
+  drive: ApproachDrive,
   assistParams: AssistParams,
   params: DockParams,
   dock: DockState,
@@ -191,7 +252,11 @@ export function approachInput(
   pace.speed = params.approachSpeed;
   pace.maxRate = params.approachMaxRate;
   pace.hurry = params.hurryPerUnit;
-  return orbitWish(field, dock.body, state, drive, assistParams, assist, out, pace);
+  pace.brakeGain = drive.speedGain;
+  pace.limit =
+    courseLimits(field, state, dock.body, 0, drive.openSpaceGain, REFLEX_LEAD_SEC, reflex)[0] ??
+    Infinity;
+  return orbitWish(field, dock.body, state, drive.flight, assistParams, assist, out, pace);
 }
 
 /**
@@ -327,6 +392,7 @@ function capture(
   state: Readonly<ShipState> | null,
 ): void {
   dock.phase = 'docked';
+  dock.halting = false;
   dock.spin = spin;
   dock.phaseSec = 0;
   dock.leftByPilot = false;
