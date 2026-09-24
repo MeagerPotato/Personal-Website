@@ -14,7 +14,7 @@
  * plate (--hud) opaque enough to read on the brightest thing behind it. Tiles cast a flat hard
  * ledge (--ledge) instead of a soft shadow; nothing has a gradient on its surface.
  *
- * Structure:  0. typefaces (candidates for A1: a face that no token names is never downloaded)
+ * Structure:  0. the typeface (Outfit) and its measured fallback
  *             1. base = PLAIN MODE (also what no-JS visitors and print get)
  *                1a. page frame   1b. type   1c. theme and biome colours   1d. components
  *                1e. rendered Markdown (.prose)   1f. the resume
@@ -23,34 +23,12 @@
  *             4. print (the resume's paper version lives here)
  */
 
-/* 0. Typefaces -----------------------------------------------------------------------------------
- * Self-hosted, variable, Latin subset, all under the SIL Open Font License (public/fonts/licenses).
- * A browser only downloads a face that some text actually uses, so these rules cost nothing until
- * a font token (tokens.ts: font.display, font.body, font.mono) puts a family name first. Whatever
- * A1 does not choose is deleted afterwards, file and rule.
+/* 0. Typeface -------------------------------------------------------------------------------------
+ * ONE face for everything a visitor reads: Outfit, self-hosted (variable 100 to 900, Latin subset,
+ * 32 KB, SIL Open Font License: public/fonts/licenses/outfit.txt). Code alone is set in the system
+ * mono stack (tokens.ts: font.mono), which costs nothing. The file is preloaded by every page
+ * (src/components/Head.astro), so the first paint usually has it already.
  */
-
-@font-face {
-  font-family: 'Nunito';
-  font-style: normal;
-  font-weight: 200 1000;
-  font-display: swap;
-  src: url('/fonts/nunito-var-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: 'Rubik';
-  font-style: normal;
-  font-weight: 300 900;
-  font-display: swap;
-  src: url('/fonts/rubik-var-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
 
 @font-face {
   font-family: 'Outfit';
@@ -63,26 +41,52 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/*
+ * What shows while Outfit is on its way: Arial (or Liberation Sans or Arimo, drawn to Arial's
+ * metrics), scaled to Outfit's measure and given Outfit's line box, so that a line set in the
+ * fallback is as long and as tall as the line that replaces it and nothing reflows on the swap.
+ * Measured, not guessed (2026-09-23), on six lines of the site's own copy:
+ *   vertical: Outfit's own tables (USE_TYPO_METRICS set; 1000 units per em): ascent 1000,
+ *     descent 260, line gap 0. Each override is that value divided by size-adjust.
+ *   width: Chromium shaping the real woff2 at each weight against Arial (regular below 600,
+ *     Arial Bold from 600, which is what the browser picks), size-adjust = Outfit / Arial:
+ *     98.7% at 430 (body; 400 gives 98.6, 500 gives 98.9), 93.4% at 600 (nav, buttons, labels),
+ *     94.9% at 700 (headings, the wordmark).
+ * Apple devices have Arial too; phones without it fall through to system-ui, unmatched.
+ */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Outfit Fallback';
   font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url('/fonts/inter-var-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  font-weight: 100 549;
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Arimo');
+  size-adjust: 98.7%;
+  ascent-override: 101.3%;
+  descent-override: 26.3%;
+  line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'JetBrains Mono';
+  font-family: 'Outfit Fallback';
   font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-  src: url('/fonts/jetbrains-mono-var-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  font-weight: 550 649;
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Arimo Bold');
+  size-adjust: 93.4%;
+  ascent-override: 107.1%;
+  descent-override: 27.8%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Outfit Fallback';
+  font-style: normal;
+  font-weight: 650 900;
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Arimo Bold');
+  size-adjust: 94.9%;
+  ascent-override: 105.4%;
+  descent-override: 27.4%;
+  line-gap-override: 0%;
 }
 
 /* 1. Base = plain mode -------------------------------------------------------------------- */

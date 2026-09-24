@@ -86,13 +86,13 @@ export const tokens = {
      * ONE self-hosted face for everything a visitor reads: Outfit (variable 100 to 900, Latin
      * subset, 32 KB, public/fonts), the clean geometric sans closest to Mini Motorways' own
      * lettering. Headings, body, labels, chips and the HUD all speak it, the way every sign on a
-     * transit map is set in one face. The fallbacks are the old system stack, so the first paint
-     * (font-display: swap) is already the right shape.
+     * transit map is set in one face. 'Outfit Fallback' is local Arial scaled to Outfit's measure
+     * and line box (section 0 of src/styles/global.css), so the swap moves nothing.
      */
-    body: "'Outfit', ui-rounded, 'SF Pro Rounded', 'Segoe UI', system-ui, sans-serif",
+    body: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
     /** Headings and the wordmark: the same face, heavier. */
-    display: "'Outfit', ui-rounded, 'SF Pro Rounded', 'Segoe UI', system-ui, sans-serif",
-    /** Code only (Markdown `code` and `pre`). Labels that used to be mono are Outfit caps now. */
+    display: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
+    /** Code only (Markdown `code` and `pre`): the system's own mono, nothing to download. */
     mono: "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
   },
 
