@@ -21,6 +21,13 @@ export interface Snapshot {
     /** Docked: where on the ring, and which way round. */
     readonly angle: number;
     readonly spin: number;
+    /**
+     * On the way: how much longer (s) the journey must still last before the ship may be taken
+     * into orbit (cruise.minJourneySec, less what has passed; DockState.holdSec). 0 for the
+     * pilot's own "dock here", and once docked. A snapshot written before this field existed
+     * reads as 0.
+     */
+    readonly holdSec: number;
   } | null;
 }
 
@@ -28,6 +35,8 @@ const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;
 /** Nothing in any galaxy we build is this far out, or this fast, or this old (about 190 days). */
 const MAX_COORDINATE = 100_000;
 const MAX_STEPS = 1_000_000_000;
+/** No journey is ever held this long: anything more is not a hold this engine wrote. */
+const MAX_HOLD_SEC = 60;
 
 const isNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
@@ -52,10 +61,11 @@ export function parseSnapshot(data: unknown): Snapshot | null {
 
   if (dock === null || dock === undefined) return { steps, ship: state, dock: null };
   if (typeof dock !== 'object') return null;
-  const { id, docked, angle, spin } = dock as Record<string, unknown>;
+  const { id, docked, angle, spin, holdSec = 0 } = dock as Record<string, unknown>;
   if (typeof id !== 'string' || typeof docked !== 'boolean' || !isNumber(angle)) return null;
   if (spin !== 1 && spin !== -1) return null;
-  return { steps, ship: state, dock: { id, docked, angle, spin } };
+  if (!isNumber(holdSec) || holdSec < 0 || holdSec > MAX_HOLD_SEC) return null;
+  return { steps, ship: state, dock: { id, docked, angle, spin, holdSec } };
 }
 
 /** Where a visit starts: what the web layer knows when it creates the universe. */

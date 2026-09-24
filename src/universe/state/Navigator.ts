@@ -108,16 +108,20 @@ export class Navigator implements System {
    * way it takes at least cruise.minJourneySec. False for an unknown body.
    */
   travel(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
+    return this.setOut(id, by, this.options.params.cruise.minJourneySec);
+  }
+
+  /** `travel`, not taken into orbit before `holdSec` (a journey picked up after a rebuild). */
+  private setOut(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0) return false;
     if (this.current.target === id) return true;
     // Within reach, the ring's own pilot flies it; still a journey, and no quicker than one.
-    if (this.withinReach(id))
-      return this.approachWith(id, by, this.options.params.cruise.minJourneySec);
+    if (this.withinReach(id)) return this.approachWith(id, by, holdSec);
     this.leave(by);
     this.arrival = 'flown';
-    requestDock(surroundings.dock, i, pilot.current, true);
+    requestDock(surroundings.dock, i, pilot.current, true, holdSec);
     this.apply({ type: 'travel', to: id });
     return true;
   }
@@ -143,14 +147,24 @@ export class Navigator implements System {
     const { dock } = this.options.surroundings;
     const id = this.current.target;
     if (id === null || dock.phase === 'free') return null;
-    return { id, docked: dock.phase === 'docked', angle: dock.angle, spin: dock.spin };
+    const docked = dock.phase === 'docked';
+    // On the way, the journey must still last what is left of its hold: a rebuild in the middle
+    // of a hop neither starts the shortest journey over nor lets the ship arrive early.
+    const holdSec = docked ? 0 : Math.max(0, dock.holdSec - dock.phaseSec);
+    return { id, docked, angle: dock.angle, spin: dock.spin, holdSec };
   }
 
-  /** Pick up where a snapshot left off. The ship's own state must have been restored already. */
-  restore(from: Snapshot['dock']): void {
+  /**
+   * Pick up where a snapshot left off. The ship's own state must have been restored already. A
+   * visitor who asked for less motion (`cut`) is never flown across the galaxy: a journey that was
+   * under way is taken up as the short approach when the body is within reach, and as a cut
+   * otherwise, as their links and their pointing are (api.ts goTo, main.ts flyToRow).
+   */
+  restore(from: Snapshot['dock'], cut = false): void {
     if (!from) return;
     if (from.docked) this.place(from.id, from.angle, from.spin);
-    else this.travel(from.id);
+    else if (!cut) this.setOut(from.id, 'asked', from.holdSec);
+    else if (!this.approachWith(from.id, 'asked', from.holdSec)) this.place(from.id);
   }
 
   /** Let go: back to free flight, from exactly where and how the ship is. */

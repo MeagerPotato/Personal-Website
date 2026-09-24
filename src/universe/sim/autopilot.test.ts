@@ -166,7 +166,8 @@ function travel(journey: Journey, target: string, from = -1, limitSec = 60): Rep
   const { world } = journey;
   const i = world.orbits.indexOf(target);
   if (world.dock.phase !== 'free') releaseDock(world.dock, world.assist);
-  requestDock(world.dock, i, NO_INPUT, true);
+  // As the Navigator asks for every journey: none quicker than cruise.minJourneySec.
+  requestDock(world.dock, i, NO_INPUT, true, tuning.cruise.minJourneySec);
   const report: Report = {
     docked: false,
     seconds: 0,
@@ -568,7 +569,7 @@ describe('planning a journey', () => {
   /** A plan for the journey from where `journey` is to `target`, and the world it was made in. */
   function plan(journey: Journey, target: string): Surroundings['cruise'] {
     const { world } = journey;
-    beginCruise(world.cruise);
+    beginCruise(world.cruise, tuning.cruise.minJourneySec);
     planCruise(
       world.orbits,
       world.field,
@@ -821,12 +822,12 @@ describe('arriving', () => {
     state.vx = velocities[i * 2] ?? 0;
     state.vz = velocities[i * 2 + 1] ?? 0;
     expect(arrived()).toBe(true);
-    // ...but not before the journey has lasted as long as the shortest journey does.
-    const { minJourneySec } = tuning.cruise;
-    const after = (sec: number): boolean =>
+    // ...but not while the journey must still last a little longer (its hold: the shortest
+    // journey, cruise.minJourneySec, less what has passed).
+    const waiting = (sec: number): boolean =>
       cruiseArrived(world.field, state, i, tuning.cruise, tuning.dock, sec);
-    expect(after(minJourneySec - 0.1)).toBe(false);
-    expect(after(minJourneySec)).toBe(true);
+    expect(waiting(0.1)).toBe(false);
+    expect(waiting(0)).toBe(true);
 
     // The same place at a gallop: the approach is a gentle pilot, and is not given this.
     state.vz += 80;

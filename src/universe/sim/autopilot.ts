@@ -94,9 +94,10 @@ export interface CruiseParams {
    */
   readonly passShare: number;
   /**
-   * s. No journey is quicker than this, however near the next moon is: the profile is slowed to
-   * take at least this long, and the ship is not taken into orbit before. A hop must still read
-   * as a journey, not as a jump.
+   * s. No journey is quicker than this, however near the next moon is: the Navigator asks every
+   * journey for it (DockState.holdSec, handed to the cruise as `CruiseState.holdSec`); the profile
+   * is slowed to take at least that long, and the ship is not taken into orbit before. A hop must
+   * still read as a journey, not as a jump.
    */
   readonly minJourneySec: number;
   /**
@@ -122,6 +123,11 @@ export interface CruiseState {
   etaSec: number;
   /** Seconds since the journey began. */
   elapsedSec: number;
+  /**
+   * The journey takes at least this long (s) from when it began: the dock's hold (`beginCruise`),
+   * the Navigator's cruise.minJourneySec, or what was left of it when the engine was rebuilt.
+   */
+  holdSec: number;
   /** No plan has been made for this journey yet: the next one chooses, later ones keep. */
   fresh: boolean;
   /**
@@ -175,6 +181,7 @@ export function createCruiseState(bodyCount: number): CruiseState {
     replanIn: 0,
     etaSec: 0,
     elapsedSec: 0,
+    holdSec: 0,
     fresh: true,
     far: null,
     profile: {
@@ -201,11 +208,12 @@ export function createCruiseState(bodyCount: number): CruiseState {
   };
 }
 
-/** Start a journey: the first step plans it. */
-export function beginCruise(cruise: CruiseState): void {
+/** Start a journey that takes at least `holdSec`: the first step plans it. */
+export function beginCruise(cruise: CruiseState, holdSec = 0): void {
   cruise.replanIn = 0;
   cruise.etaSec = 0;
   cruise.elapsedSec = 0;
+  cruise.holdSec = holdSec;
   cruise.fresh = true;
   cruise.far = null;
   cruise.sides.fill(0);
@@ -512,7 +520,7 @@ export function planCruise(
     eta += turnSec;
 
     // Too quick to read as a journey (the next moon along): the same profile, slower throughout.
-    const least = params.minJourneySec - cruise.elapsedSec;
+    const least = cruise.holdSec - cruise.elapsedSec;
     if (eta > 1e-6 && eta < least) {
       const slower = eta / least;
       for (let k = 0; k < path.count; k += 1) speeds[k] = (speeds[k] ?? 0) * slower;
@@ -836,8 +844,8 @@ function aimIsClear(ax: number, az: number, bx: number, bz: number, cruise: Crui
 /**
  * Has the journey to body `i` arrived beside its ring, to be taken into orbit there? Within reach
  * is not enough: a ship that comes by at speed (its plan changed under it, the body came to meet
- * it) stays the autopilot's until it has slowed down. Nor is it before the journey has lasted
- * `minJourneySec` (`elapsedSec` so far).
+ * it) stays the autopilot's until it has slowed down. Nor is it while the journey must still last
+ * `waitSec` longer (CruiseState.holdSec less elapsedSec).
  */
 export function cruiseArrived(
   field: BodyField,
@@ -845,9 +853,9 @@ export function cruiseArrived(
   i: number,
   params: CruiseParams,
   dock: DockParams,
-  elapsedSec = Infinity,
+  waitSec = 0,
 ): boolean {
-  if (elapsedSec < params.minJourneySec) return false;
+  if (waitSec > 0) return false;
   const ring = field.ringRadius[i] ?? 0;
   const d = Math.hypot(
     state.x - (field.positions[i * 2] ?? 0),

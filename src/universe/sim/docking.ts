@@ -69,9 +69,11 @@ export interface DockState {
   /** Set for one step when the PILOT ended an approach or a dock, so that whoever watches can tell. */
   leftByPilot: boolean;
   /**
-   * An approach is not captured before it has lasted this long (s): one that is a whole journey
-   * (a planet asked for from its moon) still takes as long as the shortest journey
-   * (CruiseParams.minJourneySec). 0 for the pilot's own "dock here".
+   * The ship is not taken into orbit before this phase has lasted this long (s): a journey
+   * (`cruise`, or an approach that is a whole journey, a planet asked for from its moon) still
+   * takes as long as the shortest journey (CruiseParams.minJourneySec, which the Navigator asks
+   * for); 0 for the pilot's own "dock here". What is left of it (holdSec - phaseSec) survives a
+   * rebuilt engine (core/snapshot.ts).
    */
   holdSec: number;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
@@ -106,8 +108,9 @@ function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
 }
 
 /**
- * Ask to dock at body `i`: fly onto its ring from within reach, or (`far`) travel there first.
- * The ship keeps flying; flyStep (sim/surroundings.ts) takes it from here.
+ * Ask to dock at body `i`: fly onto its ring from within reach, or (`far`) travel there first,
+ * and not be taken into orbit before `holdSec` has passed. The ship keeps flying; flyStep
+ * (sim/surroundings.ts) takes it from here.
  */
 export function requestDock(
   dock: DockState,

@@ -395,4 +395,85 @@ describe('Navigator, travelling', () => {
     again.run(30);
     expect(again.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
   });
+
+  it('keeps what is left of a hop after a rebuild: no quicker, and not started over', () => {
+    // Half a second into a hop that must take cruise.minJourneySec (the ring's own pilot flies
+    // it, within reach): the engine is rebuilt (core/snapshot.ts).
+    const { minJourneySec } = tuning.cruise;
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('page/about');
+    h.run(0.5);
+    const dock = h.navigator.snapshot();
+    expect(dock?.docked).toBe(false);
+    expect(dock?.holdSec).toBeCloseTo(minJourneySec - 0.5, 6);
+
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(dock);
+    expect(again.surroundings.dock.holdSec).toBeCloseTo(minJourneySec - 0.5, 6);
+    // Not in orbit before the hop has lasted minJourneySec in all...
+    again.run(minJourneySec - 0.5 - 0.1);
+    expect(again.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+    // ...and then as soon as it is on the ring, as it would have been without the rebuild.
+    again.run(10);
+    expect(again.navigator.state).toEqual({ mode: 'docked', target: 'page/about' });
+  });
+
+  it('keeps what is left of a journey on the autopilot after a rebuild, too', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(0.25);
+    const dock = h.navigator.snapshot();
+    expect(dock?.holdSec).toBeCloseTo(tuning.cruise.minJourneySec - 0.25, 6);
+
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(dock);
+    again.run(1 / 60);
+    expect(again.navigator.state).toEqual({ mode: 'autopilot', target: 'project/fishai' });
+    expect(again.surroundings.cruise.holdSec).toBeCloseTo(tuning.cruise.minJourneySec - 0.25, 6);
+  });
+
+  it("takes up the pilot's own dock with no hold, as it was", () => {
+    const h = harness(0, -44, 0);
+    h.run(0.2);
+    h.navigator.approach('page/about');
+    h.run(0.1);
+    const dock = h.navigator.snapshot();
+    expect(dock?.holdSec).toBe(0);
+    const again = harness(0, 0, 0);
+    copyShipState(h.state, again.state);
+    again.navigator.restore(dock);
+    expect(again.surroundings.dock.holdSec).toBe(0);
+  });
+
+  it('never flies a journey it takes up for a visitor who asked for less motion', () => {
+    // Out of reach: a cut, there and then, as a link would be (api.ts goTo).
+    const far = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    far.run(0.2);
+    far.navigator.travel('project/fishai');
+    far.run(0.5);
+    const headed = far.navigator.snapshot();
+    const cut = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(far.state, cut.state);
+    syncSurroundings(cut.surroundings, far.time());
+    cut.navigator.restore(headed, true);
+    expect(cut.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
+    expect(cut.navigator.lastArrival).toBe('cut');
+
+    // Within reach: the short approach, as pointing at it would be (main.ts flyToRow).
+    const near = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    near.run(0.2);
+    near.navigator.travel('page/about');
+    near.run(0.2);
+    const close = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(near.state, close.state);
+    syncSurroundings(close.surroundings, near.time());
+    close.navigator.restore(near.navigator.snapshot(), true);
+    expect(close.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+  });
 });

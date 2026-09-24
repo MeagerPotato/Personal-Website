@@ -29,7 +29,12 @@ const FLYING: Snapshot = {
 };
 const DOCKED: Snapshot = {
   ...FLYING,
-  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1 },
+  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0 },
+};
+/** Half a second into a hop: the journey must still last a second before it may arrive. */
+const HEADED: Snapshot = {
+  ...FLYING,
+  dock: { id: 'project/fishai', docked: false, angle: 0, spin: 1, holdSec: 1 },
 };
 /** What a snapshot looks like after a night in sessionStorage. */
 const stored = (snapshot: unknown): unknown => JSON.parse(JSON.stringify(snapshot));
@@ -38,6 +43,10 @@ describe('a snapshot that has been away', () => {
   it('comes back as it left', () => {
     expect(parseSnapshot(stored(FLYING))).toEqual(FLYING);
     expect(parseSnapshot(stored(DOCKED))).toEqual(DOCKED);
+    expect(parseSnapshot(stored(HEADED))).toEqual(HEADED);
+    // Written before a journey's hold was kept: nothing to wait for.
+    const before = { id: 'project/fishai', docked: false, angle: 0, spin: 1 };
+    expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.holdSec).toBe(0);
     // A key that was dropped on the way is the same as no dock.
     expect(parseSnapshot({ steps: 1, ship: FLYING.ship })).toEqual({ ...FLYING, steps: 1 });
   });
@@ -63,6 +72,10 @@ describe('a snapshot that has been away', () => {
       { ...DOCKED, dock: { ...DOCKED.dock, docked: 'yes' } },
       { ...DOCKED, dock: { ...DOCKED.dock, angle: null } },
       { ...DOCKED, dock: { ...DOCKED.dock, spin: 0 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: -1 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: 3600 } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: '1' } },
+      { ...HEADED, dock: { ...HEADED.dock, holdSec: null } },
     ];
     for (const data of broken) expect(parseSnapshot(data)).toBeNull();
   });

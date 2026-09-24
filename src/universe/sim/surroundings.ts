@@ -149,7 +149,7 @@ export function flyStep(
   let drive = flight;
   if (dock.phase === 'cruise') {
     const { cruise } = world;
-    if (dock.phaseSec === 0) beginCruise(cruise);
+    if (dock.phaseSec === 0) beginCruise(cruise, dock.holdSec);
     dock.phaseSec += dt;
     cruiseInput(
       world.orbits,
@@ -191,7 +191,14 @@ export function flyStep(
   world.touched = resolveShells(field, state, params.cushion);
   if (
     dock.phase === 'cruise' &&
-    cruiseArrived(field, state, dock.body, params.cruise, params.dock, world.cruise.elapsedSec)
+    cruiseArrived(
+      field,
+      state,
+      dock.body,
+      params.cruise,
+      params.dock,
+      world.cruise.holdSec - world.cruise.elapsedSec,
+    )
   ) {
     // Arrived beside the ring, along it: in orbit from here, the same way round as the journey
     // came in, and the dock's springs settle the rest (sim/docking.ts, arrive).
