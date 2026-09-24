@@ -7,14 +7,21 @@
  * around `uCenter` (the ship). Fly for an hour and the same few hundred motes are always around
  * you. They fade toward the faces of the box, so a mote that wraps never pops.
  *
+ * Where in the field the ship is, is `uField`, not `uCenter`: the two move together up to a
+ * speed (tuning.dust.maxFieldSpeed), and beyond it the field slides by no faster than that
+ * (sim/dustField.ts, fed by world/SpaceDust.ts). At the autopilot's 700 u/s a real field would
+ * move 12 u every frame, 23 u on a phone held to 30 fps, and a mote a few units from the camera
+ * that jumps that far between two frames is noise, not motion. `uField` is part of this
+ * shader's contract: a rewrite of it keeps the wrap round uField and the head at uCenter.
+ *
  * A streak is the mote smeared over where it was, relative to the viewer, during the last
- * `uStreakSec`: the segment from its position to position + uVelocity * uStreakSec, drawn as a
- * soft capsule in view space. At rest the capsule is a round dot. Real view-space positions go to
- * the GPU, so motes behind the camera are clipped for free.
+ * `uStreakSec`: the segment from its position to position + uVelocity * uStreakSec (the velocity
+ * the field slides by), drawn as a soft capsule in view space. At rest the capsule is a round dot.
+ * Real view-space positions go to the GPU, so motes behind the camera are clipped for free.
  *
  * Geometry: one quad (position.xy in -1..1), instanced. Instanced attributes: aSeed (0..1 cube),
- * aStyle (x = size factor, y = brightness). Uniforms: uCenter, uBox, uVelocity, uStreakSec,
- * uRadius, uColor, uOpacity.
+ * aStyle (x = size factor, y = brightness). Uniforms: uCenter, uField, uBox, uVelocity,
+ * uStreakSec, uRadius, uColor, uOpacity.
  */
 export const dust = {
   vertexShader: /* glsl */ `
@@ -22,6 +29,7 @@ export const dust = {
     attribute vec2 aStyle;
 
     uniform vec3 uCenter;
+    uniform vec3 uField;
     uniform vec3 uBox;
     uniform vec3 uVelocity;
     uniform float uStreakSec;
@@ -33,7 +41,7 @@ export const dust = {
     varying float vAlpha;
 
     void main() {
-      vec3 offset = mod(aSeed * uBox - uCenter, uBox) - 0.5 * uBox;
+      vec3 offset = mod(aSeed * uBox - uField, uBox) - 0.5 * uBox;
       vec3 head = uCenter + offset;
       vec3 a = (viewMatrix * vec4(head, 1.0)).xyz;
       vec3 b = (viewMatrix * vec4(head + uVelocity * uStreakSec, 1.0)).xyz;

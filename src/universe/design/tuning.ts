@@ -639,6 +639,12 @@ export const tuning = {
     opacity: 0.6,
     /** A streak shows this many seconds of motion. 0 under reduced motion. */
     streakSec: 0.045,
+    /**
+     * u/s. The dust slides past no faster than this, however fast the ship goes: at the
+     * autopilot's 700 u/s the motes would cross the box in a third of a second and strobe instead
+     * of streaking. Above it the lens and the planets rushing by say how fast (sim/dustField.ts).
+     */
+    maxFieldSpeed: 300,
   },
 
   starfield: {

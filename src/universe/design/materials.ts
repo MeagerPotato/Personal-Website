@@ -223,6 +223,8 @@ export function createStarMaterial(options: { twinkle: boolean }): StarMaterial 
 export type DustMaterial = ShaderMaterial & {
   uniforms: {
     uCenter: IUniform<Vector3>;
+    uField: IUniform<Vector3>;
+    uBox: IUniform<Vector3>;
     uVelocity: IUniform<Vector3>;
     uStreakSec: IUniform<number>;
     uOpacity: IUniform<number>;
@@ -237,6 +239,7 @@ export function createDustMaterial(options: { streaks: boolean }): DustMaterial 
     fragmentShader: dust.fragmentShader,
     uniforms: {
       uCenter: { value: new Vector3() },
+      uField: { value: new Vector3() },
       uBox: { value: new Vector3(...params.box) },
       uVelocity: { value: new Vector3() },
       uStreakSec: { value: options.streaks ? params.streakSec : 0 },

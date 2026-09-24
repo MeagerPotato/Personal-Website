@@ -3,12 +3,13 @@ import {
   InstancedBufferAttribute,
   InstancedBufferGeometry,
   Mesh,
-  type Vector3,
+  Vector3,
 } from 'three';
 import type { System } from '../core/Engine';
 import { Scope } from '../core/scope';
 import { createDustMaterial, type DustMaterial } from '../design/materials';
 import { tuning } from '../design/tuning';
+import { slideField } from '../sim/dustField';
 import { createRng } from '../sim/rng';
 
 /** Whoever the dust surrounds: the ship. */
@@ -32,6 +33,8 @@ export interface SpaceDustOptions {
 export class SpaceDust implements System {
   readonly object: Mesh<InstancedBufferGeometry, DustMaterial>;
   private readonly scope = new Scope();
+  /** Where the viewer was last frame. */
+  private readonly last = new Vector3();
 
   constructor(private readonly options: SpaceDustOptions) {
     const params = tuning.dust;
@@ -72,9 +75,22 @@ export class SpaceDust implements System {
   }
 
   frameUpdate(): void {
-    const { uCenter, uVelocity } = this.object.material.uniforms;
-    uCenter.value.copy(this.options.viewer.position);
-    uVelocity.value.copy(this.options.viewer.velocity);
+    const { uCenter, uField, uVelocity } = this.object.material.uniforms;
+    const { position, velocity } = this.options.viewer;
+    const params = tuning.dust;
+    // The field keeps up with the ship only so fast (sim/dustField.ts), and the streaks show
+    // what it does keep up with.
+    const share = slideField(
+      uField.value,
+      this.last,
+      position,
+      velocity.length(),
+      params.maxFieldSpeed,
+      params.box,
+    );
+    this.last.copy(position);
+    uCenter.value.copy(position);
+    uVelocity.value.copy(velocity).multiplyScalar(share);
   }
 
   dispose(): void {
