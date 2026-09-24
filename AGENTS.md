@@ -83,7 +83,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
-| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. Some 20 s. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
+| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E): about two minutes more, and 0 failures is the gate for a change to the autopilot, the approach or Stop. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no
@@ -194,8 +194,9 @@ that takes more than a millisecond to build (a planet mesh) is a generator run t
 **What the world does to the ship** is one pure function, `flyStep` in `sim/surroundings.ts`: the
 orbit assist (`sim/assist.ts`) mixes a virtual pilot into the real pilot's input, the cushions and
 the edge of the world (`sim/collide.ts`) push, `stepFlight` flies, and the shells put back
-whatever got through. Far from everything it is `stepFlight`, bit for bit. Anything new that
-steers or pushes the ship (docking, the autopilot) joins it there, where it can be tested headless.
+whatever got through. Far from everything, and at any speed the pilot's own drive can reach, it
+is `stepFlight`, bit for bit. Anything new that steers or pushes the ship (docking, the autopilot,
+Stop's brake) joins it there, where it can be tested headless.
 
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.

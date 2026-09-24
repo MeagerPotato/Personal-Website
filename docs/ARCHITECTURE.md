@@ -194,10 +194,14 @@ under a bottom sheet.
   a hop still reads as a journey. The hold is `DockState.holdSec`, and what is left of it is a
   snapshot field, so a rebuilt engine does not start it over. So a journey is one more phase of
   the same dock: the same events, the same snapshot fields, and the same rule that fresh steering
-  (or the brake, or Stop) takes the ship back with exactly the velocity it has; what the pilot's
-  own drive could never make then drains away at `cruise.dropOutPerSec` (`dropOutOfWarp` in
-  `flyStep`), so a ship stopped at 700 u/s is back to its own top speed within some 160 u. It is
-  three pure pieces, the same structure as a robot's autonomous routine:
+  (or the brake) takes the ship back with exactly the velocity it has; what the pilot's own drive
+  could never make then drains away at `cruise.dropOutPerSec` (`dropOutOfWarp` in `flyStep`), so
+  a ship let go of at 700 u/s is back to its own top speed within some 160 u. **Stop** (the
+  prompt's button, `navigator.stop`) lets go the same way and then holds the brake for the pilot
+  until the ship is at rest (`haltDock`, `haltingInput` in `sim/docking.ts`): stopped anywhere,
+  in a bend or a step before it arrives, it comes to rest within 155 u and meets nothing. Any
+  steering of the pilot's own ends that at once. Braking after a Stop is `DockState.halting`, a
+  snapshot field. It is three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
@@ -215,7 +219,22 @@ under a bottom sheet.
      counting on the drive turning faster when it is slow (`bendSpeed`).
   3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point half a second ahead on the path,
      never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
-     the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
+     the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`. It
+     brakes for the plan no harder than `cruise.comfortDecel` (a replan that finds a bend close
+     ahead used to brake for it in one step, a jolt of 2,200 u/s²).
+  A plan for a moving ship starts from what the ship does ALONG it (`alongPath`: a new
+  destination behind the ship starts the profile at rest, not at the ship's full speed), and a
+  ship faster than its plan brakes to be down to it where the plan will be. Under all three sits
+  **the reflex** (`sim/reflex.ts`): whatever the plan says, the ship may go no faster on its own
+  COURSE (the way it is going, and the way its nose points) than `openSpaceGain` times the way
+  left before it would pass 3 u above a body it is not going to. On a plan being flown it asks
+  for nothing; it is what brakes a ship that is off its plan (a new destination chosen at speed,
+  a bend taken wide), as hard as the brake goes. The approach, which has no plan, uses it too,
+  with a berth that widens with speed (`REFLEX_LEAD_SEC`): a body within reach asked for while
+  the autopilot races past it is approached from cruise speed, braking off what it does not want
+  at up to 1,000 u/s² (`FAR_DECEL` in `sim/assist.ts`). `npm run journeys` with `"stress": true`
+  (`scripts/journeys/stress.ts`) is what checks all of it: redirects every 0.1 s, Stop every
+  0.25 s and just before arrival, a body within reach at speed, Stop then E.
   Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`), or the short approach
   within reach, and a journey picked up from a snapshot (`navigator.restore`) is taken up the same
   way. The camera follows at any speed: the chase camera looks ahead no further than
@@ -336,7 +355,7 @@ under a bottom sheet.
 | --- | --- | --- |
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
-| Flight, journey, approach or docked, and at what | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild | one owner; the web layer hears events and asks through `api.ts` |
+| Flight, journey, approach or docked, and at what (and whether a Stop is still braking) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`) | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
@@ -354,7 +373,10 @@ under a bottom sheet.
   at any heading and speed) that all dock, touch nothing, keep their distance and never open the
   throttle with the nose off the path, and 200 more swept step by step against every shell (at
   700 u/s a step is 12 u: no step may pass through one); Stop pressed at a journey's top
-  speed, after which the ship slides a couple of hundred units at most, and into nothing;
+  speed, every quarter second and just before it arrives, after which the ship brakes to rest
+  within 160 u, and into nothing; a new destination every tenth of a second of a journey, and a
+  body within reach asked for at cruise speed, each docked without passing closer than half a
+  cushion to anything (the journey harness's `stress` mode does the same in bigger galaxies);
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
