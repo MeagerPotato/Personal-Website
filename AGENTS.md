@@ -83,6 +83,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
+| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. Some 20 s. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no

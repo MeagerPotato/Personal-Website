@@ -63,9 +63,10 @@ export const tuning = {
   } satisfies FlightParams,
 
   /**
-   * THE AUTOPILOT (sim/autopilot.ts): flies the ship to a body that is out of reach, then hands
-   * over to the docking approach. It flies the ordinary flight model with a stronger DRIVE, so a
-   * trip between systems takes seconds while the pilot's own top speed stays what it is.
+   * THE AUTOPILOT (sim/autopilot.ts): flies the ship to a body that is out of reach, and has it
+   * taken into orbit beside that body's ring (sim/docking.ts, arrive). It flies the ordinary
+   * flight model with a stronger DRIVE, so a trip between systems takes seconds while the pilot's
+   * own top speed stays what it is.
    */
   cruise: {
     flight: {

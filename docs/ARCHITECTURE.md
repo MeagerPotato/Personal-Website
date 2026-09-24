@@ -47,7 +47,12 @@ src/pages/universe.json.ts -----------------> dist/universe.json      the galaxy
 
 `/universe.json` is fetched only in universe mode. The engine reads it through
 `src/universe/manifest.ts` and never imports anything from Astro. Layout is seeded per entity id,
-so adding a project never moves an existing planet.
+so adding a project never moves an existing planet. Systems sit on a honeycomb of slots round home
+(`slotPosition`): where slot k is follows from its `order` and three keys alone
+(`tuning.layout.homeRoom`, `slotRoom`, `clusterAxisDeg`), never from the size of a body or a
+ring, so a new system moves no other, and nothing but those keys can move one (a test pins orders
+1 to 8 until `galaxy.lock.json` does). The build refuses rooms that no longer fit the tripwires
+(a system no wider than `maxSystemRadius`, and `minSystemGap` between two).
 
 Astro is used thinly on purpose (PLAN §5.1): it pre-renders pages and owns the content layer, and
 that is all. No islands, no `<ClientRouter/>`, no scoped styles, no per-page scripts. The client
@@ -176,17 +181,23 @@ under a bottom sheet.
   orbit assist's virtual pilot flies the ship onto the ring by itself, and once there the ship is
   no longer flown but CARRIED round the body, so nothing drifts however long someone reads.
   The leftovers of a capture settle on springs that start with the ship's own velocities, so
-  there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
+  there is no jolt, and an approach is taken only once it goes round no faster than 2.5 times its
+  own pace (`CAPTURE_PACE`): a ship skimming the ring faster flies on and brakes first. An
+  approach gives way to every other body inside its ring (`GIVE_WAY` in `sim/assist.ts`): a moon
+  between the ship and its planet is gone round, not skimmed. Fresh steering always leaves. The navigator keeps the app state machine
   (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
 - **Journeys** (`sim/autopilot.ts`). A destination out of reach is FLOWN to: `goTo(id)` becomes
   `navigator.travel(id)`, and the dock's phase is `cruise` until the ship arrives beside the
   ring, travelling along it, when it is taken into orbit right there (`arrive`: the springs of
   the dock bring it onto the ring). A body that is within reach already is approached instead,
   held for as long as the shortest journey (`cruise.minJourneySec`), which no journey undercuts:
-  a hop still reads as a journey. So a journey is one more phase of the same dock: the same
-  events, the same snapshot fields, and the same rule that fresh steering (or the brake) takes
-  the ship back with exactly the velocity it has. It is three pure pieces, the same structure as
-  a robot's autonomous routine:
+  a hop still reads as a journey. The hold is `DockState.holdSec`, and what is left of it is a
+  snapshot field, so a rebuilt engine does not start it over. So a journey is one more phase of
+  the same dock: the same events, the same snapshot fields, and the same rule that fresh steering
+  (or the brake, or Stop) takes the ship back with exactly the velocity it has; what the pilot's
+  own drive could never make then drains away at `cruise.dropOutPerSec` (`dropOutOfWarp` in
+  `flyStep`), so a ship stopped at 700 u/s is back to its own top speed within some 160 u. It is
+  three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
@@ -205,7 +216,12 @@ under a bottom sheet.
   3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point half a second ahead on the path,
      never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
      the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
-  Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`).
+  Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`), or the short approach
+  within reach, and a journey picked up from a snapshot (`navigator.restore`) is taken up the same
+  way. The camera follows at any speed: the chase camera looks ahead no further than
+  `chaseCam.lookAheadMax`, and the dust slides past no faster than `dust.maxFieldSpeed` (its box
+  moves with the ship; `sim/dustField.ts` and the `uField` uniform), so neither lies flat nor
+  strobes at 700 u/s.
 - **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
   works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
   camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
@@ -246,6 +262,10 @@ under a bottom sheet.
   and names too small to matter. While it is open the
   flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
   and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
+  The names lie over the map and on a phone cover much of it, so to a finger they are the map
+  too: one that goes down on a name and moves further than a tap (`picking.tapMaxPx`) drags, one
+  that comes down while another is on the map pinches, and only a tap presses the name. The
+  names are measured again when the map opens and closes (their size may differ there).
   Pointing at a body or its name goes there and closes the map; a nav link leaves it open, so
   that journey is watched from above. **Sizes on the map** are `displayScales` (pure): every
   body is drawn at least a few pixels big, by kind, and a body whose disc would touch its
@@ -329,9 +349,12 @@ under a bottom sheet.
   speed and a 10,000-step random pilot stays finite and outside every planet; the orbit assist
   captures within half a unit, lets go within 3 s of full thrust, and a kamikaze pilot at full
   boost never gets under a shell; identical end states at 30, 60 and 144 Hz; the governor's every
-  decision; a galaxy layout that is a pure function of each entity's id; 200 seeded journeys
-  through a galaxy with moons (from docks and from mid-flight, at any heading and speed) that all
-  dock, touch nothing, keep their distance and never open the throttle with the nose off the path;
+  decision; a galaxy layout that is a pure function of each entity's id, with the systems pinned
+  where they are; 200 seeded journeys through a galaxy with moons (from docks and from mid-flight,
+  at any heading and speed) that all dock, touch nothing, keep their distance and never open the
+  throttle with the nose off the path, and 200 more swept step by step against every shell (at
+  700 u/s a step is 12 u: no step may pass through one); Stop pressed at a journey's top
+  speed, after which the ship slides a couple of hundred units at most, and into nothing;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
