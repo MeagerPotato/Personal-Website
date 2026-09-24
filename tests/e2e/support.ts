@@ -117,6 +117,42 @@ export function sameCanvas(page: Page): Promise<boolean> {
   );
 }
 
+/** One thing said, and the path the page was at when it was said. */
+export interface Said {
+  text: string;
+  path: string;
+}
+
+/**
+ * Everything the element at `selector` says from now on, with the path at the time. A journey
+ * between neighbours is over in two or three seconds, and a machine drawing on its CPU may not
+ * look while it lasts: ask what WAS said instead of racing the ship.
+ */
+export async function watchText(page: Page, selector: string): Promise<() => Promise<Said[]>> {
+  const key = `e2eSaid:${selector}`;
+  await page.evaluate(
+    ({ selector, key }) => {
+      const said: { text: string; path: string }[] = [];
+      (window as unknown as Record<string, unknown>)[key] = said;
+      const target = document.querySelector(selector);
+      if (!target) return;
+      const note = (): void => {
+        const text = target.textContent ?? '';
+        if (said.at(-1)?.text !== text) said.push({ text, path: location.pathname });
+      };
+      note();
+      new MutationObserver(note).observe(target, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+    },
+    { selector, key },
+  );
+  return () =>
+    page.evaluate((key) => (window as unknown as Record<string, Said[]>)[key] ?? [], key);
+}
+
 /** What the visitor can see of a page, as the router is allowed to change it (swap.ts). */
 export function pageContent(page: Page): Promise<{
   title: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
-import { dockAt, releaseDock, requestDock } from './docking';
+import { arrive, dockAt, releaseDock, requestDock } from './docking';
 import { NO_INPUT, createShipState, speedOf } from './flight';
 import { TAU } from './math';
 import { createRng } from './rng';
@@ -139,22 +139,64 @@ describe('docking', () => {
   it('hands over without a jolt: position, velocity, heading and spin are all continuous', () => {
     const rng = createRng('smooth capture');
     for (let run = 0; run < 20; run += 1) {
-      const flight = near('moon', 0.8 + rng() * 0.9, rng() * TAU, rng() * TAU, 8, -5);
+      // Off the ring to begin with (inside or outside it), so that there is an approach to compare.
+      const radii = rng() < 0.5 ? 0.6 + rng() * 0.3 : 1.15 + rng() * 0.55;
+      const flight = near('moon', radii, rng() * TAU, rng() * TAU, 8, -5);
       request(flight, 'moon');
       let before = { ...flight.state };
-      for (let i = 0; i < 600 && flight.world.dock.phase !== 'docked'; i += 1) {
+      let earlier = { ...flight.state };
+      let steps = 0;
+      for (; steps < 600 && flight.world.dock.phase !== 'docked'; steps += 1) {
+        earlier = before;
         before = { ...flight.state };
         step(flight);
       }
       const after = flight.state;
       expect(flight.world.dock.phase).toBe('docked');
-      // One step of travel, and no more than a step's worth of change in anything.
+      expect(steps).toBeGreaterThan(1);
+      // One step of travel, and no more change in anything than the approach's own last step made
+      // (it flies with the autopilot's drive, which can change a lot in a step: the capture must
+      // not add to that).
       const travelled = Math.hypot(after.x - before.x, after.z - before.z);
       expect(travelled).toBeLessThan((speedOf(before) + 1) * STEP * 1.5);
-      expect(Math.hypot(after.vx - before.vx, after.vz - before.vz)).toBeLessThan(1);
-      expect(Math.abs(after.heading - before.heading)).toBeLessThan(0.08);
-      expect(Math.abs(after.yawRate - before.yawRate)).toBeLessThan(0.5);
+      const dv = Math.hypot(after.vx - before.vx, after.vz - before.vz);
+      const dvBefore = Math.hypot(before.vx - earlier.vx, before.vz - earlier.vz);
+      expect(dv).toBeLessThan(dvBefore + 0.5);
+      const turn = Math.abs(after.heading - before.heading);
+      expect(turn).toBeLessThan(Math.abs(before.heading - earlier.heading) + 0.02);
+      const spin = Math.abs(after.yawRate - before.yawRate);
+      expect(spin).toBeLessThan(Math.abs(before.yawRate - earlier.yawRate) + 0.3);
     }
+  });
+
+  it("takes a journey's end into orbit as it is, and the springs bring it onto the ring", () => {
+    const flight = near('planet', 1.25, 0.7, 0);
+    const planet = place(flight, 'planet');
+    const i = flight.world.orbits.indexOf('planet');
+    const ring = flight.world.field.ringRadius[i] ?? 0;
+    // Beside the ring, going round it at 40 u/s (its own frame), nose along the way it goes.
+    const rx = flight.state.x - planet.x;
+    const rz = flight.state.z - planet.z;
+    const d = Math.hypot(rx, rz);
+    flight.state.vx = planet.vx + (40 * rz) / d;
+    flight.state.vz = planet.vz - (40 * rx) / d;
+    flight.state.heading = Math.atan2(rz, -rx);
+    requestDock(flight.world.dock, i, NO_INPUT, true);
+    expect(flight.world.dock.phase).toBe('cruise');
+    const before = { ...flight.state };
+    arrive(flight.world.field, flight.state, flight.world.dock, 1);
+    expect(flight.world.dock.phase).toBe('docked');
+    // Nothing moves at the moment it is taken: it carries on from exactly where it is.
+    expect(flight.state).toEqual(before);
+    step(flight);
+    const travelled = Math.hypot(flight.state.x - before.x, flight.state.z - before.z);
+    expect(travelled).toBeLessThan((speedOf(before) + 1) * STEP * 1.5);
+    // Five settling times later it is on the ring, going round at the docked pace.
+    fly(flight, 5 / tuning.dock.settleOmega + 2);
+    expect(Math.abs(offRing(flight, 'planet'))).toBeLessThan(0.05);
+    const now = place(flight, 'planet');
+    const pace = Math.hypot(flight.state.vx - now.vx, flight.state.vz - now.vz);
+    expect(pace).toBeCloseTo(Math.min(ring * tuning.dock.orbitRate, tuning.dock.maxSpeed), 1);
   });
 
   it('settles onto the ring, nose along it, and then does not drift in ten minutes', () => {
@@ -200,10 +242,12 @@ describe('docking', () => {
     const flight = near('home', 1.2, 2, 0, 0, 6);
     flight.state.heading += 5 * TAU;
     request(flight, 'home');
+    // Never more than a step of the fastest turn either drive makes: no jump of a whole turn.
+    const fastest = Math.max(tuning.flight.yawRateSlow, tuning.cruise.flight.yawRateSlow);
     let last = flight.state.heading;
     for (let i = 0; i < 20 * 60; i += 1) {
       step(flight);
-      expect(Math.abs(flight.state.heading - last)).toBeLessThan(0.1);
+      expect(Math.abs(flight.state.heading - last)).toBeLessThan(fastest * STEP + 0.01);
       last = flight.state.heading;
     }
     expect(flight.world.dock.phase).toBe('docked');

@@ -36,6 +36,13 @@ export interface DockParams {
   readonly captureDistance: number;
   /** ... crossing it slower than this (u/s, in the body's frame). */
   readonly captureRadialSpeed: number;
+  /**
+   * The approach's pace, u/s, but never more than approachMaxRate rad/s round the body (a small
+   * moon is circled calmly). It is flown with the autopilot's drive (sim/autopilot.ts,
+   * CruiseParams.flight): whoever asked to dock wants to be there, not to drift there.
+   */
+  readonly approachSpeed: number;
+  readonly approachMaxRate: number;
   /** The approach hurries: this much faster (u/s) for every unit it is still off the ring. */
   readonly hurryPerUnit: number;
   /** An approach that takes longer than this (s) is captured where it is: something was in the way. */
@@ -61,6 +68,12 @@ export interface DockState {
   armed: boolean;
   /** Set for one step when the PILOT ended an approach or a dock, so that whoever watches can tell. */
   leftByPilot: boolean;
+  /**
+   * An approach is not captured before it has lasted this long (s): one that is a whole journey
+   * (a planet asked for from its moon) still takes as long as the shortest journey
+   * (CruiseParams.minJourneySec). 0 for the pilot's own "dock here".
+   */
+  holdSec: number;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
   angle: number;
   readonly rate: SpringState;
@@ -79,6 +92,7 @@ export function createDockState(): DockState {
     phaseSec: 0,
     armed: false,
     leftByPilot: false,
+    holdSec: 0,
     angle: 0,
     rate: createSpring(0),
     offset: createSpring(0),
@@ -100,11 +114,13 @@ export function requestDock(
   i: number,
   pilot: Readonly<FlightInput>,
   far = false,
+  holdSec = 0,
 ): void {
   if (dock.phase !== 'free' && dock.body === i) return;
   dock.phase = far ? 'cruise' : 'approach';
   dock.body = i;
   dock.phaseSec = 0;
+  dock.holdSec = holdSec;
   dock.leftByPilot = false;
   // Held controls are not news: they only count once they have been let go of.
   dock.armed = !isSteering(pilot, 0) && !(pilot.brake > 0);
@@ -146,14 +162,18 @@ export function pilotLeaves(
   return true;
 }
 
+/** Scratch: the approach's pace, filled from DockParams on every call. */
+const pace = { speed: 0, maxRate: 0, hurry: 0 };
+
 /**
- * APPROACH, before the flight step: what the virtual pilot flies, written into `out`. The way
- * round is the assist's choice, so an approach out of a loose orbit carries straight on.
+ * APPROACH, before the flight step: what the virtual pilot flies, written into `out`. Fly it with
+ * `drive`, the autopilot's (CruiseParams.flight). The way round is the assist's choice, so an
+ * approach out of a loose orbit carries straight on.
  */
 export function approachInput(
   field: BodyField,
   state: Readonly<ShipState>,
-  flight: FlightParams,
+  drive: FlightParams,
   assistParams: AssistParams,
   params: DockParams,
   dock: DockState,
@@ -165,7 +185,18 @@ export function approachInput(
     assist.spin = 0;
   }
   assist.weight = 1;
-  return orbitWish(field, dock.body, state, flight, assistParams, assist, out, params.hurryPerUnit);
+  pace.speed = params.approachSpeed;
+  pace.maxRate = params.approachMaxRate;
+  pace.hurry = params.hurryPerUnit;
+  return orbitWish(field, dock.body, state, drive, assistParams, assist, out, pace);
+}
+
+/**
+ * The pace at which the approach flies onto the ring of radius `ring`, u/s: what the autopilot
+ * slows down to before it hands a ship over (sim/autopilot.ts).
+ */
+export function approachPace(ring: number, params: DockParams): number {
+  return Math.min(params.approachSpeed, params.approachMaxRate * ring);
 }
 
 /**
@@ -197,11 +228,36 @@ export function tryCapture(
   const onRing =
     Math.abs(d - ring) < params.captureDistance &&
     Math.abs(outward) < params.captureRadialSpeed &&
-    swirl * spin > 0;
+    swirl * spin > 0 &&
+    dock.phaseSec >= dock.holdSec;
   if (!onRing && dock.phaseSec < params.approachTimeoutSec) return false;
 
   capture(dock, spin, angleOf(rx, rz), d - ring, outward, swirl / d, state);
   return true;
+}
+
+/**
+ * A JOURNEY'S END (sim/autopilot.ts): the ship came in beside the ring, travelling along it, and
+ * is carried from here on, the `spin` way round, with exactly the motion it has. It needs no
+ * approach of its own: the springs take it the rest of the way onto the ring and down to the
+ * docked pace, the same as they settle a capture's leftovers, while the camera turns to the body.
+ */
+export function arrive(
+  field: BodyField,
+  state: Readonly<ShipState>,
+  dock: DockState,
+  spin: number,
+): void {
+  const i = dock.body;
+  const rx = state.x - (field.positions[i * 2] ?? 0);
+  const rz = state.z - (field.positions[i * 2 + 1] ?? 0);
+  const d = Math.max(Math.hypot(rx, rz), 1e-6);
+  const vx = state.vx - (field.velocities[i * 2] ?? 0);
+  const vz = state.vz - (field.velocities[i * 2 + 1] ?? 0);
+  const outward = (vx * rx + vz * rz) / d;
+  const swirl = (vx * rz - vz * rx) / d;
+  const ring = field.ringRadius[i] ?? 0;
+  capture(dock, spin < 0 ? -1 : 1, angleOf(rx, rz), d - ring, outward, swirl / d, state);
 }
 
 /** Put a ship straight into orbit at `angle` round body `i`, at rest in it (a page opened on a planet). */

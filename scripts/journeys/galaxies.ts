@@ -20,6 +20,7 @@ import type {
 } from '../../src/universe/data/types';
 import type { ThemeKey } from '../../src/universe/design/tokens';
 import { tuning } from '../../src/universe/design/tuning';
+import { createRng } from '../../src/universe/sim/rng';
 import { mergeInto, type DeepPartial } from './merge';
 
 // THE GALAXIES a journey is measured in: the real one, read from src/content exactly as the build
@@ -34,19 +35,16 @@ import { mergeInto, type DeepPartial } from './merge';
 export type Layout = (typeof tuning)['layout'];
 export type Slot = [x: number, z: number];
 
-/** Where slot `order` of system `id` is. `spiral` is the real one (data/layout.ts, slotPosition). */
-export type SlotFormula = (
-  order: number,
-  id: string,
-  spiral: (order: number, id: string) => Slot,
-) => Slot;
+/** Where slot `order` of system `id` is. `real` is the real one (data/layout.ts, slotPosition). */
+export type SlotFormula = (order: number, id: string, real: (order: number) => Slot) => Slot;
 
 export interface LayoutOverrides {
-  /** Merged into tuning.layout for the build: slotDistance, slotJitter, maxSystemRadius... */
+  /** Merged into tuning.layout for the build: clusterAxisDeg, maxSystemRadius, minSystemGap... */
   layout?: DeepPartial<Layout>;
   /**
-   * The spiral with a different power of the order: slot k sits slotDistance * k^slotExponent
-   * out (the real formula is 0.5, a square root), same golden angle, same seeded jitter.
+   * The OLD sunflower spiral instead of the honeycomb, with any power of the order: slot k sits
+   * 1000 u * k^slotExponent out (0.5 is exactly the spiral this site used), k golden angles
+   * round, nudged by up to 100 u seeded by the id (OLD_SPIRAL).
    */
   slotExponent?: number;
   /** Any formula at all (from code, not JSON). Wins over slotExponent. */
@@ -286,19 +284,27 @@ export function withLayout<T>(layout: DeepPartial<Layout> | undefined, build: ()
   }
 }
 
-/** The real spiral with another power of the order (0.5 is data/layout.ts exactly). */
+/**
+ * The sunflower spiral the galaxy was laid out on until the honeycomb (data/layout.ts) replaced
+ * it, kept here to compare against: slot k sat 1000 u * k^0.5 out, k golden angles round, nudged
+ * by up to 100 u seeded by the system's id.
+ */
+export const OLD_SPIRAL = { slotDistance: 1000, goldenAngleDeg: 137.5, slotJitter: 100 } as const;
+
+/** The old spiral (OLD_SPIRAL) with any power of the order: 0.5 is the spiral exactly. */
 export function spiralWithExponent(exponent: number): SlotFormula {
   return (order, id) => {
     if (order === 0) return [0, 0];
-    const L = tuning.layout;
-    // Same draws, same order, as slotPosition: only the distance's power differs.
-    const [sqrtX, sqrtZ] = slotPosition(order, id);
-    const distance = L.slotDistance * Math.sqrt(order);
-    const angle = (order * L.goldenAngleDeg * Math.PI) / 180;
-    const jitterX = sqrtX - distance * Math.cos(angle);
-    const jitterZ = sqrtZ - distance * Math.sin(angle);
-    const wanted = L.slotDistance * order ** exponent;
-    return [wanted * Math.cos(angle) + jitterX, wanted * Math.sin(angle) + jitterZ];
+    const { slotDistance, goldenAngleDeg, slotJitter } = OLD_SPIRAL;
+    const distance = slotDistance * order ** exponent;
+    const angle = (order * goldenAngleDeg * Math.PI) / 180;
+    const rng = createRng(`slot:${id}`);
+    const jitterDistance = slotJitter * Math.sqrt(rng());
+    const jitterAngle = rng() * Math.PI * 2;
+    return [
+      distance * Math.cos(angle) + jitterDistance * Math.cos(jitterAngle),
+      distance * Math.sin(angle) + jitterDistance * Math.sin(jitterAngle),
+    ];
   };
 }
 

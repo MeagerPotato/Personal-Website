@@ -102,9 +102,17 @@ export function tracer(
     const last = mode === 'docked';
     if (t + 1e-9 < next && !last) return;
     next += everySec;
+    const { path, index, speeds, ceiling } = world.cruise;
+    const runs = Math.atan2(
+      (path.x[index + 1] ?? 0) - (path.x[index] ?? 0),
+      (path.z[index + 1] ?? 0) - (path.z[index] ?? 0),
+    );
+    const off = Math.abs(((state.heading - runs + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
     const cruise =
       world.dock.phase === 'cruise'
-        ? ` plan ${world.cruise.path.length.toFixed(0)} u eta ${world.cruise.etaSec.toFixed(1)} s`
+        ? ` plan ${path.length.toFixed(0)} u eta ${world.cruise.etaSec.toFixed(1)} s` +
+          ` | at ${(path.s[index] ?? 0).toFixed(0)} u wants ${(speeds[index] ?? 0).toFixed(0)}` +
+          ` ceiling ${Math.min(99999, ceiling[index] ?? 0).toFixed(0)} nose off ${((off * 180) / Math.PI).toFixed(0)} deg`
         : '';
     log(
       `  ${t.toFixed(2).padStart(6)} s  ${mode.padEnd(9)} ${world.dock.phase.padEnd(8)} ` +

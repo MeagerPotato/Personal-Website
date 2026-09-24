@@ -1,6 +1,7 @@
 import type { System } from '../core/Engine';
 import type { Snapshot } from '../core/snapshot';
 import { pullOf, type AssistParams } from '../sim/assist';
+import type { CruiseParams } from '../sim/autopilot';
 import { dockAt, releaseDock, requestDock, type DockParams } from '../sim/docking';
 import type { Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
@@ -25,6 +26,7 @@ export type NavigatorEvents = {
 export interface NavigatorParams {
   readonly assist: AssistParams;
   readonly dock: DockParams;
+  readonly cruise: Pick<CruiseParams, 'minJourneySec'>;
 }
 
 export interface NavigatorOptions {
@@ -84,27 +86,35 @@ export class Navigator implements System {
    * ship leaves behind (see `undocked`): a visitor pointing at a planet is the PILOT.
    */
   approach(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
+    return this.approachWith(id, by, 0);
+  }
+
+  /** `approach`, not captured before `holdSec` (a whole journey: see `travel`). */
+  private approachWith(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0 || !this.withinReach(id)) return false;
     if (this.current.target === id && this.current.mode !== 'autopilot') return true;
     this.leave(by);
     this.arrival = 'flown';
-    requestDock(surroundings.dock, i, pilot.current);
+    requestDock(surroundings.dock, i, pilot.current, false, holdSec);
     this.apply({ type: 'approach', to: id });
     return true;
   }
 
   /**
    * Set out for `id` from wherever the ship is: the autopilot flies it there (sim/autopilot.ts)
-   * and the approach takes over within reach. False for an unknown body.
+   * and takes it into orbit beside the ring; from within reach, the approach flies it. Either
+   * way it takes at least cruise.minJourneySec. False for an unknown body.
    */
   travel(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
     const { surroundings, pilot } = this.options;
     const i = surroundings.orbits.indexOf(id);
     if (i < 0) return false;
     if (this.current.target === id) return true;
-    if (this.withinReach(id)) return this.approach(id, by);
+    // Within reach, the ring's own pilot flies it; still a journey, and no quicker than one.
+    if (this.withinReach(id))
+      return this.approachWith(id, by, this.options.params.cruise.minJourneySec);
     this.leave(by);
     this.arrival = 'flown';
     requestDock(surroundings.dock, i, pilot.current, true);
@@ -161,7 +171,11 @@ export class Navigator implements System {
     } else if (dock.phase === 'approach' && this.current.mode === 'autopilot') {
       // The journey came within reach: the ring's own pilot has taken over.
       if (this.current.target !== null) this.apply({ type: 'approach', to: this.current.target });
-    } else if (dock.phase === 'docked' && this.current.mode === 'approach') {
+    } else if (
+      dock.phase === 'docked' &&
+      (this.current.mode === 'approach' || this.current.mode === 'autopilot')
+    ) {
+      // On the ring: the approach got there, or the journey arrived beside it.
       const id = this.current.target;
       this.apply({ type: 'capture' });
       if (id !== null) this.queue.push(() => this.options.emit('docked', { id }));

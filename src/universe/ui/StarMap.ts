@@ -6,12 +6,14 @@ import { belongsToPage } from '../core/input/KeyboardInput';
 import type { ScreenBox } from '../sim/declutter';
 import {
   clampView,
-  fitSpan,
   fitView,
   panBy,
+  spanLimit,
+  takeIn,
   unitsPerPx,
   zoomAbout,
   type MapBounds,
+  type MapBoundsOut,
   type MapView,
   type MapViewParams,
 } from '../sim/mapView';
@@ -36,8 +38,10 @@ export interface StarMapOptions {
   canvas: HTMLCanvasElement;
   /** Where the Map button goes (interactive DOM lives outside the engine's mount). None: no button. */
   overlay?: HTMLElement | undefined;
-  /** Everything there is to see (sim/mapView.ts, `boundsOf`). */
+  /** Everything there is to see (sim/mapView.ts, `boundsOf`)... */
   bounds: MapBounds;
+  /** ...and where the ship is, which may be out beyond it. None: the galaxy alone. */
+  ship?: (() => Readonly<{ x: number; z: number }>) | undefined;
   /** The part of the view that the info panel leaves free, as shares. A live object (CameraRig). */
   view: { readonly freeWidth: number; readonly freeHeight: number };
   params: StarMapParams;
@@ -83,6 +87,8 @@ export class StarMap implements System, MapSight {
   /** 0 = the flight view, 1 = the map, linear in time; `weight` is the eased version. */
   private progress = 0;
   private readonly want: MapView = { x: 0, z: 0, span: 1 };
+  /** Scratch: what the map has to show (`look`). */
+  private readonly seen: MapBoundsOut = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
   private readonly eased = { x: createSpring(), z: createSpring(), span: createSpring(1) };
   private width = 1;
   private height = 1;
@@ -183,7 +189,7 @@ export class StarMap implements System, MapSight {
     if (changed && open) this.measure();
     if (changed && open && this.progress === 0) {
       // A fresh look at everything. (Opened again on its way down, it carries on as it was.)
-      fitView(this.options.bounds, this.frame(), this.options.params, this.want);
+      fitView(this.look(), this.frame(), this.options.params, this.want);
       this.settle();
     }
     if (instant) this.progress = open ? 1 : 0;
@@ -201,7 +207,7 @@ export class StarMap implements System, MapSight {
   }
 
   frameUpdate(frame: Frame): void {
-    const { params, bounds, reducedMotion } = this.options;
+    const { params, reducedMotion } = this.options;
     const step = params.blendSec > 0 && !reducedMotion ? frame.dt / params.blendSec : 1;
     this.progress = this.open
       ? Math.min(1, this.progress + step)
@@ -219,7 +225,7 @@ export class StarMap implements System, MapSight {
       const reach = params.keyPanPxPerSec * frame.dt;
       panBy(this.want, -right * reach, -down * reach, this.frame());
     }
-    clampView(this.want, bounds, this.frame(), params);
+    clampView(this.want, this.look(), this.frame(), params);
 
     if (reducedMotion) {
       this.settle();
@@ -276,13 +282,21 @@ export class StarMap implements System, MapSight {
     return Math.max(this.barBottom, this.buttonBottom);
   }
 
-  /** The closest and the furthest the map may zoom right now (the whole galaxy always fits). */
+  /**
+   * The closest and the furthest the map may zoom right now: out to everything (the galaxy and
+   * the ship) and no further.
+   */
   private limits(): { min: number; max: number } {
-    const { bounds, params } = this.options;
-    return {
-      min: params.spanMin,
-      max: Math.max(params.spanMax, fitSpan(bounds, this.frame(), params)),
-    };
+    const { params } = this.options;
+    return { min: params.spanMin, max: spanLimit(this.look(), this.frame(), params) };
+  }
+
+  /** What the map has to show: the galaxy, grown to take in the ship when it is out beyond it. */
+  private look(): MapBounds {
+    const { bounds, ship } = this.options;
+    if (!ship) return bounds;
+    const at = ship();
+    return takeIn(bounds, at.x, at.z, this.seen);
   }
 
   /** Be where the view is wanted, now: a drag is followed exactly, and a cut is a cut. */
@@ -322,7 +336,7 @@ export class StarMap implements System, MapSight {
 
   private zoom(factor: number, px: number, py: number): void {
     zoomAbout(this.want, factor, px, py, this.frame(), this.limits());
-    clampView(this.want, this.options.bounds, this.frame(), this.options.params);
+    clampView(this.want, this.look(), this.frame(), this.options.params);
   }
 
   private readonly letGo = (): void => {
@@ -413,7 +427,7 @@ export class StarMap implements System, MapSight {
     }
     pointer.x = event.clientX;
     pointer.y = event.clientY;
-    clampView(this.want, this.options.bounds, frame, this.options.params);
+    clampView(this.want, this.look(), frame, this.options.params);
     // A hand on the map moves it exactly: no easing between a finger and what it holds.
     this.settle();
   };

@@ -36,7 +36,15 @@ export function homeSystemOf(manifest: UniverseManifest): ManifestSystem {
   return (home ?? first) as ManifestSystem;
 }
 
-/** The other system whose centre is closest to `system`, or null when it is alone. */
+/** u. Neighbours closer than this to equally near are a tie. */
+const NEIGHBOUR_TIE = 1;
+
+/**
+ * The other system whose centre is closest to `system`, or null when it is alone. Of neighbours
+ * about equally near (the first three slots stand round home at the same distance: data/layout.ts)
+ * the one listed first, which is the one with the lowest `order`: whatever the rounding of their
+ * positions, and however many systems are added later, it stays the same one.
+ */
 export function nearestNeighbourOf(
   manifest: UniverseManifest,
   system: ManifestSystem,
@@ -49,7 +57,7 @@ export function nearestNeighbourOf(
       other.position[0] - system.position[0],
       other.position[1] - system.position[1],
     );
-    if (distance < best) {
+    if (distance < best - NEIGHBOUR_TIE) {
       best = distance;
       nearest = other;
     }

@@ -167,6 +167,7 @@ export function boot(
       canvas: engine.canvas,
       overlay: options.overlay,
       bounds: boundsOf(manifest.systems),
+      ship: () => ship.state,
       view: rig.shape,
       params: tuning.map,
       reducedMotion,

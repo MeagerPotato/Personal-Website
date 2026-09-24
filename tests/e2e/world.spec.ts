@@ -3,7 +3,16 @@
 // renderer the machine has, so they wait for outcomes and never for a number of seconds.
 
 import type { Page } from '@playwright/test';
-import { engineReady, expect, nameOf, openUniverse, pointAt, test, universe } from './support';
+import {
+  engineReady,
+  expect,
+  nameOf,
+  openUniverse,
+  pointAt,
+  test,
+  universe,
+  watchText,
+} from './support';
 
 const html = (page: Page) => page.locator('html');
 const heading = (page: Page) => page.locator('main h1');
@@ -14,19 +23,22 @@ const pathOf = (page: Page): string => new URL(page.url()).pathname;
 
 /**
  * Somewhere that is NOT right in front of the ship, whatever the screen shows: the first name in
- * the sky other than the home planet's, and the page it stands for (from the galaxy's manifest).
+ * the sky from another system than home's, and the page it stands for (from the galaxy's
+ * manifest).
  */
 async function somewhereFar(page: Page): Promise<{ name: string; path: string }> {
   const manifest = (await (await page.request.get('/universe.json')).json()) as {
-    bodies: { title: string; href: string }[];
+    bodies: { kind: string; title: string; href: string; system: string }[];
   };
+  // Another system: a journey of a few seconds (one in the home system is over in less than two).
+  const home = manifest.bodies.find(({ kind }) => kind === 'home')?.system;
   const names = page.getByRole('group', { name: 'Fly to' }).getByRole('button');
   await expect(names.first()).toBeVisible();
   for (const name of await names.allTextContents()) {
     const body = manifest.bodies.find(({ title }) => title === name);
-    if (body && name !== 'About') return { name, path: body.href };
+    if (body && body.system !== home) return { name, path: body.href };
   }
-  throw new Error('the home planet is the only name in the sky');
+  throw new Error('no other system has a name in the sky');
 }
 
 /** A flight takes as long as it takes: a CI machine renders on its CPU, and time stretches. */
@@ -37,14 +49,22 @@ test('the name of a planet flies the ship there, and its page opens on arrival',
   isMobile,
 }) => {
   await openUniverse(page, '/');
+  // A journey is over in a few seconds, and a machine drawing on its CPU may not look while it
+  // lasts: what was said, and where the page was when it was said.
+  const said = await watchText(page, '.dock-prompt');
+  const told = await watchText(page, '[data-announcer]');
   await pointAt(page, nameOf(page, 'About'), isMobile);
 
-  await expect(prompt(page)).toContainText('Flying to About');
-  await expect(prompt(page)).toContainText('Stop');
-  // Said, too, for someone who cannot see the ship turn.
-  await expect(status(page)).toHaveText('Flying to About.');
   // Nothing opens until the ship is there: the sky stays open while it flies.
-  expect(pathOf(page)).toBe('/');
+  await expect
+    .poll(async () =>
+      (await said()).find(({ text }) => text.includes('Flying to About') && text.includes('Stop')),
+    )
+    .toMatchObject({ path: '/' });
+  // Said, too, for someone who cannot see the ship turn.
+  await expect
+    .poll(async () => (await told()).find(({ text }) => text === 'Flying to About.'))
+    .toMatchObject({ path: '/' });
 
   await expect.poll(() => pathOf(page), FLIGHT).toBe('/about/');
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
@@ -55,10 +75,13 @@ test('the name of a planet flies the ship there, and its page opens on arrival',
 
 test('the planet itself can be pointed at', async ({ page, isMobile }) => {
   await openUniverse(page, '/');
+  const said = await watchText(page, '.dock-prompt');
   // The name hangs just below the disc it names, so a little above the name is the planet.
   await pointAt(page, nameOf(page, 'About'), isMobile, -14);
 
-  await expect(prompt(page)).toContainText('Flying to About');
+  await expect
+    .poll(async () => (await said()).some(({ text }) => text.includes('Flying to About')))
+    .toBe(true);
   await expect.poll(() => pathOf(page), FLIGHT).toBe('/about/');
   await expect(heading(page)).toHaveText('About');
 });
@@ -66,12 +89,22 @@ test('the planet itself can be pointed at', async ({ page, isMobile }) => {
 test('Stop gives the ship back, and nothing opens', async ({ page, isMobile }) => {
   await openUniverse(page, '/');
   const { name } = await somewhereFar(page);
+  // Stop is pressed the moment it is offered. A journey to the next system is over in a few
+  // seconds, and a machine drawing on its CPU can take longer than that to find the button.
+  await page.evaluate((name) => {
+    const button = document.querySelector<HTMLButtonElement>('.dock-prompt');
+    if (!button) return;
+    const watch = new MutationObserver(() => {
+      if (!button.textContent?.includes(`Flying to ${name}`)) return;
+      watch.disconnect();
+      button.click();
+    });
+    watch.observe(button, { subtree: true, childList: true, characterData: true });
+  }, name);
   await pointAt(page, nameOf(page, name), isMobile);
-  await expect(prompt(page)).toContainText(`Flying to ${name}`);
 
-  await prompt(page).click();
-  await expect(prompt(page)).not.toContainText('Flying to');
   await expect(status(page)).toHaveText('Stopped.');
+  await expect(prompt(page)).not.toContainText('Flying to');
   await page.waitForTimeout(1500);
   expect(pathOf(page)).toBe('/');
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');
@@ -79,14 +112,15 @@ test('Stop gives the ship back, and nothing opens', async ({ page, isMobile }) =
 
 test('a link opens its page at once and the ship follows', async ({ page }) => {
   await openUniverse(page, '/');
+  const said = await watchText(page, '.dock-prompt');
   await page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Contact' })
     .click();
   // The recruiter's path: the words first, the flight behind them.
   await expect(heading(page)).toHaveText('Contact');
-  await expect(prompt(page)).toContainText('Flying to Contact');
   await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+  expect((await said()).some(({ text }) => text.includes('Flying to Contact'))).toBe(true);
   expect(pathOf(page)).toBe('/contact/');
 });
 

@@ -13,6 +13,9 @@ export interface Stats {
   peakSpeed: number;
   longestU: number;
   failures: number;
+  /** The same, until the ship is on its ring (JourneyResult.settledSec). */
+  settledMedian: number;
+  settledMax: number;
   worst: JourneyResult | null;
 }
 
@@ -23,6 +26,9 @@ const quantile = (sorted: readonly number[], q: number): number =>
 
 export function statsOf(rows: readonly JourneyResult[]): Stats {
   const seconds = rows.map((row) => row.seconds).sort((a, b) => a - b);
+  const settled = rows
+    .map((row) => (row.docked && Number.isFinite(row.settledSec) ? row.settledSec : Infinity))
+    .sort((a, b) => a - b);
   let worst: JourneyResult | null = null;
   for (const row of rows) if (worst === null || row.seconds > worst.seconds) worst = row;
   return {
@@ -35,6 +41,8 @@ export function statsOf(rows: readonly JourneyResult[]): Stats {
     peakSpeed: rows.reduce((top, row) => Math.max(top, row.peakSpeed), 0),
     longestU: rows.reduce((top, row) => Math.max(top, row.straightU), 0),
     failures: rows.filter((row) => row.failure !== null).length,
+    settledMedian: quantile(settled, 0.5),
+    settledMax: settled.at(-1) ?? NaN,
     worst,
   };
 }
@@ -62,7 +70,9 @@ const KINDS: readonly JourneyKind[] = ['between', 'within', 'spawn'];
 
 /** The table for one galaxy under one variant. */
 export function table(rows: readonly JourneyResult[]): string {
-  const lines = ['           n  median    p90    max   mean  <=5 s  peak u/s  longest u  fail'];
+  const lines = [
+    '           n  median    p90    max   mean  <=5 s  peak u/s  longest u  fail  | on ring: median    max',
+  ];
   const all: Array<[string, readonly JourneyResult[]]> = [
     ...KINDS.map((kind): [string, JourneyResult[]] => [
       kind,
@@ -76,7 +86,8 @@ export function table(rows: readonly JourneyResult[]): string {
     lines.push(
       `${label.padEnd(8)}${pad(String(s.n), 5)}${pad(f1(s.median), 8)}${pad(f1(s.p90), 7)}` +
         `${pad(f1(s.max), 7)}${pad(f1(s.mean), 7)}${pad(`${Math.round(s.within5 * 100)}%`, 7)}` +
-        `${pad(s.peakSpeed.toFixed(0), 10)}${pad(s.longestU.toFixed(0), 11)}${pad(String(s.failures), 6)}`,
+        `${pad(s.peakSpeed.toFixed(0), 10)}${pad(s.longestU.toFixed(0), 11)}${pad(String(s.failures), 6)}` +
+        `  |${pad(f1(s.settledMedian), 16)}${pad(f1(s.settledMax), 7)}`,
     );
   }
   for (const kind of KINDS) {

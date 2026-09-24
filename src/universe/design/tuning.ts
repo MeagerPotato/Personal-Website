@@ -69,16 +69,24 @@ export const tuning = {
    */
   cruise: {
     flight: {
-      /** Top speed is thrustAccel / forwardDrag = 325 u/s: headroom above the profiles below. */
-      thrustAccel: 130,
+      /**
+       * Top speed is thrustAccel / forwardDrag = 3,200 u/s, and at the `far` profile's cruising
+       * speed there is still thrustAccel - forwardDrag * cruiseSpeed = 600 u/s² to spare: the
+       * profile is what the ship can really do. The brake is retro-thrusters: strong, so arriving
+       * is quick. Far nimbler than the pilot's own engine, and gripping the way it points: a
+       * journey starts with a snap turn, and goes round a planet in the way without a skid. (How
+       * fast it turns decides more of a journey's time than how fast it goes: most of a journey
+       * is spent leaving one crowded system and arriving in another.)
+       */
+      thrustAccel: 800,
       boostFactor: 1,
-      forwardDrag: 0.4,
-      brakeDrag: 2.5,
-      lateralGrip: 4,
-      yawRateSlow: 2.6,
-      yawRateFast: 1.5,
-      yawRateFastSpeed: 80,
-      yawResponseSec: 0.12,
+      forwardDrag: 0.25,
+      brakeDrag: 6,
+      lateralGrip: 12,
+      yawRateSlow: 7,
+      yawRateFast: 4,
+      yawRateFastSpeed: 150,
+      yawResponseSec: 0.06,
     } satisfies FlightParams,
     path: {
       /** u between the points of a planned path. */
@@ -90,52 +98,58 @@ export const tuning = {
       /** No gap between two bodies is ever planned shut: their keep-outs shrink to leave this, u ... */
       corridor: 6,
       /** ... but never to less than this share of themselves. */
-      squeeze: 0.6,
+      squeeze: 0.8,
     },
-    /** Journeys longer than this (u) are flown by `far`, shorter ones by `near`. */
+    /** Journeys shorter than shortLeg (u) are flown by `near`, longer than longLeg by `far`, and in between by a blend. */
+    shortLeg: 150,
     longLeg: 600,
     /**
      * Inside a system: brisk, and gentle in the bends. u/s and u/s². `brakeRate` (1/s) is what the
      * ship's brake really does at low speed: keep it below flight.brakeDrag + flight.forwardDrag.
      */
     near: {
-      cruiseSpeed: 70,
-      accel: 50,
-      decel: 40,
-      lateralAccel: 40,
-      brakeRate: 2,
-      yawRate: 1.5,
+      cruiseSpeed: 200,
+      accel: 350,
+      decel: 350,
+      lateralAccel: 300,
+      brakeRate: 5,
+      /** rad/s at speed: 0.9 of flight.yawRateFast (slower, the profile counts on more). */
+      yawRate: 3.6,
       minSpeed: 6,
     },
-    /** Between systems: 1,500 u in about eight seconds. */
+    /** Between systems. */
     far: {
-      cruiseSpeed: 280,
-      accel: 120,
-      decel: 110,
-      lateralAccel: 60,
-      brakeRate: 2,
-      yawRate: 1.5,
+      cruiseSpeed: 700,
+      accel: 550,
+      decel: 600,
+      lateralAccel: 500,
+      brakeRate: 5,
+      yawRate: 3.6,
       minSpeed: 6,
     },
     /** Every body is kept clear of by its docking ring plus this, u. */
     keepOut: 4,
     /** A planet with its moons is gone round as one disc when that disc is no bigger than this, u. */
     familyReach: 120,
-    /** The journey ends this many ring radii out (inside assist.soiRadii): the approach takes over. */
+    /** The journey ends this many ring radii out (inside assist.soiRadii), and is taken into orbit there. */
     handOffRadii: 1.3,
     /** Seconds between plans: bodies move, and no ship follows a path exactly. */
-    replanSec: 1,
+    replanSec: 0.5,
     /** Steer at the point this many seconds ahead on the path, within these distances (u)... */
-    lookAheadSec: 1,
-    lookAhead: [6, 220],
+    lookAheadSec: 0.5,
+    lookAhead: [6, 900],
     /** ...but never so far ahead that a bend is cut short by more than this, u. */
     cornerCut: 2.5,
     /** 1/s: how hard the throttle chases the profile's speed. */
-    speedGain: 2,
+    speedGain: 6,
     /** u/s. Inside a keep-out (leaving a ring, arriving beside a moon): no faster than this... */
-    keepOutSpeed: 25,
-    /** ...and outside, this much more (1/s) for each unit of room from the nearest one. */
-    openSpaceGain: 2,
+    keepOutSpeed: 50,
+    /** ...and outside, this much more (1/s) for each unit of room from the nearest one... */
+    openSpaceGain: 5,
+    /** ...counting only the speed TOWARD it, but at least this share of the whole speed. */
+    passShare: 0.3,
+    /** s. No journey is quicker, however near the next moon: a hop still reads as a journey. */
+    minJourneySec: 1.5,
   } satisfies CruiseParams,
 
   /**
@@ -206,6 +220,13 @@ export const tuning = {
     /** Carried from here on: this close to the ring (u), crossing it slower than this (u/s). */
     captureDistance: 0.5,
     captureRadialSpeed: 2,
+    /**
+     * The approach flies onto the ring at this pace (u/s), but never more than approachMaxRate
+     * rad/s round the body, with the autopilot's drive: the ship arrives briskly, and the dock's
+     * springs (settleOmega) slow it to the docked pace.
+     */
+    approachSpeed: 30,
+    approachMaxRate: 1.5,
     /** The approach flies this much faster (u/s) for every unit it is still off the ring. */
     hurryPerUnit: 1,
     /** An approach that is still not on the ring after this long (s) is captured where it is. */
@@ -213,8 +234,11 @@ export const tuning = {
     /** Docked: radians per second round the body, but never faster than maxSpeed u/s. */
     orbitRate: 0.35,
     maxSpeed: 14,
-    /** 1/s. How quickly the leftovers of a capture settle: higher is snappier. */
-    settleOmega: 3,
+    /**
+     * 1/s. How quickly the leftovers of a capture settle: higher is snappier. A journey is taken
+     * into orbit beside the ring, not on it (sim/docking.ts, arrive): this is what brings it on.
+     */
+    settleOmega: 5,
     /** Steering beyond this leaves an approach or a dock (once the controls were let go of). */
     leaveDeadZone: 0.25,
   } satisfies DockParams,
@@ -389,13 +413,17 @@ export const tuning = {
     /** Seconds from the flight view up to the map, and back down. A cut under reduced motion. */
     blendSec: 0.9,
     /**
-     * How close and how far the map zooms: world units across the SHORTER side of the free view.
-     * It opens on everything, with fitMargin times the room everything needs (and may go past
-     * spanMax for that, once the galaxy has outgrown it).
+     * How close the map zooms: world units across the SHORTER side of the free view. It opens on
+     * everything (the galaxy, and the ship if it is out beyond it), snugly: fitMargin times the
+     * room that needs, plus fitPadPx (CSS px) on every side for the names of the bodies at the
+     * edge. It zooms out no further than zoomOutPastFit times that view (1: not at all), and the
+     * galaxy is never dragged off: zoomed in, the view stays on it (to within fitPadPx of its
+     * edge); further out, all of it stays in view. Past it is only empty space.
      */
     spanMin: 400,
-    spanMax: 7000,
-    fitMargin: 1.3,
+    zoomOutPastFit: 1,
+    fitMargin: 1.05,
+    fitPadPx: 44,
     /** 1/s. How quickly the map settles after a step of the wheel or a key. */
     viewOmega: 12,
     /** Each CSS px of wheel zooms by e to this power: 0.0015 is about 16% a notch. */
@@ -627,11 +655,13 @@ export const tuning = {
    * /universe.json: changing a value here rearranges the galaxy on the next build.
    */
   layout: {
-    /** Systems sit on a sunflower spiral: slot k is slotDistance * sqrt(k) out, k golden angles round. */
-    slotDistance: 1000,
-    goldenAngleDeg: 137.5,
-    /** Each system is nudged off its slot by up to this much, seeded by its id, so the spiral never looks mechanical. */
-    slotJitter: 100,
+    /**
+     * Systems pack round home like a honeycomb, as tight as maxSystemRadius and minSystemGap below
+     * allow (data/layout.ts, slotPosition). Slot 1 stands this way from home, in degrees from +x
+     * toward +z, and the galaxy grows symmetrically about that line. On a diagonal (45, 135...) a
+     * galaxy with an even number of systems frames as a square on the star map.
+     */
+    clusterAxisDeg: 135,
 
     sunRadius: 20,
     /** Nothing orbits closer to a sun's surface than this (the autopilot's keep-out, plus headroom). */

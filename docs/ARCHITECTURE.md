@@ -179,23 +179,30 @@ under a bottom sheet.
   there is no jolt. Fresh steering always leaves. The navigator keeps the app state machine
   (`state/appMachine.ts`) in step and reports `statechange`, `soi`, `docked`, `undocked`.
 - **Journeys** (`sim/autopilot.ts`). A destination out of reach is FLOWN to: `goTo(id)` becomes
-  `navigator.travel(id)`, and the dock's phase is `cruise` until the ship is within reach, when
-  the approach above takes over. So a journey is one more phase of the same dock: the same
+  `navigator.travel(id)`, and the dock's phase is `cruise` until the ship arrives beside the
+  ring, travelling along it, when it is taken into orbit right there (`arrive`: the springs of
+  the dock bring it onto the ring). A body that is within reach already is approached instead,
+  held for as long as the shortest journey (`cruise.minJourneySec`), which no journey undercuts:
+  a hop still reads as a journey. So a journey is one more phase of the same dock: the same
   events, the same snapshot fields, and the same rule that fresh steering (or the brake) takes
   the ship back with exactly the velocity it has. It is three pure pieces, the same structure as
   a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
-     moving ship's path begins with a short run-up the way it is already going. Bodies that crowd
-     each other give way in proportion so that no gap is ever planned shut, and only the first and
-     last leg may cut a keep-out the ship starts or ends inside. Planning again every second costs
+     ship on its way keeps to the next half second of its last plan (`keepStretch`: a new plan
+     that began straight ahead would straighten every bend the ship is halfway round); one that
+     is not on a plan yet gets a short run-up the way it is going. Bodies that crowd each other
+     give way in proportion so that no gap is ever planned shut, and only the first and last leg
+     may cut a keep-out the ship starts or ends inside. Planning again twice a second costs
      nothing in steadiness: the planner remembers which side of each body it went (`walls`) and
      changes its mind only for a much shorter way.
   2. **Profile** (`sim/profile.ts`). A speed for every sample: a forward pass (what the drive can
      reach) and a backward pass (what the brake can still shed, knowing the brake is a drag),
-     under a ceiling that is low inside and beside keep-outs and opens up with room.
-  3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point a second ahead on the path,
+     under a ceiling that is low where the path closes on a keep-out and opens up with room
+     (`passingLimit`: going PAST one, only the speed toward it counts; going away, none does),
+     counting on the drive turning faster when it is slow (`bendSpeed`).
+  3. **Pursuit** (`cruiseInput`). The virtual pilot steers at a point half a second ahead on the path,
      never at one it can only see ACROSS a keep-out, holds the throttle until the nose points
      the way the path runs, and flies the ordinary flight model with `tuning.cruise.flight`.
   Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`).
@@ -232,7 +239,11 @@ under a bottom sheet.
   screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
   work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
   by pixels and zooming about a point are pure maths in `sim/mapView.ts`), eased on springs and
-  fitted into what the panel, the top bar and the Map button leave free. While it is open the
+  fitted into what the panel, the top bar and the Map button leave free. It opens on everything
+  (the galaxy, and the ship if it is out beyond it), snugly, with room in pixels for the names at
+  the edge, zooms out no further than that, and never lets the galaxy be dragged off (zoomed in,
+  the view stays on it; further out, all of it stays in view): past it there is only empty space,
+  and names too small to matter. While it is open the
   flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
   and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
   Pointing at a body or its name goes there and closes the map; a nav link leaves it open, so
@@ -288,7 +299,7 @@ under a bottom sheet.
 
 | Thing | Convention |
 | --- | --- |
-| Space | Flight happens on the flat **XZ plane**, **Y is up**. 1 unit (`u`) is about a metre at toy scale: the rocket is 2 u long, planets 5 to 12 u in radius, systems about 1000 u apart. |
+| Space | Flight happens on the flat **XZ plane**, **Y is up**. 1 unit (`u`) is about a metre at toy scale: the rocket is 2 u long, planets 5 to 12 u in radius, neighbouring systems some 600 u apart (centre to centre). |
 | Angles | Radians, **counter-clockwise seen from above, 0 along +Z**. The unit vector of angle `a` is `(sin a, cos a)`. This is exactly three's `rotation.y`, so a heading goes straight onto a mesh. Headings are never wrapped, so interpolation is a plain lerp. `angleDelta(from, to)` is positive counter-clockwise. |
 | Turning | `turn > 0` steers to the pilot's **left** (counter-clockwise). `yawRate > 0` likewise. |
 | Orbits | The tangent for counter-clockwise travel around a body is `(r.z, -r.x)` for the unit radius vector `r`. |

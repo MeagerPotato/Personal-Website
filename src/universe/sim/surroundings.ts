@@ -24,6 +24,7 @@ import {
 } from './collide';
 import {
   approachInput,
+  arrive,
   createDockState,
   pilotLeaves,
   stepDocked,
@@ -157,14 +158,25 @@ export function flyStep(
       simTime,
       dt,
       params.cruise,
-      params.assist,
+      params.dock,
       cruise,
       flown,
     );
     drive = params.cruise.flight;
     world.assist.weight = 1;
   } else if (dock.phase === 'approach') {
-    approachInput(field, state, flight, params.assist, params.dock, dock, world.assist, flown);
+    // The approach is the autopilot's last stretch, and flies with its drive.
+    approachInput(
+      field,
+      state,
+      params.cruise.flight,
+      params.assist,
+      params.dock,
+      dock,
+      world.assist,
+      flown,
+    );
+    drive = params.cruise.flight;
   } else {
     assistInput(field, state, pilot, flight, params.assist, world.assist, flown);
   }
@@ -177,13 +189,13 @@ export function flyStep(
   world.touched = resolveShells(field, state, params.cushion);
   if (
     dock.phase === 'cruise' &&
-    cruiseArrived(field, state, dock.body, params.cruise, params.assist)
+    cruiseArrived(field, state, dock.body, params.cruise, params.dock, world.cruise.elapsedSec)
   ) {
-    // Within reach: the ring's own pilot takes over, the same way round as the journey came in.
-    dock.phase = 'approach';
-    dock.phaseSec = 0;
+    // Arrived beside the ring, along it: in orbit from here, the same way round as the journey
+    // came in, and the dock's springs settle the rest (sim/docking.ts, arrive).
     world.assist.body = dock.body;
     world.assist.spin = world.cruise.spin;
+    arrive(field, state, dock, world.cruise.spin);
   } else if (dock.phase === 'approach') {
     tryCapture(field, state, params.dock, dock, world.assist, dt);
   }

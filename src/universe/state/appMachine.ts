@@ -23,7 +23,7 @@ export type AppEvent =
   | { readonly type: 'travel'; readonly to: string }
   /** The body is within reach: fly onto its ring. */
   | { readonly type: 'approach'; readonly to: string }
-  /** The approach reached the ring. */
+  /** The approach reached the ring, or a journey arrived beside it (sim/docking.ts, arrive). */
   | { readonly type: 'capture' }
   /** Be in orbit there at once, from wherever (a page opened on a planet). */
   | { readonly type: 'place'; readonly at: string }
@@ -46,7 +46,9 @@ export function transition(state: AppState, event: AppEvent): AppState | null {
       return { mode, target: event.to };
     }
     case 'capture':
-      return state.mode === 'approach' ? { mode: 'docked', target: state.target } : null;
+      return state.mode === 'approach' || state.mode === 'autopilot'
+        ? { mode: 'docked', target: state.target }
+        : null;
     case 'place':
       return state.mode === 'docked' && state.target === event.at
         ? null

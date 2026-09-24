@@ -4,7 +4,16 @@
 
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
-import { engineReady, expect, nameOf, openUniverse, pointAt, test, universe } from './support';
+import {
+  engineReady,
+  expect,
+  nameOf,
+  openUniverse,
+  pointAt,
+  test,
+  universe,
+  watchText,
+} from './support';
 
 const html = (page: Page) => page.locator('html');
 const heading = (page: Page) => page.locator('main h1');
@@ -24,6 +33,31 @@ async function mapOpen(page: Page, name?: string): Promise<void> {
   if (name === undefined) return;
   await expect(nameOf(page, name)).toBeVisible();
   await settled(nameOf(page, name));
+}
+
+/** Whether a point on screen is clear of every name that shows (a name is a button). */
+async function clearOfNames(page: Page): Promise<(x: number, y: number) => boolean> {
+  const boxes = await page
+    .getByRole('group', { name: 'Fly to' })
+    .getByRole('button')
+    .evaluateAll((buttons) =>
+      buttons
+        .filter((button) => button.hasAttribute('data-shown'))
+        .map((button) => button.getBoundingClientRect())
+        .map(({ left, top, right, bottom }) => ({ left, top, right, bottom })),
+    );
+  return (x, y) =>
+    boxes.every(
+      ({ left, top, right, bottom }) =>
+        x < left - 4 || x > right + 4 || y < top - 4 || y > bottom + 4,
+    );
+}
+
+/** Where a body is on screen: its name hangs just below its disc. */
+async function discOf(page: Page, name: string): Promise<{ x: number; y: number }> {
+  const box = await nameOf(page, name).boundingBox();
+  if (!box) throw new Error(`${name} has no name on the map`);
+  return { x: box.x + box.width / 2, y: box.y - 12 };
 }
 
 /** Wait until something on screen has stopped moving (to within a pixel between two looks). */
@@ -98,11 +132,14 @@ test('a name on the map flies the ship there and puts the map away', async ({ pa
   await openButton(page).click();
   await mapOpen(page, 'Code');
 
+  const said = await watchText(page, '.dock-prompt');
   await pointAt(page, nameOf(page, 'Code'), isMobile);
   await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
-  await expect(prompt(page)).toContainText('Flying to Code');
-  // As from the flight view: nothing opens until the ship is there.
-  expect(pathOf(page)).toBe('/');
+  // As from the flight view: nothing opens until the ship is there. (The journey is over in a
+  // few seconds, some of them under the map as it pulls back: ask what the prompt SAID.)
+  await expect
+    .poll(async () => (await said()).find(({ text }) => text.includes('Flying to Code')))
+    .toMatchObject({ path: '/' });
 });
 
 test.describe('on a laptop', () => {
@@ -139,18 +176,31 @@ test.describe('on a laptop', () => {
     await page.keyboard.press('m');
     await mapOpen(page, 'Code');
     const before = await settled(nameOf(page, 'Code'));
+    const clear = await clearOfNames(page);
 
-    // From empty space (the lower right corner of the galaxy is nobody's).
-    await page.mouse.move(900, 650);
+    // The real galaxy is two systems on a slant: fitted top to bottom, it leaves a laptop's screen
+    // room on either side. From empty space (the lower right: nobody's), to the left.
+    expect(clear(1000, 600)).toBe(true);
+    await page.mouse.move(1000, 600);
     await page.mouse.down();
-    await page.mouse.move(820, 600, { steps: 8 });
-    await page.mouse.move(760, 560, { steps: 8 });
+    await page.mouse.move(950, 600, { steps: 8 });
+    await page.mouse.move(900, 600, { steps: 8 });
     await page.mouse.up();
     const after = await settled(nameOf(page, 'Code'));
-    expect(after.x - before.x).toBeGreaterThan(-145);
-    expect(after.x - before.x).toBeLessThan(-135);
-    expect(after.y - before.y).toBeGreaterThan(-95);
-    expect(after.y - before.y).toBeLessThan(-85);
+    expect(after.x - before.x).toBeGreaterThan(-105);
+    expect(after.x - before.x).toBeLessThan(-95);
+    expect(Math.abs(after.y - before.y)).toBeLessThan(3);
+
+    // However far it is dragged, the galaxy stays on the screen: past it is only empty space.
+    expect(clear(900, 600)).toBe(true);
+    await page.mouse.move(900, 600);
+    await page.mouse.down();
+    await page.mouse.move(100, 600, { steps: 16 });
+    await page.mouse.up();
+    const home = await settled(nameOf(page, 'About'));
+    expect(home.x).toBeGreaterThan(0);
+    const code = await settled(nameOf(page, 'Code'));
+    expect(after.x - code.x).toBeLessThan(400);
 
     // It was a drag, not a click: the ship goes nowhere, and the map stays.
     await expect(html(page)).toHaveAttribute('data-map', 'open');
@@ -205,42 +255,70 @@ test.describe('on a phone', () => {
       points: { x: number; y: number; id: number }[],
     ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
 
-    // One finger, from empty space in the lower half: the map goes along, by as much.
-    await touch('touchStart', [{ x: 250, y: 700, id: 1 }]);
-    for (let step = 1; step <= 6; step += 1) {
-      await touch('touchMove', [{ x: 250 - step * 10, y: 700 + step * 5, id: 1 }]);
-    }
+    // Spread two fingers between the Code sun and FishAI, from 40 px apart to three times that:
+    // the system opens up round them (as close as the map goes: from a snug fit on a phone, about
+    // twice). A finger that comes down on a name is that name's (a tap there flies to it), and
+    // on a snug map the names crowd the sun: the fingers go down wherever is clear of them.
+    const planet = await settled(nameOf(page, 'FishAI'));
+    const clear = await clearOfNames(page);
+    const sun = await discOf(page, 'Code');
+    const disc = await discOf(page, 'FishAI');
+    const pinch = [0.5, 0.25, 0.75, 0, 1]
+      .flatMap((t) => [0, 20, -20, 40, -40].map((side) => ({ t, side })))
+      .flatMap(({ t, side }) => {
+        const across = Math.atan2(disc.y - sun.y, disc.x - sun.x) + Math.PI / 2;
+        const centre = {
+          x: sun.x + (disc.x - sun.x) * t + Math.cos(across) * side,
+          y: sun.y + (disc.y - sun.y) * t + Math.sin(across) * side,
+        };
+        return [0, 30, -30, 60, -60, 90].map((degrees) => ({
+          centre,
+          way: { x: Math.cos((degrees * Math.PI) / 180), y: Math.sin((degrees * Math.PI) / 180) },
+        }));
+      })
+      .find(
+        ({ centre, way }) =>
+          clear(centre.x - way.x * 20, centre.y - way.y * 20) &&
+          clear(centre.x + way.x * 20, centre.y + way.y * 20),
+      );
+    if (!pinch) throw new Error('names all round the Code system: nowhere to put two fingers');
+    const fingers = (apart: number): { x: number; y: number; id: number }[] => [
+      { x: pinch.centre.x - pinch.way.x * apart, y: pinch.centre.y - pinch.way.y * apart, id: 1 },
+      { x: pinch.centre.x + pinch.way.x * apart, y: pinch.centre.y + pinch.way.y * apart, id: 2 },
+    ];
+    await touch('touchStart', fingers(20).slice(0, 1));
+    await touch('touchStart', fingers(20));
+    for (let step = 1; step <= 8; step += 1) await touch('touchMove', fingers(20 + step * 5));
     await touch('touchEnd', []);
-    const dragged = await settled(nameOf(page, 'Code'));
-    expect(dragged.x - before.x).toBeGreaterThan(-66);
-    expect(dragged.x - before.x).toBeLessThan(-54);
-    expect(dragged.y - before.y).toBeGreaterThan(24);
-    expect(dragged.y - before.y).toBeLessThan(36);
+    const zoomed = await settled(nameOf(page, 'Code'));
+    const planetAfter = await settled(nameOf(page, 'FishAI'));
+    const apart = Math.hypot(planet.x - before.x, planet.y - before.y);
+    expect(Math.hypot(planetAfter.x - zoomed.x, planetAfter.y - zoomed.y)).toBeGreaterThan(
+      apart * 1.8,
+    );
     // No thumb stick, no boost pad: on the map, fingers are the map's.
     await expect(page.locator('.touch-stick')).toBeHidden();
     await expect(page.locator('.touch-boost')).toBeHidden();
 
-    // From this far out the Code system is its sun and one name. Spread two fingers ON the sun
-    // (it sits just above its name): the sun stays between them, and its planets get their names.
-    await expect(nameOf(page, 'FishAI')).toBeHidden();
-    const box = await nameOf(page, 'Code').boundingBox();
-    if (!box) throw new Error('the Code system has no name on the map');
-    const sun = { x: box.x + box.width / 2, y: box.y - 12 };
-    await touch('touchStart', [{ x: sun.x - 25, y: sun.y, id: 1 }]);
-    await touch('touchStart', [
-      { x: sun.x - 25, y: sun.y, id: 1 },
-      { x: sun.x + 25, y: sun.y, id: 2 },
-    ]);
-    for (let step = 1; step <= 8; step += 1) {
-      await touch('touchMove', [
-        { x: sun.x - 25 - step * 6, y: sun.y, id: 1 },
-        { x: sun.x + 25 + step * 6, y: sun.y, id: 2 },
-      ]);
+    // Closer in, there is room to move: toward the rest of the galaxy, left of Code and below
+    // it. One finger, from empty space in the lower half, right and up: the map goes along, by
+    // as much. (Opened, it showed everything, and had nowhere to go.)
+    const start = { x: 150, y: 700 };
+    expect(clear(start.x, start.y)).toBe(true);
+    await touch('touchStart', [{ ...start, id: 1 }]);
+    for (let step = 1; step <= 6; step += 1) {
+      await touch('touchMove', [{ x: start.x + step * 10, y: start.y - step * 5, id: 1 }]);
     }
+    // The finger stops before it lifts. (Lifted on the move, it flicks: the browser flings, and
+    // its next tap, on Close map below, would only stop the fling.)
+    await page.waitForTimeout(200);
+    await touch('touchMove', [{ x: start.x + 60, y: start.y - 30, id: 1 }]);
     await touch('touchEnd', []);
-    await expect(nameOf(page, 'FishAI')).toBeVisible();
-    const zoomed = await settled(nameOf(page, 'Code'));
-    expect(Math.abs(zoomed.x - dragged.x)).toBeLessThan(16);
+    const dragged = await settled(nameOf(page, 'Code'));
+    expect(dragged.x - zoomed.x).toBeGreaterThan(54);
+    expect(dragged.x - zoomed.x).toBeLessThan(66);
+    expect(dragged.y - zoomed.y).toBeGreaterThan(-36);
+    expect(dragged.y - zoomed.y).toBeLessThan(-24);
 
     await expect(prompt(page)).not.toContainText('Flying to');
     expect(pathOf(page)).toBe('/');

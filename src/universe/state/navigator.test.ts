@@ -264,7 +264,7 @@ describe('Navigator, travelling', () => {
   const story = (h: ReturnType<typeof harness>): Heard[] =>
     h.heard.filter(([name]) => name !== 'soi');
 
-  it('flies to a body that is out of reach: autopilot, approach, docked, each said once', () => {
+  it('flies to a body that is out of reach: autopilot, then docked, each said once', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);
     expect(h.navigator.withinReach('project/fishai')).toBe(false);
@@ -282,7 +282,7 @@ describe('Navigator, travelling', () => {
     h.run(30);
     expect(story(h)).toEqual([
       ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
-      ['statechange', { mode: 'approach', target: 'project/fishai' }],
+      // No approach in between: the autopilot's arrival is the capture.
       ['statechange', { mode: 'docked', target: 'project/fishai' }],
       ['docked', { id: 'project/fishai' }],
     ]);
@@ -294,6 +294,19 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.travel('page/about')).toBe(true);
     h.run(0.1);
     expect(h.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+    // ...and takes as long as the shortest journey all the same: it still reads as a journey.
+    h.run(tuning.cruise.minJourneySec - 0.4);
+    expect(h.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+    h.run(10);
+    expect(h.navigator.state).toEqual({ mode: 'docked', target: 'page/about' });
+  });
+
+  it('lets the pilot dock at once where they asked to themselves', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    expect(h.navigator.approach('page/about')).toBe(true);
+    h.run(0.1);
+    expect(h.surroundings.dock.holdSec).toBe(0);
   });
 
   it('sets out from a dock, and says that the dock was left because somebody asked', () => {
@@ -368,7 +381,8 @@ describe('Navigator, travelling', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);
     h.navigator.travel('project/fishai');
-    h.run(4);
+    // Mid-way: no journey is over before cruise.minJourneySec.
+    h.run(1);
     const dock = h.navigator.snapshot();
     expect(dock).toMatchObject({ id: 'project/fishai', docked: false });
 

@@ -26,6 +26,11 @@ import { mergeInto, type DeepPartial } from './merge';
 // Nothing about flight, the autopilot or docking is reimplemented here: this file only watches.
 
 const TAU = Math.PI * 2;
+/** On the ring (JourneyResult.settledSec): u off it, and u/s across it. */
+const SETTLED_U = 0.5;
+const SETTLED_SPEED = 2;
+/** How long after docking the harness keeps watching for the ship to settle, s. */
+const SETTLE_WATCH_SEC = 5;
 
 /** The tuning blocks the simulation reads, as the engine passes them to flyStep and the Navigator. */
 type SimBlocks = Pick<typeof tuning, 'flight' | 'cruise' | 'assist' | 'cushion' | 'edge' | 'dock'>;
@@ -84,10 +89,19 @@ export interface JourneyResult {
   /** Request to capture (the page opens), s. The limit when it never docked. */
   seconds: number;
   docked: boolean;
+  /**
+   * Request until the ship is ON its ring, s: carried round the body, within SETTLED_U of the
+   * ring and crossing it slower than SETTLED_SPEED (what a capture needed before a journey could
+   * be captured beside the ring and settled onto it by the dock's springs). NaN if never.
+   */
+  settledSec: number;
   /** What Navigator.travel did: set out on the autopilot, or (within reach) went straight to the approach. */
   how: 'travel' | 'approach';
-  /** The cruise profile the first plan chose (tuning.cruise.longLeg), or '-' without a cruise. */
-  profile: 'far' | 'near' | '-';
+  /**
+   * The cruise profile the first plan chose (tuning.cruise.shortLeg and longLeg): 'near', 'far',
+   * or how far between them ('far 40%'); '-' without a cruise.
+   */
+  profile: string;
   /** Length (u) and expected duration (s) of the first plan. */
   planU: number;
   planEtaSec: number;
@@ -95,9 +109,11 @@ export interface JourneyResult {
   /**
    * The phases, which add up to `seconds`:
    *   takeoff   the request until the ship is out of the start body's reach (assist.soiRadii ring
-   *             radii), or from the spawn point until the autopilot first gives full thrust.
-   *   cruise    from there until the autopilot hands over to the docking approach.
-   *   approach  from the hand-over until the ship is within 4 capture distances of the ring.
+   *             radii), or from the spawn point until the ship first goes faster than
+   *             cruise.keepOutSpeed (a stronger drive never needs full thrust).
+   *   cruise    from there until the journey arrives beside the ring and is taken into orbit
+   *             (a body asked for from within its reach is approached instead, and has no cruise).
+   *   approach  from the start of an approach until the ship is within 4 capture distances of the ring.
    *   capture   from there until it is captured (dock.captureDistance, captureRadialSpeed).
    */
   takeoffSec: number;
@@ -238,13 +254,15 @@ export function fly(
       const out =
         start >= 0
           ? Math.hypot(state.x - bodyX(start), state.z - bodyZ(start)) > startReach
-          : flown.thrust >= 0.99;
+          : speedOf(state) > sim.cruise.keepOutSpeed;
       if (out) clear = t;
     }
     if (how === 'travel' && planU === 0 && world.cruise.path.count > 0) {
       planU = world.cruise.path.length;
       planEtaSec = world.cruise.etaSec;
-      profile = world.cruise.far === null ? '-' : world.cruise.far ? 'far' : 'near';
+      const far = world.cruise.far;
+      profile =
+        far === null ? '-' : far >= 1 ? 'far' : far <= 0 ? 'near' : `far ${Math.round(far * 100)}%`;
     }
     if (handOff < 0 && world.dock.phase !== 'cruise') handOff = t;
     if (handOff >= 0 && onRing < 0) {
@@ -256,6 +274,26 @@ export function fly(
       docked = true;
       seconds = t;
       break;
+    }
+  }
+
+  // Docked is when the page opens; the dock's springs may still be settling the ship onto the ring.
+  let settledSec = NaN;
+  if (docked) {
+    const { dock } = world;
+    for (let t = seconds; ;) {
+      if (
+        dock.phase === 'docked' &&
+        dock.body === target &&
+        Math.abs(dock.offset.value) <= SETTLED_U &&
+        Math.abs(dock.offset.velocity) <= SETTLED_SPEED
+      ) {
+        settledSec = t;
+        break;
+      }
+      if (t - seconds >= SETTLE_WATCH_SEC || dock.phase !== 'docked') break;
+      step();
+      t = (steps - began) * dt;
     }
   }
 
@@ -284,6 +322,7 @@ export function fly(
     straightU,
     seconds,
     docked,
+    settledSec,
     how,
     profile,
     planU,

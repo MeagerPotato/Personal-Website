@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { buildUniverse } from '../data/build';
 import type { ProjectInput, UniverseInput } from '../data/types';
 import { tuning } from '../design/tuning';
-import { beginCruise, cruiseArrived, planCruise } from './autopilot';
-import { dockAt, releaseDock, requestDock } from './docking';
+import { beginCruise, cruiseArrived, passingLimit, planCruise } from './autopilot';
+import { approachPace, dockAt, releaseDock, requestDock } from './docking';
 import { NO_INPUT, copyShipState, createShipState, speedOf, stepFlight } from './flight';
 import { angleDelta } from './math';
 import { createRng } from './rng';
@@ -146,10 +146,13 @@ interface Report {
   /** Closest the ship came to the surface of any body it neither left nor went to, u. */
   leastGap: number;
   touched: boolean;
-  /** Relative to the body, at the moment the docking approach took over, u/s. */
+  /** Relative to the body, at the moment the journey was taken into orbit, u/s. */
   handOverPace: number;
-  /** The hardest the stick was held over while going faster than 100 u/s. */
-  fastTurn: number;
+  /**
+   * How often the stick went hard over one way and then hard over the other while going faster
+   * than 100 u/s: a slalom, or a nose hunting for its course.
+   */
+  reversals: number;
 }
 
 /** Set out for `target` and fly until docked (or for a minute), watching what a passenger would mind. */
@@ -165,22 +168,26 @@ function travel(journey: Journey, target: string, from = -1, limitSec = 60): Rep
     leastGap: Infinity,
     touched: false,
     handOverPace: 0,
-    fastTurn: 0,
+    reversals: 0,
   };
   const began = journey.t;
+  let lastSide = 0;
   let phase = world.dock.phase;
   while (journey.t - began < limitSec) {
     step(journey);
     const speed = speedOf(journey.state);
     report.topSpeed = Math.max(report.topSpeed, speed);
     report.touched ||= world.touched >= 0;
-    if (speed > 100 && journey.t - began > 2.5) {
-      report.fastTurn = Math.max(report.fastTurn, Math.abs(journey.flown.turn));
-    }
+    if (speed > 100) {
+      const turn = journey.flown.turn;
+      const side = turn > 0.25 ? 1 : turn < -0.25 ? -1 : 0;
+      if (side !== 0 && lastSide !== 0 && side !== lastSide) report.reversals += 1;
+      if (side !== 0) lastSide = side;
+    } else lastSide = 0;
     for (let j = 0; j < world.field.count; j += 1) {
       if (j !== i && j !== from) report.leastGap = Math.min(report.leastGap, gap(journey, j));
     }
-    if (phase === 'cruise' && world.dock.phase === 'approach') {
+    if (phase === 'cruise' && world.dock.phase === 'docked') {
       report.handOverPace = Math.hypot(
         journey.state.vx - (world.field.velocities[i * 2] ?? 0),
         journey.state.vz - (world.field.velocities[i * 2 + 1] ?? 0),
@@ -202,12 +209,15 @@ describe('the autopilot', () => {
     const from = journey.world.orbits.indexOf('page/about');
     const report = travel(journey, 'project/fishai', from);
     expect(report.docked).toBe(true);
-    // About a thousand units: some six seconds of cruising. Leaving one ring, threading into a
-    // crowded system at a careful pace, and settling onto another ring are on top of that.
-    expect(report.seconds).toBeLessThan(17);
-    expect(report.topSpeed).toBeGreaterThan(200);
+    // About a thousand units, leaving one ring and arriving beside another: a few seconds.
+    expect(report.seconds).toBeLessThan(5);
+    expect(report.topSpeed).toBeGreaterThan(400);
     expect(report.topSpeed).toBeLessThanOrEqual(tuning.cruise.far.cruiseSpeed * 1.05);
-    expect(report.handOverPace).toBeLessThan(tuning.assist.orbitSpeed * 2.5);
+    // Taken into orbit at no more than two and a half times the pace the ring is flown onto at.
+    const ring =
+      journey.world.field.ringRadius[journey.world.orbits.indexOf('project/fishai')] ?? 0;
+    expect(report.handOverPace).toBeGreaterThan(0);
+    expect(report.handOverPace).toBeLessThanOrEqual(approachPace(ring, tuning.dock) * 2.5 + 1e-9);
     expect(report.touched).toBe(false);
     expect(journey.world.dock.body).toBe(journey.world.orbits.indexOf('project/fishai'));
   });
@@ -217,7 +227,11 @@ describe('the autopilot', () => {
     const from = journey.world.orbits.indexOf('project/days2meet');
     const report = travel(journey, 'project/odds', from);
     expect(report.docked).toBe(true);
-    expect(report.topSpeed).toBeLessThanOrEqual(tuning.cruise.near.cruiseSpeed * 1.05);
+    // Flown by a profile much nearer `near` than `far`, and no faster than it.
+    const { cruise } = journey.world;
+    expect(cruise.far).toBeLessThan(0.5);
+    expect(report.topSpeed).toBeLessThanOrEqual(cruise.profile.cruiseSpeed * 1.05);
+    expect(report.topSpeed).toBeLessThan(tuning.cruise.far.cruiseSpeed / 2);
     expect(report.touched).toBe(false);
   });
 
@@ -225,9 +239,10 @@ describe('the autopilot', () => {
     const rng = createRng('journeys');
     const range = (from: number, to: number): number => from + (to - from) * rng();
     let slowest = 0;
+    let quickest = Infinity;
     let closest = Infinity;
     let total = 0;
-    const turns: number[] = [];
+    const revs: number[] = [];
     for (let run = 0; run < 200; run += 1) {
       const t0 = range(0, 900);
       const count = MANIFEST.bodies.length;
@@ -266,18 +281,24 @@ describe('the autopilot', () => {
       expect(report.touched, label).toBe(false);
       expect(report.topSpeed, label).toBeLessThanOrEqual(tuning.cruise.far.cruiseSpeed * 1.05);
       slowest = Math.max(slowest, report.seconds);
+      expect(report.seconds, label).toBeGreaterThanOrEqual(tuning.cruise.minJourneySec);
       closest = Math.min(closest, report.leastGap);
       total += report.seconds;
-      turns.push(report.fastTurn);
+      quickest = Math.min(quickest, report.seconds);
+      revs.push(report.reversals);
     }
-    // The longest trip in this galaxy is some 2,500 u.
-    expect(slowest).toBeLessThan(26);
-    expect(total / 200).toBeLessThan(14);
+    // The longest trip in this galaxy is some 1,500 u, and most are across a system or two.
+    expect(slowest).toBeLessThan(6);
+    expect(total / 200).toBeLessThan(3.5);
+    // A journey reads as a journey, however near the next body.
+    expect(quickest).toBeGreaterThanOrEqual(tuning.cruise.minJourneySec);
     // Bodies passed on the way are given a wide berth: never so close as to feel their cushion.
     expect(closest).toBeGreaterThan(tuning.cushion.depth * 0.5);
-    // At speed the stick is held still: nine journeys in ten never use a quarter of it.
-    turns.sort((a, b) => a - b);
-    expect(turns[180]).toBeLessThan(0.25);
+    // At speed the ship carves its bends, but it does not slalom: nine journeys in ten never
+    // throw the stick from one side to the other more than once, and none does it often.
+    revs.sort((a, b) => a - b);
+    expect(revs[180]).toBeLessThanOrEqual(1);
+    expect(revs[199]).toBeLessThanOrEqual(8);
   });
 
   it('turns round first when asked while flying the other way at full boost', () => {
@@ -359,7 +380,8 @@ describe('the autopilot', () => {
     const { world } = journey;
     releaseDock(world.dock, world.assist);
     requestDock(world.dock, world.orbits.indexOf('project/fishai'), NO_INPUT, true);
-    for (let k = 0; k < 240; k += 1) step(journey);
+    // A second in: well under way (and no journey is over before cruise.minJourneySec).
+    for (let k = 0; k < 60; k += 1) step(journey);
     expect(world.dock.phase).toBe('cruise');
     expect(speedOf(journey.state)).toBeGreaterThan(150);
 
@@ -440,7 +462,7 @@ describe('planning a journey', () => {
       world.orbits.indexOf(target),
       journey.t,
       tuning.cruise,
-      tuning.assist,
+      tuning.dock,
       world.cruise,
     );
     return world.cruise;
@@ -456,12 +478,12 @@ describe('planning a journey', () => {
     const endZ = path.z[path.count - 1] ?? 0;
     const reach = (world.field.ringRadius[i] ?? 0) * tuning.cruise.handOffRadii;
 
-    // Not where the planet is now...
+    // Not where the planet is now (a journey of a second or two: it moves about half a unit)...
     const now = Math.hypot(
       endX - (world.field.positions[i * 2] ?? 0),
       endZ - (world.field.positions[i * 2 + 1] ?? 0),
     );
-    expect(Math.abs(now - reach)).toBeGreaterThan(1);
+    expect(Math.abs(now - reach)).toBeGreaterThan(0.25);
     // ...but where it is when the ship gets there.
     syncSurroundings(world, journey.t + cruise.etaSec);
     const cx = world.field.positions[i * 2] ?? 0;
@@ -480,18 +502,28 @@ describe('planning a journey', () => {
     const far = dockedAt('page/about');
     const long = plan(far, 'project/fishai');
     expect(long.path.length).toBeGreaterThan(tuning.cruise.longLeg);
-    expect(long.far).toBe(true);
-    expect(Math.max(...long.speeds.subarray(0, long.path.count))).toBeCloseTo(
-      tuning.cruise.far.cruiseSpeed,
-      6,
-    );
+    expect(long.far).toBe(1);
+    // Flown by `far`, and faster than `near` could ever go (a thousand units is too short to reach
+    // the far profile's cruising speed and brake again: it gets most of the way).
+    expect(long.profile.cruiseSpeed).toBe(tuning.cruise.far.cruiseSpeed);
+    const top = Math.max(...long.speeds.subarray(0, long.path.count));
+    expect(top).toBeGreaterThan(tuning.cruise.near.cruiseSpeed * 2);
+    expect(top).toBeLessThanOrEqual(tuning.cruise.far.cruiseSpeed);
 
     const near = dockedAt('project/days2meet');
     const short = plan(near, 'project/odds');
     expect(short.path.length).toBeLessThan(tuning.cruise.longLeg);
-    expect(short.far).toBe(false);
+    // In between the two lengths: a blend of the two profiles, weighted by where between them the
+    // journey lies (as its first plan measured it).
+    expect(short.path.length).toBeGreaterThan(tuning.cruise.shortLeg);
+    expect(short.far).toBeGreaterThan(0);
+    expect(short.far).toBeLessThan(0.5);
+    const blended =
+      tuning.cruise.near.cruiseSpeed +
+      (tuning.cruise.far.cruiseSpeed - tuning.cruise.near.cruiseSpeed) * (short.far ?? 0);
+    expect(short.profile.cruiseSpeed).toBeCloseTo(blended, 9);
     expect(Math.max(...short.speeds.subarray(0, short.path.count))).toBeLessThanOrEqual(
-      tuning.cruise.near.cruiseSpeed,
+      short.profile.cruiseSpeed + 1e-9,
     );
 
     // A long journey that has become short is still flown as a long one: no sudden braking.
@@ -499,19 +531,21 @@ describe('planning a journey', () => {
     const i = world.orbits.indexOf('project/fishai');
     far.state.x = (world.field.positions[i * 2] ?? 0) + 300;
     far.state.z = world.field.positions[i * 2 + 1] ?? 0;
-    planCruise(world.orbits, world.field, far.state, i, far.t, tuning.cruise, tuning.assist, long);
+    planCruise(world.orbits, world.field, far.state, i, far.t, tuning.cruise, tuning.dock, long);
     expect(long.path.length).toBeLessThan(tuning.cruise.longLeg);
-    expect(long.far).toBe(true);
+    expect(long.far).toBe(1);
   });
 
   it('is slow wherever there is no room, however long the journey', () => {
     const journey = dockedAt('page/about');
     const cruise = plan(journey, 'project/fishai');
-    // The first samples lie inside the keep-out of the body the ship is leaving.
-    expect(cruise.ceiling[0]).toBe(tuning.cruise.keepOutSpeed);
-    // Out in the open the ceiling is far above anything the profile asks for.
-    const middle = Math.floor(cruise.path.count / 2);
-    expect(cruise.ceiling[middle]).toBeGreaterThan(tuning.cruise.far.cruiseSpeed);
+    // The first samples lie inside the keep-out of the body the ship is leaving: going AWAY from
+    // it, which no speed is too fast for (sim/autopilot.ts, passingLimit).
+    expect(cruise.ceiling[0]).toBeGreaterThan(tuning.cruise.far.cruiseSpeed);
+    // Out in the open it is above anything the profile could ask for.
+    expect(Math.max(...cruise.ceiling.subarray(0, cruise.path.count))).toBeGreaterThan(
+      tuning.cruise.far.cruiseSpeed,
+    );
     for (let k = 0; k < cruise.path.count; k += 1) {
       expect(cruise.speeds[k]).toBeLessThanOrEqual((cruise.ceiling[k] ?? 0) + 1e-9);
     }
@@ -569,11 +603,61 @@ describe('planning a journey', () => {
       i,
       journey.t,
       tuning.cruise,
-      tuning.assist,
+      tuning.dock,
       cruise,
     );
     expect(cruise.spin).toBe(chosen);
     expect(Math.abs(cruise.path.length - first)).toBeLessThan(first * 0.1);
+  });
+
+  it('never plans a journey quicker than the shortest one, however near the body', () => {
+    // From a planet to its own moon: a few dozen units.
+    const cruise = plan(dockedAt('project/fishai'), 'project/fish-demo');
+    expect(cruise.path.length).toBeLessThan(150);
+    expect(cruise.etaSec).toBeGreaterThanOrEqual(tuning.cruise.minJourneySec - 1e-9);
+  });
+
+  it('keeps to the stretch of its last plan the ship is on: no bend straightened twice a second', () => {
+    const journey = dockedAt('page/about');
+    const { world } = journey;
+    releaseDock(world.dock, world.assist);
+    requestDock(world.dock, world.orbits.indexOf('project/research'), NO_INPUT, true);
+    for (let k = 0; k < 50; k += 1) step(journey);
+    expect(speedOf(journey.state)).toBeGreaterThan(60);
+    // The plan as it stands...
+    const { path } = world.cruise;
+    const oldX = path.x.slice(0, path.count);
+    const oldZ = path.z.slice(0, path.count);
+    const offOld = (x: number, z: number): number => {
+      let off = Infinity;
+      for (let k = 0; k + 1 < oldX.length; k += 1) {
+        const ax = oldX[k] ?? 0;
+        const az = oldZ[k] ?? 0;
+        const lx = (oldX[k + 1] ?? 0) - ax;
+        const lz = (oldZ[k + 1] ?? 0) - az;
+        const span = lx * lx + lz * lz;
+        const t =
+          span < 1e-12 ? 0 : Math.min(1, Math.max(0, ((x - ax) * lx + (z - az) * lz) / span));
+        off = Math.min(off, Math.hypot(ax + lx * t - x, az + lz * t - z));
+      }
+      return off;
+    };
+    // ...and the next one: it goes through points of the old one first (a plan that began the way
+    // the ship is going would put its first corner straight ahead of the ship, off the old plan).
+    world.cruise.replanIn = 0;
+    step(journey);
+    const { corners } = world.cruise.path;
+    for (let c = 1; c <= 3; c += 1) {
+      expect(offOld(corners[c * 2] ?? 0, corners[c * 2 + 1] ?? 0)).toBeLessThan(1e-6);
+    }
+    // They lie ahead of the ship, over no more than the next leadSec of the way.
+    const lead = speedOf(journey.state) * tuning.cruise.path.leadSec;
+    const last = Math.hypot(
+      (corners[6] ?? 0) - journey.state.x,
+      (corners[7] ?? 0) - journey.state.z,
+    );
+    expect(last).toBeGreaterThan(lead * 0.3);
+    expect(last).toBeLessThanOrEqual(lead * 1.05);
   });
 
   it('never ends a journey inside the keep-out of a moon passing by', () => {
@@ -615,8 +699,7 @@ describe('arriving', () => {
     const i = world.orbits.indexOf('project/days2meet');
     const { positions, velocities, ringRadius } = world.field;
     const reach = (ringRadius[i] ?? 0) * tuning.cruise.handOffRadii;
-    const arrived = (): boolean =>
-      cruiseArrived(world.field, state, i, tuning.cruise, tuning.assist);
+    const arrived = (): boolean => cruiseArrived(world.field, state, i, tuning.cruise, tuning.dock);
 
     // On the circle, keeping pace with the planet: handed over.
     state.x = (positions[i * 2] ?? 0) + reach;
@@ -624,6 +707,12 @@ describe('arriving', () => {
     state.vx = velocities[i * 2] ?? 0;
     state.vz = velocities[i * 2 + 1] ?? 0;
     expect(arrived()).toBe(true);
+    // ...but not before the journey has lasted as long as the shortest journey does.
+    const { minJourneySec } = tuning.cruise;
+    const after = (sec: number): boolean =>
+      cruiseArrived(world.field, state, i, tuning.cruise, tuning.dock, sec);
+    expect(after(minJourneySec - 0.1)).toBe(false);
+    expect(after(minJourneySec)).toBe(true);
 
     // The same place at a gallop: the approach is a gentle pilot, and is not given this.
     state.vz += 80;
@@ -633,5 +722,35 @@ describe('arriving', () => {
     // Too far out.
     state.x = (positions[i * 2] ?? 0) + reach * 1.3;
     expect(arrived()).toBe(false);
+  });
+});
+
+describe('the speed limit beside a keep-out', () => {
+  const params = tuning.cruise;
+
+  it('holds a ship heading straight at one to keepOutSpeed, and lets one going past go faster', () => {
+    expect(passingLimit(0, 1, params)).toBeCloseTo(params.keepOutSpeed, 9);
+    expect(passingLimit(0, 0.1, params)).toBeCloseTo(params.keepOutSpeed / params.passShare, 9);
+    // With room, more: openSpaceGain for every unit of it.
+    expect(passingLimit(100, 1, params)).toBeCloseTo(
+      params.keepOutSpeed + params.openSpaceGain * 100,
+      9,
+    );
+  });
+
+  it('does not hold back a ship going away from one', () => {
+    expect(passingLimit(-5, 0, params)).toBe(Infinity);
+    expect(passingLimit(0, -0.5, params)).toBe(Infinity);
+  });
+
+  it('is keepOutSpeed deep inside one, whichever way, and has no step at the edge', () => {
+    expect(passingLimit(-10, 0.1, params)).toBeCloseTo(params.keepOutSpeed, 9);
+    expect(passingLimit(-1e-9, 0.1, params)).toBeCloseTo(passingLimit(1e-9, 0.1, params), 6);
+    let last = Infinity;
+    for (let room = 20; room >= -20; room -= 0.5) {
+      const limit = passingLimit(room, 0.2, params);
+      expect(limit).toBeLessThanOrEqual(last + 1e-9);
+      last = limit;
+    }
   });
 });

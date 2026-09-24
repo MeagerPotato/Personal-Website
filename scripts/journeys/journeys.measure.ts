@@ -13,13 +13,14 @@ import { measure, optionsFromEnv } from './measure';
 // plus typical future ones in the free slots, laid out by the real layout code). Options come from
 // JOURNEYS, JSON or the path of a JSON file (see scripts/journeys/example.json):
 //
-//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",4],"layout":{"slotDistance":700}}'; npm run journeys
+//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",4],"layout":{"minSystemGap":100}}'; npm run journeys
 //   bash        JOURNEYS=scripts/journeys/example.json npm run journeys
 //
 //   galaxies       ["real", 4, 6, 8]: "real", or a number of systems, home included
-//   layout         merged into tuning.layout for the build: slotDistance, goldenAngleDeg,
-//                  slotJitter, maxSystemRadius, minSystemGap, planetRadius, orbitGap...
-//   slotExponent   slot k sits slotDistance * k^slotExponent out (the real spiral is 0.5)
+//   layout         merged into tuning.layout for the build: clusterAxisDeg, maxSystemRadius,
+//                  minSystemGap, planetRadius, orbitGap...
+//   slotExponent   the OLD sunflower spiral instead of the honeycomb: slot k 1000 * k^slotExponent
+//                  out (0.5 is the spiral the site used), to compare against
 //   positions      { "code": [x, z] }: hand-placed systems, as content can do
 //   tuning         merged over tuning.ts for the flight: flight, cruise (near, far, longLeg,
 //                  keepOutSpeed...), assist, cushion, edge, dock, and spawn (tuning.ship.spawn)

@@ -3,9 +3,8 @@
   "variants": [
     { "name": "today" },
     {
-      "name": "closer, longLeg follows",
-      "layout": { "slotDistance": 700, "maxSystemRadius": 320, "minSystemGap": 100 },
-      "tuning": { "cruise": { "longLeg": 400 } }
+      "name": "the old spiral",
+      "slotExponent": 0.5
     },
     {
       "name": "faster ends",

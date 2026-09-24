@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPath, planPath, type Path } from './path';
-import { speedProfile, type ProfileParams } from './profile';
+import { bendSpeed, speedProfile, type ProfileParams, type TurnCurve } from './profile';
 
 const PATH = { sampleStep: 4, clearance: 1.15, leadSec: 0.5, corridor: 6, squeeze: 0.6 };
 const NEAR: ProfileParams = {
@@ -154,5 +154,38 @@ describe('speedProfile', () => {
   it('has nothing to say about a path that is not there', () => {
     const empty = createPath();
     expect(speedProfile(empty, 10, 10, 0, NEAR, new Float64Array(4))).toBe(0);
+  });
+});
+
+describe('bends, for a ship that turns faster when it is slow', () => {
+  const TURN: TurnCurve = { slow: 7, fast: 4, fastSpeed: 150 };
+  const rateAt = (speed: number): number =>
+    speed >= TURN.fastSpeed
+      ? TURN.fast
+      : TURN.slow - ((TURN.slow - TURN.fast) * speed) / TURN.fastSpeed;
+
+  it('takes a bend exactly as fast as asks for the turn rate the ship has at that speed', () => {
+    for (const bend of [0.001, 0.01, 0.03, 0.05, 0.2, 1, 5]) {
+      const speed = bendSpeed(bend, TURN);
+      expect(speed * bend).toBeCloseTo(rateAt(speed), 9);
+    }
+    expect(bendSpeed(0, TURN)).toBe(Infinity);
+  });
+
+  it('lets a profile take a tight bend faster than one turn rate for every speed would', () => {
+    const path = round();
+    const params = { ...NEAR, cruiseSpeed: 400, accel: 1e4, decel: 1e4, lateralAccel: 1e6 };
+    const plain = new Float64Array(path.x.length);
+    const turning = new Float64Array(path.x.length);
+    const slow = speedProfile(path, 0, 0, 0, params, plain);
+    const quick = speedProfile(path, 0, 0, 0, params, turning, null, TURN);
+    expect(quick).toBeLessThan(slow);
+    for (let i = 0; i < path.count; i += 1) {
+      expect(turning[i]).toBeGreaterThanOrEqual((plain[i] ?? 0) - 1e-9);
+      // ...and never faster than the ship can turn at that speed.
+      const bend = path.curvature[i] ?? 0;
+      const speed = turning[i] ?? 0;
+      expect(speed * bend).toBeLessThanOrEqual(Math.max(rateAt(speed), params.yawRate) + 1e-6);
+    }
   });
 });

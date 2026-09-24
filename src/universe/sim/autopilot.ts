@@ -1,9 +1,10 @@
-import type { AssistParams, BodyField } from './assist';
+import type { BodyField } from './assist';
+import { approachPace, type DockParams } from './docking';
 import { maxYawRate, speedOf } from './flight';
-import { angleDelta, angleOf, clamp } from './math';
+import { angleDelta, angleOf, clamp, lerp, smoothstep } from './math';
 import { bodyPositionAt, type OrbitTable } from './orbits';
 import { createPath, planPath, pointAlong, type Disc, type Path, type PathParams } from './path';
-import { speedProfile, type ProfileParams } from './profile';
+import { speedProfile, type ProfileParams, type TurnCurve } from './profile';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
 /**
@@ -12,11 +13,13 @@ import type { FlightInput, FlightParams, ShipState } from './types';
  * autonomous routine: a PATH round whatever is in the way (sim/path.ts), a SPEED PROFILE along
  * it (sim/profile.ts), and a PURSUIT that steers at a point a little way ahead on the path and
  * holds the profile's speed. It arrives beside the body's docking ring, travelling along it,
- * and hands over to the docking approach (sim/docking.ts), which is that ring's own pilot.
+ * and is taken into orbit right there (sim/docking.ts, arrive): the dock's springs bring it onto
+ * the ring. No journey is over sooner than `minJourneySec`, however near the body.
  *
- * Bodies move, and the ship never follows a path exactly, so the plan is made again about once
- * a second, from where the ship really is to where the body WILL be on arrival. Nothing ever
- * has to find its way back to a stale path. But a plan that is being flown at 280 u/s must not
+ * Bodies move, and the ship never follows a path exactly, so the plan is made again twice a
+ * second, from where the ship really is to where the body WILL be on arrival; a ship on its way
+ * keeps to the stretch of the last plan it is on (keepStretch). Nothing ever
+ * has to find its way back to a stale path. But a plan that is being flown at 700 u/s must not
  * change its mind. The path is the SHORTEST one (sim/path.ts), and the rest of a shortest path
  * is the shortest path from wherever the ship is on it, so planning again gives the same way
  * again; and every later plan keeps what the first one chose: which way round the ring to
@@ -36,7 +39,12 @@ export interface CruiseParams {
   /** The drive the autopilot flies with: the ordinary model, a stronger engine, less drag. */
   readonly flight: FlightParams;
   readonly path: PathParams;
-  /** Journeys longer than this (u) are flown by the `far` profile, shorter ones by `near`. */
+  /**
+   * u. Journeys shorter than `shortLeg` are flown by the `near` profile, longer than `longLeg` by
+   * `far`, and in between by a blend of the two that follows the length: a journey a little
+   * longer is never the slower one. (A switch at one length made the journey just below it slow.)
+   */
+  readonly shortLeg: number;
   readonly longLeg: number;
   readonly near: ProfileParams;
   readonly far: ProfileParams;
@@ -49,7 +57,7 @@ export interface CruiseParams {
    * the lot would be a detour, not a courtesy.
    */
   readonly familyReach: number;
-  /** The journey ends this many ring radii from the body; the docking approach takes over. */
+  /** The journey ends this many ring radii from the body, and is taken into orbit there. */
   readonly handOffRadii: number;
   /** Seconds between plans. Bodies move: a plan is only right for a while. */
   readonly replanSec: number;
@@ -77,6 +85,18 @@ export interface CruiseParams {
    * and every unit of distance from the nearest one allows this much more.
    */
   readonly openSpaceGain: number;
+  /**
+   * Beside a keep-out it is the speed TOWARD it that is held to that (a ship going past one is
+   * in no hurry to meet it, and one going away from it none at all), but never less than this
+   * share of the whole speed: nobody flies a path exactly, and a pass can turn into a meeting.
+   */
+  readonly passShare: number;
+  /**
+   * s. No journey is quicker than this, however near the next moon is: the profile is slowed to
+   * take at least this long, and the ship is not taken into orbit before. A hop must still read
+   * as a journey, not as a jump.
+   */
+  readonly minJourneySec: number;
 }
 
 export interface CruiseState {
@@ -93,13 +113,18 @@ export interface CruiseState {
   replanIn: number;
   /** Seconds the journey still takes, as of the last plan. */
   etaSec: number;
+  /** Seconds since the journey began. */
+  elapsedSec: number;
   /** No plan has been made for this journey yet: the next one chooses, later ones keep. */
   fresh: boolean;
   /**
-   * Which profile this journey is flown by. Chosen ONCE, by the length of the first plan: a long
-   * journey must not turn into a short one (and slam on the brakes) when it has 600 u left.
+   * How far toward `far` this journey's profile is: 0 is `near`, 1 is `far`. Chosen ONCE, by the
+   * length of the first plan: a long journey must not turn into a short one (and slam on the
+   * brakes) when it has 600 u left. Null until then.
    */
-  far: boolean | null;
+  far: number | null;
+  /** The blend of `near` and `far` this journey is flown by, filled in when `far` is chosen. */
+  readonly profile: { -readonly [K in keyof ProfileParams]: ProfileParams[K] };
   /**
    * Per head of a family: 1 when this journey goes round the whole family as one disc.
    * Threading between a planet and its moon is for journeys that begin or end there.
@@ -142,8 +167,18 @@ export function createCruiseState(bodyCount: number): CruiseState {
     spin: 1,
     replanIn: 0,
     etaSec: 0,
+    elapsedSec: 0,
     fresh: true,
     far: null,
+    profile: {
+      cruiseSpeed: 0,
+      accel: 0,
+      decel: 0,
+      lateralAccel: 0,
+      brakeRate: 0,
+      yawRate: 0,
+      minSpeed: 0,
+    },
     whole: new Uint8Array(bodyCount),
     family: new Float64Array(bodyCount),
     head: new Int32Array(bodyCount),
@@ -163,6 +198,7 @@ export function createCruiseState(bodyCount: number): CruiseState {
 export function beginCruise(cruise: CruiseState): void {
   cruise.replanIn = 0;
   cruise.etaSec = 0;
+  cruise.elapsedSec = 0;
   cruise.fresh = true;
   cruise.far = null;
   cruise.sides.fill(0);
@@ -172,22 +208,28 @@ export function beginCruise(cruise: CruiseState): void {
   cruise.path.count = 0;
 }
 
-/** The speed at which the docking approach wants to be handed a ship, u/s: about its own pace. */
-function handOverSpeed(ring: number, assist: AssistParams): number {
-  return Math.min(assist.orbitSpeed, Math.max(assist.orbitMaxRate * ring, 0.5 * assist.orbitSpeed));
+/** The speed a journey slows down to for its arrival, u/s: the pace the ring is flown onto at. */
+function handOverSpeed(ring: number, dock: DockParams): number {
+  return approachPace(ring, dock);
 }
 
 /**
- * The approach takes over a little BEFORE the end of the path: as soon as the ship is within
- * this many hand-over radii of the body. (A line that touches a circle is within 1.15 of its
- * radius for 0.57 of that radius before the touching point.)
+ * A journey arrives a little BEFORE the end of its path: as soon as the ship is within this many
+ * hand-over radii of the body. (A line that touches a circle is within 1.15 of its radius for 0.57
+ * of that radius before the touching point.)
  */
 const ARRIVAL_BAND = 1.15;
-/** ...and only at no more than this many times the speed it asks to be handed a ship at. */
+/**
+ * ...and only at no more than this many times the speed it slows down to. (The dock's springs take
+ * up what is left over. A ship that comes by faster has already passed the end of its path, and
+ * has to turn round.)
+ */
 const ARRIVAL_PACE = 2.5;
 const ARRIVAL_RUN = Math.sqrt(ARRIVAL_BAND * ARRIVAL_BAND - 1);
 
 const point = new Float64Array(2);
+/** How the profile may count on the ship turning faster when it is slow (filled in by each plan). */
+const turning: TurnCurve = { slow: 0, fast: 0, fastSpeed: 0 };
 
 /** Below this many seconds to go, the way round the ring is settled: no late changes of mind. */
 const SETTLED_SEC = 5;
@@ -203,6 +245,10 @@ const CHANGE_COST = 60;
  */
 const AIM_FULL = Math.cos((15 * Math.PI) / 180);
 const AIM_NONE = Math.cos((40 * Math.PI) / 180);
+/** u. How deep inside a keep-out it takes before all of the speed counts as closing on it. */
+const INSIDE_DEPTH = 4;
+/** u/s. Below this a ship turns on the spot toward where it steers; above it, it flies the curve. */
+const SPOT_SPEED = 30;
 /** How many pieces of the path ahead of the last known one the ship is looked for on. */
 const PROGRESS_WINDOW = 12;
 /**
@@ -212,6 +258,18 @@ const PROGRESS_WINDOW = 12;
 const AIM_SHORTER = 0.7;
 const AIM_TRIES = 8;
 const AIM_INSIDE = 0.97;
+/**
+ * A new plan for a ship that is on its way goes through this many points of the last plan first,
+ * over the next PathParams.leadSec of it; but only when the ship is no further than KEEP_OFF (u)
+ * from that plan.
+ */
+const KEEP_POINTS = 3;
+const KEEP_OFF = 8;
+/** ...and going along it: the cosine of the angle between its course and the plan's. */
+const KEEP_ALIGNED = 0.9;
+/** Scratch: those points, [x, z, ...]. */
+const keptPoints = new Float64Array(KEEP_POINTS * 2);
+const keptAt = new Float64Array(2);
 /** A goal inside somebody's keep-out moves round the circle by this much (rad) at a time, this often at most. */
 const GOAL_STEP = Math.PI / 12;
 const GOAL_TRIES = 12;
@@ -228,7 +286,7 @@ export function planCruise(
   i: number,
   simTime: number,
   params: CruiseParams,
-  assist: AssistParams,
+  dock: DockParams,
   cruise: CruiseState,
 ): void {
   const { head, family, whole, discs, bodyOf, walls, sides, passAt, times, nearest, nearestAt } =
@@ -266,6 +324,12 @@ export function planCruise(
       whole[j] = head[j] === j && head[i] !== j && away > (family[j] ?? 0) ? 1 : 0;
     }
   }
+
+  // A SHIP ON ITS WAY keeps to the stretch of the last plan in front of it. A plan that began
+  // the way the ship is GOING (PathParams.leadSec) would straighten every bend it is halfway
+  // round, twice a second: a sawtooth of straights and sharper bends, with the throttle and the
+  // brake taking turns. So the new plan goes through the next leadSec of the old one first.
+  const keptCount = fresh ? 0 : keepStretch(cruise, state, speed * params.path.leadSec);
 
   let eta = cruise.etaSec;
   for (let round = fresh ? 0 : 1; round < 2; round += 1) {
@@ -337,6 +401,8 @@ export function planCruise(
           remember ? walls : null,
           state.vx,
           state.vz,
+          keptPoints,
+          keptCount,
         );
         const loyal = fresh || spin === kept;
         const length = loyal ? cruise.path.length : cruise.path.length * CHANGE_SHARE + CHANGE_COST;
@@ -366,6 +432,8 @@ export function planCruise(
       remember ? walls : null,
       state.vx,
       state.vz,
+      keptPoints,
+      keptCount,
     );
     if (remember) {
       for (let j = 0; j < count; j += 1) {
@@ -374,34 +442,53 @@ export function planCruise(
         sides[body * 2 + 1] = walls[j * 2 + 1] ?? 0;
       }
     }
-    cruise.far ??= cruise.path.length > params.longLeg;
-    const profile = cruise.far ? params.far : params.near;
+    if (cruise.far === null) {
+      cruise.far = smoothstep(params.shortLeg, params.longLeg, cruise.path.length);
+      blendProfile(params.near, params.far, cruise.far, cruise.profile);
+    }
+    const { profile } = cruise;
 
-    // Fast is for open space.
+    // Fast is for open space, and for going PAST things (passingLimit).
     const { ceiling, path, speeds } = cruise;
     nearest.fill(Infinity);
     for (let k = 0; k < path.count; k += 1) {
-      let room = Infinity;
+      const px = path.x[k] ?? 0;
+      const pz = path.z[k] ?? 0;
+      const ahead = Math.min(k + 1, path.count - 1);
+      const behind = ahead - 1;
+      const tx = (path.x[ahead] ?? 0) - (path.x[behind] ?? 0);
+      const tz = (path.z[ahead] ?? 0) - (path.z[behind] ?? 0);
+      const run = Math.hypot(tx, tz) || 1;
+      let most = Infinity;
       for (let j = 0; j < count; j += 1) {
         const disc = discs[j];
         if (!disc) continue;
-        const away = Math.hypot((path.x[k] ?? 0) - disc.x, (path.z[k] ?? 0) - disc.z);
-        room = Math.min(room, away - disc.r);
+        const dx = disc.x - px;
+        const dz = disc.z - pz;
+        const away = Math.hypot(dx, dz);
         if (away < (nearest[j] ?? Infinity)) {
           nearest[j] = away;
           nearestAt[j] = k;
         }
+        const closing = away < 1e-9 ? 1 : (tx * dx + tz * dz) / (run * away);
+        most = Math.min(most, passingLimit(away - disc.r, closing, params));
       }
-      ceiling[k] = params.keepOutSpeed + params.openSpaceGain * Math.max(0, room);
+      ceiling[k] = most;
     }
+    // The profile's turn rate is a share of the drive's at speed; slower, the drive turns faster.
+    const { flight } = params;
+    turning.fast = profile.yawRate;
+    turning.slow = flight.yawRateSlow * (profile.yawRate / Math.max(flight.yawRateFast, 1e-9));
+    turning.fastSpeed = flight.yawRateFastSpeed;
     eta = speedProfile(
       path,
       speed,
-      handOverSpeed(ring, assist),
+      handOverSpeed(ring, dock),
       reach * ARRIVAL_RUN,
       profile,
       speeds,
       ceiling,
+      turning,
     );
 
     // A nose that points the wrong way is brought round before anything else happens, and that
@@ -416,6 +503,14 @@ export function planCruise(
             ),
           ) / maxYawRate(speed, params.flight);
     eta += turnSec;
+
+    // Too quick to read as a journey (the next moon along): the same profile, slower throughout.
+    const least = params.minJourneySec - cruise.elapsedSec;
+    if (eta > 1e-6 && eta < least) {
+      const slower = eta / least;
+      for (let k = 0; k < path.count; k += 1) speeds[k] = (speeds[k] ?? 0) * slower;
+      eta = least;
+    }
 
     // When does this plan pass what? The next one puts everything where it will be by then.
     times[0] = turnSec;
@@ -432,6 +527,81 @@ export function planCruise(
   cruise.etaSec = eta;
   cruise.index = 0;
   cruise.replanIn = params.replanSec;
+}
+
+/**
+ * The points of the last plan that the next one keeps to (into `keptPoints`): KEEP_POINTS of them,
+ * evenly over the next `lead` u of it from where the ship is, but no more than half of what is
+ * left of it. Returns how many: 0 when the ship is off that plan, or too near its end.
+ */
+function keepStretch(cruise: CruiseState, state: Readonly<ShipState>, lead: number): number {
+  const { path } = cruise;
+  const { x, z, s, count } = path;
+  if (count < 2) return 0;
+  const k = clamp(cruise.index, 0, count - 2);
+  const px = (x[k + 1] ?? 0) - (x[k] ?? 0);
+  const pz = (z[k + 1] ?? 0) - (z[k] ?? 0);
+  const span = px * px + pz * pz;
+  const t =
+    span < 1e-12
+      ? 0
+      : clamp(((state.x - (x[k] ?? 0)) * px + (state.z - (z[k] ?? 0)) * pz) / span, 0, 1);
+  if (Math.hypot(state.x - (x[k] ?? 0) - px * t, state.z - (z[k] ?? 0) - pz * t) > KEEP_OFF) {
+    return 0;
+  }
+  // ...and going its way already: a ship still bringing its nose round (out of a dock) is not
+  // on its way yet, and is better served by a plan from where it is going.
+  const speed = speedOf(state);
+  if (speed < SPOT_SPEED || span < 1e-12) return 0;
+  if ((state.vx * px + state.vz * pz) / (speed * Math.sqrt(span)) < KEEP_ALIGNED) return 0;
+  const here = (s[k] ?? 0) + t * Math.sqrt(span);
+  const stretch = Math.min(lead, (path.length - here) / 2);
+  if (!(stretch > 0)) return 0;
+  let from = k;
+  for (let q = 0; q < KEEP_POINTS; q += 1) {
+    from = pointAlong(path, here + (stretch * (q + 1)) / KEEP_POINTS, from, keptAt);
+    keptPoints[q * 2] = keptAt[0] ?? 0;
+    keptPoints[q * 2 + 1] = keptAt[1] ?? 0;
+  }
+  return KEEP_POINTS;
+}
+
+/**
+ * How fast (u/s) the path may go where it is `room` u outside a keep-out (less than 0: inside
+ * it), heading `closing` of the way toward the middle of it (the cosine: 1 is straight at it, 0
+ * is past it, below 0 away from it). Fast is for open space, and for going PAST things: beside a
+ * keep-out what counts is how fast the ship closes on it, not how fast it goes, though never less
+ * than the share passShare of it. Going away from one, nothing counts.
+ */
+export function passingLimit(
+  room: number,
+  closing: number,
+  params: Pick<CruiseParams, 'keepOutSpeed' | 'openSpaceGain' | 'passShare'>,
+): number {
+  if (closing <= 0) return Infinity;
+  // Inside, the share of the speed that counts creeps up to all of it within INSIDE_DEPTH: the
+  // ceiling has no step at the edge for the profile to trip over.
+  const share =
+    room >= 0 ? params.passShare : lerp(params.passShare, 1, Math.min(-room / INSIDE_DEPTH, 1));
+  return (
+    (params.keepOutSpeed + params.openSpaceGain * Math.max(room, 0)) / Math.max(closing, share)
+  );
+}
+
+/** The profile `share` of the way from `near` to `far`, written into `out`. */
+function blendProfile(
+  near: ProfileParams,
+  far: ProfileParams,
+  share: number,
+  out: CruiseState['profile'],
+): void {
+  out.cruiseSpeed = lerp(near.cruiseSpeed, far.cruiseSpeed, share);
+  out.accel = lerp(near.accel, far.accel, share);
+  out.decel = lerp(near.decel, far.decel, share);
+  out.lateralAccel = lerp(near.lateralAccel, far.lateralAccel, share);
+  out.brakeRate = lerp(near.brakeRate, far.brakeRate, share);
+  out.yawRate = lerp(near.yawRate, far.yawRate, share);
+  out.minSpeed = lerp(near.minSpeed, far.minSpeed, share);
 }
 
 /** What the last plan remembers of each body goes into a plan with that body's disc. */
@@ -489,13 +659,14 @@ export function cruiseInput(
   simTime: number,
   dt: number,
   params: CruiseParams,
-  assist: AssistParams,
+  dock: DockParams,
   cruise: CruiseState,
   out: FlightInput,
 ): FlightInput {
   cruise.replanIn -= dt;
+  cruise.elapsedSec += dt;
   if (cruise.replanIn <= 0 || cruise.path.count === 0) {
-    planCruise(orbits, field, state, i, simTime, params, assist, cruise);
+    planCruise(orbits, field, state, i, simTime, params, dock, cruise);
   }
   cruise.etaSec = Math.max(0, cruise.etaSec - dt);
 
@@ -582,29 +753,56 @@ export function cruiseInput(
   const facing = Math.abs(error) < Math.PI / 2;
   if (facing) {
     // A ship at rest has no curvature to fly; give it enough "speed" to bring its nose round.
-    const yaw = (2 * Math.max(speed, params.lookAhead[0]) * Math.sin(error)) / Math.max(reach, 1);
+    const pursue =
+      (2 * Math.max(speed, params.lookAhead[0]) * Math.sin(error)) / Math.max(reach, 1);
+    // And a slow one turns on the spot, as briskly as its nose settles: pure pursuit alone brings
+    // the last few degrees round lazily, and the throttle is waiting for them.
+    const spot = (error * (1 - smoothstep(0, SPOT_SPEED, speed))) / (4 * flight.yawResponseSec);
+    const yaw = Math.abs(spot) > Math.abs(pursue) ? spot : pursue;
     out.turn = clamp(yaw / maxYawRate(speed, flight), -1, 1);
   } else {
     out.turn = error < 0 ? -1 : 1;
   }
 
   // THROTTLE: the profile's speed here, the acceleration it is about to ask for, and whatever
-  // the drag takes. All of it waits for the nose: facing the wrong way, the only sensible speed
-  // is none.
+  // the drag takes. The throttle waits for the nose: speed made in the wrong direction has to be
+  // unmade again. The brake does not wait: too fast for the profile is too fast, whichever way
+  // the nose points. (A ship that is merely turning coasts: braking a slow ship to a standstill
+  // first, then turning, was a second lost at the start of every journey and in every skid.)
   const off = angleDelta(state.heading, angleOf(legX, legZ) + clamp(slip, -0.3, 0.3));
   const aim = facing ? clamp((Math.cos(off) - AIM_NONE) / (AIM_FULL - AIM_NONE), 0, 1) : 0;
   const v0 = speeds[index] ?? 0;
   const v1 = speeds[index + 1] ?? v0;
-  const wanted = aim * (v0 + (v1 - v0) * (along / leg));
-  const ahead = (aim * (v1 * v1 - v0 * v0)) / (2 * leg);
+  const wanted = v0 + (v1 - v0) * (along / leg);
+  // What the profile asks of the throttle over the next FEED_SEC, not over the next sample: a
+  // profile ripples a little from sample to sample (the spline's bends), and a feed-forward
+  // that followed every ripple would have the throttle and the brake taking turns at speed.
+  const span = Math.max(speed * FEED_SEC, leg - along);
+  const later = speedAlong(path, speeds, here + span, index);
+  const ahead = (later * later - wanted * wanted) / (2 * span);
   const forward = state.vx * Math.sin(state.heading) + state.vz * Math.cos(state.heading);
   const push = ahead + params.speedGain * (wanted - forward) + flight.forwardDrag * forward;
   if (push >= 0) {
-    out.thrust = clamp((Math.cos(error) * push) / flight.thrustAccel, 0, 1);
+    out.thrust = aim > 0 ? clamp((aim * Math.cos(error) * push) / flight.thrustAccel, 0, 1) : 0;
   } else {
     out.brake = clamp(-push / (flight.brakeDrag * Math.max(forward, 1)), 0, 1);
   }
   return out;
+}
+
+/** s. The throttle's feed-forward reads the profile this far ahead (see cruiseInput). */
+const FEED_SEC = 0.1;
+
+/** The profile's speed at distance `at` along the path, u/s (searching from sample `from`). */
+function speedAlong(path: Readonly<Path>, speeds: Float64Array, at: number, from: number): number {
+  const { s, count } = path;
+  let i = Math.max(0, Math.min(from, count - 2));
+  while (i + 2 < count && (s[i + 1] ?? 0) < at) i += 1;
+  const s0 = s[i] ?? 0;
+  const run = (s[i + 1] ?? s0) - s0;
+  const t = run > 1e-9 ? clamp((at - s0) / run, 0, 1) : 0;
+  const a = speeds[i] ?? 0;
+  return a + ((speeds[i + 1] ?? a) - a) * t;
 }
 
 /**
@@ -629,17 +827,20 @@ function aimIsClear(ax: number, az: number, bx: number, bz: number, cruise: Crui
 }
 
 /**
- * Has the journey to body `i` reached the circle where the docking approach takes over? Within
- * reach is not enough: a ship that comes by at speed (its plan changed under it, the body came to
- * meet it) stays the autopilot's until it has slowed down. The approach is a gentle pilot.
+ * Has the journey to body `i` arrived beside its ring, to be taken into orbit there? Within reach
+ * is not enough: a ship that comes by at speed (its plan changed under it, the body came to meet
+ * it) stays the autopilot's until it has slowed down. Nor is it before the journey has lasted
+ * `minJourneySec` (`elapsedSec` so far).
  */
 export function cruiseArrived(
   field: BodyField,
   state: Readonly<ShipState>,
   i: number,
   params: CruiseParams,
-  assist: AssistParams,
+  dock: DockParams,
+  elapsedSec = Infinity,
 ): boolean {
+  if (elapsedSec < params.minJourneySec) return false;
   const ring = field.ringRadius[i] ?? 0;
   const d = Math.hypot(
     state.x - (field.positions[i * 2] ?? 0),
@@ -650,5 +851,5 @@ export function cruiseArrived(
     state.vx - (field.velocities[i * 2] ?? 0),
     state.vz - (field.velocities[i * 2 + 1] ?? 0),
   );
-  return pace <= handOverSpeed(ring, assist) * ARRIVAL_PACE;
+  return pace <= handOverSpeed(ring, dock) * ARRIVAL_PACE;
 }

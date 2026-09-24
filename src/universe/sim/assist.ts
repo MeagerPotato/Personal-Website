@@ -156,13 +156,26 @@ export function chooseBody(
 }
 
 /**
+ * The pace of a pilot who ASKED to be on the ring (sim/docking.ts), instead of the loose assist's
+ * `orbitSpeed` and `orbitMaxRate`: they want to be there, not to drift there.
+ */
+export interface WishPace {
+  /** u/s along the ring ... */
+  readonly speed: number;
+  /** ... but never more than this many radians per second round the body. */
+  readonly maxRate: number;
+  /** u/s faster for every unit still off the ring, up to `speed`. */
+  readonly hurry: number;
+}
+
+/**
  * What a pilot who wants to circle body `i` would do with the controls right now, written into
  * `out`. Chooses which way round when `assist.spin` is still 0, and follows a pilot who has
  * clearly turned round.
  *
- * `hurry` (u/s per unit off the ring) is for a pilot who ASKED to be there (sim/docking.ts): the
- * further from the ring, the faster the way back to it, up to the normal pace limit. The loose
- * assist never hurries.
+ * `pace` is for a pilot who ASKED to be there (sim/docking.ts): its own pace, a hurry (the further
+ * from the ring, the faster the way back to it), and the brake when the ship is too fast for it.
+ * The loose assist never hurries, and never brakes: that is the pilot's to do.
  */
 export function orbitWish(
   field: BodyField,
@@ -172,7 +185,7 @@ export function orbitWish(
   params: AssistParams,
   assist: AssistState,
   out: FlightInput,
-  hurry = 0,
+  pace: Readonly<WishPace> | null = null,
 ): FlightInput {
   const bodyVx = field.velocities[i * 2] ?? 0;
   const bodyVz = field.velocities[i * 2 + 1] ?? 0;
@@ -215,19 +228,18 @@ export function orbitWish(
   dirZ /= length;
 
   // The body moves too: the ring is followed in ITS frame, so its velocity is added on top.
-  const pace = Math.min(
-    params.orbitSpeed,
-    Math.min(params.orbitSpeed, params.orbitMaxRate * ring) + hurry * Math.abs(off),
-  );
-  const wantX = pace * dirX + bodyVx;
-  const wantZ = pace * dirZ + bodyVz;
+  const top = pace ? pace.speed : params.orbitSpeed;
+  const rate = pace ? pace.maxRate : params.orbitMaxRate;
+  const speed = Math.min(top, Math.min(top, rate * ring) + (pace ? pace.hurry : 0) * Math.abs(off));
+  const wantX = speed * dirX + bodyVx;
+  const wantZ = speed * dirZ + bodyVz;
   const wantSpeed = Math.hypot(wantX, wantZ);
 
   // Feed-forward. To stay on a circle the nose has to keep turning, and a turning ship slides
   // outward a little (the grip is finite): so ask for the turn rate of the ring up front, and
   // point the nose into the turn by the slip angle. What is left for the feedback is the error.
   const share = Math.max(0, spin * (dirX * alongX + dirZ * alongZ));
-  const ringRate = spin * (pace / ring) * share * share;
+  const ringRate = spin * (speed / ring) * share * share;
   const noseTarget = angleOf(wantX, wantZ) + Math.atan2(ringRate, flight.lateralGrip);
   const error = angleDelta(state.heading, noseTarget);
 
@@ -236,7 +248,9 @@ export function orbitWish(
   const forwardSpeed = state.vx * noseX + state.vz * noseZ;
   const push = flight.forwardDrag * wantSpeed + params.speedGain * (wantSpeed - forwardSpeed);
   out.thrust = clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
-  out.brake = 0;
+  // A pilot who asked to be there also brakes, when the ship is faster than the pace it wants.
+  out.brake =
+    pace && push < 0 ? clamp(-push / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1) : 0;
   out.boost = false;
   return out;
 }
