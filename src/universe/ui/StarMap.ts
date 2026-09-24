@@ -110,6 +110,8 @@ export class StarMap implements System, MapSight {
   private readonly button: HTMLButtonElement | null;
   private readonly label: HTMLSpanElement | null = null;
   private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
+  /** What `frame()` answers with: one object, filled in again on every call (it is asked a lot). */
+  private readonly framed = { width: 1, height: 1 };
   private readonly pointers = new Map<number, { x: number; y: number }>();
   /**
    * Fingers (and a mouse) that went down on a name and have not moved far yet: a tap on the name,
@@ -301,12 +303,11 @@ export class StarMap implements System, MapSight {
    * Map button. On a phone with a page open that is a third of the screen, and whatever the map
    * opens on must be in it, not under a button.
    */
-  private frame(): { width: number; height: number } {
+  private frame(): Readonly<{ width: number; height: number }> {
     const { view } = this.options;
-    return {
-      width: this.width * view.freeWidth,
-      height: Math.max(1, this.height * view.freeHeight - this.ceiling()),
-    };
+    this.framed.width = this.width * view.freeWidth;
+    this.framed.height = Math.max(1, this.height * view.freeHeight - this.ceiling());
+    return this.framed;
   }
 
   /** How much of the top of the view is taken, CSS px. */

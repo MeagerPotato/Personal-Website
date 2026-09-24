@@ -134,8 +134,9 @@ describe('the bottom sheet', () => {
 
     button('resize').click();
     expect(root.dataset.panelSize).toBe('full');
-    expect(button('resize').getAttribute('aria-pressed')).toBe('true');
     expect(button('resize').textContent).toBe('Shrink');
+    // Its name says what it does; a pressed state as well would contradict it ("Shrink, pressed").
+    expect(button('resize').hasAttribute('aria-pressed')).toBe(false);
 
     panel?.dispose();
     expect(root.dataset.panelSize).toBeUndefined();

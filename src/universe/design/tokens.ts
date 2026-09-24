@@ -20,14 +20,16 @@ export const tokens = {
       600: '#222d57',
     },
     /**
-     * Text on space/surface. Measured WCAG contrast on space.900: high 17.2, mid 10.6, low 6.0.
-     * Worst case is `low` on surface.raised at 4.8, still above AA (4.5). Re-measure if you change
-     * either side.
+     * Text on space/surface. Measured WCAG contrast on space.900: high 17.2, mid 10.6, low 6.7.
+     * Worst case in use is `low` on surface.raised at 5.3. `low` is never text on the HUD plate
+     * over the 3D world (4.49 over white). It also paints the rocket's metal and the docks' dark
+     * parts (design/models): look at the ship after changing it. src/site/contrast.test.ts
+     * measures every pairing the stylesheet relies on.
      */
     ink: {
       high: '#f1f3fb',
       mid: '#b9c1dc',
-      low: '#8690b3',
+      low: '#8e98ba',
     },
     /** Panels, cards, hairlines. */
     surface: {
@@ -37,18 +39,26 @@ export const tokens = {
     },
     /**
      * One pastel family per solar system (Mini Motorways: muted, slightly desaturated).
-     * base = lit surfaces and labels, light = highlights, shade = the tinted shadow side.
+     * base = lit surfaces, labels and the DOM's fills (chips, route lines), light = highlights,
+     * shade = the tinted shadow side. The five bases are spread in LIGHTNESS as well as hue
+     * (butter and mint light, sky and coral middle, lilac deepest), so that no two collapse into
+     * one for a colour-blind visitor: the closest pair under protanopia, deuteranopia or
+     * tritanopia is still about 10 CIEDE2000 apart (was 1.1: sky and lilac under deuteranopia).
+     * Every base carries navy text (space.900) at 6.2:1 or more (lilac; butter and mint 13.9+).
      */
     system: {
-      coral: { base: '#f2a097', light: '#f9cdc7', shade: '#c8766f' },
-      butter: { base: '#f3d88a', light: '#f9ebbf', shade: '#c9ad5e' },
-      mint: { base: '#9ed9c1', light: '#cdeee1', shade: '#6fb39a' },
-      sky: { base: '#9ac4ee', light: '#cbe0f7', shade: '#6c9bcb' },
-      lilac: { base: '#c3b0f0', light: '#e0d6f8', shade: '#9886c9' },
+      coral: { base: '#f19389', light: '#f8c9c4', shade: '#c3645c' },
+      butter: { base: '#f8d98c', light: '#fcecc6', shade: '#c8aa59' },
+      mint: { base: '#b8eac4', light: '#dcf4e2', shade: '#87bb94' },
+      sky: { base: '#8bc0f2', light: '#c5e0f9', shade: '#5593c6' },
+      lilac: { base: '#ab86bf', light: '#d5c3df', shade: '#7f5a94' },
     },
     /**
      * Planet surfaces, lowest altitude to highest: sea, shore, low, high, peak. A project picks one
      * by name in its frontmatter (`planet.biome`). First-pass values; Astra's A2 pass refines them.
+     * Some stops were once the system families' colours (tide, ember, bloom). A1 moved the
+     * families (lilac most of all) and left these alone, so a biome is its own palette now: A2
+     * decides whether planets follow their system's family again.
      */
     biome: {
       terra: { sea: '#7fb0dd', shore: '#f3e3b3', low: '#a8d8a0', high: '#7dbb8a', peak: '#f4f1ea' },
@@ -65,9 +75,12 @@ export const tokens = {
     shading: {
       shadow: '#bbbfdd',
     },
-    /** Interactive text and the keyboard focus ring. */
-    accent: '#9ac4ee',
-    focus: '#f3d88a',
+    /**
+     * Interactive text (the sky base), and BUTTER, WHICH MEANS "HERE": the focus ring, the current
+     * page's marker, the name the ship is headed for (the butter base).
+     */
+    accent: '#8bc0f2',
+    focus: '#f8d98c',
     /** Starfield tints. */
     star: {
       warm: '#fff1d6',
@@ -78,26 +91,34 @@ export const tokens = {
 
   font: {
     /**
-     * ui-rounded gives SF Rounded on Apple devices for free. A1 chooses self-hosted faces: the
-     * candidates are in public/fonts with an @font-face each (src/styles/global.css, section 0),
-     * and a face is adopted by putting its family name FIRST in one of these stacks. A face that
-     * no stack names is never downloaded.
+     * ONE self-hosted face for everything a visitor reads: Outfit (variable 100 to 900, Latin
+     * subset, 32 KB, public/fonts), the clean geometric sans closest to Mini Motorways' own
+     * lettering. Headings, body, labels, chips and the HUD all speak it, the way every sign on a
+     * transit map is set in one face. 'Outfit Fallback' is local Arial scaled to Outfit's measure
+     * and line box (section 0 of src/styles/global.css), so the swap moves very little: a single
+     * line stays put, though a paragraph right at a line break can gain or lose a line.
      */
-    body: "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Segoe UI', system-ui, sans-serif",
-    /** Headings and the wordmark. The same as `body` until A1 decides otherwise. */
-    display:
-      "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Segoe UI', system-ui, sans-serif",
+    body: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
+    /** Headings and the wordmark: the same face, heavier. */
+    display: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
+    /** Code only (Markdown `code` and `pre`): the system's own mono, nothing to download. */
     mono: "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
   },
 
-  /** Fluid type scale: min at 360 px wide, max at ~1200 px. */
+  /**
+   * Fluid type scale: min at 360 px wide, max at 1200 to 1300 px (base alone goes on growing, to
+   * 19 px near 1680 px). Outfit is set a touch larger than the old system stack at the body sizes:
+   * its x-height is smaller than Segoe's or SF's. The steps that carry the hierarchy, on a 1280 px
+   * laptop and on a phone: display (the h1) 60 / 40 px, xl (h2 and section heads) 30 / 24, lg (the
+   * lede) 25 / 21, base (body) 18 / 17.
+   */
   text: {
     xs: 'clamp(0.75rem, 0.72rem + 0.12vw, 0.8125rem)',
-    sm: 'clamp(0.875rem, 0.84rem + 0.15vw, 0.9375rem)',
-    base: 'clamp(1rem, 0.96rem + 0.2vw, 1.125rem)',
-    lg: 'clamp(1.25rem, 1.15rem + 0.45vw, 1.5rem)',
-    xl: 'clamp(1.75rem, 1.5rem + 1.1vw, 2.5rem)',
-    display: 'clamp(2.25rem, 1.8rem + 2.2vw, 3.75rem)',
+    sm: 'clamp(0.9375rem, 0.91rem + 0.12vw, 1rem)',
+    base: 'clamp(1.0625rem, 1.03rem + 0.15vw, 1.1875rem)',
+    lg: 'clamp(1.3125rem, 1.2rem + 0.45vw, 1.5625rem)',
+    xl: 'clamp(1.5rem, 1.3rem + 0.75vw, 1.875rem)',
+    display: 'clamp(2.5rem, 1.95rem + 2.4vw, 3.75rem)',
   },
 
   /**
@@ -106,11 +127,11 @@ export const tokens = {
    */
   textNarrow: {
     xs: '0.75rem',
-    sm: '0.875rem',
-    base: '1rem',
-    lg: '1.25rem',
-    xl: '1.75rem',
-    display: '2.25rem',
+    sm: '0.9375rem',
+    base: '1.0625rem',
+    lg: '1.3125rem',
+    xl: '1.5rem',
+    display: '2.5rem',
   },
 
   space: {

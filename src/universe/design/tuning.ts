@@ -408,6 +408,15 @@ export const tuning = {
     minHorizontalFovDegrees: 40,
     maxFovDegrees: 95,
     portraitDistanceScale: 1.3,
+    /**
+     * Where only a strip of the view is free (a phone with the sheet up: between the solid top
+     * bar and the sheet), that strip must still see this much, top to bottom, in degrees: from
+     * the top of a planet on the horizon to the ship's tail, with some sky round them. The lens
+     * widens to make it so, but by no more than maxFitWiden (in the tangent of its half-angle),
+     * so that a sliver of a strip gets a smaller picture, not a fisheye.
+     */
+    fitDegrees: 34,
+    maxFitWiden: 1.45,
   } satisfies ChaseCamParams,
 
   /** The camera of a docked ship: the body is the subject, the ship circles through the picture. */

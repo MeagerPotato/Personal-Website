@@ -1,7 +1,7 @@
 import { orbitWish, type AssistParams, type AssistState, type BodyField } from './assist';
 import { REFLEX_LEAD_SEC, courseLimits, ownLimits } from './reflex';
 import { TAU, angleOf, clamp } from './math';
-import { speedOf } from './flight';
+import { isSteering, speedOf } from './flight';
 import { createSpring, stepSpring, type SpringState } from './spring';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
@@ -123,12 +123,12 @@ export function createDockState(): DockState {
   };
 }
 
-function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
-  return input.thrust > deadZone || Math.abs(input.turn) > deadZone || input.boost;
-}
-
+/**
+ * Is the pilot opening the throttle, past `deadZone`? Boost alone is not: it only multiplies
+ * thrust, and Shift is also half of Shift+Tab (sim/flight.ts, isSteering).
+ */
 function isThrusting(input: Readonly<FlightInput>, deadZone: number): boolean {
-  return input.thrust > deadZone || input.boost;
+  return input.thrust > deadZone;
 }
 
 /**

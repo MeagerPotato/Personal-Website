@@ -22,6 +22,8 @@ export interface ChaseCamParams {
   readonly minHorizontalFovDegrees: number;
   readonly maxFovDegrees: number;
   readonly portraitDistanceScale: number;
+  readonly fitDegrees: number;
+  readonly maxFitWiden: number;
 }
 
 /** What the camera follows: the ship's in-between pose (ship/ShipSystem.ts). */
@@ -42,8 +44,16 @@ const UP = new Vector3(0, 1, 0);
  *
  * The springs are exact and are told how fast their targets move (sim/spring.ts), so the view is
  * the same at 30, 60 or 144 frames per second, and uneven frames do not show as judder.
+ *
+ * The picture is composed for a whole screen: the horizon (where every planet is) about a third
+ * of the way down, the ship at about 70 %. On a phone with the sheet up only a strip of it is
+ * free, between the solid top bar and the sheet, and the rig puts the middle of the view in the
+ * middle of that strip (`avoidsTop`). The lens then widens until the strip holds the same picture,
+ * smaller: the planet ahead clear of the bar, the ship clear of the sheet.
  */
 export class ChaseCam implements CameraMode {
+  /** It frames the ship and what lies ahead of it: clear of a phone's solid top bar too. */
+  readonly avoidsTop = true;
   private readonly x = createSpring();
   private readonly z = createSpring();
   private readonly yaw = createSpring();
@@ -137,7 +147,18 @@ export class ChaseCam implements CameraMode {
     const wanted = base + params.fovBoostDegrees * clamp(this.rush.value, 0, 1);
     const halfHorizontal = (params.minHorizontalFovDegrees / 2) * RAD_PER_DEG;
     const needed = (2 * Math.atan(Math.tan(halfHorizontal) / aspect)) / RAD_PER_DEG;
-    out.fov = clamp(Math.max(wanted, needed), 1, params.maxFovDegrees);
+    // The free strip sees `strip` of the lens's height (in tangents: the view offset keeps the
+    // strip in the middle of the lens). Too little, and the lens widens, within reason.
+    const asked = Math.max(wanted, needed);
+    const lens = Math.tan((asked / 2) * RAD_PER_DEG);
+    const strip = Math.max(view.freeHeight - view.freeTop, 1e-3);
+    const fit = clamp(
+      Math.tan((params.fitDegrees / 2) * RAD_PER_DEG) / (lens * strip),
+      1,
+      params.maxFitWiden,
+    );
+    const fitted = fit > 1 ? (2 * Math.atan(lens * fit)) / RAD_PER_DEG : asked;
+    out.fov = clamp(fitted, 1, params.maxFovDegrees);
 
     // A wider lens makes everything smaller. Moving in as the lens widens with SPEED gives some of
     // that back to the ship, while the sky still stretches: the rush without losing the hero.

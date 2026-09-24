@@ -26,12 +26,18 @@ export interface ViewShape {
   /** Width / height of the whole viewport. */
   readonly aspect: number;
   /**
-   * The part of the viewport that the info panel leaves FREE, as shares of its width and height
-   * (1 = all of it). The rig already puts the middle of the view in the middle of that part; a
-   * mode that frames something uses these to decide how far to stand back.
+   * The part of the viewport that the page's chrome leaves FREE, as shares of its width and height
+   * (1 = all of it), from the top left corner: across to `freeWidth`, and down from `freeTop` to
+   * `freeHeight` (where a bottom sheet begins). The rig already puts the middle of the view in the
+   * middle of that part; a mode that frames something uses these to decide how far to stand back.
    */
   readonly freeWidth: number;
   readonly freeHeight: number;
+  /**
+   * How much of the top is covered, as a share of the height: 0 but on a phone with the sheet
+   * up, where the top bar and the row of controls under it are solid (shell/panel-inset.ts).
+   */
+  readonly freeTop: number;
 }
 
 /** One way of looking at the world: chase, orbit, map; cinematic later. */
@@ -44,6 +50,14 @@ export interface CameraMode {
    * in from where it last saw it.)
    */
   enter?(): void;
+  /**
+   * Does this mode leave a covered top band out of the view, as it does what the panel covers
+   * (`setInset`'s `top`)? A mode that FRAMES a subject does: the orbit camera puts the body
+   * clear of a phone's solid top bar, and the chase camera fits the ship and the planet ahead
+   * into the strip under it. The star map does not: it fits the galaxy below the bar on its own.
+   * Left out, it does not.
+   */
+  readonly avoidsTop?: boolean;
 }
 
 export interface RigParams {
@@ -173,13 +187,15 @@ export class CameraRig implements System {
 
   private width = 1;
   private height = 1;
+  private readonly insetTop = createSpring(0);
   private readonly insetRight = createSpring(0);
   private readonly insetBottom = createSpring(0);
+  private wantTop = 0;
   private wantRight = 0;
   private wantBottom = 0;
   private offsetX = 0;
   private offsetY = 0;
-  private readonly view = { aspect: 1, freeWidth: 1, freeHeight: 1 };
+  private readonly view = { aspect: 1, freeWidth: 1, freeHeight: 1, freeTop: 0 };
   private readonly depth: DepthRange;
 
   constructor(
@@ -238,16 +254,25 @@ export class CameraRig implements System {
     }
     this.blendSec = blendSec;
     this.mode = mode;
+    // A cut is a cut for the window too: the new mode's view of the top band, at once.
+    if (blendSec <= 0) {
+      snapSpring(this.insetTop, this.topWanted());
+      this.slide(0);
+    }
   }
 
   /**
-   * How much of the viewport the info panel covers, in CSS pixels from the right and from the
-   * bottom. The view eases over; `cut` jumps (the first layout of a page).
+   * How much of the viewport the page's chrome covers, in CSS pixels from the right and from the
+   * bottom (the info panel), and from the top (a phone's solid top bar, over the sheet: only a
+   * mode that `avoidsTop` leaves that out). The view eases over; `cut` jumps (the first layout
+   * of a page).
    */
-  setInset(inset: { right?: number; bottom?: number }, cut = false): void {
+  setInset(inset: { top?: number; right?: number; bottom?: number }, cut = false): void {
+    this.wantTop = Math.max(0, inset.top ?? 0);
     this.wantRight = Math.max(0, inset.right ?? 0);
     this.wantBottom = Math.max(0, inset.bottom ?? 0);
     if (cut) {
+      snapSpring(this.insetTop, this.topWanted());
       snapSpring(this.insetRight, this.wantRight);
       snapSpring(this.insetBottom, this.wantBottom);
       // Whoever asks for the shape of the view before the next frame (the star map, fitting the
@@ -289,19 +314,29 @@ export class CameraRig implements System {
     this.camera.clearViewOffset();
   }
 
+  /** The covered top band, if the mode in charge leaves it out of the view. */
+  private topWanted(): number {
+    return this.mode.avoidsTop === true ? this.wantTop : 0;
+  }
+
   /** Ease the inset, and slide the window onto the view so that its middle is the free part's. */
   private slide(dt: number): void {
     const { width, height, params } = this;
+    stepSpring(this.insetTop, this.topWanted(), params.insetOmega, dt);
     stepSpring(this.insetRight, this.wantRight, params.insetOmega, dt);
     stepSpring(this.insetBottom, this.wantBottom, params.insetOmega, dt);
-    // Never more than most of the view: something of the world must stay in sight.
+    // Never more than most of the view: something of the world must stay in sight. The top
+    // band comes out of what the sheet leaves.
     const right = clamp(this.insetRight.value, 0, width * 0.8);
     const bottom = clamp(this.insetBottom.value, 0, height * 0.8);
+    const top = clamp(this.insetTop.value, 0, height * 0.8 - bottom);
     this.view.freeWidth = 1 - right / width;
     this.view.freeHeight = 1 - bottom / height;
+    this.view.freeTop = top / height;
 
+    // The middle of the free part is (bottom - top) / 2 above the middle of the viewport.
     const x = Math.round(right) / 2;
-    const y = Math.round(bottom) / 2;
+    const y = (Math.round(bottom) - Math.round(top)) / 2;
     if (x === this.offsetX && y === this.offsetY) return;
     this.offsetX = x;
     this.offsetY = y;

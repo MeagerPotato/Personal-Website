@@ -144,12 +144,22 @@ export interface Universe {
    * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
    * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
    *
-   * `top` is how far down the page's top bar reaches. A flying camera does not care (the bar is
-   * a strip of sky with words on it, not a wall), but the names over the bodies keep clear of it,
-   * and so does the star map.
+   * `top` is how far down the links of the page's top bar reach: the names over the bodies keep
+   * clear of them, and so does the star map. `frameTop` is how much of the top the camera leaves
+   * out as well, as it does what a panel covers: none wherever the bar is a strip of sky with a
+   * few chips on it, more on a phone with the sheet up, where the bar is solid and a row of
+   * controls hangs under it (shell/panel-inset.ts). `foot` is the corner that the page's footer
+   * chip takes at the bottom left, from the left edge to `right` and from `top` down: the names
+   * keep off it.
    */
   setPanelInset(
-    inset: { top?: number; right?: number; bottom?: number },
+    inset: {
+      top?: number;
+      right?: number;
+      bottom?: number;
+      frameTop?: number;
+      foot?: { right: number; top: number };
+    },
     options?: { cut?: boolean },
   ): void;
   setPaused(paused: boolean): void;

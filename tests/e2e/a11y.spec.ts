@@ -59,3 +59,26 @@ test.describe('in the universe', () => {
     expect(await sameDocument(page)).toBe(true);
   });
 });
+
+test.describe('with a keyboard', () => {
+  test.skip(({ isMobile }) => isMobile, 'a keyboard');
+
+  // Shift is the boost key, and also half of Shift+Tab. Going back one control must change
+  // nothing else (WCAG 3.2.1): not leave orbit, and so not close the page being read.
+  test('Shift+Tab only moves the focus back, from anywhere in the bar', async ({ page }) => {
+    await openUniverse(page, '/projects/fishai/');
+    const prompt = page.locator('.dock-prompt');
+    await expect(prompt).toContainText('Leave orbit');
+    const resume = page.locator('.site-nav').getByRole('link', { name: 'Resume' });
+    await resume.focus();
+    await page.keyboard.down('Shift');
+    await page.keyboard.press('Tab');
+    // A non-event: give the ship time to leave, as it did (well inside this) before the fix.
+    await page.waitForTimeout(1500);
+    await page.keyboard.up('Shift');
+    await expect(resume).not.toBeFocused();
+    expect(new URL(page.url()).pathname).toBe('/projects/fishai/');
+    await expect(page.locator('html')).toHaveAttribute('data-panel', 'open');
+    await expect(prompt).toContainText('Leave orbit');
+  });
+});

@@ -334,6 +334,25 @@ describe('docking', () => {
     expect(asked.world.dock.halting).toBe(false);
   });
 
+  it('takes boost on its own for nothing: not "leave", not "stop" (Shift is half of Shift+Tab)', () => {
+    const boost = { ...NO_INPUT, boost: true };
+    const flight = near('planet', 1.6, 0.5, 2, 5, 5);
+    request(flight, 'planet');
+    fly(flight, 0.5);
+    expect(flight.world.dock.phase).toBe('approach');
+    fly(flight, 0.5, boost);
+    expect(flight.world.dock.phase).toBe('approach');
+    fly(flight, 10, boost);
+    expect(flight.world.dock.phase).toBe('docked');
+    fly(flight, 2, boost);
+    expect(flight.world.dock.phase).toBe('docked');
+    expect(flight.world.dock.leftByPilot).toBe(false);
+    // Boost with thrust is flying, and leaves.
+    step(flight, { ...boost, thrust: 1 });
+    expect(flight.world.dock.phase).toBe('free');
+    expect(flight.world.dock.leftByPilot).toBe(true);
+  });
+
   it('leaves without a jolt, and full thrust is clear of the ring in 3 seconds', () => {
     const flight = near('planet', 1, 0, Math.PI / 2, 10, 0);
     request(flight, 'planet');

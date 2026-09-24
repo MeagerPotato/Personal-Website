@@ -22,8 +22,9 @@ Tick the boxes in a copy of this file in the launch PR's description, not here.
       card. The build already fails on any `TODO(copy)` that would ship.
 - [ ] **H** The points to confirm in docs/PLAN.md §9 are answered (the summer of 2024, the
       preparedness club's dates, the VEX numbers, the Raytheon title, the name on the resume).
-- [ ] **H → C** Astra's visual identity pass (A1) is merged. Claude then deletes the typefaces
-      that were not chosen, with their `@font-face` rules, and preloads the ones that were.
+- [ ] **H → C** The visual identity pass (A1) is merged. Claude did it at Allen's request, on
+      `claude/a1-visual-identity`; it already deletes the typefaces that were not chosen, with
+      their `@font-face` rules, and preloads the one that was (Outfit).
 - [ ] **H → C** The playtest on a laptop and a real phone (Phase 1's exit gate) has happened, and
       what it found is in a tuning-only PR.
 
@@ -68,8 +69,10 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       filter `cloudflareinsights`), and none with Do Not Track on.
 - [ ] securityheaders.com: grade A.
 - [ ] Lighthouse, mobile, plain mode, on `/`, `/about/`, `/projects/fishai/`, `/resume/`:
-      performance ≥ 95, the other three 100, LCP < 1.5 s, CLS < 0.02. Measured before launch
+      performance ≥ 95, the other three 100, LCP < 1.5 s, CLS < 0.02. Measured on 2026-09-21
       behind `wrangler dev`: 100 / 100 / 100 / 100, LCP 0.9 to 1.1 s, CLS 0 (docs/PLAN.md §6).
+      That was before A1 added a preloaded 31.5 KiB font to every page: measure again, first
+      behind `npm run preview`, then on the live site.
 
 ## 3. By hand (H)
 

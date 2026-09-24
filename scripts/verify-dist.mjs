@@ -7,7 +7,8 @@
 //      page names a link-preview image (og:image) that is absolute, on this site, and exists
 //   4. PLAIN-MODE PURITY: no page can reach three.js through static imports. The engine must
 //      only ever be reachable through a dynamic import(), which plain mode never executes.
-//   5. WEIGHT BUDGETS: what plain mode costs per page, and what the lazy engine costs in total.
+//   5. WEIGHT BUDGETS: what plain mode costs per page, the fonts every page preloads, and what
+//      the lazy engine costs in total.
 //   6. NO PLACEHOLDER COPY: "TODO(copy)" may sit in drafts and in source, never in what ships.
 //   7. SWAP CONTRACT: outside <main> and [data-page-head], every page is byte-identical (the
 //      nav's aria-current aside), and has exactly one <h1>. The router (Phase 2) swaps only
@@ -45,6 +46,12 @@ const BUDGET = {
    * loader): docs/PLAN.md §9. Plain mode never downloads any of it.
    */
   lazyScripts: 220 * 1024,
+  /**
+   * Every font a page PRELOADS, in raw bytes (woff2 is compressed already): fetched with the page
+   * in both modes, so part of what a first visit costs, and counted on its own line so that a
+   * second face or weight cannot slip in unnoticed. One variable face (Outfit, Latin) is 32 KiB.
+   */
+  fonts: 40 * 1024,
 };
 
 const errors = [];
@@ -66,6 +73,17 @@ async function gzipSize(sitePath) {
   return gzipCache.get(sitePath);
 }
 const kib = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
+
+/** The fonts a page asks for with <link rel="preload" as="font">, as they appear in its HTML. */
+function preloadedFonts(html) {
+  const fonts = [];
+  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
+    if (!/\brel=["']?preload\b/i.test(tag) || !/\bas=["']?font\b/i.test(tag)) continue;
+    const href = /\bhref=["']?([^"'\s>]+)/i.exec(tag)?.[1];
+    if (href) fonts.push(href);
+  }
+  return fonts;
+}
 
 // 1 --- headers ---------------------------------------------------------------------------
 if (!sitePaths.has('/_headers')) {
@@ -204,6 +222,23 @@ for (const page of pages) {
   }
 }
 
+let heaviestFonts = { pagePath: '', weight: 0 };
+for (const page of pages) {
+  let weight = 0;
+  for (const href of preloadedFonts(page.html)) {
+    const target = toSitePath(href, page.pagePath);
+    // A preload of a file that is not there is already a broken reference (3).
+    if (target && sitePaths.has(target))
+      weight += (await readFile(resolve(DIST, `.${target}`))).length;
+  }
+  if (weight > heaviestFonts.weight) heaviestFonts = { pagePath: page.pagePath, weight };
+  if (weight > BUDGET.fonts) {
+    errors.push(
+      `${page.pagePath}: preloads ${kib(weight)} of fonts; the budget is ${kib(BUDGET.fonts)}`,
+    );
+  }
+}
+
 let lazyWeight = 0;
 for (const sitePath of scriptSource.keys()) {
   if (!eagerScripts.has(sitePath)) lazyWeight += await gzipSize(sitePath);
@@ -270,7 +305,9 @@ console.log(
     `${engineChunks.length} engine chunk(s), none statically reachable from any page; ` +
     `${swappable.length} page(s) share one skeleton.\n` +
     `  plain mode: heaviest page ${heaviest.pagePath} = ${kib(heaviest.weight)} ` +
-    `of ${kib(BUDGET.plainPage)}; lazy JS = ${kib(lazyWeight)} of ${kib(BUDGET.lazyScripts)} (gzip)`,
+    `of ${kib(BUDGET.plainPage)}; lazy JS = ${kib(lazyWeight)} of ${kib(BUDGET.lazyScripts)} (gzip)\n` +
+    `  fonts: heaviest page ${heaviestFonts.pagePath || '(none)'} preloads ` +
+    `${kib(heaviestFonts.weight)} of ${kib(BUDGET.fonts)} (woff2, as sent)`,
 );
 if (engineChunks.length === 0) {
   console.warn('verify-dist: note: no chunk contains three.js, so the purity check was vacuous.');

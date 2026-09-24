@@ -30,9 +30,11 @@ once), docking from inside the world opens the body's page, and a page opened di
 orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
 first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
-the URL and the panel know nothing about. What Phase 2 still lacks before launch: Allen's copy
-edit, the analytics token, and Astra's visual identity pass (A1). Phase 1's exit gate, the
-playtest on a laptop and a real phone, is Allen's and still open.
+the URL and the panel know nothing about. **The visual identity pass (A1) is done**: Claude did
+the packet at Allen's request, in the "roadmap" direction (one face, Outfit; route lines and
+stations; docs/DESIGN.md holds every decision). What Phase 2 still lacks before launch: Allen's
+copy edit and the analytics token. Phase 1's exit gate, the playtest on a laptop and a real
+phone, is Allen's and still open.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -165,7 +167,10 @@ a logic change: ask for it instead.
 ## Recipes
 
 **Add a design token.** Add the key to `tokens.ts`. It is now also the CSS custom property
-`--<path-in-kebab-case>` on `:root`. Use it; never copy its value.
+`--<path-in-kebab-case>` on `:root`. Use it; never copy its value. The site's pictures read the
+tokens too: `/favicon.svg` and `/apple-touch-icon.png` (`src/site/favicon.ts`) and the link-preview
+card (`src/site/og.ts`) are drawn at build time, so a palette change repaints them. `public/`
+holds no picture with colours of its own.
 
 **Add a material or a shader.** GLSL goes in `design/shaders/<name>.ts` with its uniforms listed
 in the header comment (uniform names are the contract with logic). A factory in
@@ -253,8 +258,12 @@ link or to an ancestor.
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
-`[data-theme]`, a planet's palette as `--planet-*` under `[data-biome]`. Check 360 px wide, and
-check print if the resume could be affected.
+`[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
+`[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
+either another job. The one exception: the home system's family is butter, which is why a
+focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
+`@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
+Check 360 px wide, and check print if the resume could be affected.
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
 should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print

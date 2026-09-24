@@ -54,6 +54,11 @@ ring, so a new system moves no other, and nothing but those keys can move one (a
 1 to 8 until `galaxy.lock.json` does). The build refuses rooms that no longer fit the tripwires
 (a system no wider than `maxSystemRadius`, and `minSystemGap` between two).
 
+The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
+`/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
+drawings from `src/site/favicon.ts` and `src/site/og.ts` (rasterised with `sharp`), so a palette
+change repaints them. Nothing in `public/` carries a colour of its own.
+
 Astro is used thinly on purpose (PLAN §5.1): it pre-renders pages and owns the content layer, and
 that is all. No islands, no `<ClientRouter/>`, no scoped styles, no per-page scripts. The client
 code in `src/shell/` and the whole of `src/universe/` would survive a change of framework.
@@ -122,12 +127,12 @@ Each display frame:
 6. **The governor** (`core/quality/governor.ts`) is told how long the frame took and may lower the
    render resolution, give some back, or (once, early) ask for a lower tier.
 
-Order in `main.ts` today: assets → input → ship → navigator → star map → galaxy → ship lighting →
-camera director → camera rig → bodies on screen → picker → labels → sky → stars → dust → the
-map's look → jobs → prompt → debug overlays. The camera comes after everything it looks at (the
-ship AND the planets), so that it sees this frame's world; whoever needs to know where things are
-ON SCREEN comes after the camera. The star map comes BEFORE the galaxy, which draws every body at
-the size the map asks for.
+Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
+only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
+picker → labels → sky → stars → dust → the map's look → jobs → prompt → debug overlays. The
+camera comes after everything it looks at (the ship AND the planets), so that it sees this
+frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
+star map comes BEFORE the galaxy, which draws every body at the size the map asks for.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -154,12 +159,21 @@ the depth buffer a few units coarse from map height.
 
 **The panel and the view.** The info panel covers part of the viewport. The shell measures how
 much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
-(`--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides the WINDOW onto the
-view with `camera.setViewOffset` so that the middle of the view is the middle of what is left:
-same camera, same perspective, so a planet stays round (turning the camera instead would stretch
-it into an egg near the edge of a wide lens). Modes that frame something are told how much is free
-and stand back accordingly. `#universe-overlay` is inset the same way, so the dock prompt is never
-under a bottom sheet.
+(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides
+the WINDOW onto the view with `camera.setViewOffset` so that the middle of the view is the middle
+of what is left: same camera, same perspective, so a planet stays round (turning the camera
+instead would stretch it into an egg near the edge of a wide lens). Modes that frame something are
+told how much is free and stand back accordingly. `#universe-overlay` is inset the same way, so
+the dock prompt is never under a bottom sheet. Which layout is which is one media query, written
+twice (the stylesheet's sheet block, and `NARROW` in `panel-inset.ts`): narrow AND more than 30rem
+tall is a phone held upright and gets the bottom sheet; a phone held sideways has no height to
+share and keeps the side panel. The inset has a fourth number, `frameTop`: on that upright phone
+with the sheet up, the top bar is solid, so the shell reports the band down to the bottom of the
+Map button's row, and a camera mode that frames something (`CameraMode.avoidsTop`: the orbit
+camera, and the chase camera) leaves that band out as well, so the docked body sits in the strip
+between the row and the sheet. The chase camera also widens its lens there, as far as
+`tuning.chaseCam.fitDegrees` and `maxFitWiden` allow, to fit the ship and what is ahead into the
+strip. The map ignores the band. (Why, and the measurements: "As built, A1" in PLAN.md §6.)
 
 ## 5. Life of a visit
 
@@ -167,7 +181,9 @@ under a bottom sheet.
 
 - **Boot.** `createUniverse()` picks a quality tier (desktops HIGH, phones MEDIUM, small machines
   one lower, never above a tier remembered from an earlier demotion; `?q=` forces one) and calls
-  `boot()` in `main.ts`. `ready` fires with the first frame, `firstinput` with the first steering.
+  `boot()` in `main.ts`. `ready` fires with the first frame, `firstinput` with the first touch of
+  a flight control (thrust, a turn or the brake: a lone Shift is none, since it is also half of
+  Shift+Tab; `touchesControls` in `core/input/intents.ts`).
 - **Demotion.** After a warm-up, two seconds of frames decide whether the tier is too heavy.
   Whether a canvas is anti-aliased is fixed when its WebGL context is created, so a new tier means
   a new engine: snapshot → dispose (canvas and all) → boot one tier down. The shell remembers the
@@ -270,14 +286,31 @@ under a bottom sheet.
   nearer first; never touching, never under the panel or the top bar, and steady (a name that
   shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
   while bodies drift past each other). The name of the body the ship is docked at is on the page
-  already, so it is not shown. Names also keep off whatever else can be pressed out there: the
-  dock prompt and the boost pad are `obstacles`, room that is taken before the first name is
-  placed (on a phone with the sheet up, the name of where the ship is going used to lie on the
-  prompt that says so). The top bar is the web layer's, so the web layer measures it:
-  `shell/panel-inset.ts` reports how far down its links reach as `top` of `setPanelInset`, which
-  the camera ignores and the names respect (the bar is two rows tall on a phone). Per frame that
-  is a little arithmetic, one `transform` per visible name, and one look at where the few
-  obstacles are, taken before anything is written, while layout is still clean.
+  already, so it is not shown, and no other name lies on its face. Names also keep off whatever
+  else can be pressed out there: the dock prompt, the boost pad and the Map button are
+  `obstacles`, room that is taken before the first name is placed (on a phone with the sheet up,
+  the name of where the ship is going used to lie on the prompt that says so), and so is the
+  page's footer chip in the bottom-left corner, which the shell measures (`foot` of the inset).
+  On the star map the ship is a marker that says "you are here", and no name's tag may cover
+  it either (`ship`, projected at the height the marker is drawn at). It is not taken room like
+  the obstacles, because it is most often right beside the very body whose name it is: a name it
+  would lie under glides just past it, away from its body (`glidePast` in `sim/declutter.ts`), or
+  goes ABOVE its body, with the same patience as declutter, so a name does not hop about while
+  the ship circles its body. Only on the map (`eitherSide`, which holds still) may a name sit
+  above its body, and there one with no room below (the sheet, an edge, a control) goes above
+  too. Any other name glides a few pixels at most and then makes way; the target's and the
+  focused one never do, so the ship alone never hides the name of where it is, or takes the
+  keyboard's focus away.
+  Either side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
+  from the ship (its height, and how far the target's tag reaches left for its dot, are read
+  from the stylesheet when the names are measured); the rest of the 44 px box, a clear touch
+  target, lies beyond the tag, away from the body (`data-side='above'` tells CSS to draw the tag
+  at the bottom of the box).
+  The top bar is the web layer's, so the web layer measures it: `shell/panel-inset.ts` reports
+  how far down its links reach as `top` of `setPanelInset`, which the names respect (the bar is
+  two rows tall on a phone); the camera goes by `frameTop` instead (above). Per frame that is a
+  little arithmetic, one `transform` per visible name, and one look at where the few obstacles
+  are, taken before anything is written, while layout is still clean.
 - **The star map** (`ui/StarMap.ts`, `camera/MapCam.ts`, `sim/mapView.ts`) is another way of
   LOOKING, not another place to be. The navigator does not know about it: a journey, an approach
   or a docked ship carries on underneath, and the URL and the panel do not change. `M`, the Map

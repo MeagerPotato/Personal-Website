@@ -387,4 +387,34 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(stopped.world.dock.halting).toBe(false);
     expect(stopped.world.dock.guarding).toBe(true);
   });
+
+  it('takes a bare Shift (half of Shift+Tab) for nothing: no takeover, no end to a Stop or a guard', () => {
+    // Boost only multiplies the pilot's own thrust (sim/flight.ts, isSteering): a reader moving
+    // the focus back with Shift+Tab mid-journey is not taking the controls.
+    const SHIFT: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: true };
+    const run = setOut('page/resume', 'project/fish-onboarding', 9920, 3.117, 1);
+    for (let k = 0; k < 111; k += 1) step(run);
+    expect(run.world.dock.phase).toBe('cruise');
+    tap(run, SHIFT, 30);
+    expect(run.world.dock.phase).not.toBe('free');
+    expect(run.world.dock.leftByPilot).toBe(false);
+    expect(run.world.dock.halting).toBe(false);
+    expect(run.world.dock.guarding).toBe(false);
+
+    // A Stop still brakes to rest...
+    const stopped = diving(200);
+    haltDock(stopped.world.dock, stopped.world.assist);
+    step(stopped, SHIFT);
+    expect(stopped.world.dock.halting).toBe(true);
+    expect(stopped.world.dock.guarding).toBe(false);
+
+    // ...and a guard still guards. Nor is a held Shift a throttle held from before: the first
+    // press of the throttle with it is fresh, and ends the guard.
+    const guarded = diving(200);
+    guardDock(guarded.world.dock, SHIFT, tuning.dock.leaveDeadZone);
+    step(guarded, SHIFT);
+    expect(guarded.world.dock.guarding).toBe(true);
+    step(guarded, { ...THRUST, boost: true });
+    expect(guarded.world.dock.guarding).toBe(false);
+  });
 });

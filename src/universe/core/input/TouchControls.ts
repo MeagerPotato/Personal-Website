@@ -14,7 +14,8 @@ export interface TouchParams extends StickParams {
  * Flying with thumbs. The FIRST finger on the world becomes a stick that appears right under it
  * (no reaching for a fixed spot, and either hand works); stick.ts says what its deflection
  * means. Boost is any SECOND finger on the world, or the boost pad in the corner, which is there
- * so that boost can be discovered.
+ * so that boost can be discovered. The pad is only out in free flight: boost multiplies the
+ * pilot's own thrust, and docked or on a journey the stick is what takes the controls back.
  *
  * The engine owns these elements because they follow a finger every frame; how they LOOK is CSS
  * (src/styles, `.touch-stick`, `.touch-boost`), which is the design surface. Nothing shows until
@@ -37,6 +38,8 @@ export class TouchControls implements InputSource {
   private enabled = true;
   /** A finger has touched the world: from then on boost can be found (while flying). */
   private touched = false;
+  /** The pilot flies the ship (free flight): the only time boost does anything. */
+  private flying = true;
   private readonly padArea: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(
@@ -76,7 +79,19 @@ export class TouchControls implements InputSource {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) this.releaseAll();
-    this.pad.hidden = !(enabled && this.touched);
+    this.showPad();
+  }
+
+  /**
+   * Is the pilot flying the ship (not docked, not on the way to a dock or on a journey)? Only then
+   * does boost do anything, so only then is the pad out: a control that lights up under a thumb
+   * and does nothing is worse than none. The stick stays, because it is how the pilot leaves.
+   */
+  setFlying(flying: boolean): void {
+    if (flying === this.flying) return;
+    this.flying = flying;
+    if (!flying) this.releaseBoosts();
+    this.showPad();
   }
 
   /**
@@ -104,7 +119,7 @@ export class TouchControls implements InputSource {
     if (event.pointerType === 'mouse') return;
     this.touched = true; // a finger exists: from now on boost can be found
     if (!this.enabled) return;
-    this.pad.hidden = false;
+    this.showPad();
     this.canvas.setPointerCapture?.(event.pointerId);
 
     if (this.stickPointer === null) {
@@ -159,9 +174,17 @@ export class TouchControls implements InputSource {
 
   private readonly releaseAll = (): void => {
     this.releaseStick();
+    this.releaseBoosts();
+  };
+
+  private releaseBoosts(): void {
     this.boosting.clear();
     delete this.pad.dataset.active;
-  };
+  }
+
+  private showPad(): void {
+    this.pad.hidden = !(this.enabled && this.touched && this.flying);
+  }
 
   private releaseStick(): void {
     this.stickPointer = null;

@@ -371,7 +371,9 @@ export function assistInput(
   out.turn = clamp(turn + steering * (1 - Math.abs(turn)) * wish.turn, -1, 1);
   out.thrust = Math.max(thrust, orbiting * wish.thrust);
   out.brake = brake;
-  out.boost = pilot.boost;
+  // Boost multiplies the PILOT's thrust. A bare Shift (half of Shift+Tab) must not hurry the
+  // assist round its ring: with no thrust of their own, the pilot is boosting nothing.
+  out.boost = pilot.boost && thrust > 0;
   return out;
 }
 

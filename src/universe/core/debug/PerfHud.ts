@@ -37,7 +37,11 @@ export class PerfHud implements System {
     this.element.style.cssText = [
       'position:fixed',
       'z-index:5',
-      'top:7.5rem', // below the HUD's top bar, which has two rows on a phone
+      // Below the top bar's links (the shell measures how far down they reach, two rows on a
+      // phone) and the row of the HUD under them (the Map button, and a phone's dock prompt).
+      // That row is HUD_ROW_REM (src/shell/panel-inset.ts), which panel-inset.test.ts holds to
+      // the stylesheet. No test holds this copy (a debug view): change it with that one.
+      'top:calc(var(--panel-inset-top, 6.25rem) + var(--space-3) + 2.75rem + var(--space-3))',
       'left:var(--space-4)',
       'margin:0',
       'padding:var(--space-2) var(--space-3)',

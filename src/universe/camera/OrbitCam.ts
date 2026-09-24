@@ -34,6 +34,8 @@ const RAD_PER_DEG = Math.PI / 180;
  * still picture of a turning world looks like a mistake.
  */
 export class OrbitCam implements CameraMode {
+  /** It frames the body: clear of a phone's solid top bar too (CameraRig.ts). */
+  readonly avoidsTop = true;
   private subject: OrbitSubject | null = null;
   private azimuth = 0;
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
@@ -58,7 +60,7 @@ export class OrbitCam implements CameraMode {
 
     // The free part of the view, as half-angles: the lens is `fov` tall over the WHOLE viewport.
     const tanHalf = Math.tan((params.fovDegrees / 2) * RAD_PER_DEG);
-    const halfTall = Math.atan(tanHalf * view.freeHeight);
+    const halfTall = Math.atan(tanHalf * (view.freeHeight - view.freeTop));
     const halfWide = Math.atan(tanHalf * view.aspect * view.freeWidth);
     const fit = params.fitRingRadii * subject.ringRadius;
 
