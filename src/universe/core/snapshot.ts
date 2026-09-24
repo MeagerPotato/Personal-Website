@@ -108,6 +108,13 @@ export interface StartOptions {
  * So the snapshot brings back the world's clock and the ship, and keeps its dock only when it
  * agrees with `at`: then the ship carries on from the very spot on its orbit. Otherwise the ship
  * is put in orbit round `at` (main.ts), or flies free from where it was when there is no `at`.
+ *
+ * A JOURNEY that is not taken up is a STOP (`halting`): the ship brakes to rest where it is. A
+ * journey pointed at in the world flies with the URL on a page with no body (the sky, Projects),
+ * so a reload in the middle of it, a phone that threw the tab away, or the router's fallback to
+ * a full page load (every navigation after a deploy) loads a page with no `at`, and the ship
+ * would otherwise coast on at the pilot's top speed into whatever lay ahead (sim/docking.ts,
+ * haltDock). Put in orbit round `at` instead, it is not braking anything.
  */
 export function startingFrom(start: StartOptions | undefined): {
   snapshot: Snapshot | null;
@@ -116,8 +123,9 @@ export function startingFrom(start: StartOptions | undefined): {
   const at = start?.at ?? null;
   const saved = parseSnapshot(start?.snapshot);
   if (!saved) return { snapshot: null, at };
-  const agrees = saved.dock !== null && saved.dock.id === at;
-  return { snapshot: agrees ? saved : { ...saved, dock: null }, at };
+  if (saved.dock === null || saved.dock.id === at) return { snapshot: saved, at };
+  // (A snapshot with a dock is neither halting nor guarding: parseSnapshot.)
+  return { snapshot: { ...saved, dock: null, halting: !saved.dock.docked }, at };
 }
 
 /**

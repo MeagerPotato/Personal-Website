@@ -307,9 +307,10 @@ of, is in the table under The 3D world.
 - **"About this site"** (the home page only): the welcome text waits behind it, and it wears the
   cream face while the text shows.
 - **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
-  in the cream face. A finger gets no key cap and a fixed width. Whatever shares its row keeps
-  --space-3 clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`,
-  where a journey's "Name | Stop" beside it on a phone lets its name give way).
+  in the cream face. A finger gets no key cap and a fixed width, and so does a mouse beside a
+  phone-shaped sheet, where the row is short of room. Whatever shares its row keeps --space-3
+  clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`, where a
+  journey's "Name | Stop" beside it on a phone lets its name give way).
 - **The names** over the bodies are real buttons: a 44 px target with the name on a small navy
   tag at the end nearest its body (the top below it, the bottom above it), like a label on a
   transit map, 13 px at every width and on the map. A sun or the
@@ -410,7 +411,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The names over the bodies: type, colour, the dot on the one the ship is headed for (`data-state='target'`), how systems, planets and moons differ (`data-kind`), how they fade in and out (`data-shown`) | `.body-label` in `src/styles/global.css` |
 | The star map (`M`, the Map button, or scroll out): the lens, how long the way out takes, how far in it zooms (`spanMin`) and whether it may zoom out past the view of everything (`zoomOutPastFit`, 1: not at all), how much air the first fit leaves (`fitMargin`, plus `fitPadPx` for the names at the edge), how quickly pans and zooms settle, wheel and key speeds, how far a wheel must turn to open it. (A finger that moves on a name drags the map: the slop is `tuning.picking.tapMaxPx`.) | `tuning.map` |
 | The LOOK of the map: how flat the shading goes (`flatness`), how far the stars dim (`starOpacity`), the smallest size of each kind of body in px (`minRadiusPx`), how much room a moon needs beside its planet before it is drawn (`clearPx`), the size of the ship's marker (`shipRadiusPx`) | `tuning.map` (what flat MEANS: `uFlatness` in `shaders/toonFlat.ts`) |
-| The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
+| The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers and beside a phone's sheet; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
 | Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once. On the map the ship's marker is "you are here" and no name's tag lies on it: a name the ship would be under glides a few pixels past it or goes above its body, as does one with no room below (`ui/Labels.ts`, `ship`, `eitherSide`); names also keep off the footer chip in the corner (`foot`, measured by `src/shell/panel-inset.ts`) | `tuning.labels` |
 | Where the systems sit: how far from home and from each other (`homeRoom`, `slotRoom`) and which way the cluster grows (`clusterAxisDeg`). Not a look: **changing any of the three moves every system** (a test pins them, and `galaxy.lock.json` will), so ask Allen first. The build refuses rooms too small for the tripwires (`maxSystemRadius`, `minSystemGap`). | `tuning.layout` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |

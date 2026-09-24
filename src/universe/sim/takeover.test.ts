@@ -416,9 +416,18 @@ describe('the guard (a ship taken back at speed)', () => {
     step(fast);
     step(fast, THRUST);
     expect(fast.world.dock.guarding).toBe(true);
+    // With boost, though, 60 u/s is the pilot's own pace (81 u/s): a boosted pilot is not held
+    // to the unboosted one, or they were guarded for as long as they flew.
     step(fast);
     step(fast, { ...THRUST, boost: true });
-    expect(fast.world.dock.guarding).toBe(true);
+    expect(fast.world.dock.guarding).toBe(false);
+    // Faster than even that is the autopilot's, boost or not.
+    const faster = diving(400, 110);
+    guardDock(faster.world.dock, THRUST, tuning.dock.leaveDeadZone);
+    step(faster, THRUST);
+    step(faster);
+    step(faster, { ...THRUST, boost: true });
+    expect(faster.world.dock.guarding).toBe(true);
 
     // A Stop brakes to rest instead, and steering out of it while still fast is guarded.
     const stopped = diving(200);

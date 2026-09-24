@@ -3030,6 +3030,27 @@ picture {
     /* The map needs every pixel of that strip for its names: the prompt's offers wait until it
        closes. The engine puts them away (`quiet` in universe/ui/Prompt.ts), because a journey's
        "Name | Stop" stays in this row all along: with the map up it is the only way to stop. */
+
+    /* In that row the Map button is its word alone with a mouse too, as for a finger: the M key's
+       cap took the room the name needs (a window 320 px wide showed "Fi… | Stop"). M still
+       opens and closes the map. */
+    html[data-mode='universe'][data-panel='open'] {
+      --map-chip: 4.25rem;
+    }
+
+    html[data-mode='universe'][data-panel='open'][data-map] {
+      --map-chip: 6.75rem;
+    }
+
+    html[data-mode='universe'][data-panel='open'] .map-toggle kbd {
+      display: none;
+    }
+
+    html[data-mode='universe'][data-panel='open'] .map-toggle {
+      justify-content: center;
+      min-width: var(--map-chip);
+      padding-left: var(--space-4);
+    }
   }
 
   /* A phone held sideways keeps the side panel, a little narrower, so that a strip of world as

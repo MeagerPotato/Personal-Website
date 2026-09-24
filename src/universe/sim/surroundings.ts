@@ -139,7 +139,7 @@ export function flyStep(
   bodyPositions(world.orbits, simTime, field.positions, field.velocities);
 
   const { dock } = world;
-  pilotLeaves(dock, pilot, params.dock, world.assist);
+  pilotLeaves(field, dock, pilot, params.dock, world.assist);
   if (dock.phase === 'docked') {
     stepDocked(field, state, params.dock, dock, dt);
     copyInput(NO_INPUT, flown);
@@ -186,7 +186,7 @@ export function flyStep(
     const asked = guardInput(
       field,
       dock,
-      haltingInput(dock, pilot, state, params.dock),
+      haltingInput(field, dock, pilot, state, params.dock),
       state,
       flight,
       params.dock,

@@ -15,6 +15,7 @@ import { createRng } from './rng';
 import {
   createSurroundings,
   flyStep,
+  syncSurroundings,
   type Surroundings,
   type SurroundingsInput,
 } from './surroundings';
@@ -309,7 +310,13 @@ describe('docking', () => {
     haltDock(flight.world.dock, flight.world.assist);
     expect(flight.world.dock.phase).toBe('free');
     expect(flight.world.dock.halting).toBe(true);
-    const held = haltingInput(flight.world.dock, NO_INPUT, flight.state, tuning.dock);
+    const held = haltingInput(
+      flight.world.field,
+      flight.world.dock,
+      NO_INPUT,
+      flight.state,
+      tuning.dock,
+    );
     expect(held).toEqual({ thrust: 0, turn: 0, brake: 1, boost: false });
     // In open space it comes to rest, and then the brake is let go of by itself.
     let t = 0;
@@ -325,13 +332,48 @@ describe('docking', () => {
     again.state.vz = 80;
     haltDock(again.world.dock, again.world.assist);
     const left = { ...NO_INPUT, turn: 1 };
-    expect(haltingInput(again.world.dock, left, again.state, tuning.dock)).toBe(left);
+    expect(haltingInput(again.world.field, again.world.dock, left, again.state, tuning.dock)).toBe(
+      left,
+    );
     expect(again.world.dock.halting).toBe(false);
     // A new request is no longer a Stop.
     const asked = start(300, -300, 0);
     haltDock(asked.world.dock, asked.world.assist);
     request(asked, 'home');
     expect(asked.world.dock.halting).toBe(false);
+  });
+
+  it('takes a ship carried along by the body beside it for a ship at rest: the Stop is over', () => {
+    // Stopped in the station's cushion, a ship is pushed along at the station's own pace and never
+    // comes to rest in space: the brake stayed held for half a minute, and the assist off.
+    const beside = (way: number): Flight => {
+      const flight = start(0, 0);
+      syncSurroundings(flight.world, 10);
+      const { field, orbits } = flight.world;
+      const i = orbits.indexOf('station');
+      flight.state.x = (field.positions[i * 2] ?? 0) + (field.radius[i] ?? 0) + 3;
+      flight.state.z = field.positions[i * 2 + 1] ?? 0;
+      flight.state.vx = way * (field.velocities[i * 2] ?? 0);
+      flight.state.vz = way * (field.velocities[i * 2 + 1] ?? 0);
+      expect(speedOf(flight.state)).toBeGreaterThan(1);
+      haltDock(flight.world.dock, flight.world.assist);
+      return flight;
+    };
+    const carried = beside(1);
+    const { world: w, state } = carried;
+    expect(haltingInput(w.field, w.dock, NO_INPUT, state, tuning.dock)).toBe(NO_INPUT);
+    expect(w.dock.halting).toBe(false);
+    // As fast the other way is not at rest beside it, nor in space: it goes on braking.
+    const against = beside(-1);
+    const held = haltingInput(
+      against.world.field,
+      against.world.dock,
+      NO_INPUT,
+      against.state,
+      tuning.dock,
+    );
+    expect(held.brake).toBe(1);
+    expect(against.world.dock.halting).toBe(true);
   });
 
   it('takes boost on its own for nothing: not "leave", not "stop" (Shift is half of Shift+Tab)', () => {

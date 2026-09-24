@@ -30,11 +30,14 @@ once), docking from inside the world opens the body's page, and a page opened di
 orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
 first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
-the URL and the panel know nothing about. **The visual identity pass (A1) is done**: Claude did
-the packet at Allen's request, in the "roadmap" direction (one face, Outfit; route lines and
-stations; docs/DESIGN.md holds every decision). What Phase 2 still lacks before launch: Allen's
-copy edit and the analytics token. Phase 1's exit gate, the playtest on a laptop and a real
-phone, is Allen's and still open.
+the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
+"cluster"), the autopilot flies any journey in today's galaxy in 1.5 to 4.3 s, and every way a
+journey is handed back at speed (Stop, a key, the web layer letting go, a reload) brakes or
+guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
+visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
+direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). What
+Phase 2 still lacks before launch: Allen's copy edit and the analytics token. Phase 1's exit
+gate, the playtest on a laptop and a real phone, is Allen's and still open.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -85,7 +88,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
-| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot; `kinds` adds journeys within a system and from the spawn point): some ten minutes more for all four galaxies, and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
+| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 2 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no

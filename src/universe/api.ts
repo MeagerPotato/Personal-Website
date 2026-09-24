@@ -99,9 +99,11 @@ export type UniverseEvents = {
   /**
    * An approach or a dock ended. `by: 'pilot'` means it started INSIDE the engine (the controls,
    * the prompt), so the web layer should follow (go home); `by: 'asked'` means it came through
-   * this API, so the web layer already knows.
+   * this API, so the web layer already knows. `halting`: the ship now brakes to rest by itself
+   * (Stop, the brake, a journey let go of on the way), rather than flying on under its pilot or
+   * to somewhere else.
    */
-  undocked: { id: string; by: 'pilot' | 'asked' };
+  undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
   /** The engine cannot continue; the web layer should fall back to plain mode. */

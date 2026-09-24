@@ -141,4 +141,24 @@ describe('where a visit starts', () => {
     const home = startingFrom({ snapshot: stored(DOCKED) });
     expect(home).toEqual({ snapshot: { ...DOCKED, dock: null }, at: null });
   });
+
+  it('brakes a journey it does not take up: a page load on the way somewhere is a STOP', () => {
+    // A planet pointed at flies with the URL on the sky: a reload there, or the router's full
+    // page load after a deploy, must not hand the ship back at the autopilot's speed.
+    expect(startingFrom({ snapshot: stored(HEADED) })).toEqual({
+      snapshot: { ...HEADED, dock: null, halting: true, guarding: false },
+      at: null,
+    });
+    // Another body's page: put in orbit there (main.ts), which ends the braking at once.
+    expect(startingFrom({ at: 'page/resume', snapshot: stored(HEADED) }).snapshot).toEqual({
+      ...HEADED,
+      dock: null,
+      halting: true,
+    });
+    // Its own page takes the journey up, as a lost context does; an orbit let go of is not braked.
+    expect(startingFrom({ at: 'project/fishai', snapshot: stored(HEADED) }).snapshot).toEqual(
+      HEADED,
+    );
+    expect(startingFrom({ snapshot: stored(DOCKED) }).snapshot?.halting).toBe(false);
+  });
 });

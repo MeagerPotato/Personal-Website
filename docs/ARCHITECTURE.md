@@ -214,18 +214,24 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   could never make then drains away at `cruise.dropOutPerSec` (`dropOutOfWarp` in `flyStep`), so
   a ship let go of at 700 u/s is back to its own top speed within some 160 u. **Stop** (the
   prompt's button, `navigator.stop`) lets go the same way and then holds the brake for the pilot
-  until the ship is at rest (`haltDock`, `haltingInput` in `sim/docking.ts`): stopped anywhere,
-  in a bend or a step before it arrives, it comes to rest within 155 u and meets nothing. A tap
+  until the ship is at rest, in space or beside the body nearest to it, whose cushion may be
+  carrying it along (`haltDock`, `haltingInput` in `sim/docking.ts`): stopped anywhere, in a
+  bend or a step before it arrives, it comes to rest within 155 u and meets nothing. A tap
   of the brake mid-journey is a Stop too (`pilotLeaves`). A turn or the throttle is the pilot
   flying again, but the pilot's own top speed (81 u/s) is still more than a cushion stops, and a
   journey ends among its target's moons: so the reflex (below) stays on for them, with the
   pilot's own brake, until the ship is slow enough for the cushions or they open the throttle
-  afresh with nothing left to guard: at a speed their own drive gives, and where the ship would
+  afresh with nothing left to guard: at a speed their own drive gives (with boost, if they
+  boost), and where the ship would
   coast to rest short of everything on its course (`guardInput`, `DockState.guarding`: a second
   tap of W while the speed is still the autopilot's is not that); steering out of a Stop while
-  still fast does the same. The web layer letting go of a journey (`undock`: the route moved to a page
-  with no body) is a Stop too (`Navigator.release` on the way somewhere). Nowhere near anything, that is the pilot's input exactly. `halting` and `guarding` are
-  snapshot fields. It is three pure pieces, the same structure as a robot's autonomous routine:
+  still fast does the same. The web layer letting go of a journey (`undock`: the route moved to a
+  page with no body) is a Stop too (`Navigator.release` on the way somewhere), and so is a page
+  load that does not take the journey up (`startingFrom`, below). An orbit a journey has only
+  just arrived in, still carried round faster than the cushions stop, counts as the journey
+  (`onJourney`): let go of, it is a Stop, and steered off, it is guarded. Nowhere near anything,
+  that is the pilot's input exactly. `halting` and `guarding` are snapshot fields, and
+  `undocked` says whether the ship now brakes to rest (`halting`). It is three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
@@ -364,8 +370,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   began with a link does not count, because that visitor was reading.
 - **What the ship does, said aloud** (`shell/announcer.ts`). One polite `role="status"` region,
   in the layout from the start and empty, because a screen reader listens to the regions it found
-  when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI." or "Stopped.", and
-  that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
+  when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI.", "Stopped." or,
+  when an arrow or the throttle took the journey back and the ship flies on, "Flying by hand."
+  (`undocked`'s `halting`), and that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
   link, a cut under reduced motion), nor about leaving: there a page opens or closes, the focus
   moves, and the heading says it better.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
@@ -375,7 +382,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   sessionStorage when the page goes away (`shell/pose-memory.ts`) and hands it to the next
   engine (`start.snapshot`), which checks every field before believing it. So a reload, or a
   navigation the router had to hand to the browser, carries on in the same world at the same
-  time with the ship where it was. When the two disagree the URL wins.
+  time with the ship where it was. When the two disagree the URL wins, and a journey it does not
+  take up is a Stop: one pointed at in the world flies with the URL on the sky, and reloaded
+  there the ship would otherwise coast on at the pilot's top speed. A journey to a body the
+  manifest no longer has is a Stop as well (`Navigator.restore`).
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild

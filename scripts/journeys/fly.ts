@@ -1,4 +1,4 @@
-import { parseSnapshot } from '../../src/universe/core/snapshot';
+import { parseSnapshot, startingFrom } from '../../src/universe/core/snapshot';
 import type { UniverseManifest } from '../../src/universe/data/types';
 import { tuning } from '../../src/universe/design/tuning';
 import { homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
@@ -185,12 +185,27 @@ export interface JourneyResult {
  *             With `again`, a double tap: let go for `gapSteps` steps, then hold `again.input`
  *             for `again.steps` (the throttle pressed afresh while the speed is still the
  *             autopilot's, a thumb lifted off the stick and put back), then let go.
+ *             A stop with `route`, or a tap, may come `inOrbitSteps` steps after the journey docks
+ *             instead (atSec is then ignored): the web layer letting go as the page opens, or the
+ *             pilot steering off, while the orbit's springs still settle the journey's arrival.
  *   rebuild   the engine is thrown away and built again from its snapshot (core/snapshot.ts, as a
  *             lost WebGL context does: api.ts): a fresh world and Navigator, restored from what
  *             parseSnapshot makes of a JSON round trip, and the journey flown on from there.
+ *   reload    a full page load in the middle of the journey, on a page with no body (a reload,
+ *             a phone that threw the tab away, the router's fallback after a deploy): the next
+ *             engine starts from the snapshot the last one left in the tab (shell/pose-memory.ts)
+ *             through startingFrom with no `at`, which does not take the journey up. Watch the
+ *             ship for coastSec, as after Stop.
  */
 export type Interrupt =
-  | { kind: 'stop'; atSec: number; coastSec: number; thenDock?: boolean; route?: boolean }
+  | {
+      kind: 'stop';
+      atSec: number;
+      coastSec: number;
+      thenDock?: boolean;
+      route?: boolean;
+      inOrbitSteps?: number;
+    }
   | {
       kind: 'redirect';
       atSec: number;
@@ -204,8 +219,10 @@ export type Interrupt =
       steps: number;
       coastSec: number;
       again?: { readonly gapSteps: number; readonly input: TapInput; readonly steps: number };
+      inOrbitSteps?: number;
     }
-  | { kind: 'rebuild'; atSec: number };
+  | { kind: 'rebuild'; atSec: number }
+  | { kind: 'reload'; atSec: number; coastSec: number };
 
 /**
  * Which control a `tap` takes the ship back with: the brake, an arrow either way, the throttle,
@@ -224,7 +241,7 @@ const TAPS: Record<TapInput, Readonly<FlightInput>> = {
 export type StopSpec = Extract<Interrupt, { kind: 'stop' }>;
 
 export interface InterruptOutcome {
-  kind: 'stop' | 'stopDock' | 'undock' | 'redirect' | 'tap' | 'rebuild';
+  kind: 'stop' | 'stopDock' | 'undock' | 'redirect' | 'tap' | 'rebuild' | 'reload';
   /** When it was done (s since the request), and how fast the ship was going then, u/s. */
   atSec: number;
   atSpeed: number;
@@ -324,20 +341,23 @@ export function fly(
 
   /**
    * A LOST CONTEXT: the engine's snapshot, through JSON and parseSnapshot as it would come back,
-   * and a new world, ship and Navigator built from it the way universe/main.ts builds them.
+   * and a new world, ship and Navigator built from it the way universe/main.ts builds them. With
+   * `reload`, a full page load on a page with no body instead: the snapshot comes back through
+   * startingFrom with no `at` (api.ts, createUniverse), as the tab kept it (shell/pose-memory.ts).
    */
-  const rebuild = (): void => {
-    const saved = parseSnapshot(
-      JSON.parse(
-        JSON.stringify({
-          steps,
-          ship: state,
-          dock: navigator.snapshot(),
-          halting: navigator.halting,
-          guarding: navigator.guarding,
-        }),
-      ),
+  const rebuild = (reload = false): void => {
+    const kept: unknown = JSON.parse(
+      JSON.stringify({
+        steps,
+        ship: state,
+        dock: navigator.snapshot(),
+        halting: navigator.halting,
+        guarding: navigator.guarding,
+      }),
     );
+    const saved = reload
+      ? startingFrom({ at: null, snapshot: kept }).snapshot
+      : parseSnapshot(kept);
     if (saved === null) throw new Error(`${galaxy.name}: a snapshot that does not parse`);
     world = surroundings();
     ({ field, orbits } = world);
@@ -435,6 +455,12 @@ export function fly(
   let changes = 0;
   let changedAt = 0;
   let done: InterruptOutcome | null = null;
+  /** Done this many steps into the orbit instead of on the way (`inOrbitSteps`), and when it docked. */
+  const inOrbit =
+    interrupt?.kind === 'stop' || interrupt?.kind === 'tap'
+      ? (interrupt.inOrbitSteps ?? null)
+      : null;
+  let dockedAt = -1;
   let peakAccel = 0;
   let vx = state.vx;
   let vz = state.vz;
@@ -469,8 +495,9 @@ export function fly(
     if (
       interrupt &&
       done === null &&
-      t >= interrupt.atSec - dt / 2 &&
-      navigator.state.mode === 'autopilot'
+      (inOrbit !== null
+        ? dockedAt >= 0 && steps - dockedAt >= inOrbit
+        : t >= interrupt.atSec - dt / 2 && navigator.state.mode === 'autopilot')
     ) {
       done = {
         kind:
@@ -500,7 +527,10 @@ export function fly(
         done.dockSec = t;
         continue;
       }
-      if (interrupt.kind === 'tap') {
+      if (interrupt.kind === 'reload') {
+        // A page with no body: the journey is not taken up, and the ship must come to rest.
+        rebuild(true);
+      } else if (interrupt.kind === 'tap') {
         // The controls, for a moment: the next step takes the journey back (sim/docking.ts,
         // pilotLeaves), and the ship is the pilot's from there.
         pilot.current = TAPS[interrupt.input];
@@ -577,7 +607,7 @@ export function fly(
       }
       stopped.endSpeed = speedOf(state);
       if (
-        (interrupt?.kind === 'stop' || interrupt?.kind === 'tap') &&
+        (interrupt?.kind === 'stop' || interrupt?.kind === 'tap' || interrupt?.kind === 'reload') &&
         t - stopped.atSec >= interrupt.coastSec - dt / 2
       ) {
         break;
@@ -628,11 +658,13 @@ export function fly(
       if (Math.abs(d - ring) < onRingBand) onRing = t;
     }
     watch?.({ t, state, world, flown, mode: navigator.state.mode });
-    if (dockings.includes(goal)) {
+    if (!docked && dockings.includes(goal)) {
       docked = true;
       seconds = t;
       if (done !== null && done.to === goal) done.dockSec = t - done.dockSec;
-      break;
+      // Watched on into the orbit when something is still to be done there.
+      if (inOrbit === null || done !== null) break;
+      dockedAt = steps;
     }
   }
 

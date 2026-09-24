@@ -60,10 +60,25 @@ describe('the announcer', () => {
     expect(h.said()).toBe('Flying to Code.');
     h.emit('statechange', { mode: 'autopilot', target: 'project/fishai' });
     expect(h.said()).toBe('Flying to FishAI.');
+    h.emit('undocked', { id: 'project/fishai', by: 'pilot', halting: true });
     h.emit('statechange', { mode: 'flight', target: null });
     expect(h.said()).toBe('Stopped.');
     // And that was the end of it: docking there later by hand is a new story.
     h.emit('statechange', { mode: 'docked', target: 'project/fishai' });
+    expect(h.said()).toBe('Stopped.');
+  });
+
+  it('says that the pilot has the ship, when a key took a journey back and it flies on', () => {
+    const h = harness();
+    h.emit('statechange', { mode: 'autopilot', target: 'project/fishai' });
+    // An arrow or the throttle: the ship is the pilot's, still moving, not stopping.
+    h.emit('undocked', { id: 'project/fishai', by: 'pilot', halting: false });
+    h.emit('statechange', { mode: 'flight', target: null });
+    expect(h.said()).toBe('Flying by hand.');
+    // The next journey let go of by a Stop is a Stop again.
+    h.emit('statechange', { mode: 'autopilot', target: 'system/code' });
+    h.emit('undocked', { id: 'system/code', by: 'asked', halting: true });
+    h.emit('statechange', { mode: 'flight', target: null });
     expect(h.said()).toBe('Stopped.');
   });
 

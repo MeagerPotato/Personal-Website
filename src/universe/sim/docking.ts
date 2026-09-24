@@ -189,7 +189,10 @@ export function guardDock(dock: DockState, pilot: Readonly<FlightInput>, deadZon
   dock.armed = !isThrusting(pilot, deadZone);
 }
 
-/** u/s. A halting ship this slow is at rest: the orbit assist may have it from here. */
+/**
+ * u/s. A halting ship this slow is at rest, in space or beside the body nearest to it (atRest):
+ * the orbit assist may have it from here.
+ */
 const HALT_REST = 0.5;
 /** The brake held, nothing else: what STOP flies (haltingInput). */
 const HALT: Readonly<FlightInput> = Object.freeze({ thrust: 0, turn: 0, brake: 1, boost: false });
@@ -200,6 +203,7 @@ const HALT: Readonly<FlightInput> = Object.freeze({ thrust: 0, turn: 0, brake: 1
  * steering of their own ends that at once, and so does being at rest.
  */
 export function haltingInput(
+  field: BodyField,
   dock: DockState,
   pilot: Readonly<FlightInput>,
   state: Readonly<ShipState>,
@@ -207,13 +211,38 @@ export function haltingInput(
 ): Readonly<FlightInput> {
   if (!dock.halting) return pilot;
   const steering = isSteering(pilot, params.leaveDeadZone);
-  if (dock.phase !== 'free' || steering || speedOf(state) < HALT_REST) {
+  if (dock.phase !== 'free' || steering || atRest(field, state)) {
     dock.halting = false;
     // Steered out of a Stop that has not finished: the pilot flies, and the reflex stays on.
     if (steering && dock.phase === 'free') guardDock(dock, pilot, params.leaveDeadZone);
     return pilot;
   }
   return HALT;
+}
+
+/**
+ * Is a halting ship at rest: still in space, or still beside the body nearest to it? A ship
+ * stopped in a moving body's cushion is pushed along at that body's own pace (a planet's 1.6 u/s)
+ * and never comes to rest in space: its brake stayed held for half a minute, and the orbit
+ * assist off with it.
+ */
+function atRest(field: BodyField, state: Readonly<ShipState>): boolean {
+  if (speedOf(state) < HALT_REST) return true;
+  let nearest = -1;
+  let gap = Infinity;
+  for (let j = 0; j < field.count; j += 1) {
+    const x = state.x - (field.positions[j * 2] ?? 0);
+    const z = state.z - (field.positions[j * 2 + 1] ?? 0);
+    const surface = Math.hypot(x, z) - (field.radius[j] ?? 0);
+    if (surface < gap) {
+      gap = surface;
+      nearest = j;
+    }
+  }
+  if (nearest < 0) return false;
+  const vx = state.vx - (field.velocities[nearest * 2] ?? 0);
+  const vz = state.vz - (field.velocities[nearest * 2 + 1] ?? 0);
+  return Math.hypot(vx, vz) < HALT_REST;
 }
 
 /**
@@ -231,10 +260,12 @@ const GUARD_SHARE = 0.8;
 const GUARD_CATCH = 6;
 /**
  * A fresh press of the throttle ends the guard only while the ship is no faster than this share
- * over the pilot's own top speed (thrustAccel / forwardDrag, unboosted: 42.5 u/s). Faster, the
- * speed is still the autopilot's: a second tap of W at 110 u/s, and hands off, met a shell a
- * second later (41 u/s at impact). A held throttle only comes down to its own top speed from
- * above, never quite onto it: hence the share.
+ * over the pilot's own top speed with that press (thrustAccel / forwardDrag: 42.5 u/s, and 81
+ * with boost). Faster, the speed is still the autopilot's: a second tap of W at 110 u/s, and
+ * hands off, met a shell a second later (41 u/s at impact). A held throttle only comes down to its
+ * own top speed from above, never quite onto it: hence the share. (Held to the unboosted top, a
+ * pilot flying on with boost at 81 u/s was guarded for as long as they flew, and braked at the
+ * first body they flew at.)
  */
 const OWN_PACE_SHARE = 1.05;
 /**
@@ -272,7 +303,7 @@ export function guardInput(
   if (
     dock.phase !== 'free' ||
     speed < GUARD_SPEED ||
-    (dock.armed && thrusting && idle(field, state, speed, flight))
+    (dock.armed && thrusting && idle(field, state, speed, pilot.boost, flight))
   ) {
     dock.guarding = false;
     return pilot;
@@ -297,16 +328,33 @@ export function guardInput(
 
 /**
  * Would a guard have nothing left to do for a ship going `speed`: is that a speed the pilot's own
- * drive gives, and would the ship, let go of now, coast to rest short of every body on its course?
+ * drive gives (with `boost`, if they boost), and would the ship, let go of now, coast to rest
+ * short of every body on its course?
  */
 function idle(
   field: BodyField,
   state: Readonly<ShipState>,
   speed: number,
+  boost: boolean,
   flight: FlightParams,
 ): boolean {
-  if (speed > (OWN_PACE_SHARE * flight.thrustAccel) / flight.forwardDrag) return false;
+  const drive = flight.thrustAccel * (boost ? flight.boostFactor : 1);
+  if (speed > (OWN_PACE_SHARE * drive) / flight.forwardDrag) return false;
   return speed <= (courseLimits(field, state, -1, 0, flight.forwardDrag, 0, coast)[0] ?? Infinity);
+}
+
+/**
+ * Is the ship still on a JOURNEY: on its way somewhere (cruise, approach), or in orbit already but
+ * still carried round faster than the cushions stop by themselves (GUARD_SPEED, relative to the
+ * body), the dock's springs settling a journey's arrival onto the ring (`arrive`: up to 2.5 times
+ * the approach's pace, 71 u/s measured, where a settled orbit is at most DockParams.maxSpeed)?
+ * Handed back then, the ship is braked or guarded as on the way (pilotLeaves, Navigator.release).
+ */
+export function onJourney(field: BodyField, dock: Readonly<DockState>): boolean {
+  if (dock.phase === 'cruise' || dock.phase === 'approach') return true;
+  if (dock.phase !== 'docked') return false;
+  const r = (field.ringRadius[dock.body] ?? 0) + dock.offset.value;
+  return Math.hypot(r * dock.rate.value, dock.offset.velocity) > GUARD_SPEED;
 }
 
 /**
@@ -314,6 +362,7 @@ function idle(
  * controls back; the dock is then already released.
  */
 export function pilotLeaves(
+  field: BodyField,
   dock: DockState,
   pilot: Readonly<FlightInput>,
   params: DockParams,
@@ -329,13 +378,13 @@ export function pilotLeaves(
     return false;
   }
   if (!active) return false;
-  const journey = dock.phase !== 'docked';
+  const journey = onJourney(field, dock);
   releaseDock(dock, assist);
   dock.leftByPilot = true;
   // A journey handed back must not coast on into whatever lies ahead: the pilot's own top speed,
   // 81 u/s, is more than a cushion stops. The brake is Stop, as the prompt's button is (haltDock):
   // it brakes to rest. A turn or the throttle is the pilot flying again, and the reflex stays on
-  // for them until the ship is slow (guardInput). (A docked ship is slow already.)
+  // for them until the ship is slow (guardInput). (A docked ship is slow, once its orbit settles.)
   if (journey) {
     if (steering) guardDock(dock, pilot, params.leaveDeadZone);
     else {

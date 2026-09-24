@@ -152,7 +152,7 @@ describe('Navigator', () => {
     h.pilot.current = { ...NO_INPUT, thrust: 1 };
     h.run(0.1);
     expect(h.heard.filter(([name]) => name !== 'soi')).toEqual([
-      ['undocked', { id: 'page/about', by: 'pilot' }],
+      ['undocked', { id: 'page/about', by: 'pilot', halting: false }],
       ['statechange', { mode: 'flight', target: null }],
     ]);
 
@@ -164,7 +164,7 @@ describe('Navigator', () => {
     h.navigator.release();
     h.run(0.1);
     expect(h.heard.filter(([name]) => name !== 'soi')).toEqual([
-      ['undocked', { id: 'page/about', by: 'asked' }],
+      ['undocked', { id: 'page/about', by: 'asked', halting: false }],
       ['statechange', { mode: 'flight', target: null }],
     ]);
     // Released into the assist's loose orbit: still there a while later, and offered the dock again.
@@ -189,7 +189,7 @@ describe('Navigator', () => {
     h.navigator.place('page/about');
     h.run(0.1);
     expect(h.heard.filter(([name]) => name !== 'soi')).toEqual([
-      ['undocked', { id: 'page/resume', by: 'asked' }],
+      ['undocked', { id: 'page/resume', by: 'asked', halting: false }],
       ['statechange', { mode: 'docked', target: 'page/about' }],
       ['docked', { id: 'page/about' }],
     ]);
@@ -317,7 +317,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.travel('project/fishai')).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'page/about', by: 'asked' }],
+      ['undocked', { id: 'page/about', by: 'asked', halting: false }],
       ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
     ]);
     h.run(30);
@@ -332,7 +332,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.travel('project/fishai', 'pilot')).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'page/about', by: 'pilot' }],
+      ['undocked', { id: 'page/about', by: 'pilot', halting: false }],
       ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
     ]);
 
@@ -341,7 +341,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.travel('system/code', 'pilot')).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['undocked', { id: 'project/fishai', by: 'pilot', halting: false }],
       ['statechange', { mode: 'autopilot', target: 'system/code' }],
     ]);
   });
@@ -355,10 +355,42 @@ describe('Navigator, travelling', () => {
     h.pilot.current = { ...NO_INPUT, turn: 1 };
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['undocked', { id: 'project/fishai', by: 'pilot', halting: false }],
       ['statechange', { mode: 'flight', target: null }],
     ]);
     expect(h.surroundings.dock.phase).toBe('free');
+    // The brake, on the way, is a Stop: the ship brakes to rest, and says so.
+    const braked = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    braked.run(0.2);
+    braked.navigator.travel('project/fishai');
+    braked.run(1.2);
+    braked.heard.length = 0;
+    braked.pilot.current = { ...NO_INPUT, brake: 1 };
+    braked.run(0.1);
+    expect(story(braked)).toEqual([
+      ['undocked', { id: 'project/fishai', by: 'pilot', halting: true }],
+      ['statechange', { mode: 'flight', target: null }],
+    ]);
+  });
+
+  it('forgets that it left a body it is headed for again before anyone heard: three requests in a frame', () => {
+    // Docked; a planet pointed at, another, and then a link back to the first, all in one frame.
+    // Heard after the link, "left Resume" cancelled the link's own journey (api.ts goTo) and sent
+    // the page it opened home (shell/follow.ts).
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.navigator.place('page/about');
+    h.run(0.5);
+    h.heard.length = 0;
+    expect(h.navigator.travel('page/resume', 'pilot')).toBe(true);
+    expect(h.navigator.travel('project/fishai', 'pilot')).toBe(true);
+    expect(h.navigator.travel('page/resume')).toBe(true);
+    h.navigator.frameUpdate();
+    const left = h.heard.filter(([name]) => name === 'undocked');
+    expect(left).toEqual([
+      ['undocked', { id: 'page/about', by: 'pilot', halting: false }],
+      ['undocked', { id: 'project/fishai', by: 'asked', halting: false }],
+    ]);
+    expect(h.navigator.state.target).toBe('page/resume');
   });
 
   it('stops where the pilot says STOP: brakes to rest, and says the pilot ended the journey', () => {
@@ -375,7 +407,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.halting).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'project/fishai', by: 'pilot' }],
+      ['undocked', { id: 'project/fishai', by: 'pilot', halting: true }],
       ['statechange', { mode: 'flight', target: null }],
     ]);
     h.run(4);
@@ -401,7 +433,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.halting).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'project/fishai', by: 'asked' }],
+      ['undocked', { id: 'project/fishai', by: 'asked', halting: true }],
       ['statechange', { mode: 'flight', target: null }],
     ]);
     h.run(4);
@@ -428,6 +460,48 @@ describe('Navigator, travelling', () => {
     expect(docked.navigator.state).toEqual({ mode: 'flight', target: null });
   });
 
+  it('takes an orbit a journey has only just arrived in for the journey still: Close as the page opens', () => {
+    // A journey arrives beside the ring at up to 2.5 times the approach's pace, and the dock's
+    // springs take that out over the first half second in orbit (sim/docking.ts, arrive).
+    const arrived = (): ReturnType<typeof harness> => {
+      const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+      h.run(0.2);
+      h.navigator.travel('project/fishai');
+      for (let k = 0; k < 60 * 30 && h.navigator.state.mode !== 'docked'; k += 1) h.run(1 / 60);
+      expect(h.navigator.state.mode).toBe('docked');
+      return h;
+    };
+    const carried = (h: ReturnType<typeof harness>): number => {
+      const { field, orbits } = h.surroundings;
+      const i = orbits.indexOf('project/fishai');
+      const vx = h.state.vx - (field.velocities[i * 2] ?? 0);
+      const vz = h.state.vz - (field.velocities[i * 2 + 1] ?? 0);
+      return Math.hypot(vx, vz);
+    };
+    // Let go of there and then, the ship brakes to rest as it would have a moment before.
+    const letGo = arrived();
+    expect(carried(letGo)).toBeGreaterThan(25);
+    letGo.navigator.release('asked');
+    expect(letGo.navigator.halting).toBe(true);
+    for (let k = 0; k < 60 * 4 && letGo.navigator.halting; k += 1) letGo.run(1 / 60);
+    // At rest by the planet; the orbit assist has it from there.
+    expect(letGo.navigator.halting).toBe(false);
+    expect(Math.hypot(letGo.state.vx, letGo.state.vz)).toBeLessThan(1);
+    // Steered off there and then, the reflex stays on for the pilot.
+    const steered = arrived();
+    steered.pilot.current = { ...NO_INPUT, turn: 1 };
+    steered.run(1 / 60);
+    expect(steered.navigator.state).toEqual({ mode: 'flight', target: null });
+    expect(steered.navigator.guarding).toBe(true);
+    // Once the orbit has settled, both only let go.
+    const settled = arrived();
+    settled.run(3);
+    expect(carried(settled)).toBeLessThan(tuning.dock.maxSpeed + 0.01);
+    settled.navigator.release('asked');
+    expect(settled.navigator.halting).toBe(false);
+    expect(settled.navigator.guarding).toBe(false);
+  });
+
   it('goes on braking after a rebuild, if it was stopped a moment before', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);
@@ -451,6 +525,28 @@ describe('Navigator, travelling', () => {
     idle.navigator.restore(null);
     expect(idle.navigator.halting).toBe(false);
     expect(idle.navigator.guarding).toBe(false);
+  });
+
+  it('stops a journey it cannot take up after a rebuild: a body this world does not have', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(1.2);
+    expect(Math.hypot(h.state.vx, h.state.vz)).toBeGreaterThan(100);
+    // A snapshot from another deploy, headed for a body this manifest no longer has.
+    const headed = h.navigator.snapshot();
+    if (headed === null) throw new Error('no journey under way');
+    const dock = { ...headed, id: 'project/gone' };
+    for (const cut of [false, true]) {
+      const again = harness(0, 0, 0, WIDE_GALAXY);
+      copyShipState(h.state, again.state);
+      syncSurroundings(again.surroundings, h.time());
+      again.navigator.restore(dock, cut);
+      expect(again.navigator.state).toEqual({ mode: 'flight', target: null });
+      expect(again.navigator.halting).toBe(true);
+      again.run(4);
+      expect(Math.hypot(again.state.vx, again.state.vz)).toBeLessThan(1);
+    }
   });
 
   it('keeps the reflex on after a rebuild, if the pilot took the ship back at speed a moment before', () => {
@@ -489,7 +585,7 @@ describe('Navigator, travelling', () => {
     expect(h.navigator.travel('system/code')).toBe(true);
     h.run(0.1);
     expect(story(h)).toEqual([
-      ['undocked', { id: 'project/fishai', by: 'asked' }],
+      ['undocked', { id: 'project/fishai', by: 'asked', halting: false }],
       ['statechange', { mode: 'autopilot', target: 'system/code' }],
     ]);
     h.run(30);

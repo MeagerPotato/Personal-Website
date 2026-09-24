@@ -22,20 +22,26 @@ import {
 //              cruise speed), every 0.1 s that there is one
 //   stopDock   press Stop, then E at the first body the prompt offers, at the same moments as stop
 //   tap        take the controls back instead of pressing Stop: the brake, an arrow or the throttle
-//              held for 4 to 8 steps and let go, at the same moments as stop
+//              held for 4 to 8 steps and let go, at the same moments as stop; and an arrow or the
+//              throttle 1 to 60 steps into the orbit, while its springs still settle the arrival
 //   doubleTap  take them back with two quick presses, the second while the ship is still fast: the
 //              throttle twice, an arrow then the throttle, a thumb lifted off the stick and put
 //              back; 3 steps each, 2 to 30 steps apart, at the same moments as stop
 //   undock     the web layer lets go instead (api.ts undock: the route moved to a page with no
-//              body, Projects or the sky), at the same moments as stop
+//              body, Projects or the sky), at the same moments as stop, and 1 to 60 steps into
+//              the orbit (Close pressed as the page opens)
 //   reachBack  point at a body the ship is racing past, then a third of a second later back at
 //              where it was going, every 0.25 s that there is one
 //   chain      point at 4 to 8 bodies one after another, 0.03 to 0.43 s apart (sometimes back at
 //              where the journey began), every 0.25 s; it must dock at the last
 //   rebuild    the engine is rebuilt from its snapshot (a lost WebGL context), at the same moments
 //              as stop; the journey must still arrive, and the table says how much later
+//   reload     a full page load on a page with no body (a reload, a phone that threw the tab away,
+//              the router's fallback after a deploy), at the same moments as stop: the journey is
+//              not taken up, and the ship must come to rest as after Stop
 //
-// Every flight must end docked where it was sent (or at rest, after a Stop, a tap or an undock)
+// Every flight must end docked where it was sent (or at rest, after a Stop, a tap, an undock or a
+// reload)
 // without touching a shell or passing closer than half a cushion to anything it was not going to:
 // a failure is a failure, and the gate for a change to the autopilot, the approach, Stop, the
 // guard or the snapshot is none. By default the journeys are between systems; `kinds` adds journeys within one
@@ -52,6 +58,7 @@ export const STRESS_MODES = [
   'reachBack',
   'chain',
   'rebuild',
+  'reload',
 ] as const;
 export type StressMode = (typeof STRESS_MODES)[number];
 
@@ -74,6 +81,8 @@ export const STRESS_DEFAULTS: StressOptions = {
 
 /** Steps before the autopilot's last step at which to Stop or redirect: "just before it arrives". */
 const BEFORE_ARRIVAL = [1, 2, 3, 6, 12, 20];
+/** Steps into the orbit at which to let go or steer off (tap, undock): the first second of it. */
+const IN_ORBIT = [1, 2, 4, 8, 15, 25, 40, 60];
 const TAP_INPUTS: readonly TapInput[] = ['brake', 'turn', 'thrust'];
 /**
  * doubleTap: the two presses (a turn either way, seeded), each held DOUBLE_STEPS steps, and the
@@ -237,6 +246,19 @@ export function stress(
             add(mode, { kind: 'tap', atSec, input, steps, coastSec: options.coastSec });
           }
         }
+        // (The brake does not leave an orbit: only an arrow or the throttle.)
+        for (const inOrbitSteps of IN_ORBIT) {
+          for (const input of ['turn', 'thrust'] as const) {
+            add(mode, {
+              kind: 'tap',
+              atSec: last.t,
+              input,
+              steps: TAP_STEPS,
+              coastSec: options.coastSec,
+              inOrbitSteps,
+            });
+          }
+        }
       } else if (mode === 'doubleTap') {
         // A seed of its own: the modes that were here before it keep the flights they had.
         const pick = createRng(`${seed}|${galaxy.name}|${spec.from ?? 'spawn'}|${spec.to}|double`);
@@ -258,11 +280,26 @@ export function stress(
         }
       } else if (mode === 'rebuild') {
         for (const atSec of stopMoments) add(mode, { kind: 'rebuild', atSec });
+      } else if (mode === 'reload') {
+        for (const atSec of stopMoments) {
+          add(mode, { kind: 'reload', atSec, coastSec: options.coastSec });
+        }
       } else {
         const thenDock = mode === 'stopDock';
         const route = mode === 'undock';
         for (const atSec of stopMoments) {
           add(mode, { kind: 'stop', atSec, coastSec: options.coastSec, thenDock, route });
+        }
+        if (route) {
+          for (const inOrbitSteps of IN_ORBIT) {
+            add(mode, {
+              kind: 'stop',
+              atSec: last.t,
+              coastSec: options.coastSec,
+              route,
+              inOrbitSteps,
+            });
+          }
         }
       }
     }
@@ -285,6 +322,10 @@ function describeFlight(flight: StressFlight): string {
   const { result, interrupt } = flight;
   const done = result.interrupt;
   const within = done?.how === 'approach' ? ' (within reach)' : '';
+  const inOrbit =
+    (interrupt.kind === 'stop' || interrupt.kind === 'tap') && interrupt.inOrbitSteps !== undefined
+      ? ` ${interrupt.inOrbitSteps} steps into the orbit`
+      : '';
   const what =
     interrupt.kind === 'redirect'
       ? interrupt.then
@@ -296,13 +337,15 @@ function describeFlight(flight: StressFlight): string {
           : `${interrupt.input} held ${interrupt.steps} steps`
         : interrupt.kind === 'rebuild'
           ? 'rebuilt'
-          : interrupt.thenDock
-            ? `Stop, then E${done?.to ? ` at ${done.to}` : ' (nothing offered)'}`
-            : interrupt.route
-              ? 'let go by the web layer'
-              : 'Stop';
+          : interrupt.kind === 'reload'
+            ? 'a page with no body loaded'
+            : interrupt.thenDock
+              ? `Stop, then E${done?.to ? ` at ${done.to}` : ' (nothing offered)'}`
+              : interrupt.route
+                ? 'let go by the web layer'
+                : 'Stop';
   return (
-    `${result.from} -> ${result.to} @${result.askedAt.toFixed(2)} s: ${what} ` +
+    `${result.from} -> ${result.to} @${result.askedAt.toFixed(2)} s: ${what}${inOrbit} ` +
     `${f1(done?.atSec ?? NaN)} s in, at ${f1(done?.atSpeed ?? NaN)} u/s`
   );
 }
@@ -341,13 +384,14 @@ export function stressTable(flights: readonly StressFlight[]): string {
       mode === 'stopDock' ||
       mode === 'tap' ||
       mode === 'doubleTap' ||
-      mode === 'undock'
+      mode === 'undock' ||
+      mode === 'reload'
     ) {
       const stops = group.flatMap((flight) => (flight.result.stop ? [flight.result.stop] : []));
       const slide = stops.map((stop) => stop.slideU);
       const docked = group.filter((flight) => flight.result.interrupt?.to != null).length;
       lines.push(
-        `            slid after ${mode === 'tap' || mode === 'doubleTap' ? 'the tap' : mode === 'undock' ? 'letting go' : 'Stop'}: median ${f1(quantile(slide, 0.5))}  p90 ${f1(quantile(slide, 0.9))}  max ${f1(quantile(slide, 1))} u` +
+        `            slid after ${mode === 'tap' || mode === 'doubleTap' ? 'the tap' : mode === 'undock' ? 'letting go' : mode === 'reload' ? 'the page load' : 'Stop'}: median ${f1(quantile(slide, 0.5))}  p90 ${f1(quantile(slide, 0.9))}  max ${f1(quantile(slide, 1))} u` +
           (mode === 'stopDock' ? `; E docked ${docked} of ${group.length}` : ''),
       );
     }

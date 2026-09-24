@@ -4,7 +4,7 @@
 // page last asked of the engine (here: the star map) still in force.
 
 import type { Page } from '@playwright/test';
-import { engineReady, expect, openUniverse, test } from './support';
+import { engineReady, expect, openUniverse, test, watchText } from './support';
 
 const html = (page: Page) => page.locator('html');
 const prompt = (page: Page) => page.locator('.dock-prompt');
@@ -63,4 +63,50 @@ test('the star map is still open after a rebuild', async ({ page }) => {
   await close.click();
   await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
   await expect(page.getByRole('button', { name: 'Map', exact: true })).toBeVisible();
+});
+
+test('a Stop pressed in the frame the context goes still ends the journey and closes its page', async ({
+  page,
+}) => {
+  // What the navigator queued in that frame is delivered before the old engine is taken down
+  // (api.ts, deliverPending); lost with it, the journey's page stayed open and nothing was said.
+  await openUniverse(page, '/');
+  const told = await watchText(page, '[data-announcer]');
+  await page.evaluate(() => {
+    const button = document.querySelector<HTMLButtonElement>('.dock-prompt');
+    if (!button) return;
+    // The moment the journey offers Stop: press it, and take the context away in the same task.
+    const watch = new MutationObserver(() => {
+      if (!button.querySelector('.dock-prompt__action')?.textContent?.includes('Stop')) return;
+      watch.disconnect();
+      button.click();
+      const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');
+      canvas?.setAttribute('data-e2e-canvas', 'lost');
+      const lose = canvas?.getContext('webgl2')?.getExtension('WEBGL_lose_context');
+      lose?.loseContext();
+      (window as Window & { e2eLost?: boolean }).e2eLost = Boolean(lose);
+    });
+    watch.observe(button, { subtree: true, childList: true, characterData: true });
+    // A link to a planet in the next system: its page opens at once, and the ship sets out.
+    const link = document.createElement('a');
+    link.href = '/projects/fishai/';
+    document.body.append(link);
+    link.click();
+    link.remove();
+  });
+  await expect
+    .poll(() => page.evaluate(() => (window as Window & { e2eLost?: boolean }).e2eLost))
+    .not.toBeUndefined();
+  test.skip(
+    !(await page.evaluate(() => (window as Window & { e2eLost?: boolean }).e2eLost)),
+    'this browser cannot lose a context on request',
+  );
+  await expect.poll(() => rebuilt(page)).toBe(true);
+  await engineReady(page);
+
+  await expect.poll(async () => (await told()).map(({ text }) => text)).toContain('Stopped.');
+  await expect.poll(() => pathOf(page)).toBe('/');
+  await expect(html(page)).toHaveAttribute('data-panel', 'closed');
+  await expect(html(page)).toHaveAttribute('data-mode', 'universe');
+  await expect(prompt(page)).not.toContainText('Stop');
 });
