@@ -234,10 +234,21 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   `obstacles`, room that is taken before the first name is placed (on a phone with the sheet up,
   the name of where the ship is going used to lie on the prompt that says so), and so is the
   page's footer chip in the bottom-left corner, which the shell measures (`foot` of the inset).
-  On the star map the ship is a marker that says "you are here", and nothing may cover it
-  either: it is taken room too (`ship`), and a name it would lie under moves to ABOVE its body
-  instead of hiding, with the same patience as declutter, so a name does not hop about while the
-  ship circles its body.
+  On the star map the ship is a marker that says "you are here", and no name's tag may cover
+  it either (`ship`, projected at the height the marker is drawn at). It is not taken room like
+  the obstacles, because it is most often right beside the very body whose name it is: a name it
+  would lie under glides just past it, away from its body (`glidePast` in `sim/declutter.ts`), or
+  goes ABOVE its body, with the same patience as declutter, so a name does not hop about while
+  the ship circles its body. Only on the map (`eitherSide`, which holds still) may a name sit
+  above its body, and there one with no room below (the sheet, an edge, a control) goes above
+  too. Any other name glides a few pixels at most and then makes way; the target's and the
+  focused one never do, so the ship alone never hides the name of where it is, or takes the
+  keyboard's focus away.
+  Either side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
+  from the ship (its height, and how far the target's tag reaches left for its dot, are read
+  from the stylesheet when the names are measured); the rest of the 44 px box, a clear touch
+  target, lies beyond the tag, away from the body (`data-side='above'` tells CSS to draw the tag
+  at the bottom of the box).
   The top bar is the web layer's, so the web layer measures it: `shell/panel-inset.ts` reports
   how far down its links reach as `top` of `setPanelInset`, which the names respect (the bar is
   two rows tall on a phone); the camera goes by `frameTop` instead (above). Per frame that is a

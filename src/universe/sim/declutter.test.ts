@@ -3,6 +3,7 @@ import {
   createLabelBoxes,
   createTakenBoxes,
   declutter,
+  glidePast,
   verticalClearance,
   type LabelBoxes,
 } from './declutter';
@@ -226,5 +227,27 @@ describe('verticalClearance', () => {
     expect(verticalClearance(123, 100, 60, 24, box, 4)).toBe(-20);
     expect(verticalClearance(20, 100, 76, 24, box, 4)).toBe(Infinity);
     expect(verticalClearance(20, 100, 77, 24, box, 4)).toBe(-20);
+  });
+});
+
+describe('glidePast', () => {
+  const box = { left: 100, top: 100, width: 20, height: 20 };
+
+  it('is nothing for a label that is a gap clear of the box, above, below or beside it', () => {
+    expect(glidePast(80, 124, 60, 24, box, 4, 1)).toBe(0); // a gap below
+    expect(glidePast(80, 72, 60, 24, box, 4, -1)).toBe(0); // a gap above
+    expect(glidePast(124, 100, 60, 24, box, 4, 1)).toBe(0); // a gap to the right
+    expect(glidePast(16, 100, 80, 24, box, 4, -1)).toBe(0); // a gap to the left
+  });
+
+  it('goes all the way past the box, the way it is told, a gap beyond it', () => {
+    // Over the box's lower half: down to 124, or up to 100 - 4 - 24 = 72.
+    expect(glidePast(80, 110, 60, 24, box, 4, 1)).toBe(14);
+    expect(glidePast(80, 110, 60, 24, box, 4, -1)).toBe(38);
+    // Just inside the gap: a nudge.
+    expect(glidePast(80, 122, 60, 24, box, 4, 1)).toBe(2);
+    expect(glidePast(80, 74, 60, 24, box, 4, -1)).toBe(2);
+    // Within the gap beside it counts as touching too.
+    expect(glidePast(123, 110, 60, 24, box, 4, 1)).toBe(14);
   });
 });

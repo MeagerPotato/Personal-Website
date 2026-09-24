@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScreenBox } from '../sim/declutter';
 import { createScreenMap, type ScreenMap } from '../sim/screen';
 import { Labels } from './Labels';
@@ -43,6 +43,7 @@ function setup(rows: readonly Row[]) {
     docked: false,
     prompt: null as ScreenBox | null,
     ship: null as ScreenBox | null,
+    eitherSide: false,
   };
   const view = { freeWidth: 1, freeHeight: 1 };
   const picked: number[] = [];
@@ -57,6 +58,7 @@ function setup(rows: readonly Row[]) {
     onPick: (row) => picked.push(row),
     obstacles: [() => state.prompt],
     ship: () => state.ship,
+    eitherSide: () => state.eitherSide,
   });
   labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
   labels.frameUpdate();
@@ -83,7 +85,44 @@ let cleanup: (() => void) | null = null;
 afterEach(() => {
   cleanup?.();
   cleanup = null;
+  vi.restoreAllMocks();
 });
+
+/**
+ * Names as the stylesheet draws them (happy-dom lays nothing out): a 26 px tag at the top of the
+ * 44 px box, and the target's tag 12 px longer to the left, to hold its dot.
+ */
+function drawnTags(): void {
+  const real = window.getComputedStyle.bind(window);
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+    if (pseudo !== '::after') return real(element, pseudo);
+    const target = element instanceof HTMLElement && element.dataset.state === 'target';
+    return { height: '26px', left: target ? '-12px' : '0px' } as CSSStyleDeclaration;
+  });
+}
+
+/**
+ * Where a name's tag is drawn: at the top of its 44 px button below its body, at the bottom above
+ * it (`data-side`), and a target's reaching `lead` further left.
+ */
+function tagOf(button: HTMLButtonElement, tag: number, lead: number) {
+  const [x = Number.NaN, y = Number.NaN] = (button.style.transform.match(/-?[\d.]+/g) ?? []).map(
+    Number,
+  );
+  const width = (button.textContent?.length ?? 0) * 7 + 24;
+  const top = button.dataset.side === 'above' ? y + 44 - tag : y;
+  return { left: x - lead, top, width: width + lead, height: tag };
+}
+
+/** How far apart two boxes are, up/down or sideways (whichever is more); negative if they overlap. */
+function apart(a: ScreenBox, b: ScreenBox): number {
+  return Math.max(
+    a.left - (b.left + b.width),
+    b.left - (a.left + a.width),
+    a.top - (b.top + b.height),
+    b.top - (a.top + a.height),
+  );
+}
 
 describe('Labels', () => {
   it('is one real button per body, in a group that says what pressing them does', () => {
@@ -234,37 +273,65 @@ describe('Labels', () => {
   it('on the map, moves a name the ship would be under to above its body, and back', () => {
     const { labels, state, shown, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
+    state.eitherSide = true;
     state.target = 1;
     // The ship's marker, parked in the middle of FishAI's usual place (367..433 x 442..486).
     state.ship = { left: 390, top: 450, width: 18, height: 18 };
     labels.frameUpdate();
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
-    // Above: 400 - 40 - 2 - 44 (no layout here, so a name is 44 px tall).
+    // Above: 400 - 40 - 2 - 44, and CSS is told, to draw the tag at the bottom of the button.
     expect(button('FishAI').style.transform).toBe('translate(367px, 314px)');
+    expect(button('FishAI').dataset.side).toBe('above');
 
     // The ship has gone: under its body again.
     state.ship = { left: 700, top: 650, width: 18, height: 18 };
     labels.frameUpdate();
     expect(button('FishAI').style.transform).toBe('translate(367px, 442px)');
+    expect(button('FishAI').dataset.side).toBeUndefined();
   });
 
-  it('keeps other names off the ship too, and hides one that has room on neither side', () => {
-    const { labels, state, shown } = setup(SPREAD);
+  it('glides any other name a little past the ship, and beyond that it makes way', () => {
+    // The moon is near the top bar: its name has no room above it (120 - 6 - 2 - 44 < 80).
+    const { labels, screen, state, shown, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
-    // A tall ship (zoomed right in) over the whole of the moon: above and below are both taken.
-    state.ship = { left: 580, top: 330, width: 40, height: 150 };
+    state.eitherSide = true;
+    screen.y[2] = 120;
+    labels.frameUpdate();
+    expect(button('Canadian Fish').style.transform).toBe('translate(542.5px, 128px)');
+
+    // The ship just over the top of the name (to 131): the name glides down to 135, a gap clear.
+    state.ship = { left: 591, top: 113, width: 18, height: 18 };
+    labels.frameUpdate();
+    expect(shown()).toContain('Canadian Fish');
+    expect(button('Canadian Fish').style.transform).toBe('translate(542.5px, 135px)');
+
+    // Right over the name: it would have to go 34 px from its body. It makes way instead...
+    state.ship = { left: 591, top: 140, width: 18, height: 18 };
     labels.frameUpdate();
     expect(shown()).toEqual(['Code', 'FishAI', 'About']);
+
+    // ...unless it is where the ship is going, or the keyboard is on it: those glide on.
+    state.target = 2;
+    labels.frameUpdate();
+    expect(shown()).toContain('Canadian Fish');
+    expect(button('Canadian Fish').style.transform).toBe('translate(542.5px, 162px)');
+    state.target = -1;
+    labels.frameUpdate();
+    expect(shown()).not.toContain('Canadian Fish');
+    button('Canadian Fish').dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    labels.frameUpdate();
+    expect(shown()).toContain('Canadian Fish');
   });
 
   it('never lays a name over the ship as it circles a body, and does not flicker', () => {
     const { labels, screen, state, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
+    state.eitherSide = true;
     state.target = 3; // About, at (200, 300), radius 30: the name is 59 x 44
     const [x, y] = [screen.x[3] ?? 0, screen.y[3] ?? 0];
-    let moves = 0;
+    let hops = 0;
     let hidden = 0;
-    let last = '';
+    let side = 0;
     for (let lap = 0; lap < 2; lap += 1) {
       for (let step = 0; step < 360; step += 1) {
         const angle = (step * Math.PI) / 180;
@@ -277,19 +344,95 @@ describe('Labels', () => {
           hidden += 1;
           continue;
         }
-        const [left = Number.NaN, top = Number.NaN] = (
-          name.style.transform.match(/-?[\d.]+/g) ?? []
-        ).map(Number);
-        expect(left).toBeCloseTo(170.5, 5);
-        const apart = left + 59 <= cx - 9 || cx + 9 <= left || top + 44 <= cy - 9 || cy + 9 <= top;
-        expect(apart, `lap ${lap}, ${step} degrees`).toBe(true);
-        if (name.style.transform !== last) moves += 1;
-        last = name.style.transform;
+        const tag = tagOf(name, 44, 0);
+        expect(tag.left).toBeCloseTo(170.5, 5);
+        expect(apart(tag, state.ship), `lap ${lap}, ${step} degrees`).toBeGreaterThan(0);
+        const now = tag.top < y ? 1 : 0;
+        if (now !== side) hops += 1;
+        side = now;
       }
     }
     expect(hidden).toBe(0);
-    // Down, then up again, once a lap: never back and forth.
-    expect(moves).toBeLessThanOrEqual(5);
+    // Up, then down again, once a lap: never back and forth.
+    expect(hops).toBeLessThanOrEqual(4);
+  });
+
+  // The station, the satellite and a moon are drawn 3.5 to 4 px in radius on the map, and the
+  // ship circles them 4 to 15 px out: its 18 px marker covers both of the places a name has.
+  for (const radius of [3.5, 4, 8]) {
+    for (const ring of [2, 4.6, 15, 30]) {
+      it(`names the body the ship circles, never under it and never gone (r ${radius}, ring ${ring})`, () => {
+        drawnTags();
+        const { labels, screen, state, button } = setup(SPREAD);
+        cleanup = () => labels.dispose();
+        state.eitherSide = true;
+        state.target = 2; // Canadian Fish, at (600, 380)
+        screen.radius[2] = radius;
+        labels.frameUpdate(); // marks the target; the next frame measures its longer tag
+        const name = button('Canadian Fish');
+        let hidden = 0;
+        let hops = 0;
+        let side = 0;
+        let glide = 0;
+        for (let step = 0; step < 3 * 720; step += 1) {
+          const angle = (step * Math.PI) / 360;
+          const cx = 600 + ring * Math.cos(angle);
+          const cy = 380 + ring * Math.sin(angle);
+          state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
+          labels.frameUpdate();
+          if (!('shown' in name.dataset)) {
+            hidden += 1;
+            continue;
+          }
+          const tag = tagOf(name, 26, 12);
+          // A gap clear of the ship, to the tenth of a pixel the transform is written in.
+          expect(apart(tag, state.ship), `step ${step}`).toBeGreaterThanOrEqual(4 - 0.05);
+          const now = tag.top < 380 ? 1 : 0;
+          if (now !== side) hops += 1;
+          side = now;
+          const home = now ? 380 - radius - 2 - 26 : 380 + radius + 2;
+          glide = Math.max(glide, Math.abs(tag.top - home));
+        }
+        expect(hidden).toBe(0);
+        // At most over and back once a lap, and never far from the body.
+        expect(hops).toBeLessThanOrEqual(6);
+        expect(glide).toBeLessThanOrEqual(12);
+      });
+    }
+  }
+
+  it('puts a name that has no room below its body above it, on the map only', () => {
+    // A phone's map over a bottom sheet: About just above the sheet, the ship circling it close.
+    drawnTags();
+    const { labels, screen, state, view, button, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    view.freeHeight = 0.4; // 320 px free: names end by 312
+    screen.x[3] = 118;
+    screen.y[3] = 292;
+    screen.radius[3] = 8;
+    state.target = 3;
+    labels.frameUpdate();
+    labels.frameUpdate();
+    // In flight a name does not hop round its body: no room below, no name.
+    expect(shown()).not.toContain('About');
+
+    state.eitherSide = true;
+    const name = button('About');
+    for (let step = 0; step < 720; step += 1) {
+      const angle = (step * Math.PI) / 360;
+      const cx = 118 + 3.8 * Math.cos(angle);
+      const cy = 292 + 3.8 * Math.sin(angle);
+      state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
+      labels.frameUpdate();
+      expect('shown' in name.dataset, `step ${step}`).toBe(true);
+      const tag = tagOf(name, 26, 12);
+      expect(tag.top + tag.height).toBeLessThanOrEqual(292 - 8);
+      expect(apart(tag, state.ship)).toBeGreaterThanOrEqual(4 - 0.05);
+    }
+    // With the ship away, it sits just over the body, as a name below sits just under it.
+    state.ship = null;
+    labels.frameUpdate();
+    expect(tagOf(name, 26, 12).top).toBeCloseTo(292 - 8 - 2 - 26, 5);
   });
 
   it("keeps names off the page's footer chip in the corner, once told where it is", () => {
@@ -302,6 +445,22 @@ describe('Labels', () => {
     labels.setFoot(null);
     labels.frameUpdate();
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
+  });
+
+  it('on the map, puts a name whose place below is taken above its body instead', () => {
+    const { labels, state, shown, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.eitherSide = true;
+    // The footer chip over About's usual place (170.5..229.5 x 332..376)...
+    labels.setFoot({ right: 180, top: 360 });
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
+    // ...so it sits above: 300 - 30 - 2 - 44 (no layout here, so the tag is the whole box).
+    expect(button('About').style.transform).toBe('translate(170.5px, 224px)');
+    // And back below once the chip is gone.
+    labels.setFoot(null);
+    labels.frameUpdate();
+    expect(button('About').style.transform).toBe('translate(170.5px, 332px)');
   });
 
   it('never takes a name away from under the keyboard', () => {

@@ -267,6 +267,11 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
+  // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
+  // whatever it is beside. Drawn so below; the names keep off it as drawn.
+  const markerUnits = (): number => Math.max(1, tuning.map.shipRadiusPx * starMap.unitsPerPx);
+  const markerLift = (units: number): number => starMap.weight * (galaxy.displayReach + units);
   const shipAt = { x: 0, y: 0 };
   const shipBox = { left: 0, top: 0, width: 0, height: 0 };
   if (options.overlay) {
@@ -291,17 +296,20 @@ export function boot(
         obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
         // On the map the ship is the marker that says "you are here": no name lies on it.
         ship: () => {
-          if (!starMap.isOpen || !onScreen.pointAt(ship.position.x, ship.position.z, shipAt)) {
-            return null;
-          }
-          // As big as it is drawn (below): the marker, or the ship itself once that is bigger.
-          const half = Math.max(tuning.map.shipRadiusPx, 1 / starMap.unitsPerPx);
+          if (!starMap.isOpen) return null;
+          const units = markerUnits();
+          const { x, z } = ship.position;
+          if (!onScreen.pointAt(x, z, shipAt, markerLift(units))) return null;
+          // As big as it is drawn: the marker, or the ship itself once that is bigger.
+          const half = units / starMap.unitsPerPx;
           shipBox.left = shipAt.x - half;
           shipBox.top = shipAt.y - half;
           shipBox.width = 2 * half;
           shipBox.height = 2 * half;
           return shipBox;
         },
+        // The map holds still: there a name may go above its body, out of the ship's way.
+        eitherSide: () => starMap.isOpen,
       }),
     );
   }
@@ -318,9 +326,8 @@ export function boot(
       setToonFlatness(weight * tuning.map.flatness);
       starfield.setCalm(weight, tuning.map.starOpacity);
       dust.setPresence(1 - weight);
-      // (The ship is about two units long, so one unit is its "radius".)
-      const marker = Math.max(1, tuning.map.shipRadiusPx * starMap.unitsPerPx);
-      ship.setMarker(Math.pow(marker, weight), weight * (galaxy.displayReach + marker));
+      const marker = markerUnits();
+      ship.setMarker(Math.pow(marker, weight), markerLift(marker));
     },
     dispose: () => setToonFlatness(0),
   });

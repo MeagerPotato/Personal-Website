@@ -2194,8 +2194,9 @@ picture {
    * Names over the bodies (universe/ui/Labels.ts): real buttons, so a name can be tapped, tabbed
    * to and read out. The engine moves them and decides which may show (`data-shown`) and which
    * one the ship is headed for (`data-state='target'`); this is how they look. The box is a 44 px
-   * touch target with the name at its top, close to the body it belongs to; the name sits on a
-   * small navy tag (::after, the height of the name alone), like a label on a transit map.
+   * touch target with the name at the end nearest the body it belongs to: its top, or its bottom
+   * for a name the engine has put above its body (`data-side='above'`, on the map); the name sits
+   * on a small navy tag (::after, the height of the name alone), like a label on a transit map.
    */
   .body-labels {
     position: absolute;
@@ -2237,7 +2238,9 @@ picture {
     will-change: transform;
   }
 
-  /* The tag. will-change above makes the button a stacking context, so -1 is still inside it. */
+  /* The tag. will-change above makes the button a stacking context, so -1 is still inside it.
+     The engine reads its height: it is the tag, not the 44 px box, that sits just off the body
+     (above it or below) and keeps clear of the ship on the map. */
   .body-label::after {
     content: '';
     position: absolute;
@@ -2256,6 +2259,18 @@ picture {
     visibility: visible;
     pointer-events: auto;
     transition-delay: 0s;
+  }
+
+  /* Above its body the tag sits at the bottom of the box, just over the body, and the clear rest
+     of the touch target lies beyond it, away from the body (and from the ship beside it). */
+  .body-label[data-side='above'] {
+    align-items: flex-end;
+    padding: 0 var(--space-3) var(--space-1);
+  }
+
+  .body-label[data-side='above']::after {
+    top: auto;
+    bottom: 0;
   }
 
   /* A sun, or the home planet, names a whole system: set like a district on a map. */
@@ -2321,7 +2336,7 @@ picture {
   }
 
   /* The tag grows to the left to hold the dot: out of the flow, because the engine measured the
-     name without it. */
+     name without it. The engine reads how far (this `left`) and keeps the dot off the ship too. */
   .body-label[data-state='target']::after {
     left: -0.75rem;
     background: var(--color-focus);
@@ -2336,6 +2351,11 @@ picture {
     height: 0.5em;
     border-radius: var(--radius-pill);
     background: var(--color-space-900);
+  }
+
+  .body-label[data-state='target'][data-side='above']::before {
+    top: auto;
+    bottom: calc(var(--space-1) + 0.45em);
   }
 
   /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,
