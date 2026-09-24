@@ -126,11 +126,29 @@ export interface ProjectCard {
   date: string;
   status: string;
   biome: BiomeKey;
+  /**
+   * The colour family the card wears: its system's, and for a moon its planet's system's. A list
+   * can mix systems (the home page's "Start here", "Connected by motorway"), and every planet
+   * keeps its own colour in it. Missing only for a project whose system is gone.
+   */
+  theme: ThemeKey | undefined;
   flagship: boolean;
   kind: 'planet' | 'moon';
 }
 
-export const toCard = <P extends ProjectLike>(project: P): ProjectCard => ({
+/** The system a project belongs to: its own, or, for a moon, its planet's. */
+export function projectTheme(
+  project: ProjectLike,
+  systems: readonly SystemLike[],
+  projects: readonly ProjectLike[],
+): ThemeKey | undefined {
+  const parentId = project.data.parent?.id;
+  const planet = parentId ? projects.find((entry) => entry.id === parentId) : project;
+  const systemId = planet?.data.system?.id;
+  return systems.find((system) => system.id === systemId)?.data.theme;
+}
+
+export const toCard = <P extends ProjectLike>(project: P, theme?: ThemeKey): ProjectCard => ({
   id: project.id,
   href: routes.project(project.id),
   title: project.data.title,
@@ -138,6 +156,7 @@ export const toCard = <P extends ProjectLike>(project: P): ProjectCard => ({
   date: project.data.date,
   status: STATUS_LABEL[project.data.status],
   biome: project.data.planet.biome,
+  theme,
   flagship: project.data.flagship,
   kind: project.data.parent === undefined ? 'planet' : 'moon',
 });
@@ -166,7 +185,10 @@ export function buildProjectTree(
   systems: readonly SystemLike[],
   projects: readonly ProjectLike[],
 ): SystemNode[] {
-  const cards = projects.map((project) => ({ project, card: toCard(project) }));
+  const cards = projects.map((project) => ({
+    project,
+    card: toCard(project, projectTheme(project, systems, projects)),
+  }));
   cards.sort((a, b) => byShowcase(a.card, b.card));
   return [...systems]
     .sort((a, b) => a.data.order - b.data.order)
@@ -236,11 +258,11 @@ export function projectContext(
     theme: system?.data.theme,
     moons: projects
       .filter((entry) => entry.data.parent?.id === project.id)
-      .map(toCard)
+      .map((moon) => toCard(moon, system?.data.theme))
       .sort(byShowcase),
     related: project.data.related.flatMap((reference) => {
       const target = byId.get(reference.id);
-      return target ? [toCard(target)] : [];
+      return target ? [toCard(target, projectTheme(target, systems, projects))] : [];
     }),
   };
 }

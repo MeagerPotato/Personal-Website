@@ -1,5 +1,6 @@
 ---
 // A list of projects as cards. A planet's moons, when it has any, are listed inside its card.
+// Each card wears its own system's colours (data-theme), whatever page the list is on.
 // Markup only; the data comes ready-made from src/site/view-models.ts.
 import type { PlanetNode, ProjectCard } from '../site/view-models';
 
@@ -12,7 +13,7 @@ const { cards } = Astro.props;
 
 <ul class="cards">
   {cards.map((card) => (
-    <li class="card" data-biome={card.biome}>
+    <li class="card" data-biome={card.biome} data-theme={card.theme}>
       <span class="planet-dot" aria-hidden="true" />
       <div class="card__body">
         <h3 class="card__title">
