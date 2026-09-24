@@ -395,6 +395,17 @@ describe('the autopilot', () => {
     expect(world.dock.leftByPilot).toBe(true);
   });
 
+  it('flies on through a boost on its own: Shift+Tab is not "stop"', () => {
+    const journey = dockedAt('page/about');
+    const { world } = journey;
+    releaseDock(world.dock, world.assist);
+    requestDock(world.dock, world.orbits.indexOf('project/fishai'), NO_INPUT, true);
+    for (let k = 0; k < 60; k += 1) step(journey);
+    for (let k = 0; k < 30; k += 1) step(journey, { thrust: 0, turn: 0, brake: 0, boost: true });
+    expect(world.dock.phase).toBe('cruise');
+    expect(world.dock.leftByPilot).toBe(false);
+  });
+
   it('stops for the brake, too', () => {
     const journey = dockedAt('page/about');
     const { world } = journey;

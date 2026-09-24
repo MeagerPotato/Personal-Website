@@ -87,8 +87,13 @@ export function createDockState(): DockState {
   };
 }
 
+/**
+ * Is the pilot flying? Boost is not flying: it only multiplies thrust (sim/flight.ts), so on its
+ * own it moves nothing. And Shift is also half of Shift+Tab, which only moves the focus back one
+ * control; that must never take a reader out of orbit, off their page, or off a journey.
+ */
 function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
-  return input.thrust > deadZone || Math.abs(input.turn) > deadZone || input.boost;
+  return input.thrust > deadZone || Math.abs(input.turn) > deadZone;
 }
 
 /**
