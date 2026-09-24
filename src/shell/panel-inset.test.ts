@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tokens } from '../universe/design/tokens';
 import {
   barReach,
+  footReach,
   HUD_ROW_REM,
   mirrorInset,
   panelInset,
@@ -101,6 +102,19 @@ describe('panel inset', () => {
       105,
     );
     expect(barReach([])).toBe(0);
+  });
+
+  it('measures the corner the footer takes by what shows in it', () => {
+    const control = (width: number, top: number, right: number) => ({
+      getBoundingClientRect: () => ({ width, top, right }),
+    });
+    // "Plain version", and the way into the universe, which is not displayed in universe mode.
+    expect(footReach([control(145, 744.4, 169.2), control(0, 0, 0)])).toEqual({
+      right: 169,
+      top: 744,
+    });
+    expect(footReach([control(0, 0, 0)])).toBeUndefined();
+    expect(footReach([])).toBeUndefined();
   });
 
   it('never goes negative for a panel that is off the screen', () => {

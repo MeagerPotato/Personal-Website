@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createLabelBoxes, createTakenBoxes, declutter, type LabelBoxes } from './declutter';
+import {
+  createLabelBoxes,
+  createTakenBoxes,
+  declutter,
+  verticalClearance,
+  type LabelBoxes,
+} from './declutter';
 import { createRng } from './rng';
 
 const PARAMS = { gapPx: 4, keepPx: 6, max: 12 };
@@ -203,5 +209,22 @@ describe('declutter', () => {
         }
       }
     }
+  });
+});
+
+describe('verticalClearance', () => {
+  const box = { left: 100, top: 100, width: 20, height: 20 };
+
+  it('is the gap up or down, and negative by the overlap', () => {
+    expect(verticalClearance(80, 130, 60, 24, box, 4)).toBe(10); // below it
+    expect(verticalClearance(80, 60, 60, 24, box, 4)).toBe(16); // above it
+    expect(verticalClearance(80, 110, 60, 24, box, 4)).toBe(-10); // over its lower half
+  });
+
+  it('is Infinity for a label off to one side, and finite within besidePx of it', () => {
+    expect(verticalClearance(125, 100, 60, 24, box, 4)).toBe(Infinity);
+    expect(verticalClearance(123, 100, 60, 24, box, 4)).toBe(-20);
+    expect(verticalClearance(20, 100, 76, 24, box, 4)).toBe(Infinity);
+    expect(verticalClearance(20, 100, 77, 24, box, 4)).toBe(-20);
   });
 });

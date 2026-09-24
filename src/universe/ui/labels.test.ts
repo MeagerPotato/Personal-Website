@@ -38,7 +38,12 @@ function setup(rows: readonly Row[]) {
   const overlay = document.getElementById('overlay') as HTMLElement;
   const screen = createScreenMap(BODIES.length);
   put(screen, rows);
-  const state = { target: -1, docked: false, prompt: null as ScreenBox | null };
+  const state = {
+    target: -1,
+    docked: false,
+    prompt: null as ScreenBox | null,
+    ship: null as ScreenBox | null,
+  };
   const view = { freeWidth: 1, freeHeight: 1 };
   const picked: number[] = [];
   const labels = new Labels({
@@ -51,6 +56,7 @@ function setup(rows: readonly Row[]) {
     docked: () => state.docked,
     onPick: (row) => picked.push(row),
     obstacles: [() => state.prompt],
+    ship: () => state.ship,
   });
   labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
   labels.frameUpdate();
@@ -223,6 +229,79 @@ describe('Labels', () => {
     screen.x[2] = 620;
     labels.frameUpdate();
     expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
+  });
+
+  it('on the map, moves a name the ship would be under to above its body, and back', () => {
+    const { labels, state, shown, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.target = 1;
+    // The ship's marker, parked in the middle of FishAI's usual place (367..433 x 442..486).
+    state.ship = { left: 390, top: 450, width: 18, height: 18 };
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
+    // Above: 400 - 40 - 2 - 44 (no layout here, so a name is 44 px tall).
+    expect(button('FishAI').style.transform).toBe('translate(367px, 314px)');
+
+    // The ship has gone: under its body again.
+    state.ship = { left: 700, top: 650, width: 18, height: 18 };
+    labels.frameUpdate();
+    expect(button('FishAI').style.transform).toBe('translate(367px, 442px)');
+  });
+
+  it('keeps other names off the ship too, and hides one that has room on neither side', () => {
+    const { labels, state, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    // A tall ship (zoomed right in) over the whole of the moon: above and below are both taken.
+    state.ship = { left: 580, top: 330, width: 40, height: 150 };
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'About']);
+  });
+
+  it('never lays a name over the ship as it circles a body, and does not flicker', () => {
+    const { labels, screen, state, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.target = 3; // About, at (200, 300), radius 30: the name is 59 x 44
+    const [x, y] = [screen.x[3] ?? 0, screen.y[3] ?? 0];
+    let moves = 0;
+    let hidden = 0;
+    let last = '';
+    for (let lap = 0; lap < 2; lap += 1) {
+      for (let step = 0; step < 360; step += 1) {
+        const angle = (step * Math.PI) / 180;
+        const cx = x + 55 * Math.cos(angle);
+        const cy = y + 55 * Math.sin(angle);
+        state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
+        labels.frameUpdate();
+        const name = button('About');
+        if (!('shown' in name.dataset)) {
+          hidden += 1;
+          continue;
+        }
+        const [left = Number.NaN, top = Number.NaN] = (
+          name.style.transform.match(/-?[\d.]+/g) ?? []
+        ).map(Number);
+        expect(left).toBeCloseTo(170.5, 5);
+        const apart = left + 59 <= cx - 9 || cx + 9 <= left || top + 44 <= cy - 9 || cy + 9 <= top;
+        expect(apart, `lap ${lap}, ${step} degrees`).toBe(true);
+        if (name.style.transform !== last) moves += 1;
+        last = name.style.transform;
+      }
+    }
+    expect(hidden).toBe(0);
+    // Down, then up again, once a lap: never back and forth.
+    expect(moves).toBeLessThanOrEqual(5);
+  });
+
+  it("keeps names off the page's footer chip in the corner, once told where it is", () => {
+    // About's name is 170.5..229.5 x 332..376.
+    const { labels, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    labels.setFoot({ right: 180, top: 360 });
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish']);
+    labels.setFoot(null);
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
   it('never takes a name away from under the keyboard', () => {

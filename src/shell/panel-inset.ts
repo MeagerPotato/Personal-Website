@@ -22,6 +22,12 @@ export interface PanelInset {
    * frames a body: universe/camera/CameraRig.ts, `avoidsTop`.)
    */
   frameTop: number;
+  /**
+   * Where the footer's chip (the way out to the plain version) sits over the bottom-left corner
+   * of the sky: from the left edge to `right`, from `top` down. The names keep off it, as they
+   * keep off the engine's own controls. Absent while nothing of the footer shows.
+   */
+  foot?: { right: number; top: number };
 }
 
 /**
@@ -87,6 +93,27 @@ export function barReach(
 }
 
 /**
+ * Pure: the corner that the footer's visible controls take, from the left edge. Like barReach, by
+ * what can be pressed, and hidden controls have no size. Undefined if nothing shows.
+ */
+export function footReach(
+  controls: Iterable<{
+    getBoundingClientRect(): { width: number; top: number; right: number };
+  }>,
+): { right: number; top: number } | undefined {
+  let foot: { right: number; top: number } | undefined;
+  for (const control of controls) {
+    const { width, top, right } = control.getBoundingClientRect();
+    if (width === 0) continue;
+    foot = {
+      right: Math.max(foot?.right ?? 0, Math.round(right)),
+      top: Math.min(foot?.top ?? Infinity, Math.round(top)),
+    };
+  }
+  return foot;
+}
+
+/**
  * The same inset for the stylesheet, as custom properties on <html>: the engine's own DOM keeps to
  * the free part of the viewport too (or a bottom sheet would cover the dock prompt), and below the
  * links of the top bar (the Map button sits right under them). `null` takes them away again.
@@ -114,6 +141,8 @@ export function watchPanelInset(
   const panel = doc.querySelector<HTMLElement>('.panel');
   const bar = doc.querySelector<HTMLElement>('.masthead');
   const controls = bar ? [...bar.querySelectorAll<HTMLElement>('a, button')] : [];
+  const footer = doc.querySelector<HTMLElement>('.footer');
+  const footControls = footer ? [...footer.querySelectorAll<HTMLElement>('a, button')] : [];
   const view = doc.defaultView;
   if (!panel || !view) return () => undefined;
 
@@ -133,12 +162,16 @@ export function watchPanelInset(
       reach,
       cover,
     );
+    const foot = footReach(footControls);
+    if (foot) inset.foot = foot;
     if (
       last &&
       last.right === inset.right &&
       last.bottom === inset.bottom &&
       last.top === inset.top &&
-      last.frameTop === inset.frameTop
+      last.frameTop === inset.frameTop &&
+      last.foot?.right === foot?.right &&
+      last.foot?.top === foot?.top
     )
       return;
     const first = last === null;
@@ -152,6 +185,7 @@ export function watchPanelInset(
   size.observe(panel);
   // The bar is taller where its links wrap under the wordmark, and on the page with the button.
   if (bar) size.observe(bar);
+  if (footer) size.observe(footer);
   view.addEventListener('resize', report);
   report();
 

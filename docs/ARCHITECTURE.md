@@ -149,12 +149,21 @@ the depth buffer a few units coarse from map height.
 
 **The panel and the view.** The info panel covers part of the viewport. The shell measures how
 much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
-(`--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides the WINDOW onto the
-view with `camera.setViewOffset` so that the middle of the view is the middle of what is left:
-same camera, same perspective, so a planet stays round (turning the camera instead would stretch
-it into an egg near the edge of a wide lens). Modes that frame something are told how much is free
-and stand back accordingly. `#universe-overlay` is inset the same way, so the dock prompt is never
-under a bottom sheet.
+(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides
+the WINDOW onto the view with `camera.setViewOffset` so that the middle of the view is the middle
+of what is left: same camera, same perspective, so a planet stays round (turning the camera
+instead would stretch it into an egg near the edge of a wide lens). Modes that frame something are
+told how much is free and stand back accordingly. `#universe-overlay` is inset the same way, so
+the dock prompt is never under a bottom sheet. Which layout is which is one media query, written
+twice (the stylesheet's sheet block, and `NARROW` in `panel-inset.ts`): narrow AND more than 30rem
+tall is a phone held upright and gets the bottom sheet; a phone held sideways has no height to
+share and keeps the side panel. The inset has a fourth number, `frameTop`: on that upright phone
+with the sheet up, the top bar is solid, so the shell reports the band down to the bottom of the
+Map button's row, and a camera mode that frames something (`CameraMode.avoidsTop`: the orbit
+camera, and the chase camera) leaves that band out as well, so the docked body sits in the strip
+between the row and the sheet. The chase camera also widens its lens there, as far as
+`tuning.chaseCam.fitDegrees` and `maxFitWiden` allow, to fit the ship and what is ahead into the
+strip. The map ignores the band. (Why, and the measurements: "As built, A1" in PLAN.md §6.)
 
 ## 5. Life of a visit
 
@@ -215,14 +224,20 @@ under a bottom sheet.
   nearer first; never touching, never under the panel or the top bar, and steady (a name that
   shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
   while bodies drift past each other). The name of the body the ship is docked at is on the page
-  already, so it is not shown. Names also keep off whatever else can be pressed out there: the
-  dock prompt and the boost pad are `obstacles`, room that is taken before the first name is
-  placed (on a phone with the sheet up, the name of where the ship is going used to lie on the
-  prompt that says so). The top bar is the web layer's, so the web layer measures it:
-  `shell/panel-inset.ts` reports how far down its links reach as `top` of `setPanelInset`, which
-  the camera ignores and the names respect (the bar is two rows tall on a phone). Per frame that
-  is a little arithmetic, one `transform` per visible name, and one look at where the few
-  obstacles are, taken before anything is written, while layout is still clean.
+  already, so it is not shown, and no other name lies on its face. Names also keep off whatever
+  else can be pressed out there: the dock prompt, the boost pad and the Map button are
+  `obstacles`, room that is taken before the first name is placed (on a phone with the sheet up,
+  the name of where the ship is going used to lie on the prompt that says so), and so is the
+  page's footer chip in the bottom-left corner, which the shell measures (`foot` of the inset).
+  On the star map the ship is a marker that says "you are here", and nothing may cover it
+  either: it is taken room too (`ship`), and a name it would lie under moves to ABOVE its body
+  instead of hiding, with the same patience as declutter, so a name does not hop about while the
+  ship circles its body.
+  The top bar is the web layer's, so the web layer measures it: `shell/panel-inset.ts` reports
+  how far down its links reach as `top` of `setPanelInset`, which the names respect (the bar is
+  two rows tall on a phone); the camera goes by `frameTop` instead (above). Per frame that is a
+  little arithmetic, one `transform` per visible name, and one look at where the few obstacles
+  are, taken before anything is written, while layout is still clean.
 - **The star map** (`ui/StarMap.ts`, `camera/MapCam.ts`, `sim/mapView.ts`) is another way of
   LOOKING, not another place to be. The navigator does not know about it: a journey, an approach
   or a docked ship carries on underneath, and the URL and the panel do not change. `M`, the Map

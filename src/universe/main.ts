@@ -77,6 +77,8 @@ export interface ViewInset {
   bottom?: number;
   /** How much of the top the camera leaves out when it frames what matters (none if left out). */
   frameTop?: number;
+  /** The page's footer chip over the bottom-left corner: from the left edge to right, top down. */
+  foot?: { right: number; top: number };
 }
 
 export interface Booted {
@@ -265,6 +267,8 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  const shipAt = { x: 0, y: 0 };
+  const shipBox = { left: 0, top: 0, width: 0, height: 0 };
   if (options.overlay) {
     // A name under every body that has room for one: pressing it is pointing at the body.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
@@ -285,6 +289,19 @@ export function boot(
         // What else can be pressed out there. The prompt is only built further down (it is
         // updated last in a frame); by the time anyone asks, it is there.
         obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
+        // On the map the ship is the marker that says "you are here": no name lies on it.
+        ship: () => {
+          if (!starMap.isOpen || !onScreen.pointAt(ship.position.x, ship.position.z, shipAt)) {
+            return null;
+          }
+          // As big as it is drawn (below): the marker, or the ship itself once that is bigger.
+          const half = Math.max(tuning.map.shipRadiusPx, 1 / starMap.unitsPerPx);
+          shipBox.left = shipAt.x - half;
+          shipBox.top = shipAt.y - half;
+          shipBox.width = 2 * half;
+          shipBox.height = 2 * half;
+          return shipBox;
+        },
       }),
     );
   }
@@ -358,6 +375,7 @@ export function boot(
     setInset(inset, cut) {
       rig.setInset({ top: inset.frameTop, right: inset.right, bottom: inset.bottom }, cut);
       labels?.setTop(inset.top ?? 0);
+      labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),

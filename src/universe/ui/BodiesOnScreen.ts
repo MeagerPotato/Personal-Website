@@ -23,6 +23,9 @@ export class BodiesOnScreen implements System {
   readonly map: ScreenMap;
 
   private readonly viewProjection = new Matrix4();
+  private readonly point = createScreenMap(1);
+  private readonly pointXZ = new Float64Array(2);
+  private readonly noRadius = new Float64Array(1);
   private width = 1;
   private height = 1;
 
@@ -46,6 +49,30 @@ export class BodiesOnScreen implements System {
       this.map,
       scales,
     );
+  }
+
+  /**
+   * Where a point of the flight plane (the ship, say) is in the picture of this frame, CSS px into
+   * `out`; false if it is not in front of the camera. Ask after this system's frameUpdate.
+   */
+  pointAt(x: number, z: number, out: { x: number; y: number }): boolean {
+    const { camera } = this.options;
+    this.pointXZ[0] = x;
+    this.pointXZ[1] = z;
+    projectBodies(
+      this.viewProjection.elements,
+      camera.projectionMatrix.elements[5] ?? 1,
+      this.width,
+      this.height,
+      this.pointXZ,
+      this.noRadius,
+      1,
+      this.point,
+    );
+    if (!((this.point.depth[0] ?? 0) > 0)) return false;
+    out.x = this.point.x[0] ?? 0;
+    out.y = this.point.y[0] ?? 0;
+    return true;
   }
 
   resize(viewport: Viewport): void {

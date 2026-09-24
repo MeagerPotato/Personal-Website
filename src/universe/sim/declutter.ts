@@ -121,6 +121,25 @@ export function declutter(
   }
 }
 
+/**
+ * How far a label lies above or below a box (CSS px): the gap between them up and down, negative
+ * by as much as they overlap. Infinity where they are more than `besidePx` apart side by side,
+ * because then no height can make them touch.
+ */
+export function verticalClearance(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  box: Readonly<ScreenBox>,
+  besidePx: number,
+): number {
+  if (left - besidePx >= box.left + box.width || left + width + besidePx <= box.left) {
+    return Infinity;
+  }
+  return Math.max(top - (box.top + box.height), box.top - (top + height));
+}
+
 /** Rows that are no candidates sort last, whatever nonsense their priority holds. */
 function sortKey(priority: number): number {
   return Number.isFinite(priority) ? priority : Infinity;

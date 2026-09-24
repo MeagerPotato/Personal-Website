@@ -148,10 +148,18 @@ export interface Universe {
    * clear of them, and so does the star map. `frameTop` is how much of the top the camera leaves
    * out as well, as it does what a panel covers: none wherever the bar is a strip of sky with a
    * few chips on it, more on a phone with the sheet up, where the bar is solid and a row of
-   * controls hangs under it (shell/panel-inset.ts).
+   * controls hangs under it (shell/panel-inset.ts). `foot` is the corner that the page's footer
+   * chip takes at the bottom left, from the left edge to `right` and from `top` down: the names
+   * keep off it.
    */
   setPanelInset(
-    inset: { top?: number; right?: number; bottom?: number; frameTop?: number },
+    inset: {
+      top?: number;
+      right?: number;
+      bottom?: number;
+      frameTop?: number;
+      foot?: { right: number; top: number };
+    },
     options?: { cut?: boolean },
   ): void;
   setPaused(paused: boolean): void;

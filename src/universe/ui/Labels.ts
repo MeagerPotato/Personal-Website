@@ -4,6 +4,7 @@ import {
   createLabelBoxes,
   createTakenBoxes,
   declutter,
+  verticalClearance,
   type DeclutterParams,
   type ScreenBox,
 } from '../sim/declutter';
@@ -44,6 +45,13 @@ export interface LabelsOptions {
    * way they keep off each other.
    */
   obstacles?: ReadonlyArray<() => Readonly<ScreenBox> | null>;
+  /**
+   * Where the ship is drawn right now, while it is a marker that says "you are here" (the star
+   * map), or null. No name lies on it, like the obstacles; but where one would, that name moves
+   * to ABOVE its body instead of hiding, because the ship is most often beside the very body
+   * whose name it is (circling it, or parked beside home).
+   */
+  ship?: () => Readonly<ScreenBox> | null;
 }
 
 /** Suns and the home planet name a whole system; moons are the small print. */
@@ -74,6 +82,8 @@ export class Labels implements System {
   private readonly boxes;
   private readonly taken;
   private readonly wasShown: Uint8Array;
+  /** 1 for a name that sits above its body, out of the ship's way; 0 (as usual) below it. */
+  private readonly above: Uint8Array;
   private readonly lastX: Float64Array;
   private readonly lastY: Float64Array;
   private width = 1;
@@ -82,13 +92,18 @@ export class Labels implements System {
   private focused = -1;
   private marked = -1;
   private barBottom = 0;
+  private foot: { right: number; top: number } | null = null;
+  /** Where names may go this frame (CSS px): the free view, less its edges and the top bar. */
+  private readonly room = { right: 0, bottom: 0, top: 0 };
 
   constructor(private readonly options: LabelsOptions) {
     const count = options.bodies.length;
     this.boxes = createLabelBoxes(count);
-    // One more than the obstacles: the face of the body the ship is docked at (frameUpdate).
-    this.taken = createTakenBoxes((options.obstacles?.length ?? 0) + 1);
+    // Three more than the obstacles: the face of the body the ship is docked at, the ship, and
+    // the page's footer chip.
+    this.taken = createTakenBoxes((options.obstacles?.length ?? 0) + 3);
     this.wasShown = new Uint8Array(count);
+    this.above = new Uint8Array(count);
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
 
@@ -122,9 +137,10 @@ export class Labels implements System {
     const { boxes } = this;
     const target = this.options.target();
     const docked = this.options.docked();
-    const right = this.width * view.freeWidth - params.edgePx;
-    const bottom = this.height * view.freeHeight - params.edgePx;
-    const ceiling = Math.max(params.topPx, this.barBottom + params.edgePx);
+    const { room } = this;
+    room.right = this.width * view.freeWidth - params.edgePx;
+    room.bottom = this.height * view.freeHeight - params.edgePx;
+    room.top = Math.max(params.topPx, this.barBottom + params.edgePx);
 
     // First, while this frame has not touched the page yet: what is in the way.
     let obstacles = 0;
@@ -149,6 +165,23 @@ export class Labels implements System {
       face.height = 2 * faceRadius;
       obstacles += 1;
     }
+    const ship = this.options.ship?.() ?? null;
+    const shipSlot = this.taken.boxes[obstacles];
+    if (ship && shipSlot) {
+      shipSlot.left = ship.left;
+      shipSlot.top = ship.top;
+      shipSlot.width = ship.width;
+      shipSlot.height = ship.height;
+      obstacles += 1;
+    }
+    const footSlot = this.taken.boxes[obstacles];
+    if (this.foot && footSlot) {
+      footSlot.left = 0;
+      footSlot.top = this.foot.top;
+      footSlot.width = this.foot.right;
+      footSlot.height = Math.max(0, this.height - this.foot.top);
+      obstacles += 1;
+    }
     this.taken.count = obstacles;
 
     boxes.count = Math.min(screen.count, bodies.length);
@@ -156,20 +189,21 @@ export class Labels implements System {
       boxes.priority[row] = Infinity;
       const depth = screen.depth[row] ?? 0;
       const radius = screen.radius[row] ?? 0;
-      if (!(depth > 0) || radius < params.minVisiblePx) continue;
-      if (docked && row === target) continue;
+      if (!(depth > 0) || radius < params.minVisiblePx || (docked && row === target)) {
+        this.above[row] = 0;
+        continue;
+      }
 
       const w = boxes.width[row] ?? 0;
+      const h = boxes.height[row] ?? 0;
       const left = (screen.x[row] ?? 0) - w / 2;
-      const top = (screen.y[row] ?? 0) + radius + params.offsetPx;
+      const under = (screen.y[row] ?? 0) + radius + params.offsetPx;
+      const over = (screen.y[row] ?? 0) - radius - params.offsetPx - h;
+      this.above[row] = ship ? this.sideOf(row, left, under, over, ship) : 0;
+      const top = this.above[row] ? over : under;
       boxes.left[row] = left;
       boxes.top[row] = top;
-      const inView =
-        left >= params.edgePx &&
-        left + w <= right &&
-        top >= ceiling &&
-        top + (boxes.height[row] ?? 0) <= bottom;
-      if (!inView) continue;
+      if (!this.fits(row, left, top)) continue;
 
       // Where the ship is going comes first, then whatever the keyboard is on (a name must not
       // vanish from under someone who has tabbed to it), then systems, planets, moons.
@@ -208,12 +242,57 @@ export class Labels implements System {
   }
 
   /**
+   * Above its body (1) or below it (0): below, unless the ship lies there and above is clearly the
+   * better place. Steady, like declutter: a name only moves when the ship comes within the gap of
+   * it, moves back once the ship is a gap and a keep away (or clearly further from below than from
+   * above), and changes sides before the ship is so far over it that declutter would hide it.
+   */
+  private sideOf(
+    row: number,
+    left: number,
+    under: number,
+    over: number,
+    ship: Readonly<ScreenBox>,
+  ): number {
+    const { gapPx, keepPx } = this.options.params;
+    const w = this.boxes.width[row] ?? 0;
+    const h = this.boxes.height[row] ?? 0;
+    const below = verticalClearance(left, under, w, h, ship, gapPx);
+    const above = verticalClearance(left, over, w, h, ship, gapPx);
+    const margin = keepPx / 2;
+    if (this.above[row]) {
+      const back = !this.fits(row, left, over) || below >= gapPx + keepPx || below > above + margin;
+      return back ? 0 : 1;
+    }
+    return below < gapPx && above > below + margin && this.fits(row, left, over) ? 1 : 0;
+  }
+
+  /** Would this row's name, put here, be wholly in the free view, clear of its edges? */
+  private fits(row: number, left: number, top: number): boolean {
+    const { room } = this;
+    return (
+      left >= this.options.params.edgePx &&
+      left + (this.boxes.width[row] ?? 0) <= room.right &&
+      top >= room.top &&
+      top + (this.boxes.height[row] ?? 0) <= room.bottom
+    );
+  }
+
+  /**
    * How far down the page's top bar reaches (CSS px). The bar is the web layer's, so the web layer
    * measures it (shell/panel-inset.ts): on a phone it is two rows tall, and a name must not lie
    * on its links.
    */
   setTop(px: number): void {
     this.barBottom = Math.max(0, px);
+  }
+
+  /**
+   * Where the page's footer chip is (CSS px: from the left edge to `right`, from `top` down), or
+   * null. The web layer's, measured by the web layer like the top bar; names keep off it.
+   */
+  setFoot(foot: { readonly right: number; readonly top: number } | null): void {
+    this.foot = foot ? { right: foot.right, top: foot.top } : null;
   }
 
   resize(viewport: Viewport): void {
