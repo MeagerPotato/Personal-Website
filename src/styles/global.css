@@ -3352,9 +3352,12 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   text-decoration: none;
 }
 
-.notice a:hover {
-  border-color: var(--color-ink-mid);
-  background: var(--color-surface-raised);
+/* A mouse only, like every key's hover (1d). */
+@media (hover: hover) {
+  .notice a:hover {
+    border-color: var(--color-ink-mid);
+    background: var(--color-surface-raised);
+  }
 }
 
 /* The narrowest phones: the key hangs out of the words' indent, under the ring, so that its label
