@@ -317,6 +317,9 @@ export function boot(
         overlay: options.overlay,
         navigator,
         titleOf: (id) => titles.get(id) ?? id,
+        // The map on a narrow screen with a page open is the strip above the sheet: the prompt
+        // would sit on the galaxy. It is back when the map closes.
+        quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
   }

@@ -321,9 +321,13 @@ export const tuning = {
      * of the view that sun sits: a phone held upright only sees 20 degrees to each side.
      */
     spawn: { distance: 118, swingDeg: 17 },
-    /** Lean into a turn: this many radians at the full turn rate, fading in up to bankFullSpeed. */
+    /**
+     * Lean into a turn: this many radians at the pilot's full turn rate (never more, however fast
+     * the autopilot turns), fading in up to bankFullSpeed, and eased at bankOmega (rad/s).
+     */
     bankRad: 0.6,
     bankFullSpeed: 15,
+    bankOmega: 9,
     /** Nose up under boost, nose down under the brake. pitchOmega is how fast it nods (rad/s). */
     pitchBoostDeg: 5,
     pitchBrakeDeg: 4,
@@ -380,6 +384,12 @@ export const tuning = {
     /** The view widens with speed: +fovBoostDegrees between these two speeds. Not under reduced motion. */
     fovBoostDegrees: 13,
     fovBoostSpeeds: [35, 80],
+    /**
+     * rad/s. How quickly the lens widens (and the look ahead grows) when the speed changes: the
+     * autopilot reaches 700 u/s in about a second, and a lens that kept up swung 13 degrees in five
+     * frames. At 5 it is two thirds of the way there in 0.43 s, never more than 0.4 degrees a frame.
+     */
+    fovOmega: 5,
     /**
      * A wider lens shrinks the ship. 0 = let it; 1 = move in exactly enough to keep its size, while
      * the sky still stretches (a dolly zoom).

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../state/appMachine';
 import { Prompt, type PromptNavigator } from './Prompt';
 
-function setup(state: AppState, candidate: string | null) {
+function setup(state: AppState, candidate: string | null, quiet?: () => boolean) {
   document.body.innerHTML = '<div id="overlay"></div><main data-flight-keys="off"><input /></main>';
   const overlay = document.getElementById('overlay') as HTMLElement;
   const navigator = {
@@ -17,6 +17,7 @@ function setup(state: AppState, candidate: string | null) {
     overlay,
     navigator: navigator as PromptNavigator,
     titleOf: (id) => (id === 'project/fishai' ? 'FishAI' : id),
+    quiet,
   });
   prompt.frameUpdate();
   const button = overlay.querySelector('button') as HTMLButtonElement;
@@ -39,6 +40,32 @@ describe('dock prompt', () => {
     cleanup = () => prompt.dispose();
     expect(button.type).toBe('button');
     expect(button.hidden).toBe(true);
+  });
+
+  it('keeps out of sight while it is told to, and comes back as it was', () => {
+    let squeezed = true;
+    const { button, navigator, prompt } = setup(
+      { mode: 'docked', target: 'project/fishai' },
+      null,
+      () => squeezed,
+    );
+    cleanup = () => prompt.dispose();
+    expect(button.hidden).toBe(true);
+    expect(prompt.box()).toBeNull();
+    squeezed = false;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe('Leave orbit');
+    squeezed = true;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(true);
+    // E does what it always does.
+    navigator.state = { mode: 'flight', target: null };
+    navigator.candidate = 'project/fishai';
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(true);
+    press('KeyE');
+    expect(navigator.approach).toHaveBeenCalledWith('project/fishai');
   });
 
   it('offers to orbit the body within reach, by its name, and says which key does it', () => {

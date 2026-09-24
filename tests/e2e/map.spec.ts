@@ -310,7 +310,8 @@ test.describe('on a phone', () => {
       await touch('touchMove', [{ x: start.x + step * 10, y: start.y - step * 5, id: 1 }]);
     }
     // The finger stops before it lifts. (Lifted on the move, it flicks: the browser flings, and
-    // its next tap, on Close map below, would only stop the fling.)
+    // its next tap, on Close map below, would only stop the fling.) This wait is part of the
+    // gesture, a finger held still, not a wait for something to happen.
     await page.waitForTimeout(200);
     await touch('touchMove', [{ x: start.x + 60, y: start.y - 30, id: 1 }]);
     await touch('touchEnd', []);
@@ -334,6 +335,9 @@ test.describe('on a phone', () => {
     await openUniverse(page, '/');
     await openButton(page).tap();
     await mapOpen(page, 'Code');
+    // Everything the prompt says from here on: a journey that set out and was let go of again
+    // before anyone looked would leave the prompt as it was, but not this.
+    const said = await watchText(page, '.dock-prompt');
     const code = await settled(nameOf(page, 'Code'));
     const fish = await settled(nameOf(page, 'FishAI'));
     const session = await page.context().newCDPSession(page);
@@ -388,6 +392,8 @@ test.describe('on a phone', () => {
     for (let step = 1; step <= 6; step += 1) {
       await touch('touchMove', [{ x: start.x + step * 10, y: start.y - step * 5, id: 1 }]);
     }
+    // Part of the gesture, not a wait for something to happen: the finger holds still a moment
+    // before it lifts, so that the lift carries no fling.
     await page.waitForTimeout(200);
     await touch('touchMove', [{ x: start.x + 60, y: start.y - 30, id: 1 }]);
     await touch('touchEnd', []);
@@ -399,10 +405,10 @@ test.describe('on a phone', () => {
     // Neither was a press of a name: nothing set out, and the map is still open.
     await expect(html(page)).toHaveAttribute('data-map', 'open');
     await expect(prompt(page)).not.toContainText('Flying to');
+    expect((await said()).filter(({ text }) => text.includes('Flying to'))).toEqual([]);
     expect(pathOf(page)).toBe('/');
 
     // A tap on the same name is a press of it, as ever: there it goes, and the map is put away.
-    const said = await watchText(page, '.dock-prompt');
     await pointAt(page, nameOf(page, 'Code'), true);
     await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
     await expect

@@ -4,9 +4,10 @@ import type { Frame, System } from '../core/Engine';
 import { Scope } from '../core/scope';
 import { tuning } from '../design/tuning';
 import { NO_INPUT, copyShipState, createShipState, stepFlight } from '../sim/flight';
-import { TAU, lerp, smoothstep } from '../sim/math';
+import { bankOf } from '../sim/bank';
+import { TAU, lerp } from '../sim/math';
 import type { SpawnPoint, SpawnRule } from '../sim/spawn';
-import { createSpring, stepSpring } from '../sim/spring';
+import { createSpring, snapSpring, stepSpring } from '../sim/spring';
 import { flyStep, type Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { EngineFlame, type FlameParams } from './EngineFlame';
@@ -21,6 +22,7 @@ export interface ShipLookParams {
   readonly spawn: SpawnRule;
   readonly bankRad: number;
   readonly bankFullSpeed: number;
+  readonly bankOmega: number;
   readonly pitchBoostDeg: number;
   readonly pitchBrakeDeg: number;
   readonly pitchOmega: number;
@@ -62,6 +64,7 @@ export class ShipSystem implements System {
   private readonly previous: ShipState;
   private readonly current: ShipState;
   private readonly pitch = createSpring(0);
+  private readonly bank = createSpring(0);
   /** What was flown in the last step: the pilot's input with the orbit assist mixed in. */
   private readonly flown: FlightInput = { ...NO_INPUT };
 
@@ -156,12 +159,12 @@ export class ShipSystem implements System {
     this.speed = Math.hypot(this.velocity.x, this.velocity.z);
     this.rocket.place(this.position, this.heading);
 
-    // Looks only, from here on. A left turn (yawRate > 0) drops the left wing: negative bank.
+    // Looks only, from here on. A left turn (yawRate > 0) drops the left wing: negative bank,
+    // never more than bankRad (sim/bank.ts), eased: the autopilot's turn rate changes in a step.
     const look = tuning.ship;
-    const bank =
-      -look.bankRad *
-      (this.yawRate / tuning.flight.yawRateSlow) *
-      smoothstep(0, look.bankFullSpeed, this.speed);
+    const bank = bankOf(this.yawRate, this.speed, tuning.flight.yawRateSlow, look);
+    if (frameSec > 0) stepSpring(this.bank, bank, look.bankOmega, frameSec);
+    else snapSpring(this.bank, bank);
 
     // The nod is the PILOT's doing: the assist's gentle throttle should not rock the ship.
     const input = this.options.pilot.current;
@@ -176,6 +179,6 @@ export class ShipSystem implements System {
     const bob = this.options.reducedMotion
       ? 0
       : look.bobAmplitude * Math.sin(TAU * look.bobHz * elapsed);
-    this.rocket.lean(bank, this.pitch.value, bob);
+    this.rocket.lean(this.bank.value, this.pitch.value, bob);
   }
 }

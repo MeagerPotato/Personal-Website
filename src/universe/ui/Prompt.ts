@@ -19,6 +19,12 @@ export interface PromptOptions {
   navigator: PromptNavigator;
   /** The name a visitor knows a body by. */
   titleOf(id: string): string;
+  /**
+   * While this says so, the prompt keeps out of sight, and comes back as it was when it stops
+   * saying so: the star map on a narrow screen, squeezed into the strip above an open page, where
+   * the prompt would sit on the galaxy itself (main.ts). `E` still works.
+   */
+  quiet?: () => boolean;
 }
 
 const DOCK_KEY = 'KeyE';
@@ -38,6 +44,7 @@ export class Prompt implements System {
   /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
   private readonly action: HTMLSpanElement;
   private shown = '';
+  private hushed = false;
   private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
 
   constructor(private readonly options: PromptOptions) {
@@ -75,14 +82,16 @@ export class Prompt implements System {
       text = `Flying to ${titleOf(target)}`;
       action = 'Stop';
     }
-    if (text === this.shown) return;
+    const hushed = this.options.quiet?.() ?? false;
+    if (text === this.shown && hushed === this.hushed) return;
     this.shown = text;
+    this.hushed = hushed;
     this.label.textContent = text;
     this.key.textContent = key;
     this.key.hidden = key === '';
     this.action.textContent = action;
     this.action.hidden = action === '';
-    this.button.hidden = text === '';
+    this.button.hidden = text === '' || hushed;
   }
 
   /** Where the prompt is on the page, or null while it does not show: names keep off it. */

@@ -47,9 +47,19 @@ export interface MapViewParams {
   readonly fitMargin: number;
   /**
    * ...and this much more on every side, in CSS px: a body at the edge of the galaxy has its name
-   * beside it (ui/Labels.ts), and a margin in pixels is the same room for it on any screen.
+   * beside it (ui/Labels.ts), and a margin in pixels is the same room for it on any screen. Never
+   * more than a sixth of the frame, though (padOf).
    */
   readonly fitPadPx: number;
+}
+
+/**
+ * The padding on the sides of a frame `size` px across: fitPadPx, but never more than a sixth of
+ * it. On a phone with a page open the map is the strip above the panel, some 150 px tall, and 44 px
+ * above and below the galaxy left it 62 px of it: no room for a single name.
+ */
+function padOf(size: number, params: MapViewParams): number {
+  return Math.min(Math.max(0, params.fitPadPx), Math.max(1, size) / 6);
 }
 
 /** The rectangle that holds every system, its outermost orbit included. */
@@ -92,10 +102,9 @@ export function unitsPerPx(span: number, frame: MapFrame): number {
 export function fitSpan(bounds: MapBounds, frame: MapFrame, params: MapViewParams): number {
   const width = Math.max(1, frame.width);
   const height = Math.max(1, frame.height);
-  // The padding comes off every side; but a frame too small for it still gets half of itself.
-  const pad = Math.max(0, params.fitPadPx) * 2;
-  const innerWidth = Math.max(width - pad, width / 2);
-  const innerHeight = Math.max(height - pad, height / 2);
+  // The padding comes off every side: the galaxy always has two thirds of the frame, at least.
+  const innerWidth = width - 2 * padOf(width, params);
+  const innerHeight = height - 2 * padOf(height, params);
   // X runs across the screen and Z up it.
   const perPx = Math.max(
     ((bounds.maxX - bounds.minX) * params.fitMargin) / innerWidth,
@@ -136,9 +145,10 @@ export function clampView(
 ): MapView {
   view.span = clamp(view.span, params.spanMin, spanLimit(bounds, frame, params));
   const perPx = unitsPerPx(view.span, frame);
-  const pad = Math.max(0, params.fitPadPx) * perPx;
-  view.x = keepOn(view.x, bounds.minX, bounds.maxX, (Math.max(1, frame.width) / 2) * perPx - pad);
-  view.z = keepOn(view.z, bounds.minZ, bounds.maxZ, (Math.max(1, frame.height) / 2) * perPx - pad);
+  const width = Math.max(1, frame.width);
+  const height = Math.max(1, frame.height);
+  view.x = keepOn(view.x, bounds.minX, bounds.maxX, (width / 2 - padOf(width, params)) * perPx);
+  view.z = keepOn(view.z, bounds.minZ, bounds.maxZ, (height / 2 - padOf(height, params)) * perPx);
   return view;
 }
 

@@ -119,6 +119,50 @@ describe('the chase camera', () => {
     );
   });
 
+  it('eases the lens wider as the autopilot takes off, instead of swinging it in a few frames', () => {
+    // The autopilot goes from rest to 700 u/s in about a second; here, in a tenth of one.
+    const target = ship();
+    const cam = new ChaseCam(target, { reducedMotion: false });
+    const pose = createPose();
+    cam.update(frame(1 / 60), WIDE, pose);
+    let last = pose.fov;
+    let most = 0;
+    for (let i = 1; i <= 180; i += 1) {
+      target.speed = Math.min(700, 700 * (i / 6));
+      target.position.z += target.speed / 60;
+      cam.update(frame(1 / 60), WIDE, pose);
+      most = Math.max(most, Math.abs(pose.fov - last));
+      last = pose.fov;
+    }
+    // 13 degrees, never more than 0.4 of them in a frame (a lens that kept up with the speed
+    // swung them in five frames), and all of them in the end.
+    expect(most).toBeLessThan(0.5);
+    expect(pose.fov).toBeCloseTo(tuning.camera.fovDegrees + params.fovBoostDegrees, 3);
+    // And the look ahead grows as smoothly, to its limit.
+    expect(pose.focus.z - target.position.z).toBeGreaterThan(
+      params.lookAheadMax - params.maxTrail - 0.5,
+    );
+
+    // A pilot's own boost ends at the same lens, however it got there.
+    const pilot = ship(0, 0, 0, 0);
+    const own = new ChaseCam(pilot, { reducedMotion: false });
+    own.update(frame(1 / 60), WIDE, pose);
+    for (let i = 1; i <= 240; i += 1) {
+      pilot.speed = Math.min(81, i);
+      own.update(frame(1 / 60), WIDE, pose);
+    }
+    expect(pose.fov).toBeCloseTo(tuning.camera.fovDegrees + params.fovBoostDegrees, 3);
+
+    // Under reduced motion the lens never changes at all.
+    const calm = ship();
+    const still = new ChaseCam(calm, { reducedMotion: true });
+    for (let i = 0; i <= 60; i += 1) {
+      calm.speed = 700 * Math.min(1, i / 6);
+      still.update(frame(1 / 60), WIDE, pose);
+      expect(pose.fov).toBe(tuning.camera.fovDegrees);
+    }
+  });
+
   it('looks no further ahead than its limit, so the view does not lie flat on the autopilot', () => {
     const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
     const top = (thrustAccel / forwardDrag) * boostFactor;

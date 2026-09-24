@@ -86,10 +86,29 @@ describe('the map, fitting the galaxy', () => {
       expect(across).toBeLessThanOrEqual(frame.width - 80 + 1e-6);
       expect(up).toBeLessThanOrEqual(frame.height - 80 + 1e-6);
     }
-    // A frame too small for its padding still shows everything, in half of itself.
+    // A frame too small for its padding still shows everything, in two thirds of itself.
     const tiny = { width: 60, height: 60 };
     const perPx = unitsPerPx(fitSpan(bounds, tiny, { ...padded, spanMin: 0 }), tiny);
-    expect((bounds.maxX - bounds.minX) / perPx).toBeCloseTo(30, 6);
+    expect((bounds.maxX - bounds.minX) / perPx).toBeCloseTo(40, 6);
+  });
+
+  it('gives the galaxy two thirds of a squeezed frame at least: the phone map above an open page', () => {
+    // 360 px wide, and the strip the bottom sheet leaves above it. With 44 px padding above and
+    // below, the galaxy had 62 px of 150; a sixth of the frame is 25 px, and it has 100.
+    const bounds = boundsOf(SYSTEMS);
+    const padded = { ...PARAMS, fitMargin: 1, fitPadPx: 44, spanMin: 0 };
+    const strip = { width: 360, height: 150 };
+    const perPx = unitsPerPx(fitSpan(bounds, strip, padded), strip);
+    expect((bounds.maxZ - bounds.minZ) / perPx).toBeCloseTo(100, 6);
+    // Across, where there is room, the padding is as it always is.
+    expect((bounds.maxX - bounds.minX) / perPx).toBeLessThanOrEqual(360 - 88 + 1e-6);
+    // And the view can be dragged that sixth past the galaxy's edge, no further.
+    const view = clampView({ x: 0, z: -5000, span: 400 }, bounds, strip, {
+      ...padded,
+      spanMin: 400,
+    });
+    const stripPerPx = unitsPerPx(400, strip);
+    expect(view.z).toBeCloseTo(-66 + (75 - 25) * stripPerPx, 9);
   });
 
   it("keeps the view on the galaxy: its edge at the frame's edge, and no further", () => {
