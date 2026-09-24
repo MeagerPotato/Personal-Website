@@ -656,12 +656,20 @@ export const tuning = {
    */
   layout: {
     /**
-     * Systems pack round home like a honeycomb, as tight as maxSystemRadius and minSystemGap below
-     * allow (data/layout.ts, slotPosition). Slot 1 stands this way from home, in degrees from +x
-     * toward +z, and the galaxy grows symmetrically about that line. On a diagonal (45, 135...) a
-     * galaxy with an even number of systems frames as a square on the star map.
+     * WHERE THE SYSTEMS ARE: these three, and each system's `order`, alone (data/layout.ts,
+     * slotPosition). Systems pack round home like a honeycomb: every one sits homeRoom u from
+     * home (centre to centre), or further, and slotRoom u from any other, or further. Slot 1
+     * stands clusterAxisDeg from home (degrees from +x toward +z) and the galaxy grows
+     * symmetrically about that line: on a diagonal (45, 135...) a galaxy with an even number of
+     * systems frames as a square on the star map. CHANGING ANY OF THE THREE MOVES EVERY SYSTEM
+     * (a test pins where they are; galaxy.lock.json will). The build checks that they leave room
+     * for the tripwires below: slotRoom for two full-size systems (2 x maxSystemRadius +
+     * minSystemGap + 1), homeRoom for one beside the home system as it really is (its reach,
+     * 66.2 u today, + maxSystemRadius + minSystemGap + 1): the home system may grow to 79 u.
      */
     clusterAxisDeg: 135,
+    homeRoom: 610,
+    slotRoom: 911,
 
     sunRadius: 20,
     /** Nothing orbits closer to a sun's surface than this (the autopilot's keep-out, plus headroom). */
@@ -678,7 +686,10 @@ export const tuning = {
     orbitGap: 8,
     /** Moons (and the home system's station and satellite) pack tighter than planets do. */
     moonGap: 4,
-    /** Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the build. */
+    /**
+     * Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the
+     * build. They move nothing: a slot's room (homeRoom, slotRoom above) must be enough for them.
+     */
     maxSystemRadius: 380,
     minSystemGap: 150,
     /** Orbital period in seconds: periodAtStartSec * (r / orbitStart) ^ periodExponent. */

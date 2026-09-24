@@ -8,6 +8,7 @@ import {
   reach,
   round,
   slotPosition,
+  slotRoomProblems,
   stackRings,
 } from './layout';
 import type {
@@ -240,6 +241,10 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   const home = buildHomeSystem(input.pages);
   const systems: ManifestSystem[] = [home.system];
   const bodies: ManifestBody[] = [...home.bodies];
+  // A slot too small for what the build accepts is refused, not moved (data/layout.ts).
+  if (input.systems.some((system) => system.position === 'auto')) {
+    problems.push(...slotRoomProblems());
+  }
 
   const sunDock = dockRadius(L.sunRadius);
   for (const system of [...input.systems].sort((a, b) => a.order - b.order)) {

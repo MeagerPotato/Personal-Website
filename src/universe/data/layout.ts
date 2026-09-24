@@ -63,8 +63,8 @@ export function homeReach(): number {
 }
 
 /**
- * u. The gaps below are the build's tripwires (data/build.ts) plus this much, so that rounding
- * positions to 2 places can never close a gap the build then complains about.
+ * u. The room between slots must be the build's tripwires (data/build.ts) plus this much, so that
+ * rounding positions to 2 places can never close a gap the build then complains about.
  */
 const SLOT_SLACK = 1;
 /** u. Two pockets this close to equally far from the hub are a tie. */
@@ -73,25 +73,32 @@ const TIE = 1e-3;
 /**
  * Centre of the system in slot `order` on the flight plane. Slot 0 is the origin (home).
  *
- * The slots pack round home like the cells of a honeycomb, as tight as the build's tripwires
- * allow: every slot has room for a system of the largest size the build accepts
- * (`maxSystemRadius`), `minSystemGap` clear of full-size neighbours, whatever is really in it.
- * That is what lets a slot be placed without knowing what will live in it, and so never move.
- * Tight matters: every journey between systems is a stretch of this, and the star map frames all
- * of it. (A spiral that keeps going outwards puts its newest systems ever further from the rest:
+ * WHERE A SLOT IS DEPENDS ON THREE NUMBERS AND THE ORDER, and on nothing else:
+ * `tuning.layout.homeRoom` (how far every slot keeps from home, centre to centre),
+ * `tuning.layout.slotRoom` (how far any two slots keep from each other) and
+ * `tuning.layout.clusterAxisDeg`. Not on how big a body or its docking ring is: a design tweak of
+ * those (dockMin, the home planet's radius) must never carry the galaxy off with it. The build
+ * checks instead that the room is enough (`slotRoomProblems`): a system of the largest size it
+ * accepts (`maxSystemRadius`) fits in every slot, `minSystemGap` clear of full-size neighbours and
+ * of the home system as it really is. That is what lets a slot be placed without knowing what
+ * will live in it, and so never move. Changing any of the three moves every system: a test pins
+ * where they are (data/layout.test.ts), and Phase 3's galaxy.lock.json takes over from it.
+ *
+ * The slots pack round home like the cells of a honeycomb, as tight as that room allows. Tight
+ * matters: every journey between systems is a stretch of this, and the star map frames all of
+ * it. (A spiral that keeps going outwards puts its newest systems ever further from the rest:
  * with 4 systems its farthest pair was three times as far apart as this, with 8 two and a half.)
  *
- *   1      on the axis (`clusterAxisDeg`), as close to home as the tripwires allow;
- *   2, 3   a triangle round home with it: 1,033 u apart at today's limits, the smallest three
- *          full-size systems round home can be;
+ *   1      on the axis (`clusterAxisDeg`), homeRoom from home;
+ *   2, 3   a triangle round home with it: the smallest three full-size systems round home can be;
  *   4 on   the free POCKET (a place touching two slots already there, as close as allowed)
  *          nearest to slot 1, which becomes the hub of the honeycomb. Of two equally near, the
  *          one that keeps the galaxy balanced on the axis; then the one at the larger angle.
  *
  * So the galaxy grows round the hub in mirror pairs, and with an even number of systems it is
  * symmetric about the axis: on the diagonal of the map, that frames as a square, which suits a
- * wide screen and a tall one alike. Farthest pair of centres at today's limits: 597 u with 2
- * systems, 1,034 with 4, 1,816 with 6, 1,944 with 8.
+ * wide screen and a tall one alike. Farthest pair of centres today: 610 u with 2 systems, 1,057
+ * with 4, 1,814 with 6, 1,965 with 8.
  *
  * Slot k is computed from slots 0 to k - 1 alone: adding systems never moves one already placed.
  */
@@ -115,13 +122,36 @@ export interface SlotLimits {
   readonly axisDeg: number;
 }
 
-/** The limits tuning.layout sets today: room for full-size systems round the home system. */
+/** The limits tuning.layout sets: its three slot keys, and nothing else (see slotPosition). */
 export function slotLimits(): SlotLimits {
-  return {
-    homeRoom: homeReach() + L.maxSystemRadius + L.minSystemGap + SLOT_SLACK,
-    pairRoom: 2 * L.maxSystemRadius + L.minSystemGap + SLOT_SLACK,
-    axisDeg: L.clusterAxisDeg,
-  };
+  return { homeRoom: L.homeRoom, pairRoom: L.slotRoom, axisDeg: L.clusterAxisDeg };
+}
+
+/**
+ * Is there room in every slot for everything the build accepts? Each slot must fit a system of
+ * `maxSystemRadius`, `minSystemGap` clear of a full-size neighbour and of the home system as it
+ * really is (`homeReach`, which follows the home planet's size and the docking rings). The build
+ * fails with these (data/build.ts) rather than let a slot move: making room moves the galaxy.
+ */
+export function slotRoomProblems(): string[] {
+  const problems: string[] = [];
+  const moving = 'Raising it moves every system (docs/PLAN.md §5.4, galaxy.lock.json).';
+  const fromHome = homeReach() + L.maxSystemRadius + L.minSystemGap + SLOT_SLACK;
+  if (L.homeRoom < fromHome) {
+    problems.push(
+      `tuning.layout.homeRoom is ${L.homeRoom} u, but the home system reaches ` +
+        `${round(homeReach())} u and a system ${L.maxSystemRadius} u, ${L.minSystemGap} u clear ` +
+        `of it: that needs ${round(fromHome)} u. ${moving}`,
+    );
+  }
+  const apart = 2 * L.maxSystemRadius + L.minSystemGap + SLOT_SLACK;
+  if (L.slotRoom < apart) {
+    problems.push(
+      `tuning.layout.slotRoom is ${L.slotRoom} u, but two systems of ${L.maxSystemRadius} u, ` +
+        `${L.minSystemGap} u apart, need ${round(apart)} u. ${moving}`,
+    );
+  }
+  return problems;
 }
 
 /** Slots already worked out, and the limits they were worked out for (the harness varies them). */

@@ -39,7 +39,7 @@ export type Slot = [x: number, z: number];
 export type SlotFormula = (order: number, id: string, real: (order: number) => Slot) => Slot;
 
 export interface LayoutOverrides {
-  /** Merged into tuning.layout for the build: clusterAxisDeg, maxSystemRadius, minSystemGap... */
+  /** Merged into tuning.layout for the build: homeRoom, slotRoom, clusterAxisDeg, orbitGap... */
   layout?: DeepPartial<Layout>;
   /**
    * The OLD sunflower spiral instead of the honeycomb, with any power of the order: slot k sits
