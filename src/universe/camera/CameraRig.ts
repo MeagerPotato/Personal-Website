@@ -53,9 +53,9 @@ export interface CameraMode {
   /**
    * Does this mode leave a covered top band out of the view, as it does what the panel covers
    * (`setInset`'s `top`)? A mode that FRAMES a subject does: the orbit camera puts the body
-   * clear of a phone's solid top bar. A mode that looks past its subject into the top of the
-   * picture does not: the chase camera keeps the ship low and looks ahead, and the star map
-   * fits itself below the bar on its own. Left out, it does not.
+   * clear of a phone's solid top bar, and the chase camera fits the ship and the planet ahead
+   * into the strip under it. The star map does not: it fits the galaxy below the bar on its own.
+   * Left out, it does not.
    */
   readonly avoidsTop?: boolean;
 }

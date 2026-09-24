@@ -39,9 +39,10 @@ const { pathname } = Astro.url;
     <!-- The engine mounts its own canvas in here (universe mode only). Decorative: the content
          below is complete without it. -->
     <div id="universe-host" aria-hidden="true"></div>
-    <!-- The engine's own interactive DOM (the dock prompt, later the labels): real buttons, so
-         NOT inside the hidden host. Empty, and not displayed, in plain mode. -->
-    <div id="universe-overlay"></div>
+    <!-- The engine's own interactive DOM (the names over the bodies, the dock prompt, the Map
+         button): real buttons, so NOT inside the hidden host, and a landmark of their own, so
+         that someone moving by landmarks finds them. Empty, and not displayed, in plain mode. -->
+    <div id="universe-overlay" role="region" aria-label="Around the ship"></div>
     <!-- Universe mode: what the ship does, said for someone who cannot see it
          (src/shell/announcer.ts). In the page from the start, and empty: a screen reader listens
          to the regions it found when the page loaded. -->

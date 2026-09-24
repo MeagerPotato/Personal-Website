@@ -1,6 +1,16 @@
 // @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { barReach, mirrorInset, panelInset, watchPanelInset, type PanelInset } from './panel-inset';
+import { tokens } from '../universe/design/tokens';
+import {
+  barReach,
+  HUD_ROW_REM,
+  mirrorInset,
+  panelInset,
+  watchPanelInset,
+  type PanelInset,
+} from './panel-inset';
 
 const desktop = { width: 1280, height: 800 };
 const phone = { width: 390, height: 844 };
@@ -70,6 +80,16 @@ describe('panel inset', () => {
     expect(panelInset(sheet, false, true, phone, 105, 161).frameTop).toBe(0);
     // A side panel: the bar is a few chips over the sky, which the camera may use.
     expect(panelInset(column, true, false, desktop, 64, 120).frameTop).toBe(0);
+  });
+
+  it('knows the row under the bar as the stylesheet draws it', () => {
+    // The Map button hangs --space-3 under the bar's links and is 44 px tall: if either changes
+    // in global.css, the camera's frame on a phone would drift. Change them together.
+    const css = readFileSync(path.resolve('src/styles/global.css'), 'utf8');
+    const mapButton = /\n {2}\.map-toggle \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(mapButton).toContain('top: calc(var(--panel-inset-top, 4rem) + var(--space-3));');
+    expect(mapButton).toContain('min-height: 2.75rem;');
+    expect(HUD_ROW_REM).toBe(Number.parseFloat(tokens.space[3]) + 2.75);
   });
 
   it('measures the top bar by what can be pressed in it, not by its padding', () => {

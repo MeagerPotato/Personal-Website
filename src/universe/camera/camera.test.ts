@@ -132,6 +132,35 @@ describe('the chase camera', () => {
     expect(sliver.pose.fov).toBe(params.maxFovDegrees);
   });
 
+  it('widens the lens so that a strip between a solid bar and a sheet holds the picture', () => {
+    const cam = new ChaseCam(ship(), { reducedMotion: false });
+    const lens = (freeTop: number, freeHeight: number, aspect = 360 / 740): number => {
+      const pose = createPose();
+      cam.update(frame(1 / 60), { aspect, freeWidth: 1, freeHeight, freeTop }, pose);
+      return Math.tan((pose.fov / 2) * DEG);
+    };
+    const whole = lens(0, 1);
+    // A sheet alone leaves plenty: the lens is the one the screen asks for, as before.
+    expect(lens(0, 0.55)).toBeCloseTo(whole, 12);
+
+    // The home page's welcome text on a 360 x 740 phone: the strip must see fitDegrees.
+    const strip = 407 / 740 - 157 / 740;
+    expect(lens(157 / 740, 407 / 740) * strip).toBeCloseTo(
+      Math.tan((params.fitDegrees / 2) * DEG),
+      9,
+    );
+    expect(lens(157 / 740, 407 / 740)).toBeGreaterThan(whole);
+
+    // A sliver of a strip gets a smaller picture, not a fisheye.
+    expect(lens(157 / 740, 200 / 740)).toBeCloseTo(whole * params.maxFitWiden, 9);
+    // Where the screen is wide, the side panel leaves the whole height: no change at all.
+    expect(lens(0, 1, 16 / 9)).toBeCloseTo(Math.tan((tuning.camera.fovDegrees / 2) * DEG), 12);
+  });
+
+  it('frames what is ahead, so the rig keeps a solid top bar out of its view', () => {
+    expect(new ChaseCam(ship(), { reducedMotion: false }).avoidsTop).toBe(true);
+  });
+
   it('cuts to the ship when told to, instead of flying there', () => {
     const target = ship();
     const cam = new ChaseCam(target, { reducedMotion: false });

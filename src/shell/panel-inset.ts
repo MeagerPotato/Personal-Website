@@ -32,9 +32,10 @@ const NARROW = '(max-width: 47.99rem) and (min-height: 30.01rem)';
 
 /**
  * The HUD's row under the bar, in rem: a gap of --space-3, then a 44 px chip (global.css,
- * .map-toggle, and the phone's .dock-prompt beside it).
+ * .map-toggle, and the phone's .dock-prompt beside it). panel-inset.test.ts reads the stylesheet
+ * and holds the two together.
  */
-const HUD_ROW_REM = 0.75 + 2.75;
+export const HUD_ROW_REM = 0.75 + 2.75;
 
 export interface PanelBox {
   /** Layout position and size, which a slide-in transform does not change. */

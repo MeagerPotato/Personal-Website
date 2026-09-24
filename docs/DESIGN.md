@@ -100,7 +100,9 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
   `size-adjust` and ascent, descent and line-gap overrides **measured** from the real Outfit
   file (section 0 of the stylesheet says how). In Chromium a heading, the nav, a paragraph and a
   button set in the fallback take the same height as in Outfit and within 1 to 2% of its width,
-  so the swap moves nothing.
+  so the swap moves very little: a single line stays put, but a paragraph that sits right at a
+  line break can gain or lose a line (measured: the home lede at 1280 px goes from three lines to
+  two). The preload makes a fallback paint rare.
 - **Weights.** Body text 430 with a hair of tracking (Outfit is light and narrow at 400), labels
   and nav 600, headings 700. Running text keeps to `--measure` (33 em, about 75 characters).
 - **Scale** (`text.*`, fluid from 360 px to about 1200 px; laptop / phone): display (the h1)
@@ -185,7 +187,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans, nods and bobs, and how the flame follows the throttle | `tuning.ship` |
-| The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens | `tuning.chaseCam` |
+| The chase camera: where it sits, how far it looks ahead, how loosely it follows, how the lens widens with speed, tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
 | The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders | `tuning.orbitCam` |
 | Changing between cameras and making room for the panel: seconds from chase view to orbit view, how quickly the view slides over | `tuning.cameraRig` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
@@ -200,7 +202,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
 | Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once | `tuning.labels` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
-| The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip; on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); hidden while the map is open there | `.dock-prompt` in `src/styles/global.css` |
+| The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); hidden while the map is open there. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |

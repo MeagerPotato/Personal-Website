@@ -72,6 +72,8 @@ describe('dock prompt', () => {
       expect(button.textContent).toBe('Flying to FishAIStop');
       expect(button.querySelector('kbd')?.hidden).toBe(true);
       expect(button.querySelector('.dock-prompt__action')?.textContent).toBe('Stop');
+      // The words before the name are their own element: a phone short of room sets them aside.
+      expect(button.querySelector('.dock-prompt__lead')?.textContent).toBe('Flying to ');
       button.click();
       expect(navigator.release).toHaveBeenCalledWith('pilot');
       expect(navigator.approach).not.toHaveBeenCalled();
@@ -84,6 +86,7 @@ describe('dock prompt', () => {
     cleanup = () => prompt.dispose();
     expect(button.hidden).toBe(false);
     expect(button.textContent).toBe('Leave orbit');
+    expect(button.querySelector<HTMLElement>('.dock-prompt__lead')?.hidden).toBe(true);
     expect(button.querySelector('kbd')?.hidden).toBe(true);
     expect(button.querySelector<HTMLElement>('.dock-prompt__action')?.hidden).toBe(true);
     button.click();

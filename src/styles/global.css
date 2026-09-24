@@ -16,7 +16,8 @@
  * (--ledge) instead of a soft shadow; nothing has a gradient on its surface.
  *
  * Three words of the vocabulary never change meaning (section 2 says it in full):
- *   butter      = HERE: the current page, the keyboard's focus, the body the ship is headed for
+ *   butter      = HERE: the current page, the keyboard's focus, the body the ship is headed for,
+ *                 and what acts on the body at hand (the E key cap of "Orbit FishAI", "Stop")
  *   cream face  = ON: a toggle that is switched on (no other control's face is ink.high; the
  *                 small key caps that name a key, W or M, are keys, not faces)
  *   translate   = how anything moves on hover or press, never transform (the engine owns that)
@@ -51,7 +52,8 @@
 /*
  * What shows while Outfit is on its way: Arial (or Liberation Sans or Arimo, drawn to Arial's
  * metrics), scaled to Outfit's measure and given Outfit's line box, so that a line set in the
- * fallback is as long and as tall as the line that replaces it and nothing reflows on the swap.
+ * fallback is as tall as the line that replaces it and within 1 to 2% as long: a single line stays
+ * put on the swap, though a paragraph right at a line break can gain or lose a line.
  * Measured, not guessed (2026-09-23), on six lines of the site's own copy:
  *   vertical: Outfit's own tables (USE_TYPO_METRICS set; 1000 units per em): ascent 1000,
  *     descent 260, line gap 0. Each override is that value divided by size-adjust.
@@ -337,7 +339,8 @@ h1 {
  */
 .eyebrow {
   display: flex;
-  align-items: center;
+  /* The glyph on the first line, should the sign take two. */
+  align-items: flex-start;
   gap: 0.6em;
   width: fit-content;
   max-width: 100%;
@@ -360,12 +363,40 @@ h1 {
   flex: none;
   width: 0.875em;
   height: 0.875em;
+  /* Centred on a line of 1.35em. */
+  margin-top: 0.2375em;
   background: var(--theme-base);
   clip-path: var(--theme-glyph);
 }
 
 .eyebrow + h1 {
   margin-top: var(--space-4);
+}
+
+/*
+ * A sign in two parts (the home page's "Aerospace engineering · UC Berkeley") that has no room
+ * for one line gives each part a line of its own, instead of leaving the dot between them at the
+ * end of the first: the dot steps aside (a screen reader still hears it), and the plate hugs the
+ * longer part. The page header is the container it asks, a phone's column or the panel's; the
+ * sign needs about 19.4rem on one line.
+ */
+.page-header {
+  container-type: inline-size;
+}
+
+@container (max-width: 19.4rem) {
+  .eyebrow__part {
+    display: block;
+  }
+
+  .eyebrow__sep {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .lede {
@@ -1483,6 +1514,23 @@ picture {
   font-variant-numeric: tabular-nums;
 }
 
+/* In a narrow column (a phone, the panel over the world) the date would sit beside a short title
+   and drop under a long one, and a reader scanning down the rail would see it zig-zag: there it
+   always goes under the title. Paper keeps it on the right. */
+@media screen and (max-width: 29.99rem) {
+  .entry__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media screen {
+  html[data-mode='universe'] .entry__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .entry__sub {
   max-width: none;
 }
@@ -1640,7 +1688,9 @@ picture {
 
    Three rules hold every piece of it together:
    - BUTTER MEANS "HERE": the current page (a bar under its name), the keyboard's focus (the
-     ring), the body the ship is headed for (the one filled name tag).
+     ring), the body the ship is headed for (the one filled name tag), and what acts on the
+     body at hand: the E key cap of "Orbit FishAI" (the one key cap that is not white, because
+     it is the prompt's action, not a key being named) and "Stop".
    - THE CREAM FACE MEANS "ON": a control whose face is filled in ink.high is a toggle that is
      switched on, and no other control's face ever is: the Map button while the map is open,
      the sheet's Expand while the sheet is up (aria-pressed), the welcome button while its text
@@ -1894,6 +1944,20 @@ picture {
     display: none;
   }
 
+  /* On the card's own opaque plate the HUD chip's faint edge would vanish (1.3:1): a key's edge
+     in ink.low instead (5.3:1 on surface.raised), like the buttons in the panel's bar. */
+  .flight-hint .panel-button {
+    border-color: var(--color-ink-low);
+    background: var(--color-surface-panel);
+  }
+
+  @media (hover: hover) {
+    .flight-hint .panel-button:hover {
+      border-color: var(--color-ink-mid);
+      background: var(--color-surface-line);
+    }
+  }
+
   /* Key caps: small white keys on a ledge. */
   .flight-hint kbd {
     display: inline-grid;
@@ -1955,6 +2019,40 @@ picture {
       .flight-hint:not([hidden]) {
       font-size: 0.8125rem;
       line-height: 1.3;
+    }
+  }
+
+  /*
+   * A mouse in a narrow window has four lines of keys to the finger's three, and the fourth would
+   * bring the card up against the ship. Where the card is wide enough, "Shift to boost" and "M for
+   * the map" share a row, and it keeps to three.
+   */
+  @media (pointer: fine) and (min-width: 30rem) and (max-width: 47.99rem) and (min-height: 30.01rem) {
+    html[data-mode='universe'][data-engine='ready'][data-panel='closed']
+      .flight-hint:not([hidden]) {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .flight-hint .flight-hint__keys li:first-child {
+      grid-column: 1 / 3;
+    }
+
+    .flight-hint .flight-hint__keys li:nth-child(2) {
+      grid-column: 1;
+    }
+
+    .flight-hint .flight-hint__keys li:nth-child(3) {
+      grid-row: 2;
+      grid-column: 2;
+      margin-left: var(--space-3);
+    }
+
+    .flight-hint .flight-hint__keys li:nth-child(4) {
+      grid-column: 1 / -1;
+    }
+
+    .flight-hint .panel-button {
+      grid-column: 3;
     }
   }
 
@@ -2175,6 +2273,15 @@ picture {
     background: var(--color-space-900);
   }
 
+  /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,
+     like the tag's border. */
+  @media (forced-colors: active) {
+    .body-label[data-state='target']::before {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+  }
+
   html[data-motion='reduced'] .body-label,
   html[data-motion='reduced'] .body-label::after {
     transition: none;
@@ -2284,15 +2391,41 @@ picture {
     .dock-prompt kbd {
       display: none;
     }
+  }
 
-    /*
-     * While the world has the whole screen, the bottom corner is the boost pad's, and a name of
-     * any length ("Flying to Canadian Fish") would run into it on a phone: step over it. With a
-     * panel open the pad is under it (and a sheet sends the prompt up to the Map button's row:
-     * the sheet's own block, at the end of this section).
-     */
+  /*
+   * While the world has the whole screen, the bottom corner is the boost pad's, and a name of any
+   * length ("Flying to Canadian Fish") would run into it on a phone held upright: step over it.
+   * With a panel open the pad is under it (and a sheet sends the prompt up to the Map button's
+   * row: the sheet's own block, at the end of this section).
+   */
+  @media (pointer: coarse) and (min-height: 30.01rem) {
     html[data-panel='closed'] .dock-prompt {
       bottom: calc(var(--boost-pad-bottom) + var(--boost-pad-size) + var(--space-3));
+    }
+  }
+
+  /*
+   * Held sideways, the view is short and the ship flies low in it, right where the step-over
+   * would put the prompt; but the corners are far apart. So the prompt goes down to the bottom
+   * edge, between the corner chip and the boost pad, below the ship.
+   */
+  @media (pointer: coarse) and (max-height: 30rem) {
+    html[data-panel='closed'] .dock-prompt {
+      bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    }
+  }
+
+  /* The narrowest of those (568 px): "Flying to" steps aside, as it does in a phone's Map button
+     row, so that the name and "Stop" keep clear of the corner chip. A screen reader hears it. */
+  @media (pointer: coarse) and (max-height: 30rem) and (max-width: 37.49rem) {
+    html[data-panel='closed'] .dock-prompt__lead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
   }
 
@@ -2554,12 +2687,15 @@ picture {
     }
   }
 
+  /* The text scrolls under the bar: a hairline and a little room below the buttons make that an
+     edge, not a cut, and keep a focused button's ring off the text. */
   html[data-mode='universe'] .panel-bar {
     display: flex;
     flex: none;
     justify-content: flex-end;
     gap: var(--space-2);
-    padding: var(--space-3) var(--space-3) 0;
+    padding: var(--space-3) var(--space-3) var(--space-2);
+    border-bottom: 1px solid var(--color-surface-line);
   }
 
   /* Inside the plate the buttons need no plate of their own, but they keep a key's edge in
@@ -2662,7 +2798,9 @@ picture {
    * A phone held sideways has no height to share between a two-row bar, the world and a sheet,
    * so it keeps the side panel and a one-row bar.
    */
-  @media (max-width: 47.99rem) and (min-height: 30.01rem) {
+  /* The bar, there and in any window narrower than 30rem, however short (a laptop at 400 % zoom
+     is 320 by 256): one row is not enough for the wordmark and the nav at that width. */
+  @media (max-width: 47.99rem) and (min-height: 30.01rem), (max-width: 29.99rem) {
     /* Tight: every pixel of bar is a pixel less of world between it and the sheet. And no scrim:
        the plates carry their own contrast, and the world under them keeps its colours. */
     html[data-mode='universe'] .masthead {
@@ -2698,7 +2836,9 @@ picture {
       justify-content: center;
       padding-inline: 0.5rem;
     }
+  }
 
+  @media (max-width: 47.99rem) and (min-height: 30.01rem) {
     html[data-mode='universe'] .panel {
       top: auto;
       right: 0;
@@ -2714,6 +2854,13 @@ picture {
         transform var(--motion-slow) var(--motion-ease-out),
         height var(--motion-base) var(--motion-ease-out),
         visibility 0s;
+    }
+
+    /* The home page's welcome text rests lower: the ship is flying, and the chase camera needs
+       more of a strip than a docked body does, for the planet ahead AND the ship behind it
+       (camera/ChaseCam.ts fits the picture into what is left). Expand for the rest. */
+    html[data-mode='universe'][data-panel-home] .panel {
+      height: min(45svh, calc(100svh - 22rem));
     }
 
     /* All the way up, but never over the top bar's links (two rows on a phone): the shell
@@ -2756,6 +2903,18 @@ picture {
       max-width: calc(100% - var(--space-4) - var(--space-6) - var(--map-chip) - var(--space-3));
     }
 
+    /* That row is short of room: "Flying to" steps aside, heard but not seen, so that the name
+       and the way to stop fit ("Fish Onboarding | Stop"). The target's tag over the world, and
+       the page's heading once it opens, say where the ship is going. */
+    html[data-mode='universe'][data-panel='open'] .dock-prompt__lead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
     /* The map needs every pixel of that strip for its names: the prompt waits until it closes. */
     html[data-mode='universe'][data-panel='open'][data-map] .dock-prompt {
       display: none;
@@ -2768,6 +2927,70 @@ picture {
     html[data-mode='universe'] .panel {
       width: min(30rem, 62vw);
     }
+  }
+
+  /*
+   * A short view (a phone held sideways) has no height for a second row of bar: it would lie over
+   * the planet ahead, and push the Map button down onto it. Tighter chips and links keep one row
+   * down to 640 px, and down to 568 px with the HUD's edges at --space-4, where a finger's Map
+   * button already is. Every target stays 44 px tall.
+   */
+  @media (max-height: 30rem) {
+    html[data-mode='universe'] .masthead {
+      column-gap: var(--space-2);
+    }
+
+    html[data-mode='universe'] .wordmark,
+    html[data-mode='universe'] .panel-toggle {
+      padding-inline: var(--space-3);
+    }
+
+    html[data-mode='universe'] .site-nav a {
+      padding-inline: 0.5rem;
+    }
+  }
+
+  @media (max-height: 30rem) and (max-width: 37.49rem) {
+    html[data-mode='universe'] .masthead {
+      padding-right: max(var(--space-4), env(safe-area-inset-right));
+      padding-left: max(var(--space-4), env(safe-area-inset-left));
+    }
+
+    html[data-mode='universe'] .site-nav a {
+      padding-inline: 0.375rem;
+    }
+
+    html[data-mode='universe'] .footer {
+      left: max(var(--space-4), env(safe-area-inset-left));
+    }
+
+    .map-toggle {
+      right: max(var(--space-4), env(safe-area-inset-right));
+    }
+  }
+
+  /*
+   * Narrow AND short (a laptop at 400 % zoom: 320 by 256): no room for world beside a panel, nor
+   * under a sheet. An open panel takes the whole width under the bar, and the engine's controls
+   * wait until it closes, so that nothing lies on the text.
+   */
+  @media (max-width: 29.99rem) and (max-height: 30rem) {
+    html[data-mode='universe'] .panel {
+      top: calc(var(--panel-inset-top, 6.5rem) + var(--space-2));
+      bottom: max(var(--space-2), env(safe-area-inset-bottom));
+      left: max(var(--space-4), env(safe-area-inset-left));
+      width: auto;
+    }
+
+    html[data-mode='universe'][data-panel='open'] #universe-overlay {
+      visibility: hidden;
+    }
+  }
+
+  /* The way to the plain version may be under an open panel (a small window): focused, it comes
+     up above it, so the keyboard never lands on something it cannot see. */
+  html[data-mode='universe'] .footer:focus-within {
+    z-index: 3;
   }
 }
 
@@ -2797,8 +3020,12 @@ picture {
    */
   .cards,
   .system {
-    --lane-x: 0.625rem;
+    /* The sun's outer ring (its radius and 0.4375rem of rings) meets the column's edge: nothing
+       of the line hangs out into the gutter. */
+    --lane-x: 1.0625rem;
     --sun: 1.25rem;
+    /* Where the planets and the words after the line start. */
+    --after-lane: 2.5rem;
   }
 
   .card {
@@ -2806,7 +3033,7 @@ picture {
     display: grid;
     grid-template-columns: 2.5rem minmax(0, 1fr);
     gap: var(--space-2) var(--space-3);
-    padding-left: 2rem;
+    padding-left: var(--after-lane);
   }
 
   .card__body {
@@ -2853,17 +3080,18 @@ picture {
   .card::after {
     top: calc(1.25rem - var(--line) / 2);
     left: var(--lane-x);
-    width: calc(2rem - var(--lane-x));
+    width: calc(var(--after-lane) - var(--lane-x));
     height: var(--line);
     background: var(--theme-base);
   }
 
+  /* The system's name and its tagline start where the planets do. */
   .system > h2 {
-    gap: 0.75rem;
+    gap: calc(var(--after-lane) - var(--lane-x) - var(--sun) / 2);
   }
 
   .system > p {
-    padding-left: 2rem;
+    padding-left: var(--after-lane);
   }
 
   /* The resume: a slimmer rail, so that a bullet keeps about 30 characters a line. */
@@ -2937,6 +3165,46 @@ picture {
 
   .eyebrow {
     letter-spacing: 0.045em;
+  }
+}
+
+/*
+ * Forced colours, for the drawings of 1d and 2 (after all of them, so that these win): the route
+ * lines, their end bars, the resume's rail and the crumbs' dashes are fills, which forced colours
+ * drop, and the line would come apart into loose stations. They are drawn in the text colour, as
+ * the glyphs are. A toy planet is a picture, like an image: it keeps its colours, and the rings
+ * that make it a station are the page's and the text's.
+ */
+@media (forced-colors: active) {
+  .cards::before,
+  .cards::after,
+  .system::before,
+  .system::after,
+  .card::after,
+  .entries::before,
+  .crumbs li + li::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .planet-dot {
+    forced-color-adjust: none;
+    box-shadow:
+      0 0 0 0.1875rem Canvas,
+      0 0 0 calc(0.1875rem + var(--line)) CanvasText;
+  }
+
+  .planet-dot--moon {
+    box-shadow:
+      0 0 0 0.125rem Canvas,
+      0 0 0 0.25rem CanvasText;
+  }
+}
+
+/* On a phone the station is the ring on the lane (.card::before), not the planet's own. */
+@media (forced-colors: active) and (max-width: 29.99rem) {
+  .card > .planet-dot {
+    box-shadow: none;
   }
 }
 

@@ -86,7 +86,8 @@ export class Labels implements System {
   constructor(private readonly options: LabelsOptions) {
     const count = options.bodies.length;
     this.boxes = createLabelBoxes(count);
-    this.taken = createTakenBoxes(options.obstacles?.length ?? 0);
+    // One more than the obstacles: the face of the body the ship is docked at (frameUpdate).
+    this.taken = createTakenBoxes((options.obstacles?.length ?? 0) + 1);
     this.wasShown = new Uint8Array(count);
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
@@ -135,6 +136,17 @@ export class Labels implements System {
       slot.top = box.top;
       slot.width = box.width;
       slot.height = box.height;
+      obstacles += 1;
+    }
+    // Docked, the body is the picture and its name is on the page: no other name lies on its
+    // face (a station passing in front of it, say), as none lies on the prompt.
+    const face = this.taken.boxes[obstacles];
+    const faceRadius = screen.radius[target] ?? 0;
+    if (docked && face && (screen.depth[target] ?? 0) > 0 && faceRadius > 0) {
+      face.left = (screen.x[target] ?? 0) - faceRadius;
+      face.top = (screen.y[target] ?? 0) - faceRadius;
+      face.width = 2 * faceRadius;
+      face.height = 2 * faceRadius;
       obstacles += 1;
     }
     this.taken.count = obstacles;

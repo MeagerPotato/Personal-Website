@@ -204,6 +204,27 @@ describe('Labels', () => {
     expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
   });
 
+  it('keeps other names off the face of the body the ship is docked at', () => {
+    const { labels, screen, state, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.target = 1;
+    state.docked = true;
+    // Framed large, and its moon passing in front of it.
+    put(screen, [
+      [900, 300, 12, 1000],
+      [400, 400, 150, 60],
+      [420, 330, 6, 50],
+      [200, 300, 30, 300],
+    ]);
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'About']);
+
+    // Past its edge, the moon has its name again.
+    screen.x[2] = 620;
+    labels.frameUpdate();
+    expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
+  });
+
   it('never takes a name away from under the keyboard', () => {
     const { labels, screen, shown, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
