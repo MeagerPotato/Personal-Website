@@ -203,6 +203,15 @@ export function approachPace(ring: number, params: DockParams): number {
 }
 
 /**
+ * An approach is captured going round no faster than this many times its own pace (approachPace),
+ * the bound a journey arrives under too (sim/autopilot.ts, ARRIVAL_PACE). A ship that skims the
+ * ring faster (the pilot's E at speed, beside a small moon) is flown on until it has slowed:
+ * captured as it was, the springs would take the excess out of it at once, at twice settleOmega
+ * times the excess (380 u/s^2 measured, where an ordinary capture sees 30 to 50).
+ */
+const CAPTURE_PACE = 2.5;
+
+/**
  * APPROACH, after the flight step: is the ship on the ring? Then it is captured: carried from
  * here on, starting with exactly the motion it has.
  */
@@ -232,6 +241,7 @@ export function tryCapture(
     Math.abs(d - ring) < params.captureDistance &&
     Math.abs(outward) < params.captureRadialSpeed &&
     swirl * spin > 0 &&
+    Math.abs(swirl) <= approachPace(ring, params) * CAPTURE_PACE &&
     dock.phaseSec >= dock.holdSec;
   if (!onRing && dock.phaseSec < params.approachTimeoutSec) return false;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
-import { arrive, dockAt, releaseDock, requestDock } from './docking';
+import { approachPace, arrive, dockAt, releaseDock, requestDock } from './docking';
 import { NO_INPUT, createShipState, speedOf } from './flight';
 import { TAU } from './math';
 import { createRng } from './rng';
@@ -342,6 +342,34 @@ describe('docking', () => {
       (speedOf(before) + 1) * STEP * 1.5,
     );
     expect(Math.abs(offRing(flight, 'moon'))).toBeLessThan(1e-9);
+  });
+
+  it('slows a ship skimming the ring before it takes it, instead of leaving that to the springs', () => {
+    // The pilot's own "dock here" (E) while going round a small moon's ring far faster than its
+    // approach pace. Taken as it was, the springs would brake it at twice settleOmega times the
+    // excess (380 u/s^2 measured); so the approach flies on until it goes round no faster than a
+    // journey arrives (2.5 times its pace).
+    const rng = createRng('skimming');
+    const i = world().orbits.indexOf('moon');
+    const ring = 7.2;
+    const bound = approachPace(ring, tuning.dock) * 2.5;
+    let fastest = 0;
+    for (let run = 0; run < 60; run += 1) {
+      const angle = rng() * TAU;
+      const way = rng() < 0.5 ? -1 : 1;
+      const course = angle + way * (Math.PI / 2) + (rng() - 0.5) * 1.2;
+      const flight = near('moon', 0.95 + rng() * 0.35, angle, course);
+      flight.state.vx += 50 * Math.sin(course);
+      flight.state.vz += 50 * Math.cos(course);
+      expect(flight.world.field.ringRadius[i]).toBe(ring);
+      request(flight, 'moon');
+      for (let k = 0; k < 6 * 60 && flight.world.dock.phase !== 'docked'; k += 1) step(flight);
+      expect(flight.world.dock.phase, `run ${run}`).toBe('docked');
+      // How fast it went round when it was taken (one step of the springs later).
+      const { rate, offset } = flight.world.dock;
+      fastest = Math.max(fastest, Math.abs(rate.value) * (ring + offset.value));
+    }
+    expect(fastest).toBeLessThan(bound * 1.1);
   });
 
   it('captures where it is when an approach cannot finish', () => {

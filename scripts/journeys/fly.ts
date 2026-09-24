@@ -393,24 +393,27 @@ export function fly(
   }
 
   // Docked is when the page opens; the dock's springs may still be settling the ship onto the ring.
+  // The first second in orbit is always watched (the springs' hardest work; `watch` sees it too).
   let settledSec = NaN;
   if (docked) {
     const { dock } = world;
     for (let t = seconds; ;) {
       if (
+        Number.isNaN(settledSec) &&
         dock.phase === 'docked' &&
         dock.body === target &&
         Math.abs(dock.offset.value) <= SETTLED_U &&
         Math.abs(dock.offset.velocity) <= SETTLED_SPEED
       ) {
         settledSec = t;
-        break;
       }
       if (t - seconds >= SETTLE_WATCH_SEC || dock.phase !== 'docked') break;
+      if (!Number.isNaN(settledSec) && t - seconds >= 1) break;
       remember();
       step();
       t = (steps - began) * dt;
       if (t - seconds <= 1 + dt / 2) sweep();
+      watch?.({ t, state, world, flown, mode: navigator.state.mode });
     }
   }
 
