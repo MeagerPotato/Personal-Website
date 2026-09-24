@@ -2813,7 +2813,8 @@ picture {
 
   /* A real gap under the bar's hairline, the same on every page: a page that starts with its
      crumbs pulls them up into the slack of their 44 px targets, so that their words start where
-     a route sign's plate does (measured: 22 and 24 px under the line, on a laptop and a phone). */
+     a route sign's plate does (measured on a laptop and a phone alike: the crumbs' words 22 px under the line, a route
+     sign's plate 24). */
   html[data-mode='universe'] main {
     flex: 1;
     min-height: 0;

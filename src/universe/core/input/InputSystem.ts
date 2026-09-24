@@ -20,7 +20,10 @@ export class InputSystem implements System {
   private sawInput = false;
   private enabled = true;
 
-  /** `onFirstInput` fires once, the first time the pilot asks for anything. */
+  /**
+   * `onFirstInput` fires once, the first time the pilot touches a flight control (boost alone
+   * does not count: see `touchesControls`).
+   */
   constructor(private readonly onFirstInput: () => void = () => undefined) {}
 
   add<T extends InputSource>(source: T): T {

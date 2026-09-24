@@ -259,8 +259,8 @@ comment names. Colours only through tokens: a solar system's family arrives as `
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
 either another job. The one exception: the home system's family is butter, which is why a
-focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside `@media (hover: hover)`, and
-anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
+focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
+`@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
 Check 360 px wide, and check print if the resume could be affected.
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they

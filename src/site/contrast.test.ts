@@ -62,7 +62,7 @@ describe('ink on every surface', () => {
     });
   }
 
-  it('reads on the lit face of a key on a raised plate (surface.line)', () => {
+  it('reads on the lit face of a raised key (surface.line)', () => {
     // The panel bar's Close and Expand, and the hint card's "Got it", under a mouse.
     expect(contrast(color.ink.high, color.surface.line)).toBeGreaterThanOrEqual(TEXT);
   });
@@ -135,5 +135,8 @@ describe('edges and rings', () => {
     expect(contrast(color.focus, color.space[950])).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.focus, color.space[900])).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.focus, HUD)).toBeGreaterThanOrEqual(MARK);
+    // Round anything focusable in the panel, over the world and under prefers-contrast: more.
+    expect(contrast(color.focus, PANEL)).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.focus, color.surface.panel)).toBeGreaterThanOrEqual(MARK);
   });
 });

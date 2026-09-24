@@ -51,7 +51,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | --- | --- | --- |
 | `color.space` | `950 900 800 700 600` | backdrop ramp, deepest to lightest; page background is `900`, the map grid's dots `700`; `950` is the focus ring's rim and a key's ledge |
 | `color.ink` | `high mid low` | text: `high` leads (headings, values, every chip over the world), `mid` is running text, `low` draws edges and marks and is never text on a chip over the world. Every pairing: the contrast table below |
-| `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a key on a raised plate |
+| `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a raised key (one whose face is already `raised`, or one on a raised plate) |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
 | `color.star` | `warm cool white` | starfield tints |
@@ -106,7 +106,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | --- | --- | --- |
 | `ink.high` on the page / the panel | 17.2 / 14.0 | headings, the lede, card titles, the wordmark, a key's label, a fact's value, the current page in the nav |
 | `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card, the Launch the starfield chip; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
-| `ink.high` on `surface.line` | 9.8 | a key on a raised plate under a mouse: the panel bar's Close and Expand, the hint card's "Got it" |
+| `ink.high` on `surface.line` | 9.8 | a raised key under a mouse (its face already `surface.raised`, or on a raised plate): the panel bar's Close and Expand, the hint card's "Got it" |
 | `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip |
 | `ink.mid` on the page / the panel | 10.6 / 8.6 | running text, the nav, the crumbs, a card's summary and status chip, the resume's dates, bullets and skills, a caption, the footer |
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
@@ -208,7 +208,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 
 | State | How it looks | Where |
 | --- | --- | --- |
-| Hover | A key lights (to `surface.raised`, or `surface.line` on a raised plate) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
+| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
 | Focus (`:focus-visible`) | A 3 px butter ring outside a 2 px `space.950` rim, so it reads on anything: a white peak, a pale ring, a butter key (butter meets navy, never butter). A key at rest carries the same three shadows with the rim at nothing, so a focus eases in the rim and nothing else | everything focusable, in both modes. The ring goes round a name's tag, not its 44 px box, round a nav word's 36 px chip (no rim: it sits on navy already), and round a card title's words. The heading the router focuses after a soft navigation, and `<main>` where the skip link lands, show none: they are not controls |
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, with a navy station dot before the name (the tag grows to the left to hold it, out of the flow: the engine measured the name without it) | the body the ship is headed for |
@@ -223,7 +223,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | engine (about 170 KiB gzipped, of a 220 KiB budget) loads on demand |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (about 176 KiB gzipped: the engine 169, the shell 7) loads on demand, of a 220 KiB budget |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -316,7 +316,8 @@ of, is in the table under The 3D world.
   2 px off the disc. On the map the ship's marker is "you are here": no name's tag lies on it,
   or on the Plain version chip. A name the ship would be under glides a few pixels past it, away
   from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
-  control). Where the ship is going, and a name the keyboard is on, never make way for the ship.
+  control). Where the ship is going, and a name the keyboard is on, never hide for the ship: with
+  no room past it they stay where they would have been, even on it.
 - **The dock prompt** ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit") is one
   chip. Its E key cap is butter, the one key cap that is not white, because it is the prompt's
   action and not a key being named; "Stop" is set apart by a hairline, in butter.
