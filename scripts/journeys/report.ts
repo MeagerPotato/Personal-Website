@@ -68,6 +68,45 @@ export function describe(row: JourneyResult): string {
 
 const KINDS: readonly JourneyKind[] = ['between', 'within', 'spawn'];
 
+/**
+ * Journeys stopped at their fastest moment (fly.ts, stopAtPeak): how fast they were going, how
+ * far they slid, how close they came to anything, and whether anything was touched.
+ */
+export function stopTable(rows: readonly JourneyResult[], coastSec: number): string {
+  const stops = rows.flatMap((row) => (row.stop ? [{ row, stop: row.stop }] : []));
+  if (stops.length === 0) return 'stopped at full speed: no journey flew on the autopilot';
+  const sorted = (values: number[]): number[] => [...values].sort((a, b) => a - b);
+  const speed = sorted(stops.map(({ stop }) => stop.atSpeed));
+  const drop = sorted(stops.map(({ stop }) => stop.dropU));
+  const dropSec = sorted(stops.map(({ stop }) => stop.dropSec));
+  const slide = sorted(stops.map(({ stop }) => stop.slideU));
+  const touches = stops.filter(({ stop }) => stop.shellTouches > 0).length;
+  const grazes = stops.filter(({ row }) => row.failure === 'graze').length;
+  let nearest = stops[0];
+  let furthest = stops[0];
+  for (const entry of stops) {
+    if (nearest && entry.stop.closestGapU < nearest.stop.closestGapU) nearest = entry;
+    if (furthest && entry.stop.slideU > furthest.stop.slideU) furthest = entry;
+  }
+  const lines = [
+    `stopped at full speed (between systems, watched ${coastSec} s after Stop): ${stops.length} journeys`,
+    `  speed at Stop   median ${f1(quantile(speed, 0.5))}  max ${f1(speed.at(-1) ?? NaN)} u/s`,
+    `  back to the pilot's top speed within  median ${f1(quantile(drop, 0.5))}  max ${f1(drop.at(-1) ?? NaN)} u, ` +
+      `max ${(dropSec.at(-1) ?? NaN).toFixed(2)} s`,
+    `  slid  median ${f1(quantile(slide, 0.5))}  p90 ${f1(quantile(slide, 0.9))}  max ${f1(slide.at(-1) ?? NaN)} u`,
+    `  closest to a surface ${nearest ? nearest.stop.closestGapU.toFixed(1) : '-'} u` +
+      `${nearest ? ` (${nearest.stop.closestBody}, ${nearest.row.from} -> ${nearest.row.to})` : ''}`,
+    `  shell touches ${touches}, grazes ${grazes}`,
+  ];
+  if (furthest) {
+    lines.push(
+      `  slid furthest: ${furthest.row.from} -> ${furthest.row.to}, stopped at ${furthest.stop.atSpeed.toFixed(0)} u/s, ` +
+        `${furthest.stop.slideU.toFixed(0)} u, ${furthest.stop.endSpeed.toFixed(1)} u/s at the end`,
+    );
+  }
+  return lines.join('\n');
+}
+
 /** The table for one galaxy under one variant. */
 export function table(rows: readonly JourneyResult[]): string {
   const lines = [

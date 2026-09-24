@@ -117,10 +117,11 @@ const push: Vec2 = { x: 0, z: 0 };
  * (what core/Engine.ts hands to fixedUpdate), and the bodies are put where they are at that
  * time. `flown` receives what was actually flown: the pilot's input with the assist mixed in.
  *
- * Far from everything this is exactly `stepFlight`, bit for bit. A DOCKED ship is not flown at
- * all: it is carried round its body (sim/docking.ts), and `flown` is empty. A CRUISING ship is
- * flown by the autopilot, with the autopilot's stronger drive, until it is within reach of its
- * body; the docking approach takes it from there.
+ * Far from everything this is exactly `stepFlight`, bit for bit (at any speed the pilot's own
+ * drive can reach: faster than that, the ship drops out of warp, `dropOutOfWarp`). A DOCKED ship
+ * is not flown at all: it is carried round its body (sim/docking.ts), and `flown` is empty. A
+ * CRUISING ship is flown by the autopilot, with the autopilot's stronger drive, until it arrives
+ * beside its body's ring and is taken into orbit there.
  */
 export function flyStep(
   world: Surroundings,
@@ -186,6 +187,7 @@ export function flyStep(
   addEdgePull(world.edge, state, params.edge, push);
 
   stepFlight(state, flown, drive, dt, push);
+  if (dock.phase === 'free') dropOutOfWarp(state, flight, params.cruise.dropOutPerSec, dt);
   world.touched = resolveShells(field, state, params.cushion);
   if (
     dock.phase === 'cruise' &&
@@ -199,6 +201,29 @@ export function flyStep(
   } else if (dock.phase === 'approach') {
     tryCapture(field, state, params.dock, dock, world.assist, dt);
   }
+  return state;
+}
+
+/**
+ * OUT OF WARP. A ship going faster than its pilot's own drive ever could (the autopilot's doing,
+ * handed back in the middle of a journey: Stop, or a touch of the controls) loses the difference
+ * at `perSec` per second: under a second from 700 u/s down to what the pilot can fly, instead of
+ * coasting on for most of a thousand units, past the next system. Its course stays as it is, and
+ * so does where it is this step (it has already moved); at any speed the pilot can reach by
+ * themselves it does nothing at all.
+ */
+export function dropOutOfWarp(
+  state: ShipState,
+  flight: FlightParams,
+  perSec: number,
+  dt: number,
+): ShipState {
+  const top = (flight.thrustAccel * flight.boostFactor) / Math.max(flight.forwardDrag, 1e-9);
+  const speed = Math.hypot(state.vx, state.vz);
+  if (!(speed > top) || !(perSec > 0)) return state;
+  const scale = (top + (speed - top) * Math.exp(-perSec * dt)) / speed;
+  state.vx *= scale;
+  state.vz *= scale;
   return state;
 }
 

@@ -31,7 +31,9 @@ import type { FlightInput, FlightParams, ShipState } from './types';
  *
  * It flies the ordinary flight model with a stronger drive (`CruiseParams.flight`), so a trip
  * between systems takes seconds while the pilot's own top speed stays what it is. Taking the
- * controls back changes no velocity: the ship is simply flown by someone else from that step on.
+ * controls back changes neither where the ship is nor its course: it is simply flown by someone
+ * else from that step on, and loses the speed its pilot could never have made within a second
+ * (`dropOutPerSec`, sim/surroundings.ts) instead of coasting on out of the galaxy.
  *
  * Pure and allocation-free after `createCruiseState`.
  */
@@ -97,6 +99,11 @@ export interface CruiseParams {
    * as a journey, not as a jump.
    */
   readonly minJourneySec: number;
+  /**
+   * 1/s. Handed back mid-journey (Stop, or a touch of the controls), the ship loses whatever speed
+   * the pilot's own drive could never make at this rate: 5 is under a second from 700 u/s.
+   */
+  readonly dropOutPerSec: number;
 }
 
 export interface CruiseState {

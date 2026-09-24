@@ -7,7 +7,13 @@ import { approachPace, dockAt, releaseDock, requestDock } from './docking';
 import { NO_INPUT, copyShipState, createShipState, speedOf, stepFlight } from './flight';
 import { angleDelta } from './math';
 import { createRng } from './rng';
-import { createSurroundings, flyStep, syncSurroundings, type Surroundings } from './surroundings';
+import {
+  createSurroundings,
+  dropOutOfWarp,
+  flyStep,
+  syncSurroundings,
+  type Surroundings,
+} from './surroundings';
 import type { FlightInput, ShipState } from './types';
 
 const STEP = 1 / 60;
@@ -375,31 +381,139 @@ describe('the autopilot', () => {
     expect(went).toBeGreaterThan(60);
   });
 
-  it('gives the controls back the moment the pilot steers, without touching the velocity', () => {
+  it('gives the controls back the moment the pilot steers, and drops out of warp', () => {
     const journey = dockedAt('page/about');
     const { world } = journey;
     releaseDock(world.dock, world.assist);
     requestDock(world.dock, world.orbits.indexOf('project/fishai'), NO_INPUT, true);
-    // A second in: well under way (and no journey is over before cruise.minJourneySec).
-    for (let k = 0; k < 60; k += 1) step(journey);
+    for (let k = 0; k < 240 && speedOf(journey.state) < 400; k += 1) step(journey);
     expect(world.dock.phase).toBe('cruise');
-    expect(speedOf(journey.state)).toBeGreaterThan(150);
+    expect(speedOf(journey.state)).toBeGreaterThan(400);
 
     // Far from everything, the step in which the pilot grabs the stick is an ordinary step of
-    // ordinary flight: same position, same velocity, the pilot's own engine from here on.
+    // ordinary flight, the pilot's own engine from here on: the same place, the same course. Only
+    // the speed that engine could never have made starts to go (sim/surroundings.ts).
     const before = copyShipState(journey.state, createShipState());
     const steer: FlightInput = { thrust: 0, turn: 1, brake: 0, boost: false };
     step(journey, steer);
     expect(world.dock.phase).toBe('free');
     expect(world.dock.leftByPilot).toBe(true);
-    expect(journey.state).toEqual(stepFlight(before, steer, tuning.flight, STEP));
+    const ordinary = stepFlight(
+      copyShipState(before, createShipState()),
+      steer,
+      tuning.flight,
+      STEP,
+    );
+    expect(journey.state.x).toBe(ordinary.x);
+    expect(journey.state.z).toBe(ordinary.z);
+    expect(journey.state.heading).toBe(ordinary.heading);
+    expect(journey.state).toEqual(
+      dropOutOfWarp(ordinary, tuning.flight, tuning.cruise.dropOutPerSec, STEP),
+    );
+    expect(speedOf(journey.state)).toBeGreaterThan(speedOf(before) * 0.9);
 
-    // And from there the ship simply coasts down: nobody is flying it any more.
+    // And from there the ship slows to what its pilot can fly, and coasts down: nobody is flying
+    // it any more. Out of warp in under a second, not hundreds of units later.
     step(journey, NO_INPUT);
     expect(world.dock.leftByPilot).toBe(false);
+    const x = journey.state.x;
+    const z = journey.state.z;
+    for (let k = 0; k < 60; k += 1) step(journey, NO_INPUT);
+    const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
+    expect(speedOf(journey.state)).toBeLessThanOrEqual((thrustAccel * boostFactor) / forwardDrag);
+    expect(Math.hypot(journey.state.x - x, journey.state.z - z)).toBeLessThan(250);
     for (let k = 0; k < 300; k += 1) step(journey, NO_INPUT);
     expect(speedOf(journey.state)).toBeLessThan(20);
     expect(world.dock.phase).toBe('free');
+  });
+
+  it('never slows a ship its own pilot flies, however hard it is flown', () => {
+    const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
+    const top = (thrustAccel * boostFactor) / forwardDrag;
+    const flying = { ...createShipState(), vx: top * 0.6, vz: top * 0.8 };
+    expect(dropOutOfWarp({ ...flying }, tuning.flight, tuning.cruise.dropOutPerSec, STEP)).toEqual(
+      flying,
+    );
+    // Faster than that, only the difference goes, and along the way it was going.
+    const warp = { ...createShipState(), vx: 0, vz: 2000 };
+    dropOutOfWarp(warp, tuning.flight, 5, 0.1);
+    expect(warp.vx).toBe(0);
+    expect(warp.vz).toBeCloseTo(top + (2000 - top) * Math.exp(-0.5), 9);
+  });
+
+  it('stops within a couple of hundred units when Stop is pressed at full speed', () => {
+    // Stop (ui/Prompt.ts) lets go of the journey (Navigator.release, releaseDock) at the fastest
+    // point of a crossing between systems. Nobody flies the ship from there: it drops out of warp
+    // and coasts, and it must not coast on into the next system, or into a planet.
+    const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
+    const top = (thrustAccel * boostFactor) / forwardDrag;
+    const pairs: Array<[string, string]> = [
+      ['page/about', 'project/research'],
+      ['project/fishai', 'project/staged-recovery'],
+      ['project/research', 'project/days2meet'],
+      ['page/contact', 'project/arc-team'],
+      ['project/l1-cert', 'project/club'],
+      ['project/payload', 'page/resume'],
+    ];
+    let peakMost = 0;
+    let dropMost = 0;
+    let slideMost = 0;
+    let closest = Infinity;
+    for (const [from, to] of pairs) {
+      for (const t0 of [0, 400]) {
+        const label = `${from} -> ${to} at ${t0} s`;
+        const setOut = (): Journey => {
+          const journey = dockedAt(from, t0);
+          releaseDock(journey.world.dock, journey.world.assist);
+          requestDock(journey.world.dock, journey.world.orbits.indexOf(to), NO_INPUT, true);
+          return journey;
+        };
+        // The journey as flown to the end, to find its fastest moment (flights are exact
+        // repeats: see 'flies the same journey the same way every time')...
+        const whole = setOut();
+        let peak = 0;
+        let peakAt = 0;
+        for (let k = 1; k <= 600 && whole.world.dock.phase === 'cruise'; k += 1) {
+          step(whole);
+          if (speedOf(whole.state) > peak) {
+            peak = speedOf(whole.state);
+            peakAt = k;
+          }
+        }
+        // ...and again, Stop pressed right there.
+        const journey = setOut();
+        const { world } = journey;
+        for (let k = 0; k < peakAt; k += 1) step(journey);
+        expect(world.dock.phase, label).toBe('cruise');
+        expect(speedOf(journey.state), label).toBe(peak);
+        peakMost = Math.max(peakMost, peak);
+
+        releaseDock(world.dock, world.assist);
+        const x0 = journey.state.x;
+        const z0 = journey.state.z;
+        let dropped = -1;
+        let slide = 0;
+        for (let k = 0; k < 600; k += 1) {
+          step(journey, NO_INPUT);
+          expect(world.touched, label).toBe(-1);
+          const away = Math.hypot(journey.state.x - x0, journey.state.z - z0);
+          slide = Math.max(slide, away);
+          if (dropped < 0 && speedOf(journey.state) <= top + 1e-9) dropped = away;
+          for (let j = 0; j < world.field.count; j += 1)
+            closest = Math.min(closest, gap(journey, j));
+        }
+        expect(dropped, label).toBeGreaterThan(0);
+        dropMost = Math.max(dropMost, dropped);
+        slideMost = Math.max(slideMost, slide);
+      }
+    }
+    // Stopped at 698 u/s: back to the pilot's own top speed (81 u/s) within 160 u, and at
+    // rest (or in an orbit the assist found) within 259 u, never a system further on. (Without
+    // dropOutOfWarp it coasted some 875 u, and a Stop in the wrong place met a planet.)
+    expect(peakMost).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
+    expect(dropMost).toBeLessThan(170);
+    expect(slideMost).toBeLessThan(280);
+    expect(closest).toBeGreaterThan(tuning.cushion.depth * 0.5);
   });
 
   it('ignores controls that were already held when the journey was asked for', () => {

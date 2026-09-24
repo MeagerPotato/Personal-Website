@@ -30,6 +30,9 @@ import { measure, optionsFromEnv } from './measure';
 //   sample         { "between": "all" | n, "within": "all" | n, "spawn": true,
 //                    "starts": n | { "real": 6, "grown": 1 } }
 //   limitSec       60: not docked by then is a failure
+//   stop           true or { "coastSec": 10 }: also fly every journey between systems again and
+//                  press Stop at its fastest moment, then watch it coast: how far it slides,
+//                  how close it comes to anything, whether it touches a shell
 //   seed, includeDrafts, rows (print every journey), out (write every journey as JSON)
 //
 // JOURNEYS_OUT=<file.json> also writes every journey. A formula that JSON cannot say goes in a

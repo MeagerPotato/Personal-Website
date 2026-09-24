@@ -150,6 +150,12 @@ export const tuning = {
     passShare: 0.3,
     /** s. No journey is quicker, however near the next moon: a hop still reads as a journey. */
     minJourneySec: 1.5,
+    /**
+     * 1/s. A journey handed back at speed (Stop, or a touch of the controls) loses what the
+     * pilot's own drive could never make at this rate: from 700 u/s the ship is back to its own
+     * top speed within 0.7 s and 160 u, instead of coasting on for 875 u.
+     */
+    dropOutPerSec: 5,
   } satisfies CruiseParams,
 
   /**

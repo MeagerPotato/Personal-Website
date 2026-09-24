@@ -130,9 +130,36 @@ export interface JourneyResult {
   approachTimedOut: boolean;
   /**
    * timeout: not docked within the limit. shell: touched a shell. graze: came closer than half a
-   * cushion to a body it was only passing (the bound the autopilot's own test pins).
+   * cushion to a body it was only passing (the bound the autopilot's own test pins). A journey
+   * that was STOPPED (`stop`) fails only by a shell or a graze while it coasts.
    */
   failure: Failure | null;
+  /** What happened after Stop, when the journey was stopped on purpose (fly's `stop`). */
+  stop: StopOutcome | null;
+}
+
+/** Press Stop `atSec` into the journey (Navigator.release, as ui/Prompt.ts does), then watch it coast. */
+export interface StopSpec {
+  atSec: number;
+  /** How long to watch the ship after Stop, s. */
+  coastSec: number;
+}
+
+export interface StopOutcome {
+  /** When Stop was pressed (s since the request) and how fast the ship was going, u/s. */
+  atSec: number;
+  atSpeed: number;
+  /** How far from where Stop was pressed (u) and how long after (s) it was back to the pilot's own top speed. NaN if never. */
+  dropU: number;
+  dropSec: number;
+  /** The furthest it got from where Stop was pressed while watched, u: how far it slid. */
+  slideU: number;
+  /** Its speed at the end of the watch, u/s: at rest, or circling where the orbit assist caught it. */
+  endSpeed: number;
+  /** Closest it came to the SURFACE of any body while it coasted, u, and which. */
+  closestGapU: number;
+  closestBody: string;
+  shellTouches: number;
 }
 
 export interface Galaxy {
@@ -156,6 +183,7 @@ export function fly(
   sim: SimTuning,
   limitSec = 60,
   watch?: (view: StepView) => void,
+  stop?: StopSpec,
 ): JourneyResult {
   const { manifest } = galaxy;
   const dt = 1 / sim.stepHz;
@@ -233,10 +261,56 @@ export function fly(
   let shellTouches = 0;
   let seconds = limitSec;
   let docked = false;
+  const pilotTop = (sim.flight.thrustAccel * sim.flight.boostFactor) / sim.flight.forwardDrag;
+  let stopped: (StopOutcome & { x: number; z: number }) | null = null;
 
   while ((steps - began) * dt < limitSec) {
     step();
     const t = (steps - began) * dt;
+
+    if (
+      stop &&
+      stopped === null &&
+      t >= stop.atSec - dt / 2 &&
+      navigator.state.mode === 'autopilot'
+    ) {
+      // Stop, as the prompt's button does it: the journey is let go of, nobody flies the ship.
+      navigator.release('pilot');
+      navigator.frameUpdate();
+      stopped = {
+        atSec: t,
+        atSpeed: speedOf(state),
+        dropU: NaN,
+        dropSec: NaN,
+        slideU: 0,
+        endSpeed: 0,
+        closestGapU: Infinity,
+        closestBody: '-',
+        shellTouches: 0,
+        x: state.x,
+        z: state.z,
+      };
+      continue;
+    }
+    if (stopped !== null) {
+      const away = Math.hypot(state.x - stopped.x, state.z - stopped.z);
+      stopped.slideU = Math.max(stopped.slideU, away);
+      if (Number.isNaN(stopped.dropU) && speedOf(state) <= pilotTop + 1e-9) {
+        stopped.dropU = away;
+        stopped.dropSec = t - stopped.atSec;
+      }
+      if (world.touched >= 0) stopped.shellTouches += 1;
+      for (let j = 0; j < field.count; j += 1) {
+        const gap = Math.hypot(state.x - bodyX(j), state.z - bodyZ(j)) - (field.radius[j] ?? 0);
+        if (gap < stopped.closestGapU) {
+          stopped.closestGapU = gap;
+          stopped.closestBody = orbits.ids[j] ?? '-';
+        }
+      }
+      stopped.endSpeed = speedOf(state);
+      if (t - stopped.atSec >= (stop?.coastSec ?? 0) - dt / 2) break;
+      continue;
+    }
 
     peakSpeed = Math.max(peakSpeed, speedOf(state));
     if (world.touched >= 0) shellTouches += 1;
@@ -302,13 +376,20 @@ export function fly(
   const takeoff = Math.min(clear >= 0 ? clear : handedOver, handedOver);
   const ringAt = onRing >= 0 ? Math.min(onRing, end) : end;
   const approachSec = ringAt - handedOver;
-  const failure: Failure | null = !docked
-    ? 'timeout'
-    : shellTouches > 0
-      ? 'shell'
-      : closestGapU < grazeBelow
-        ? 'graze'
-        : null;
+  const failure: Failure | null =
+    stopped !== null
+      ? stopped.shellTouches > 0
+        ? 'shell'
+        : stopped.closestGapU < grazeBelow
+          ? 'graze'
+          : null
+      : !docked
+        ? 'timeout'
+        : shellTouches > 0
+          ? 'shell'
+          : closestGapU < grazeBelow
+            ? 'graze'
+            : null;
 
   const systemOf = (id: string | null): string =>
     id === null ? 'spawn' : (manifest.bodies.find((body) => body.id === id)?.system ?? '?');
@@ -339,7 +420,47 @@ export function fly(
     approachTimedOut:
       docked && handOff >= 0 && end - handOff >= sim.dock.approachTimeoutSec - dt / 2,
     failure,
+    stop:
+      stopped === null
+        ? null
+        : {
+            atSec: stopped.atSec,
+            atSpeed: stopped.atSpeed,
+            dropU: stopped.dropU,
+            dropSec: stopped.dropSec,
+            slideU: stopped.slideU,
+            endSpeed: stopped.endSpeed,
+            closestGapU: stopped.closestGapU,
+            closestBody: stopped.closestBody,
+            shellTouches: stopped.shellTouches,
+          },
   };
+}
+
+/**
+ * STOP MID-JOURNEY: fly `spec` once to find its fastest moment, then fly it again and press Stop
+ * right there (fly's `stop`), watching the ship coast for `coastSec`. Journeys are exact
+ * repeats, so the second flight is the first one up to that step. Null for a journey that never
+ * flew on the autopilot (a body within reach is only approached).
+ */
+export function stopAtPeak(
+  galaxy: Galaxy,
+  spec: JourneySpec,
+  sim: SimTuning,
+  coastSec: number,
+  limitSec = 60,
+): JourneyResult | null {
+  let atSec = -1;
+  let peak = 0;
+  fly(galaxy, spec, sim, limitSec, ({ t, state, mode }) => {
+    const speed = speedOf(state);
+    if (mode === 'autopilot' && speed > peak) {
+      peak = speed;
+      atSec = t;
+    }
+  });
+  if (atSec < 0) return null;
+  return fly(galaxy, spec, sim, limitSec, undefined, { atSec, coastSec });
 }
 
 // --- which journeys ----------------------------------------------------------------------------

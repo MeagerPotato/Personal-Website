@@ -4,6 +4,7 @@ import {
   fly,
   planJourneys,
   simTuning,
+  stopAtPeak,
   type Galaxy,
   type JourneyResult,
   type Sample,
@@ -11,7 +12,7 @@ import {
   type TuningOverrides,
 } from './fly';
 import { buildGalaxy, grow, readRealInput, type LayoutOverrides } from './galaxies';
-import { describe as describeRow, phasesOf, statsOf, table } from './report';
+import { describe as describeRow, phasesOf, statsOf, stopTable, table } from './report';
 
 // The harness as a function: galaxies x variants in, every journey out. journeys.measure.ts runs
 // it from the JOURNEYS environment variable; a proposal can import `measure` in its own
@@ -43,6 +44,12 @@ export interface MeasureOptions {
    * `everySec`: where, how fast, what the dock and the autopilot are doing, what was flown.
    */
   trace: { from: string; to: string; everySec?: number } | null;
+  /**
+   * STOP MID-JOURNEY as well: every journey between systems is flown a second time and stopped at
+   * its fastest moment (Stop, Navigator.release), then watched for `coastSec`: how far the ship
+   * slides, how close it comes to anything, whether it touches a shell. Null: not done.
+   */
+  stop: { coastSec: number } | null;
   log: (text: string) => void;
 }
 
@@ -56,6 +63,7 @@ export const DEFAULTS: MeasureOptions = {
   includeDrafts: false,
   rows: false,
   trace: null,
+  stop: null,
   log: (text) => console.log(text),
 };
 
@@ -66,6 +74,8 @@ export interface GalaxyReport {
   /** Why the galaxy could not be built (a tripwire in data/build.ts), if it could not. */
   error: string | null;
   rows: JourneyResult[];
+  /** The journeys between systems again, stopped at their fastest (MeasureOptions.stop). */
+  stops: JourneyResult[];
   wallSec: number;
 }
 
@@ -142,6 +152,7 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         systems: [],
         error: null,
         rows: [],
+        stops: [],
         wallSec: 0,
       };
       reports.push(report);
@@ -182,12 +193,17 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
           log(
             `  ${row.kind.padEnd(7)} ${describeRow(row)}  [${phasesOf(row)}]${row.failure ? ` FAIL ${row.failure}` : ''}`,
           );
+        if (options.stop !== null && journey.kind === 'between') {
+          const stopped = stopAtPeak(galaxy, journey, sim, options.stop.coastSec, options.limitSec);
+          if (stopped !== null) report.stops.push(stopped);
+        }
       }
       report.wallSec = (performance.now() - began) / 1000;
       log(
         `\n== ${variant.name} / ${name}: ${bodies.length} bodies, ${report.rows.length} journeys ` +
           `(${report.wallSec.toFixed(0)} s to simulate)\n${describeSystems(systems)}\n${table(report.rows)}`,
       );
+      if (options.stop !== null) log(stopTable(report.stops, options.stop.coastSec));
     }
   }
 
@@ -228,6 +244,7 @@ const OPTION_KEYS = [
   'includeDrafts',
   'rows',
   'trace',
+  'stop',
   'out',
 ] as const;
 
@@ -264,6 +281,14 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): EnvOptions
   if (raw.includeDrafts !== undefined) options.includeDrafts = raw.includeDrafts === true;
   if (raw.rows !== undefined) options.rows = raw.rows === true;
   if (raw.trace !== undefined) options.trace = raw.trace as MeasureOptions['trace'];
+  if (raw.stop !== undefined) {
+    options.stop =
+      raw.stop === true
+        ? { coastSec: 10 }
+        : raw.stop === false || raw.stop === null
+          ? null
+          : { coastSec: 10, ...(raw.stop as Partial<{ coastSec: number }>) };
+  }
   if (raw.sample !== undefined) {
     options.sample = { ...DEFAULTS.sample, ...(raw.sample as Partial<MeasureOptions['sample']>) };
   }
