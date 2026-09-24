@@ -69,6 +69,12 @@ for (const size of NARROW) {
         if (path !== '/') await softNavigate(page, path);
         expect(await sidewaysScroll(page), path).toBe(0);
       }
+      // One row at both widths, in our own face (Outfit, preloaded): waited for, not assumed, so
+      // that a runner whose fallback font is wider never measures the fallback.
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+      });
+      expect(await page.evaluate(() => document.fonts.check('600 15px Outfit'))).toBe(true);
       const rows = await page.evaluate(
         () =>
           new Set(
@@ -77,9 +83,7 @@ for (const size of NARROW) {
             ),
           ).size,
       );
-      // One row at 360 px. At 320 px it depends on the visitor's system font: one row with Segoe
-      // or Roboto, two with a wide one (DejaVu on a Linux CI runner), which is a graceful wrap.
-      expect(rows).toBeLessThanOrEqual(size.width >= 360 ? 1 : 2);
+      expect(rows).toBe(1);
     });
   });
 }

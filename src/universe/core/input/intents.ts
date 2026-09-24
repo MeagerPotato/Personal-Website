@@ -1,3 +1,4 @@
+import { isSteering } from '../../sim/flight';
 import type { FlightInput } from '../../sim/types';
 
 /**
@@ -43,12 +44,11 @@ export function addIntent(
   return out;
 }
 
-/** Is the pilot asking for anything? Used for "first input" and to cancel the autopilot. */
-export function isSteering(input: Readonly<FlightInput>, deadZone = 0): boolean {
-  return (
-    input.thrust > deadZone ||
-    input.brake > deadZone ||
-    Math.abs(input.turn) > deadZone ||
-    input.boost
-  );
+/**
+ * Has the pilot touched a flight control: thrust, a turn, or the brake? The input system's "first
+ * input", which puts the first-visit hint away for good. Boost alone is none (sim/flight.ts,
+ * isSteering, says why): Shift is also half of Shift+Tab.
+ */
+export function touchesControls(input: Readonly<FlightInput>): boolean {
+  return isSteering(input) || input.brake > 0;
 }

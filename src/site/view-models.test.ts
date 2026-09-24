@@ -4,9 +4,12 @@ import {
   displayUrl,
   featuredPlanets,
   formatDateRange,
+  mixesSystems,
+  sharedTheme,
   formatYearMonth,
   projectContext,
   projectLinks,
+  projectTheme,
   projectWhen,
   toCard,
   visibleProjects,
@@ -117,7 +120,7 @@ describe('buildProjectTree', () => {
   });
 
   it('turns a project into a card', () => {
-    expect(toCard(PROJECTS[2] as ProjectLike)).toEqual({
+    expect(toCard(PROJECTS[2] as ProjectLike, 'sky')).toStrictEqual({
       id: 'moon-b',
       href: '/projects/moon-b/',
       title: 'MOON-B',
@@ -125,9 +128,17 @@ describe('buildProjectTree', () => {
       date: '2026-02',
       status: 'Shipped',
       biome: 'dune',
+      theme: 'sky',
       flagship: false,
       kind: 'moon',
     });
+  });
+
+  it('paints every card in its own system, a moon in its planet’s', () => {
+    const [code, robots] = tree;
+    expect(code?.planets.map((planet) => planet.theme)).toEqual(['sky', 'sky']);
+    expect(code?.planets[0]?.moons.map((moon) => moon.theme)).toEqual(['sky', 'sky']);
+    expect(robots?.planets.map((planet) => planet.theme)).toEqual(['coral']);
   });
 });
 
@@ -140,9 +151,48 @@ describe('visibleProjects', () => {
   });
 });
 
+describe('projectTheme', () => {
+  it('finds a planet’s system, and a moon’s through its planet', () => {
+    const byId = (id: string): ProjectLike =>
+      PROJECTS.find((entry) => entry.id === id) as ProjectLike;
+    expect(projectTheme(byId('rover'), SYSTEMS, PROJECTS)).toBe('coral');
+    expect(projectTheme(byId('newer'), SYSTEMS, PROJECTS)).toBe('sky');
+    expect(projectTheme(byId('moon-a'), SYSTEMS, PROJECTS)).toBe('sky');
+  });
+
+  it('has no family for a project whose system (or planet) is not there', () => {
+    const orphan = project('orphan', { system: { id: 'gone' } });
+    const lostMoon = project('lost', { parent: { id: 'nowhere' } });
+    expect(projectTheme(orphan, SYSTEMS, PROJECTS)).toBeUndefined();
+    expect(projectTheme(lostMoon, SYSTEMS, PROJECTS)).toBeUndefined();
+  });
+});
+
+describe('mixesSystems', () => {
+  it('is true only when the cards name more than one family', () => {
+    expect(mixesSystems([{ theme: 'sky' }, { theme: 'sky' }])).toBe(false);
+    expect(mixesSystems([{ theme: 'sky' }, { theme: 'coral' }])).toBe(true);
+    // A card whose system is gone has no family: next to one that has, that is a mix.
+    expect(mixesSystems([{ theme: 'sky' }, { theme: undefined }])).toBe(true);
+    expect(mixesSystems([])).toBe(false);
+  });
+});
+
+describe('sharedTheme', () => {
+  it('names the family only when every card is in it', () => {
+    expect(sharedTheme([{ theme: 'sky' }, { theme: 'sky' }])).toBe('sky');
+    expect(sharedTheme([{ theme: 'sky' }, { theme: 'coral' }])).toBeUndefined();
+    expect(sharedTheme([{ theme: 'sky' }, { theme: undefined }])).toBeUndefined();
+    expect(sharedTheme([{ theme: undefined }])).toBeUndefined();
+    expect(sharedTheme([])).toBeUndefined();
+  });
+});
+
 describe('featuredPlanets', () => {
   it('puts flagships first, then the newest work, and respects the limit', () => {
     const tree = buildProjectTree(SYSTEMS, PROJECTS);
+    // A mixed list: each planet keeps its own system's colours.
+    expect(featuredPlanets(tree, 3).map((planet) => planet.theme)).toEqual(['sky', 'sky', 'coral']);
     // "rover" sits in another system and is the oldest of the three: newest-first is galaxy-wide.
     expect(featuredPlanets(tree, 3).map((planet) => planet.id)).toEqual([
       'older',
@@ -163,6 +213,7 @@ describe('projectContext', () => {
       { label: 'CODE', href: '/systems/code/' },
     ]);
     expect(context.moons.map((moon) => moon.id)).toEqual(['moon-a', 'moon-b']);
+    expect(context.moons.map((moon) => moon.theme)).toEqual(['sky', 'sky']);
   });
 
   it('places a moon under its planet, and inherits the planet’s system', () => {
@@ -182,6 +233,8 @@ describe('projectContext', () => {
     expect(projectContext(rover, SYSTEMS, PROJECTS).related.map((card) => card.id)).toEqual([
       'newer',
     ]);
+    // Related work from another system wears that system's colours, not this page's.
+    expect(projectContext(rover, SYSTEMS, PROJECTS).related[0]?.theme).toBe('sky');
     const withoutNewer = PROJECTS.filter((entry) => entry.id !== 'newer');
     expect(projectContext(rover, SYSTEMS, withoutNewer).related).toEqual([]);
   });

@@ -33,6 +33,13 @@ const DOCK_KEY = 'KeyE';
 export class Prompt implements System {
   private readonly button: HTMLButtonElement;
   private readonly label: HTMLSpanElement;
+  /**
+   * The words before the name when they are news, not an offer ("Flying to "): their own element,
+   * so that where room is short (a phone's Map button row, under a page that names the place in
+   * its heading) the stylesheet can set them aside and keep the name. A screen reader hears them.
+   */
+  private readonly lead: HTMLSpanElement;
+  private readonly name: Text;
   private readonly key: HTMLElement;
   /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
   private readonly action: HTMLSpanElement;
@@ -46,6 +53,10 @@ export class Prompt implements System {
     this.button.hidden = true;
     this.key = document.createElement('kbd');
     this.label = document.createElement('span');
+    this.lead = document.createElement('span');
+    this.lead.className = 'dock-prompt__lead';
+    this.name = document.createTextNode('');
+    this.label.append(this.lead, this.name);
     this.action = document.createElement('span');
     this.action.className = 'dock-prompt__action';
     this.button.append(this.key, this.label, this.action);
@@ -60,6 +71,7 @@ export class Prompt implements System {
     const { mode, target } = navigator.state;
     const candidate = navigator.candidate;
 
+    let lead = '';
     let text = '';
     let key = '';
     let action = '';
@@ -71,12 +83,15 @@ export class Prompt implements System {
     } else if (target !== null) {
       // On its way, flown by the autopilot or by the ring's own pilot. Steering takes the ship
       // back too, but nobody can know that, least of all someone who got here by a tap.
-      text = `Flying to ${titleOf(target)}`;
+      lead = 'Flying to ';
+      text = titleOf(target);
       action = 'Stop';
     }
-    if (text === this.shown) return;
-    this.shown = text;
-    this.label.textContent = text;
+    if (lead + text === this.shown) return;
+    this.shown = lead + text;
+    this.lead.textContent = lead;
+    this.lead.hidden = lead === '';
+    this.name.data = text;
     this.key.textContent = key;
     this.key.hidden = key === '';
     this.action.textContent = action;

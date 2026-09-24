@@ -9,7 +9,7 @@ const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 const params = tuning.orbitCam;
 const DEG = Math.PI / 180;
 const STILL = { reducedMotion: true };
-const WHOLE = { aspect: 1.6, freeWidth: 1, freeHeight: 1 };
+const WHOLE = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 };
 
 function planet(x: number, z: number, ringRadius: number, light: Vector3 | null): OrbitSubject {
   return { position: new Vector3(x, 0, z), ringRadius, light };
@@ -20,7 +20,7 @@ function shown(
   subject: OrbitSubject,
   width: number,
   height: number,
-  inset: { right?: number; bottom?: number },
+  inset: { top?: number; right?: number; bottom?: number },
 ) {
   const camera = new PerspectiveCamera(50, width / height, 0.1, 5000);
   const orbit = new OrbitCam(STILL);
@@ -92,6 +92,22 @@ describe('the orbit camera', () => {
     expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan((free.bottom - free.top) * 0.97);
   });
 
+  it('and in the strip between the sheet and a solid top bar with a row of controls under it', () => {
+    const subject = planet(-40, 300, 9, new Vector3(0, 0, 0));
+    const project = shown(subject, 390, 844, { top: 160, bottom: 490 });
+    const free = { left: 0, right: 390, top: 160, bottom: 844 - 490 };
+
+    const centre = project(new Vector3(-40, 0, 300));
+    expect(centre.x).toBeCloseTo(195, 6);
+    expect(centre.y).toBeCloseTo((free.top + free.bottom) / 2, 6);
+
+    const spots = ball(subject.position, params.fitRingRadii * subject.ringRadius).map(project);
+    const ys = spots.map((spot) => spot.y);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(free.top - 0.5);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(free.bottom + 0.5);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan((free.bottom - free.top) * 0.97);
+  });
+
   it('stands on the lit side, a little round from the light, looking down from above', () => {
     const light = new Vector3(0, 0, 0);
     const subject = planet(100, 100, 12, light);
@@ -158,9 +174,13 @@ describe('the orbit camera', () => {
     orbit.look(subject);
     orbit.update(frame(1 / 60), WHOLE, pose);
     const whole = pose.distance;
-    orbit.update(frame(1 / 60), { aspect: 1.6, freeWidth: 0.6125, freeHeight: 1 }, pose);
+    orbit.update(
+      frame(1 / 60),
+      { aspect: 1.6, freeWidth: 0.6125, freeHeight: 1, freeTop: 0 },
+      pose,
+    );
     const beside = pose.distance;
-    orbit.update(frame(1 / 60), { aspect: 1.6, freeWidth: 0.2, freeHeight: 1 }, pose);
+    orbit.update(frame(1 / 60), { aspect: 1.6, freeWidth: 0.2, freeHeight: 1, freeTop: 0 }, pose);
     expect(beside).toBeGreaterThan(whole);
     expect(pose.distance).toBeGreaterThan(beside * 2);
   });

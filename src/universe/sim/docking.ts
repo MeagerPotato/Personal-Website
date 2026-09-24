@@ -1,4 +1,5 @@
 import { orbitWish, type AssistParams, type AssistState, type BodyField } from './assist';
+import { isSteering } from './flight';
 import { TAU, angleOf } from './math';
 import { createSpring, stepSpring, type SpringState } from './spring';
 import type { FlightInput, FlightParams, ShipState } from './types';
@@ -85,10 +86,6 @@ export function createDockState(): DockState {
     noseOff: createSpring(0),
     noseRest: 0,
   };
-}
-
-function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
-  return input.thrust > deadZone || Math.abs(input.turn) > deadZone || input.boost;
 }
 
 /**

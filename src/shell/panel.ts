@@ -72,7 +72,9 @@ export function startPanel(options: PanelOptions, doc: Document = document): Pan
   function renderSize(value: 'half' | 'full'): void {
     root.dataset.panelSize = value;
     if (!size) return;
-    size.setAttribute('aria-pressed', String(value === 'full'));
+    // An action, named for what it does next, like the Map button's "Close map": not a toggle
+    // with a pressed state, whose name would then have to stay the same. (The stylesheet gives
+    // it the cream face of "on" from data-panel-size.)
     size.textContent = value === 'full' ? 'Shrink' : 'Expand';
   }
 

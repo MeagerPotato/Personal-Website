@@ -4,6 +4,7 @@ import {
   NO_INPUT,
   copyShipState,
   createShipState,
+  isSteering,
   maxYawRate,
   speedOf,
   stepFlight,
@@ -118,6 +119,17 @@ describe('steering', () => {
 
     fly(ship, 2, input({ thrust: 1 }));
     expect(slipAngle(ship)).toBeLessThan(0.01);
+  });
+});
+
+describe('isSteering', () => {
+  it('is thrust or a turn past the dead zone, and never boost or the brake alone', () => {
+    expect(isSteering(NO_INPUT)).toBe(false);
+    expect(isSteering(input({ thrust: 0.3 }))).toBe(true);
+    expect(isSteering(input({ turn: -0.2 }))).toBe(true);
+    expect(isSteering(input({ turn: -0.2 }), 0.25)).toBe(false);
+    expect(isSteering(input({ boost: true }))).toBe(false);
+    expect(isSteering(input({ brake: 1 }))).toBe(false);
   });
 });
 

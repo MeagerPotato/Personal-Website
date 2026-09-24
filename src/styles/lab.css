@@ -1,5 +1,15 @@
 /* DEV ONLY: the asset lab (src/pages/_lab.astro). No build contains this file. */
 
+/* The site's one face, so that the lab's notes read as the site does. The same rule as section 0
+   of global.css, which the lab does not load. */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/outfit-var-latin.woff2') format('woff2');
+}
+
 html,
 body {
   margin: 0;

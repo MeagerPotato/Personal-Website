@@ -2,13 +2,19 @@
 // Served by Cloudflare for any unknown path (wrangler.jsonc: not_found_handling "404-page").
 // Plain-only: a wrong URL should never cost a visitor a WebGL boot.
 import Base from '../layouts/Base.astro';
+import { routes } from '../site/routes';
 ---
 
 <Base title="404 · Lost in space" description="This page drifted out of range." plainOnly noindex>
   <p class="eyebrow">Error 404</p>
   <h1>Lost in space.</h1>
   <p class="lede">This page drifted out of range, or never made it off the launchpad.</p>
-  <p>
-    <a href="/">Return to home base</a>
-  </p>
+  <!-- The page's one action, as a key: 44 px to press, and the one filled thing in the view. -->
+  <ul class="actions">
+    <li>
+      <a class="button button--primary" href={routes.home()}>
+        Return to home base
+      </a>
+    </li>
+  </ul>
 </Base>

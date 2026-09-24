@@ -1,6 +1,6 @@
 import type { FlightInput } from '../../sim/types';
 import type { System } from '../Engine';
-import { clearIntent, isSteering, type InputSource } from './intents';
+import { clearIntent, touchesControls, type InputSource } from './intents';
 
 /**
  * Merges every input device into ONE FlightInput per simulation step. It must be added to the
@@ -20,7 +20,10 @@ export class InputSystem implements System {
   private sawInput = false;
   private enabled = true;
 
-  /** `onFirstInput` fires once, the first time the pilot asks for anything. */
+  /**
+   * `onFirstInput` fires once, the first time the pilot touches a flight control (boost alone
+   * does not count: see `touchesControls`).
+   */
   constructor(private readonly onFirstInput: () => void = () => undefined) {}
 
   add<T extends InputSource>(source: T): T {
@@ -44,7 +47,7 @@ export class InputSystem implements System {
     if (this.override) this.override.read(this.current);
     else if (this.enabled) for (const source of this.sources) source.read(this.current);
 
-    if (!this.sawInput && isSteering(this.current)) {
+    if (!this.sawInput && touchesControls(this.current)) {
       this.sawInput = true;
       this.onFirstInput();
     }

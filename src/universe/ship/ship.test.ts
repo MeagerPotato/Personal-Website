@@ -161,12 +161,12 @@ describe('the ship in the chase camera, under uneven frames', () => {
 
     // Reach top speed first, then measure.
     run(ship, Array<number>(900).fill(STEP), (frame) =>
-      cam.update(frame, { aspect: 16 / 9, freeWidth: 1, freeHeight: 1 }, pose),
+      cam.update(frame, { aspect: 16 / 9, freeWidth: 1, freeHeight: 1, freeTop: 0 }, pose),
     );
     expect(ship.speed).toBeCloseTo(topSpeed(tuning.flight), 3);
 
     run(ship, frameTimes, (frame) => {
-      cam.update(frame, { aspect: 16 / 9, freeWidth: 1, freeHeight: 1 }, pose);
+      cam.update(frame, { aspect: 16 / 9, freeWidth: 1, freeHeight: 1, freeTop: 0 }, pose);
       applyPose(camera, pose);
       camera.updateMatrixWorld();
       seen.push(ship.position.clone().applyMatrix4(camera.matrixWorldInverse));

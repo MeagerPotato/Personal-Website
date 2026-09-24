@@ -50,7 +50,7 @@ export const bodyHtml = (page: TestPage): string =>
     '<button type="button" data-panel-toggle aria-expanded="false">About this site</button>',
     '</header>',
     '<div class="panel"><div class="panel-bar">',
-    '<button type="button" data-panel-resize aria-pressed="false">Expand</button>',
+    '<button type="button" data-panel-resize>Expand</button>',
     '<button type="button" data-panel-close>Close</button></div>',
     `<main id="main" tabindex="-1" data-flight-keys="off">${page.main}</main></div>`,
     '<footer><a href="?plain" data-router-ignore>Plain version</a></footer>',

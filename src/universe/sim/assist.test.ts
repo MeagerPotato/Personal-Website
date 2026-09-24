@@ -203,6 +203,29 @@ describe('orbit assist', () => {
     expect(flown.thrust).toBe(1);
   });
 
+  it('does not hurry a ship round its ring for a bare boost (Shift, half of Shift+Tab)', () => {
+    const settled = () => {
+      const surroundings = world();
+      const flight = { state: createShipState(40, 0, 0), t: 0 };
+      flight.state.vz = 12;
+      fly(surroundings, flight, handsOff, 25);
+      return { surroundings, flight };
+    };
+    const alone = settled();
+    const shifted = settled();
+    expect(alone.surroundings.assist.weight).toBeCloseTo(1, 5);
+    fly(alone.surroundings, alone.flight, handsOff, 5);
+    fly(shifted.surroundings, shifted.flight, held({ boost: true }), 5);
+    expect(shifted.flight.state).toEqual(alone.flight.state);
+
+    // With thrust of the pilot's own, boost still boosts.
+    const flown = { ...NO_INPUT };
+    const pilot = { ...NO_INPUT, thrust: 0.5, boost: true };
+    const { surroundings, flight } = shifted;
+    flyStep(surroundings, flight.state, pilot, tuning.flight, tuning, STEP, flight.t + STEP, flown);
+    expect(flown.boost).toBe(true);
+  });
+
   it('does not let a passing station steal a ship from its planet', () => {
     const surroundings = world();
     const flight = { state: createShipState(40, 0, 0), t: 0 };

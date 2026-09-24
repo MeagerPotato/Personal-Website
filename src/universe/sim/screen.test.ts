@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createScreenMap, isTap, pickBody, projectBodies, type ScreenMap } from './screen';
+import {
+  createScreenMap,
+  isTap,
+  pickBody,
+  projectBodies,
+  projectPoint,
+  type ScreenMap,
+} from './screen';
 
 type Vec3 = readonly [number, number, number];
 
@@ -149,6 +156,36 @@ describe('projectBodies', () => {
       createScreenMap(2),
     );
     expect(map.count).toBe(2);
+  });
+});
+
+describe('projectPoint', () => {
+  it('on the flight plane, is where projectBodies puts a body', () => {
+    const eye: Vec3 = [30, 400, 120];
+    const { viewProjection } = camera(eye, [0, 0, 0], [0, 0, -1], 12, WIDTH / HEIGHT);
+    const map = project(eye, [0, 0, 0], [0, 0, -1], 12, [[-20, 35, 1]]);
+    const out = { x: 0, y: 0 };
+    expect(projectPoint(viewProjection, WIDTH, HEIGHT, -20, 0, 35, out)).toBe(true);
+    expect(out.x).toBeCloseTo(map.x[0] ?? 0, 9);
+    expect(out.y).toBeCloseTo(map.y[0] ?? 0, 9);
+  });
+
+  it('raised toward a camera that looks straight down, moves away from the middle of the view', () => {
+    const { viewProjection } = camera([0, 100, 0], [0, 0, 0], [0, 0, -1], 90, WIDTH / HEIGHT);
+    const out = { x: 0, y: 0 };
+    // 4 px to the unit on the plane; 20 units up it is 80 u from the eye, so 5 px to the unit.
+    projectPoint(viewProjection, WIDTH, HEIGHT, 10, 0, 0, out);
+    expect(out.x).toBeCloseTo(640, 9);
+    projectPoint(viewProjection, WIDTH, HEIGHT, 10, 20, 0, out);
+    expect(out.x).toBeCloseTo(650, 9);
+    expect(out.y).toBeCloseTo(400, 9);
+  });
+
+  it('says so, and leaves `out` alone, for a point behind the camera', () => {
+    const { viewProjection } = camera([0, 5, -11], [0, 0, 14], [0, 1, 0], 55, WIDTH / HEIGHT);
+    const out = { x: 7, y: 9 };
+    expect(projectPoint(viewProjection, WIDTH, HEIGHT, 0, 0, -200, out)).toBe(false);
+    expect(out).toEqual({ x: 7, y: 9 });
   });
 });
 

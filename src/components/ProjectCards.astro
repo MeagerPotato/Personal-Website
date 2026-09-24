@@ -1,7 +1,10 @@
 ---
 // A list of projects as cards. A planet's moons, when it has any, are listed inside its card.
+// Each card wears its own system's colours (data-theme), whatever page the list is on. A list
+// of one system wears that system too, so its route line matches its stations; a list that
+// mixes systems draws its route line neutral (cards--mixed).
 // Markup only; the data comes ready-made from src/site/view-models.ts.
-import type { PlanetNode, ProjectCard } from '../site/view-models';
+import { mixesSystems, sharedTheme, type PlanetNode, type ProjectCard } from '../site/view-models';
 
 interface Props {
   cards: ReadonlyArray<ProjectCard | PlanetNode>;
@@ -10,9 +13,9 @@ interface Props {
 const { cards } = Astro.props;
 ---
 
-<ul class="cards">
+<ul class:list={['cards', { 'cards--mixed': mixesSystems(cards) }]} data-theme={sharedTheme(cards)}>
   {cards.map((card) => (
-    <li class="card" data-biome={card.biome}>
+    <li class="card" data-biome={card.biome} data-theme={card.theme}>
       <span class="planet-dot" aria-hidden="true" />
       <div class="card__body">
         <h3 class="card__title">

@@ -71,6 +71,30 @@ export function projectBodies(
   return out;
 }
 
+/**
+ * Where one point is on screen, CSS px into `out`: (x, z) on the flight plane, raised `y` units
+ * above it (the ship's marker on the star map is drawn raised, to lie on top of what it is
+ * beside). False, and `out` untouched, if the point is not in front of the camera.
+ */
+export function projectPoint(
+  viewProjection: ArrayLike<number>,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  z: number,
+  out: { x: number; y: number },
+): boolean {
+  const m = viewProjection;
+  const cw = (m[3] ?? 0) * x + (m[7] ?? 0) * y + (m[11] ?? 0) * z + (m[15] ?? 0);
+  if (!(cw > 0)) return false;
+  const cx = (m[0] ?? 0) * x + (m[4] ?? 0) * y + (m[8] ?? 0) * z + (m[12] ?? 0);
+  const cy = (m[1] ?? 0) * x + (m[5] ?? 0) * y + (m[9] ?? 0) * z + (m[13] ?? 0);
+  out.x = (cx / cw / 2 + 0.5) * width;
+  out.y = (0.5 - cy / cw / 2) * height;
+  return true;
+}
+
 export interface PickParams {
   /** A body that looks smaller than this (radius, CSS px) can still be hit within this radius. */
   readonly minTargetPx: number;

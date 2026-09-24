@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FlightInput } from '../../sim/types';
 import { InputSystem } from './InputSystem';
 import { KeyboardInput } from './KeyboardInput';
-import { addIntent, clearIntent, isSteering, type InputSource } from './intents';
+import { addIntent, clearIntent, touchesControls, type InputSource } from './intents';
 import { KeyState } from './keys';
 
 const blank = (): FlightInput => ({ thrust: 0, turn: 0, brake: 0, boost: false });
@@ -20,11 +20,13 @@ describe('merging intents', () => {
     expect(clearIntent(total)).toEqual(blank());
   });
 
-  it('knows when the pilot is asking for something', () => {
-    expect(isSteering(blank())).toBe(false);
-    expect(isSteering({ ...blank(), turn: -0.2 })).toBe(true);
-    expect(isSteering({ ...blank(), turn: -0.2 }, 0.25)).toBe(false);
-    expect(isSteering({ ...blank(), boost: true }, 0.25)).toBe(true);
+  it('knows when the pilot touches a flight control, and that Shift alone is none', () => {
+    expect(touchesControls(blank())).toBe(false);
+    expect(touchesControls({ ...blank(), thrust: 0.2 })).toBe(true);
+    expect(touchesControls({ ...blank(), turn: -0.2 })).toBe(true);
+    expect(touchesControls({ ...blank(), brake: 0.5 })).toBe(true);
+    // Shift is also half of Shift+Tab, which only moves the focus back.
+    expect(touchesControls({ ...blank(), boost: true })).toBe(false);
   });
 });
 
@@ -177,6 +179,16 @@ describe('InputSystem', () => {
     system.dispose();
     expect(keys.disposed && touch.disposed).toBe(true);
     expect(system.current).toEqual(blank());
+  });
+
+  it('does not take a lone Shift for the first input: it is also half of Shift+Tab', () => {
+    const onFirstInput = vi.fn();
+    const system = new InputSystem(onFirstInput);
+    system.add(stick({ boost: true }));
+    system.fixedUpdate();
+    expect(system.current.boost).toBe(true);
+    expect(onFirstInput).not.toHaveBeenCalled();
+    system.dispose();
   });
 
   it('can be switched off: the pilot then wants nothing, and the devices are told', () => {

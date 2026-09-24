@@ -172,6 +172,27 @@ describe('TouchControls', () => {
     expect(stick().hidden).toBe(false);
   });
 
+  it('puts the boost pad away outside free flight, where boost does nothing, and keeps the stick', () => {
+    const touch = make();
+    fire(canvas, 'pointerdown', 1, 100, 400);
+    fire(pad(), 'pointerdown', 2);
+    expect(read().boost).toBe(true);
+
+    // Docked (or on the way, or on a journey): no pad, and nothing held on it.
+    touch.setFlying(false);
+    expect(pad().hidden).toBe(true);
+    expect(pad().dataset.active).toBeUndefined();
+    expect(touch.padBox()).toBeNull();
+    expect(read().boost).toBe(false);
+    // The stick still flies: it is how the pilot leaves.
+    fire(canvas, 'pointermove', 1, 100, 340);
+    expect(read().thrust).toBeGreaterThan(0);
+    expect(stick().hidden).toBe(false);
+
+    touch.setFlying(true);
+    expect(pad().hidden).toBe(false);
+  });
+
   it('lets go of everything when the window loses focus, and cleans up after itself', () => {
     make();
     fire(canvas, 'pointerdown', 1, 100, 300);

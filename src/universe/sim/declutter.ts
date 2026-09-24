@@ -121,6 +121,45 @@ export function declutter(
   }
 }
 
+/**
+ * How far a label lies above or below a box (CSS px): the gap between them up and down, negative
+ * by as much as they overlap. Infinity where they are more than `besidePx` apart side by side,
+ * because then no height can make them touch.
+ */
+export function verticalClearance(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  box: Readonly<ScreenBox>,
+  besidePx: number,
+): number {
+  if (left - besidePx >= box.left + box.width || left + width + besidePx <= box.left) {
+    return Infinity;
+  }
+  return Math.max(top - (box.top + box.height), box.top - (top + height));
+}
+
+/**
+ * How far a label must move, down (`way` 1) or up (-1), to keep `gapPx` clear of a box it would
+ * otherwise come within `gapPx` of (CSS px; 0 if it is clear already). The label goes all the way
+ * PAST the box in that direction, never back across it: a name only ever moves away from its
+ * body, and the box (the ship) is most often right beside that body.
+ */
+export function glidePast(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  box: Readonly<ScreenBox>,
+  gapPx: number,
+  way: 1 | -1,
+): number {
+  if (left - gapPx >= box.left + box.width || left + width + gapPx <= box.left) return 0;
+  if (top - gapPx >= box.top + box.height || top + height + gapPx <= box.top) return 0;
+  return way > 0 ? box.top + box.height + gapPx - top : top + height + gapPx - box.top;
+}
+
 /** Rows that are no candidates sort last, whatever nonsense their priority holds. */
 function sortKey(priority: number): number {
   return Number.isFinite(priority) ? priority : Infinity;

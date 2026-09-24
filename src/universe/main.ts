@@ -71,9 +71,14 @@ export interface BootQuality {
 
 /** How much of the viewport the page's own chrome covers, in CSS px (api.ts, `setPanelInset`). */
 export interface ViewInset {
+  /** How far down the top bar's links reach: the names keep below them, and so does the map. */
   top?: number;
   right?: number;
   bottom?: number;
+  /** How much of the top the camera leaves out when it frames what matters (none if left out). */
+  frameTop?: number;
+  /** The page's footer chip over the bottom-left corner: from the left edge to right, top down. */
+  foot?: { right: number; top: number };
 }
 
 export interface Booted {
@@ -152,6 +157,12 @@ export function boot(
     syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
   if (start?.dock) navigator.restore(start.dock);
+  // Boost only multiplies the pilot's own thrust: outside free flight a finger's boost pad would
+  // light up and do nothing, so it is put away (the stick stays: it is how the pilot leaves).
+  engine.add({
+    frameUpdate: () => touch.setFlying(navigator.state.mode === 'flight'),
+    dispose: () => undefined,
+  });
   // An unknown id (a page whose body is a draft, a manifest from another deploy) is no error: the
   // page is in the panel all the same, and the ship simply starts in open sky.
   // (A dock restored just above is already there, and `place` then changes nothing.)
@@ -262,6 +273,13 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
+  // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
+  // whatever it is beside. Drawn so below; the names keep off it as drawn.
+  const markerUnits = (): number => Math.max(1, tuning.map.shipRadiusPx * starMap.unitsPerPx);
+  const markerLift = (units: number): number => starMap.weight * (galaxy.displayReach + units);
+  const shipAt = { x: 0, y: 0 };
+  const shipBox = { left: 0, top: 0, width: 0, height: 0 };
   if (options.overlay) {
     // A name under every body that has room for one: pressing it is pointing at the body.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
@@ -282,6 +300,22 @@ export function boot(
         // What else can be pressed out there. The prompt is only built further down (it is
         // updated last in a frame); by the time anyone asks, it is there.
         obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
+        // On the map the ship is the marker that says "you are here": no name lies on it.
+        ship: () => {
+          if (!starMap.isOpen) return null;
+          const units = markerUnits();
+          const { x, z } = ship.position;
+          if (!onScreen.pointAt(x, z, shipAt, markerLift(units))) return null;
+          // As big as it is drawn: the marker, or the ship itself once that is bigger.
+          const half = units / starMap.unitsPerPx;
+          shipBox.left = shipAt.x - half;
+          shipBox.top = shipAt.y - half;
+          shipBox.width = 2 * half;
+          shipBox.height = 2 * half;
+          return shipBox;
+        },
+        // The map holds still: there a name may go above its body, out of the ship's way.
+        eitherSide: () => starMap.isOpen,
       }),
     );
   }
@@ -298,9 +332,8 @@ export function boot(
       setToonFlatness(weight * tuning.map.flatness);
       starfield.setCalm(weight, tuning.map.starOpacity);
       dust.setPresence(1 - weight);
-      // (The ship is about two units long, so one unit is its "radius".)
-      const marker = Math.max(1, tuning.map.shipRadiusPx * starMap.unitsPerPx);
-      ship.setMarker(Math.pow(marker, weight), weight * (galaxy.displayReach + marker));
+      const marker = markerUnits();
+      ship.setMarker(Math.pow(marker, weight), markerLift(marker));
     },
     dispose: () => setToonFlatness(0),
   });
@@ -353,8 +386,9 @@ export function boot(
     engine,
     navigator,
     setInset(inset, cut) {
-      rig.setInset(inset, cut);
+      rig.setInset({ top: inset.frameTop, right: inset.right, bottom: inset.bottom }, cut);
       labels?.setTop(inset.top ?? 0);
+      labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),

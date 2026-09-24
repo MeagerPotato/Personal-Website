@@ -1,6 +1,6 @@
 import { Matrix4, type PerspectiveCamera } from 'three';
 import type { System, Viewport } from '../core/Engine';
-import { createScreenMap, projectBodies, type ScreenMap } from '../sim/screen';
+import { createScreenMap, projectBodies, projectPoint, type ScreenMap } from '../sim/screen';
 
 export interface BodiesOnScreenOptions {
   camera: PerspectiveCamera;
@@ -46,6 +46,15 @@ export class BodiesOnScreen implements System {
       this.map,
       scales,
     );
+  }
+
+  /**
+   * Where a point is in the picture of this frame, CSS px into `out`: (x, z) on the flight plane,
+   * raised `y` units above it (the ship's marker on the map is drawn raised). False if it is not
+   * in front of the camera. Ask after this system's frameUpdate.
+   */
+  pointAt(x: number, z: number, out: { x: number; y: number }, y = 0): boolean {
+    return projectPoint(this.viewProjection.elements, this.width, this.height, x, y, z, out);
   }
 
   resize(viewport: Viewport): void {
