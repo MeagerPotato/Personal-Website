@@ -199,9 +199,14 @@ under a bottom sheet.
   a ship let go of at 700 u/s is back to its own top speed within some 160 u. **Stop** (the
   prompt's button, `navigator.stop`) lets go the same way and then holds the brake for the pilot
   until the ship is at rest (`haltDock`, `haltingInput` in `sim/docking.ts`): stopped anywhere,
-  in a bend or a step before it arrives, it comes to rest within 155 u and meets nothing. Any
-  steering of the pilot's own ends that at once. Braking after a Stop is `DockState.halting`, a
-  snapshot field. It is three pure pieces, the same structure as a robot's autonomous routine:
+  in a bend or a step before it arrives, it comes to rest within 155 u and meets nothing. A tap
+  of the brake mid-journey is a Stop too (`pilotLeaves`). A turn or the throttle is the pilot
+  flying again, but the pilot's own top speed (81 u/s) is still more than a cushion stops, and a
+  journey ends among its target's moons: so the reflex (below) stays on for them, with the
+  pilot's own brake, until the ship is slow enough for the cushions or they open the throttle
+  afresh (`guardInput`, `DockState.guarding`); steering out of a Stop while still fast does the
+  same. Nowhere near anything, that is the pilot's input exactly. `halting` and `guarding` are
+  snapshot fields. It is three pure pieces, the same structure as a robot's autonomous routine:
   1. **Path** (`sim/path.ts`). Every body on the way is a keep-out disc, placed where the body
      WILL BE when the ship passes it. A visibility graph over ring corners round each disc, A*
      over that, then a centripetal Catmull-Rom curve through the corners, sampled every 4 u. A
@@ -229,18 +234,26 @@ under a bottom sheet.
   COURSE (the way it is going, and the way its nose points) than `openSpaceGain` times the way
   left before it would pass 3 u above a body it is not going to. On a plan being flown it asks
   for nothing; it is what brakes a ship that is off its plan (a new destination chosen at speed,
-  a bend taken wide), as hard as the brake goes. The approach, which has no plan, uses it too,
+  a bend taken wide), as hard as the brake goes, whichever way the nose points (a ship sliding
+  backward at a body brakes too). The approach, which has no plan, uses it too,
   with a berth that widens with speed (`REFLEX_LEAD_SEC`): a body within reach asked for while
   the autopilot races past it is approached from cruise speed, braking off what it does not want
-  at up to 1,000 u/s² (`FAR_DECEL` in `sim/assist.ts`). `npm run journeys` with `"stress": true`
+  at up to 1,000 u/s² (`FAR_DECEL` in `sim/assist.ts`). The approach also counts the body it is
+  for, with the plain 3 u berth and the full brake past it (`ownLimits`): its ring is 6 u or more
+  above the surface, so the way onto the ring is never braked, and a ship already diving at the
+  body is. `npm run journeys` with `"stress": true`
   (`scripts/journeys/stress.ts`) is what checks all of it: redirects every 0.1 s, Stop every
-  0.25 s and just before arrival, a body within reach at speed, Stop then E.
+  0.25 s and just before arrival, a body within reach at speed, Stop then E, a tap of the brake,
+  an arrow or the throttle instead of Stop, a body raced past and then back, chains of 4 to 8
+  names in a row, and the engine rebuilt from its snapshot mid-journey.
   Under reduced motion nothing flies: `goTo` is a cut (`navigator.place`), or the short approach
   within reach, and a journey picked up from a snapshot (`navigator.restore`) is taken up the same
   way. The camera follows at any speed: the chase camera looks ahead no further than
-  `chaseCam.lookAheadMax`, and the dust slides past no faster than `dust.maxFieldSpeed` (its box
-  moves with the ship; `sim/dustField.ts` and the `uField` uniform), so neither lies flat nor
-  strobes at 700 u/s.
+  `chaseCam.lookAheadMax`, swings round no faster than `chaseCam.maxYawRate` (about 195 degrees a
+  second while the autopilot snaps round at 7 rad/s; under reduced motion no faster than the
+  pilot's own turn, which is what an approach or an E press shows them), and the dust slides past
+  no faster than `dust.maxFieldSpeed` (its box moves with the ship; `sim/dustField.ts` and the
+  `uField` uniform), so the view neither spins, nor lies flat, nor strobes at 700 u/s.
 - **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
   works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
   camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
@@ -355,7 +368,7 @@ under a bottom sheet.
 | --- | --- | --- |
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
-| Flight, journey, approach or docked, and at what (and whether a Stop is still braking) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`) | one owner; the web layer hears events and asks through `api.ts` |
+| Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
@@ -376,7 +389,11 @@ under a bottom sheet.
   speed, every quarter second and just before it arrives, after which the ship brakes to rest
   within 160 u, and into nothing; a new destination every tenth of a second of a journey, and a
   body within reach asked for at cruise speed, each docked without passing closer than half a
-  cushion to anything (the journey harness's `stress` mode does the same in bigger galaxies);
+  cushion to anything; a tap of the brake, an arrow or the throttle at any moment of a journey
+  in the live galaxy (frozen as it was on 2026-09-23), after which the ship meets nothing (the
+  journey harness's `stress` mode does all of this in bigger galaxies); an approach begun diving
+  at its own body, which meets the shell only from nearer than the brake could stop in; a chase
+  camera that never swings faster than its limit, nor under reduced motion than a pilot turns;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and

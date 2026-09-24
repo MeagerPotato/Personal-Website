@@ -2,7 +2,14 @@ import type { System } from '../core/Engine';
 import type { Snapshot } from '../core/snapshot';
 import { pullOf, type AssistParams } from '../sim/assist';
 import type { CruiseParams } from '../sim/autopilot';
-import { dockAt, haltDock, releaseDock, requestDock, type DockParams } from '../sim/docking';
+import {
+  dockAt,
+  guardDock,
+  haltDock,
+  releaseDock,
+  requestDock,
+  type DockParams,
+} from '../sim/docking';
 import type { Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { FLIGHT, transition, type AppEvent, type AppState } from './appMachine';
@@ -40,6 +47,10 @@ export interface NavigatorOptions {
   params: NavigatorParams;
   emit<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
 }
+
+/** How a ship was handed back to its pilot, as a snapshot keeps it (core/snapshot.ts). */
+export type HandBack = Pick<Snapshot, 'halting' | 'guarding'>;
+const NOT_HANDED_BACK: HandBack = Object.freeze({ halting: false, guarding: false });
 
 /** The prompt must not flicker at the very edge of a sphere of influence. */
 const SOI_ENTER_PULL = 0.08;
@@ -160,12 +171,17 @@ export class Navigator implements System {
    * under way is taken up as the short approach when the body is within reach, and as a cut
    * otherwise, exactly as their links and their pointing are (api.ts goTo, main.ts flyToRow: an
    * approach with no hold, since theirs is no journey). A ship braking after a STOP (`halting`,
-   * with no dock) goes on braking.
+   * with no dock) goes on braking, and one taken back at speed by its pilot (`guarding`) keeps its
+   * reflex.
    */
-  restore(from: Snapshot['dock'], cut = false, halting = false): void {
+  restore(from: Snapshot['dock'], cut = false, after: HandBack = NOT_HANDED_BACK): void {
     if (!from) {
       // Stopped a moment ago, and still braking: it carries on braking.
-      if (halting) this.stop();
+      if (after.halting) this.stop();
+      else if (after.guarding) {
+        const { surroundings, pilot, params } = this.options;
+        guardDock(surroundings.dock, pilot.current, params.dock.leaveDeadZone);
+      }
       return;
     }
     if (from.docked) this.place(from.id, from.angle, from.spin);
@@ -192,6 +208,11 @@ export class Navigator implements System {
   /** Is the ship braking to rest after a STOP? (core/snapshot.ts keeps it through a rebuild.) */
   get halting(): boolean {
     return this.options.surroundings.dock.halting;
+  }
+
+  /** Is the reflex still on for a ship its pilot took back at speed? (Kept through a rebuild too.) */
+  get guarding(): boolean {
+    return this.options.surroundings.dock.guarding;
   }
 
   fixedUpdate(): void {

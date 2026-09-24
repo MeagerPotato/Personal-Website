@@ -1,3 +1,4 @@
+import { parseSnapshot } from '../../src/universe/core/snapshot';
 import type { UniverseManifest } from '../../src/universe/data/types';
 import { tuning } from '../../src/universe/design/tuning';
 import { homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
@@ -173,25 +174,50 @@ export interface JourneyResult {
  *             offers a body after that (Navigator.candidate), and fly on until docked there.
  *   redirect  point at another body, `to` (Navigator.travel, as main.ts flyToRow does): the
  *             journey goes there instead, on the autopilot, or by the approach when `to` is
- *             within reach (a body the ship is racing past).
+ *             within reach (a body the ship is racing past). With `then`, change your mind again,
+ *             and again: each `afterSec` after the one before, point at its `to` (a body raced
+ *             past, then back where it was going; a visitor pointing at one name after another).
+ *   tap       take the controls back for a moment instead of pressing Stop: hold the brake, an
+ *             arrow or the throttle for `steps` steps, let go, and watch the ship for coastSec.
+ *   rebuild   the engine is thrown away and built again from its snapshot (core/snapshot.ts, as a
+ *             lost WebGL context does: api.ts): a fresh world and Navigator, restored from what
+ *             parseSnapshot makes of a JSON round trip, and the journey flown on from there.
  */
 export type Interrupt =
   | { kind: 'stop'; atSec: number; coastSec: number; thenDock?: boolean }
-  | { kind: 'redirect'; atSec: number; to: string };
+  | {
+      kind: 'redirect';
+      atSec: number;
+      to: string;
+      then?: readonly { readonly afterSec: number; readonly to: string }[];
+    }
+  | { kind: 'tap'; atSec: number; input: TapInput; steps: number; coastSec: number }
+  | { kind: 'rebuild'; atSec: number };
+
+/** Which control a `tap` takes the ship back with. */
+export type TapInput = 'brake' | 'turn' | 'thrust';
+const TAPS: Record<TapInput, Readonly<FlightInput>> = {
+  brake: { thrust: 0, turn: 0, brake: 1, boost: false },
+  turn: { thrust: 0, turn: 1, brake: 0, boost: false },
+  thrust: { thrust: 1, turn: 0, brake: 0, boost: false },
+};
 
 /** Press Stop `atSec` into the journey, then watch it coast for coastSec. */
 export type StopSpec = Extract<Interrupt, { kind: 'stop' }>;
 
 export interface InterruptOutcome {
-  kind: 'stop' | 'stopDock' | 'redirect';
+  kind: 'stop' | 'stopDock' | 'redirect' | 'tap' | 'rebuild';
   /** When it was done (s since the request), and how fast the ship was going then, u/s. */
   atSec: number;
   atSpeed: number;
-  /** Where the ship was sent: the redirect's body, the body E docked at, or null (a plain Stop, or no body offered). */
+  /**
+   * Where the ship was sent: the redirect's body (the last one, with `then`), the body E docked
+   * at, the journey's own body after a rebuild, or null (a plain Stop, a tap, no body offered).
+   */
   to: string | null;
   /** How the Navigator took it: a new journey on the autopilot, or the approach of a body within reach. */
   how: 'travel' | 'approach' | null;
-  /** From sending it to `to` until docked there, s. NaN if it never was. */
+  /** From sending it to `to` (or from the rebuild) until docked there, s. NaN if it never was. */
   dockSec: number;
   /** The hardest the ship's velocity changed in one step after the interrupt, u/s². */
   peakAccel: number;
@@ -245,31 +271,62 @@ export function fly(
     nearestNeighbourOf(manifest, home)?.position ?? null,
     sim.spawn,
   );
-  const world = createSurroundings(
-    { systems: manifest.systems, bodies: manifest.bodies, home: home.position },
-    sim.edge.margin,
-  );
-  const { field, orbits } = world;
-  const state = createShipState(spawn.x, spawn.z, spawn.heading);
+  const surroundings = (): Surroundings =>
+    createSurroundings(
+      { systems: manifest.systems, bodies: manifest.bodies, home: home.position },
+      sim.edge.margin,
+    );
+  // (Everything an engine is made of can be thrown away and built again: see `rebuild` below.)
+  let world = surroundings();
+  let { field, orbits } = world;
+  let state = createShipState(spawn.x, spawn.z, spawn.heading);
   const pilot: { current: Readonly<FlightInput> } = { current: NO_INPUT };
   const flown: FlightInput = { ...NO_INPUT };
   /** Every `docked` the Navigator announced, in order. */
   const dockings: string[] = [];
-  const navigator = new Navigator({
-    surroundings: world,
-    ship: { state, restore: (to) => void copyShipState(to, state) },
-    pilot,
-    params: sim,
-    emit: (event, payload) => {
-      if (event === 'docked') dockings.push((payload as NavigatorEvents['docked']).id);
-    },
-  });
+  const navigatorOf = (ship: ShipState, among: Surroundings): Navigator =>
+    new Navigator({
+      surroundings: among,
+      ship: { state: ship, restore: (to) => void copyShipState(to, ship) },
+      pilot,
+      params: sim,
+      emit: (event, payload) => {
+        if (event === 'docked') dockings.push((payload as NavigatorEvents['docked']).id);
+      },
+    });
+  let navigator = navigatorOf(state, world);
 
   let steps = Math.round(spec.startSec * sim.stepHz);
   const step = (): void => {
     steps += 1;
     flyStep(world, state, pilot.current, sim.flight, sim, dt, steps * dt, flown);
     navigator.fixedUpdate();
+    navigator.frameUpdate();
+  };
+
+  /**
+   * A LOST CONTEXT: the engine's snapshot, through JSON and parseSnapshot as it would come back,
+   * and a new world, ship and Navigator built from it the way universe/main.ts builds them.
+   */
+  const rebuild = (): void => {
+    const saved = parseSnapshot(
+      JSON.parse(
+        JSON.stringify({
+          steps,
+          ship: state,
+          dock: navigator.snapshot(),
+          halting: navigator.halting,
+          guarding: navigator.guarding,
+        }),
+      ),
+    );
+    if (saved === null) throw new Error(`${galaxy.name}: a snapshot that does not parse`);
+    world = surroundings();
+    ({ field, orbits } = world);
+    state = copyShipState(saved.ship, createShipState());
+    navigator = navigatorOf(state, world);
+    syncSurroundings(world, saved.steps * dt);
+    navigator.restore(saved.dock, false, saved);
     navigator.frameUpdate();
   };
 
@@ -286,8 +343,12 @@ export function fly(
   let target = orbits.indexOf(spec.to);
   const start = spec.from === null ? -1 : orbits.indexOf(spec.from);
   if (target < 0) throw new Error(`${galaxy.name}: no body "${spec.to}"`);
-  if (interrupt?.kind === 'redirect' && orbits.indexOf(interrupt.to) < 0) {
-    throw new Error(`${galaxy.name}: no body "${interrupt.to}"`);
+  const redirects =
+    interrupt?.kind === 'redirect'
+      ? [interrupt.to, ...(interrupt.then ?? []).map(({ to }) => to)]
+      : [];
+  for (const to of redirects) {
+    if (orbits.indexOf(to) < 0) throw new Error(`${galaxy.name}: no body "${to}"`);
   }
   const bodyX = (i: number): number => field.positions[i * 2] ?? 0;
   const bodyZ = (i: number): number => field.positions[i * 2 + 1] ?? 0;
@@ -348,6 +409,11 @@ export function fly(
   const pilotTop = (sim.flight.thrustAccel * sim.flight.boostFactor) / sim.flight.forwardDrag;
   let stopped: (StopOutcome & { x: number; z: number }) | null = null;
   let coasting = false;
+  /** Steps a tap still holds its control for. */
+  let tapLeft = 0;
+  /** How many of a redirect's `then` have been done, and when the last change of mind was (s). */
+  let changes = 0;
+  let changedAt = 0;
   let done: InterruptOutcome | null = null;
   let peakAccel = 0;
   let vx = state.vx;
@@ -387,7 +453,7 @@ export function fly(
       navigator.state.mode === 'autopilot'
     ) {
       done = {
-        kind: interrupt.kind === 'redirect' ? 'redirect' : interrupt.thenDock ? 'stopDock' : 'stop',
+        kind: interrupt.kind !== 'stop' ? interrupt.kind : interrupt.thenDock ? 'stopDock' : 'stop',
         atSec: t,
         atSpeed: speedOf(state),
         to: null,
@@ -397,12 +463,27 @@ export function fly(
       };
       if (interrupt.kind === 'redirect') {
         sendTo(done, interrupt.to, t);
+        changedAt = t;
         continue;
       }
-      // Stop, as the prompt's button does it: the journey is let go of and the ship brakes to rest
-      // by itself (Navigator.stop), nobody touching the controls.
-      navigator.stop('pilot');
-      navigator.frameUpdate();
+      if (interrupt.kind === 'rebuild') {
+        rebuild();
+        done.to = goal;
+        done.how = navigator.state.mode === 'autopilot' ? 'travel' : 'approach';
+        done.dockSec = t;
+        continue;
+      }
+      if (interrupt.kind === 'tap') {
+        // The controls, for a moment: the next step takes the journey back (sim/docking.ts,
+        // pilotLeaves), and the ship is the pilot's from there.
+        pilot.current = TAPS[interrupt.input];
+        tapLeft = interrupt.steps;
+      } else {
+        // Stop, as the prompt's button does it: the journey is let go of and the ship brakes to
+        // rest by itself (Navigator.stop), nobody touching the controls.
+        navigator.stop('pilot');
+        navigator.frameUpdate();
+      }
       coasting = true;
       stopped = {
         atSec: t,
@@ -419,7 +500,18 @@ export function fly(
       };
       continue;
     }
+    const next = interrupt?.kind === 'redirect' ? interrupt.then?.[changes] : undefined;
+    if (next !== undefined && done !== null && t >= changedAt + next.afterSec - dt / 2) {
+      changes += 1;
+      changedAt = t;
+      sendTo(done, next.to, t);
+      continue;
+    }
     if (coasting && stopped !== null && done !== null) {
+      if (tapLeft > 0) {
+        tapLeft -= 1;
+        if (tapLeft === 0) pilot.current = NO_INPUT;
+      }
       // Stop, then E: the first body the prompt offers (ui/Prompt.ts, "Orbit ..." in free flight).
       const offered = navigator.candidate;
       if (interrupt?.kind === 'stop' && interrupt.thenDock === true && offered !== null) {
@@ -442,7 +534,12 @@ export function fly(
         }
       }
       stopped.endSpeed = speedOf(state);
-      if (interrupt?.kind === 'stop' && t - stopped.atSec >= interrupt.coastSec - dt / 2) break;
+      if (
+        (interrupt?.kind === 'stop' || interrupt?.kind === 'tap') &&
+        t - stopped.atSec >= interrupt.coastSec - dt / 2
+      ) {
+        break;
+      }
       continue;
     }
 

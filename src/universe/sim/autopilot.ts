@@ -850,6 +850,10 @@ export function cruiseInput(
   const push = ahead + params.speedGain * (wanted - forward) + flight.forwardDrag * forward;
   if (push >= 0) {
     out.thrust = aim > 0 ? clamp((aim * Math.cos(error) * push) / flight.thrustAccel, 0, 1) : 0;
+    // The reflex brakes on the COURSE speed, whichever way the nose points. A ship sliding
+    // backward (asked somewhere while it dived at a body, its nose already round for the new
+    // course) asks for thrust its nose cannot give, and would coast on at the drive's own drag.
+    if (forward < 0 && speed > (reflex[0] ?? Infinity)) out.brake = 1;
   } else {
     // The plan's braking is held to comfortDecel; the reflex's is not.
     const decel = reflexBinds ? -push : Math.min(-push, params.comfortDecel);

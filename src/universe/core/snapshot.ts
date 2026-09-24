@@ -13,7 +13,10 @@ export interface Snapshot {
   readonly ship: Readonly<ShipState>;
   /**
    * Where the visitor was headed or docked, if anywhere. A docked ship is CARRIED, not flown, so
-   * its state alone would not bring the orbit back: the dock is put back from these.
+   * its state alone would not bring the orbit back: the dock is put back from these. It is put
+   * back ON its ring (Navigator.restore, place): the springs still settling a journey's arrival
+   * onto the ring (sim/docking.ts, arrive) are not kept, so a rebuild in the first half second of
+   * an orbit cuts the ship the rest of the way, up to about 18 u. A rebuild is a cut anyway.
    */
   readonly dock: {
     readonly id: string;
@@ -35,6 +38,13 @@ export interface Snapshot {
    * this field existed reads as false.
    */
   readonly halting: boolean;
+  /**
+   * The pilot took the controls back from a journey a moment ago (or steered out of a STOP), and
+   * the ship is still too fast for the cushions: the reflex goes on braking it for whatever lies
+   * on its course (sim/docking.ts, DockState.guarding). Only ever with no dock, and never with
+   * `halting`. A snapshot written before this field existed reads as false.
+   */
+  readonly guarding: boolean;
 }
 
 const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;
@@ -54,7 +64,7 @@ const isNumber = (value: unknown): value is number =>
  */
 export function parseSnapshot(data: unknown): Snapshot | null {
   if (typeof data !== 'object' || data === null) return null;
-  const { steps, ship, dock, halting = false } = data as Record<string, unknown>;
+  const { steps, ship, dock, halting = false, guarding = false } = data as Record<string, unknown>;
   if (!isNumber(steps) || !Number.isInteger(steps) || steps < 0 || steps > MAX_STEPS) return null;
   if (typeof ship !== 'object' || ship === null) return null;
 
@@ -65,15 +75,24 @@ export function parseSnapshot(data: unknown): Snapshot | null {
     state[field] = value;
   }
 
-  if (typeof halting !== 'boolean') return null;
-  if (dock === null || dock === undefined) return { steps, ship: state, dock: null, halting };
+  if (typeof halting !== 'boolean' || typeof guarding !== 'boolean') return null;
+  if (halting && guarding) return null;
+  if (dock === null || dock === undefined) {
+    return { steps, ship: state, dock: null, halting, guarding };
+  }
   if (typeof dock !== 'object') return null;
   const { id, docked, angle, spin, holdSec = 0 } = dock as Record<string, unknown>;
   if (typeof id !== 'string' || typeof docked !== 'boolean' || !isNumber(angle)) return null;
   if (spin !== 1 && spin !== -1) return null;
   if (!isNumber(holdSec) || holdSec < 0 || holdSec > MAX_HOLD_SEC) return null;
   // A ship that is headed somewhere, or docked, is not braking to a stop.
-  return { steps, ship: state, dock: { id, docked, angle, spin, holdSec }, halting: false };
+  return {
+    steps,
+    ship: state,
+    dock: { id, docked, angle, spin, holdSec },
+    halting: false,
+    guarding: false,
+  };
 }
 
 /** Where a visit starts: what the web layer knows when it creates the universe. */

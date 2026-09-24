@@ -151,7 +151,7 @@ export function boot(
   if (start?.dock || at !== null) {
     syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
-  if (start) navigator.restore(start.dock, reducedMotion, start.halting);
+  if (start) navigator.restore(start.dock, reducedMotion, start);
   // An unknown id (a page whose body is a draft, a manifest from another deploy) is no error: the
   // page is in the panel all the same, and the ship simply starts in open sky.
   // (A dock restored just above is already there, and `place` then changes nothing.)
@@ -317,8 +317,9 @@ export function boot(
         overlay: options.overlay,
         navigator,
         titleOf: (id) => titles.get(id) ?? id,
-        // The map on a narrow screen with a page open is the strip above the sheet: the prompt
-        // would sit on the galaxy. It is back when the map closes.
+        // The map on a narrow screen with a page open is the strip above the sheet: the prompt's
+        // offers would sit on the galaxy. They are back when the map closes; a journey's Stop
+        // shows all along.
         quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
@@ -370,6 +371,7 @@ export function boot(
       ship: copyShipState(ship.state, createShipState()),
       dock: navigator.snapshot(),
       halting: navigator.halting,
+      guarding: navigator.guarding,
     }),
   };
 }

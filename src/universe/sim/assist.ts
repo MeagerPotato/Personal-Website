@@ -187,6 +187,11 @@ export interface WishPace {
   readonly brakeGain: number;
   /** u/s: never faster than this, whatever the ring wants (the reflex, sim/reflex.ts). */
   readonly limit: number;
+  /**
+   * u/s: past this, the full brake. The reflex for the body it is going to (sim/reflex.ts,
+   * ownLimits): a ship past it is diving at the body whose ring it wants, not passing another.
+   */
+  readonly brakeAt: number;
 }
 
 /**
@@ -298,8 +303,10 @@ export function orbitWish(
   const push = flight.forwardDrag * wantSpeed + params.speedGain * (wantSpeed - forwardSpeed);
   // A pilot who asked to be there also brakes, when the ship is faster than it wants to be: gently
   // by the assist's own gain; firmly when far faster than that; and as hard as it takes when the
-  // course it is on is running out (the reflex, WishPace.limit).
-  const risky = pace ? forwardSpeed - pace.limit : -Infinity;
+  // course it is on is running out (the reflex, WishPace.limit). That counts the speed along the
+  // nose EITHER way: a ship sliding backward at a body (asked somewhere while it dived at one)
+  // brakes as a ship flying at it nose first does; the brake takes out what goes along the nose.
+  const risky = pace ? Math.abs(forwardSpeed) - pace.limit : -Infinity;
   const slow = pace
     ? Math.max(
         -push,
@@ -309,7 +316,17 @@ export function orbitWish(
     : 0;
   out.thrust =
     risky > 0 ? 0 : clamp((Math.max(0, Math.cos(error)) * push) / flight.thrustAccel, 0, 1);
-  out.brake = slow > 0 ? clamp(slow / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1) : 0;
+  // Diving at the body whose ring it wants (WishPace.brakeAt), the full brake. By how far over the
+  // limit it was, the brake fell behind the limit, which shrinks as the ship closes: a body asked
+  // for just after one beside it (the journey harness's `reachBack`), the ship closing on it at
+  // 44 u/s from 8 u above, had its shell touched at 14 u/s. (The full brake past every body's
+  // limit would be a wall, not a firm stop: 2,600 u/s² at 440 u/s beside a moon it passes.)
+  const diving = pace !== null && Math.abs(forwardSpeed) > pace.brakeAt;
+  out.brake = diving
+    ? 1
+    : slow > 0
+      ? clamp(slow / (flight.brakeDrag * Math.max(forwardSpeed, 1)), 0, 1)
+      : 0;
   out.boost = false;
   return out;
 }

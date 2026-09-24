@@ -59,9 +59,10 @@ export interface MeasureOptions {
    */
   stop: { coastSec: number } | null;
   /**
-   * A VISITOR WHO CHANGES THEIR MIND (stress.ts): a sample of journeys between systems, each flown
-   * again and again with a redirect, a Stop, a body within reach asked for at speed, or a Stop and
-   * then E, at every moment of the flight. Null: not done.
+   * A VISITOR WHO CHANGES THEIR MIND (stress.ts): a sample of journeys (between systems unless
+   * `kinds` says more), each flown again and again with a redirect, a Stop, a body within reach
+   * asked for at speed, a Stop and then E, a tap of the controls, a body raced past and then back,
+   * or a rebuilt engine, at every moment of the flight. Null: not done.
    */
   stress: StressOptions | null;
   log: (text: string) => void;
@@ -340,6 +341,11 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): EnvOptions
         throw new Error(
           `JOURNEYS: unknown stress mode "${mode}" (known: ${STRESS_MODES.join(', ')})`,
         );
+      }
+    }
+    for (const kind of options.stress?.kinds ?? []) {
+      if (!['between', 'within', 'spawn'].includes(kind)) {
+        throw new Error(`JOURNEYS: unknown stress kind "${kind}" (known: between, within, spawn)`);
       }
     }
   }

@@ -27,9 +27,12 @@ const FLYING: Snapshot = {
   ship: { x: 64, z: -99, vx: 3, vz: -12.5, heading: 7.2, yawRate: -0.4 },
   dock: null,
   halting: false,
+  guarding: false,
 };
 /** STOP was pressed a moment ago: still braking to rest. */
 const STOPPING: Snapshot = { ...FLYING, halting: true };
+/** The pilot took a journey back at speed a moment ago: the reflex is still on. */
+const GUARDED: Snapshot = { ...FLYING, guarding: true };
 const DOCKED: Snapshot = {
   ...FLYING,
   dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0 },
@@ -48,12 +51,17 @@ describe('a snapshot that has been away', () => {
     expect(parseSnapshot(stored(DOCKED))).toEqual(DOCKED);
     expect(parseSnapshot(stored(HEADED))).toEqual(HEADED);
     expect(parseSnapshot(stored(STOPPING))).toEqual(STOPPING);
-    // Written before STOP braked: not braking.
+    expect(parseSnapshot(stored(GUARDED))).toEqual(GUARDED);
+    // Written before STOP braked, or before a ship taken back was guarded: neither.
     const older: Record<string, unknown> = { ...STOPPING };
     delete older.halting;
     expect(parseSnapshot(older)?.halting).toBe(false);
-    // Headed somewhere, or docked, is never braking to a stop.
+    const oldGuard: Record<string, unknown> = { ...GUARDED };
+    delete oldGuard.guarding;
+    expect(parseSnapshot(oldGuard)?.guarding).toBe(false);
+    // Headed somewhere, or docked, is never braking to a stop, nor handed back.
     expect(parseSnapshot({ ...HEADED, halting: true })?.halting).toBe(false);
+    expect(parseSnapshot({ ...HEADED, guarding: true })?.guarding).toBe(false);
     // Written before a journey's hold was kept: nothing to wait for.
     const before = { id: 'project/fishai', docked: false, angle: 0, spin: 1 };
     expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.holdSec).toBe(0);
@@ -88,6 +96,10 @@ describe('a snapshot that has been away', () => {
       { ...HEADED, dock: { ...HEADED.dock, holdSec: null } },
       { ...FLYING, halting: 'yes' },
       { ...FLYING, halting: null },
+      { ...FLYING, guarding: 1 },
+      { ...FLYING, guarding: null },
+      // Stopped AND taken back by the controls: no engine writes that.
+      { ...FLYING, halting: true, guarding: true },
     ];
     for (const data of broken) expect(parseSnapshot(data)).toBeNull();
   });

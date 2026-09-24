@@ -14,6 +14,7 @@ export interface ChaseCamParams {
   readonly positionOmega: number;
   readonly maxTrail: number;
   readonly yawOmega: number;
+  readonly maxYawRate: number;
   readonly fovBoostDegrees: number;
   readonly fovBoostSpeeds: readonly [from: number, to: number];
   readonly fovOmega: number;
@@ -100,7 +101,19 @@ export class ChaseCam implements CameraMode {
       stepSpring(this.x, x, params.positionOmega, dt, (x - this.lastX) / dt);
       stepSpring(this.z, z, params.positionOmega, dt, (z - this.lastZ) / dt);
       const turned = (target.heading - this.lastHeading) / dt;
+      const from = this.yaw.value;
       stepSpring(this.yaw, target.heading, params.yawOmega, dt, turned);
+      // The view never swings faster than maxYawRate, and under reduced motion never faster than a
+      // pilot can turn the ship by hand: the autopilot snaps round at 7 rad/s, and a view that
+      // kept up spun the whole world past at 380 degrees a second. The ship turns in the frame
+      // instead, and the view comes round after it.
+      const most = this.options.reducedMotion
+        ? Math.min(params.maxYawRate, tuning.flight.yawRateSlow)
+        : params.maxYawRate;
+      if (Math.abs(this.yaw.value - from) > most * dt) {
+        this.yaw.value = from + Math.sign(this.yaw.value - from) * most * dt;
+        this.yaw.velocity = clamp(this.yaw.velocity, -most, most);
+      }
       stepSpring(this.rush, rushTo, params.fovOmega, dt);
       stepSpring(this.ahead, aheadTo, params.fovOmega, dt);
     }

@@ -26,6 +26,7 @@ import {
   approachInput,
   arrive,
   createDockState,
+  guardInput,
   haltingInput,
   pilotLeaves,
   stepDocked,
@@ -180,8 +181,16 @@ export function flyStep(
     );
     drive = params.cruise.flight;
   } else {
-    // (After STOP, the pilot's brake is held for them until the ship is at rest: haltingInput.)
-    const asked = haltingInput(dock, pilot, state, params.dock);
+    // After STOP, the pilot's brake is held for them until the ship is at rest (haltingInput);
+    // taken back at speed, the reflex brakes for them until it is slow (guardInput).
+    const asked = guardInput(
+      field,
+      dock,
+      haltingInput(dock, pilot, state, params.dock),
+      state,
+      flight,
+      params.dock,
+    );
     assistInput(field, state, asked, flight, params.assist, world.assist, flown);
   }
   push.x = 0;

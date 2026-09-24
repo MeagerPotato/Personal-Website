@@ -398,7 +398,7 @@ describe('Navigator, travelling', () => {
     const again = harness(0, 0, 0, WIDE_GALAXY);
     copyShipState(h.state, again.state);
     syncSurroundings(again.surroundings, h.time());
-    again.navigator.restore(null, false, true);
+    again.navigator.restore(null, false, { halting: true, guarding: false });
     expect(again.navigator.halting).toBe(true);
     expect(again.navigator.state).toEqual({ mode: 'flight', target: null });
     again.run(4);
@@ -407,6 +407,34 @@ describe('Navigator, travelling', () => {
     const idle = harness(0, 0, 0, WIDE_GALAXY);
     idle.navigator.restore(null);
     expect(idle.navigator.halting).toBe(false);
+    expect(idle.navigator.guarding).toBe(false);
+  });
+
+  it('keeps the reflex on after a rebuild, if the pilot took the ship back at speed a moment before', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    h.navigator.travel('project/fishai');
+    h.run(1.2);
+    // A tap of an arrow key: the pilot has the ship back, and the reflex stays on for them.
+    h.pilot.current = { ...NO_INPUT, turn: 1 };
+    h.run(1 / 60);
+    h.pilot.current = { ...NO_INPUT };
+    h.run(0.1);
+    expect(h.navigator.state).toEqual({ mode: 'flight', target: null });
+    expect(h.navigator.guarding).toBe(true);
+    expect(h.navigator.halting).toBe(false);
+    // What core/snapshot.ts keeps: no dock, and a ship that is still guarded.
+    expect(h.navigator.snapshot()).toBeNull();
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(null, false, { halting: false, guarding: true });
+    expect(again.navigator.guarding).toBe(true);
+    expect(again.navigator.state).toEqual({ mode: 'flight', target: null });
+    // Until it is slow enough for the cushions, and not a moment longer.
+    again.run(6);
+    expect(again.navigator.guarding).toBe(false);
+    expect(Math.hypot(again.state.vx, again.state.vz)).toBeLessThan(30);
   });
 
   it('changes destination mid-journey when asked for somewhere else', () => {

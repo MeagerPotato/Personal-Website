@@ -381,6 +381,12 @@ export const tuning = {
     positionOmega: 14,
     maxTrail: 5.5,
     yawOmega: 12,
+    /**
+     * rad/s. The view never swings round faster than this (about 195 degrees a second), and under
+     * reduced motion never faster than the pilot's own turn (flight.yawRateSlow). The autopilot
+     * turns at up to 7: the ship comes round in the frame, and the view follows it.
+     */
+    maxYawRate: 3.4,
     /** The view widens with speed: +fovBoostDegrees between these two speeds. Not under reduced motion. */
     fovBoostDegrees: 13,
     fovBoostSpeeds: [35, 80],

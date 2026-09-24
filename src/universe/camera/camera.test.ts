@@ -108,6 +108,47 @@ describe('the chase camera', () => {
     expect(last).toBeCloseTo(Math.PI / 2, 3);
   });
 
+  it('never swings the view faster than its limit, nor under reduced motion than a pilot turns', () => {
+    // The autopilot's snap turn: half a turn at 7 rad/s (cruise.flight.yawRateSlow), then straight.
+    // Followed step for step, the view spun at up to 380 degrees a second (main: 146).
+    const swing = (reducedMotion: boolean, hz: number) => {
+      const target = ship();
+      const cam = new ChaseCam(target, { reducedMotion });
+      const pose = createPose();
+      const yaw = (): number => {
+        const forward = new Vector3(0, 0, -1).applyQuaternion(pose.quaternion);
+        return Math.atan2(forward.x, forward.z);
+      };
+      cam.update(frame(1 / hz), WIDE, pose);
+      let last = yaw();
+      let fastest = 0;
+      let furthest = 0;
+      for (let i = 0; i < hz * 3; i += 1) {
+        target.heading = Math.min(Math.PI - 1e-6, target.heading + 7 / hz);
+        cam.update(frame(1 / hz), WIDE, pose);
+        const now = yaw();
+        fastest = Math.max(fastest, Math.abs(now - last) * hz);
+        furthest = Math.max(furthest, now);
+        last = now;
+      }
+      return { fastest, furthest, end: last };
+    };
+    for (const hz of [60, 30, 144]) {
+      const full = swing(false, hz);
+      expect(full.fastest).toBeLessThanOrEqual(params.maxYawRate + 1e-6);
+      expect(full.fastest).toBeGreaterThan(params.maxYawRate * 0.99);
+      const calm = swing(true, hz);
+      expect(calm.fastest).toBeLessThanOrEqual(tuning.flight.yawRateSlow + 1e-6);
+      // Behind the ship in the end, without swinging past it.
+      for (const { end, furthest } of [full, calm]) {
+        expect(end).toBeCloseTo(Math.PI, 3);
+        expect(furthest).toBeLessThan(Math.PI + 0.01);
+      }
+    }
+    // A pilot's own full turn never meets the limit: it is followed exactly as it always was.
+    expect(params.maxYawRate).toBeGreaterThan(tuning.flight.yawRateSlow);
+  });
+
   it('widens the lens with speed, unless the visitor asked for less motion', () => {
     const fast = ship(0, 0, 0, 90);
     expect(view(new ChaseCam(fast, { reducedMotion: false })).pose.fov).toBeCloseTo(

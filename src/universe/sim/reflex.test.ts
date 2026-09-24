@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BodyField } from './assist';
-import { REFLEX_CLEAR, REFLEX_FLOOR, courseLimits } from './reflex';
+import { tuning } from '../design/tuning';
+import { REFLEX_CLEAR, REFLEX_FLOOR, courseLimits, ownLimits } from './reflex';
 import type { ShipState } from './types';
 
 /** One body of `radius` at (x, z), and one more, the target, far off to the side. */
@@ -57,6 +58,32 @@ describe('the reflex', () => {
     // And a ship at rest has no course at all.
     courseLimits(field(0, 100, 2), ship(0, 0), 1, 0, GAIN, 0, out);
     expect(out).toEqual(new Float64Array([Infinity, Infinity]));
+  });
+
+  it('gives the body the ship is going to the plain berth, at any speed (ownLimits)', () => {
+    // Head-on at 400 u/s at the body it is going to (row 0): courseLimits leaves it out...
+    courseLimits(field(0, 100, 2), ship(400, 0), 0, 30, GAIN, 0.05, out);
+    expect(out[0]).toBe(Infinity);
+    // ...and ownLimits holds the ship to gain times the way left before REFLEX_CLEAR above it,
+    // with no lead however fast it goes.
+    ownLimits(field(0, 100, 2), ship(400, 0), 0, 30, GAIN, out);
+    const toGo = 100 - 2 - REFLEX_CLEAR;
+    expect(out[0]).toBeCloseTo(GAIN * toGo, 9);
+    expect(out[1]).toBeCloseTo(GAIN * (toGo - 30), 9);
+    // It only ever lowers what is there.
+    out.fill(7);
+    ownLimits(field(0, 100, 2), ship(400, 0), 0, 0, GAIN, out);
+    expect(out[0]).toBe(7);
+    // A ship on its way round the ring is never braked by it: a ring is dockMin or more above the
+    // surface, beyond the berth. Here a body of radius 2 whose ring would be 8 u from its centre,
+    // the ship on that ring going along it, its nose 0.5 rad in toward the body.
+    expect(tuning.layout.dockMin).toBeGreaterThan(REFLEX_CLEAR + 2);
+    out.fill(Infinity);
+    ownLimits(field(8, 0, 2), ship(80, 0, 0.5), 0, 0, GAIN, out);
+    expect(out[0]).toBe(Infinity);
+    // No body, no limit.
+    ownLimits(field(0, 100, 2), ship(400, 0), -1, 0, GAIN, out);
+    expect(out[0]).toBe(Infinity);
   });
 
   it('looks where the nose points, too: a ship turning hard is about to go that way', () => {

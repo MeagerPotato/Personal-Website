@@ -507,8 +507,11 @@ describe('the autopilot', () => {
     // At full speed, and never through a shell, whatever it went past or came to: the least,
     // measured, is 3.1 u, leaving the ship's own dock (run 155). It was 0.63 u (run 171): a moon
     // passed at 250 u/s just after a replan that kept to a stretch of the old plan 19 degrees off
-    // the ship's course (keepStretch). The plan still does that; the reflex (sim/reflex.ts), which
-    // looks along the ship's own course, now brakes for the moon.
+    // the ship's course (keepStretch). The plan still does that, but it now starts from the way
+    // the ship is really going (alongPath), and a ship faster than its profile brakes to where
+    // the profile will be (cruiseInput, catchUp): with those alone the least is 2.77 u (run 143).
+    // The reflex (sim/reflex.ts), looking along the ship's own course, takes it the rest of the
+    // way. (What only the reflex saves is the within-reach test further down.)
     expect(fastest).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
     expect(least, where).toBeGreaterThan(tuning.cushion.depth * 0.5);
   });

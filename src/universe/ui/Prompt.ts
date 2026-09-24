@@ -20,9 +20,10 @@ export interface PromptOptions {
   /** The name a visitor knows a body by. */
   titleOf(id: string): string;
   /**
-   * While this says so, the prompt keeps out of sight, and comes back as it was when it stops
-   * saying so: the star map on a narrow screen, squeezed into the strip above an open page, where
-   * the prompt would sit on the galaxy itself (main.ts). `E` still works.
+   * While this says so, the prompt keeps its offers out of sight ("Orbit ...", "Leave orbit"),
+   * and brings them back as they were when it stops saying so: the star map on a narrow screen,
+   * squeezed into the strip above an open page, where the prompt would sit on the galaxy itself
+   * (main.ts). `E` still works. "Flying to ... Stop" always shows: on a phone it is the only Stop.
    */
   quiet?: () => boolean;
 }
@@ -91,7 +92,8 @@ export class Prompt implements System {
     this.key.hidden = key === '';
     this.action.textContent = action;
     this.action.hidden = action === '';
-    this.button.hidden = text === '' || hushed;
+    // Hushed, the offers go; a journey's Stop stays (a phone has no other way to stop).
+    this.button.hidden = text === '' || (hushed && action === '');
   }
 
   /** Where the prompt is on the page, or null while it does not show: names keep off it. */

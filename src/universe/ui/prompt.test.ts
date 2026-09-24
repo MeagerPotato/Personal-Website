@@ -42,7 +42,7 @@ describe('dock prompt', () => {
     expect(button.hidden).toBe(true);
   });
 
-  it('keeps out of sight while it is told to, and comes back as it was', () => {
+  it('keeps its offers out of sight while it is told to, and brings them back as they were', () => {
     let squeezed = true;
     const { button, navigator, prompt } = setup(
       { mode: 'docked', target: 'project/fishai' },
@@ -66,6 +66,14 @@ describe('dock prompt', () => {
     expect(button.hidden).toBe(true);
     press('KeyE');
     expect(navigator.approach).toHaveBeenCalledWith('project/fishai');
+    // But a journey's Stop is never hushed: on a phone there is no other way to stop.
+    navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    navigator.candidate = null;
+    prompt.frameUpdate();
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe('Flying to FishAIStop');
+    button.click();
+    expect(navigator.stop).toHaveBeenCalledWith('pilot');
   });
 
   it('offers to orbit the body within reach, by its name, and says which key does it', () => {

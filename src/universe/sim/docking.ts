@@ -1,6 +1,6 @@
 import { orbitWish, type AssistParams, type AssistState, type BodyField } from './assist';
-import { REFLEX_LEAD_SEC, courseLimits } from './reflex';
-import { TAU, angleOf } from './math';
+import { REFLEX_LEAD_SEC, courseLimits, ownLimits } from './reflex';
+import { TAU, angleOf, clamp } from './math';
 import { speedOf } from './flight';
 import { createSpring, stepSpring, type SpringState } from './spring';
 import type { FlightInput, FlightParams, ShipState } from './types';
@@ -66,7 +66,10 @@ export interface DockState {
   spin: number;
   /** Seconds in the current phase. */
   phaseSec: number;
-  /** Have the controls been let go of since the request? Until then the pilot's input is not news. */
+  /**
+   * Have the controls been let go of since the request? Until then the pilot's input is not news.
+   * (While `guarding`: has the throttle been let go of since the ship was handed back?)
+   */
   armed: boolean;
   /** Set for one step when the PILOT ended an approach or a dock, so that whoever watches can tell. */
   leftByPilot: boolean;
@@ -83,6 +86,14 @@ export interface DockState {
    * until it is at rest or the pilot takes the controls. Survives a rebuilt engine (core/snapshot.ts).
    */
   halting: boolean;
+  /**
+   * A journey was handed back by a turn or the throttle (pilotLeaves), or a STOP was steered out
+   * of while the ship was still fast (haltingInput): the pilot flies, but until the ship is slow
+   * enough for the cushions to stop (GUARD_SPEED), or the pilot opens the throttle afresh, the
+   * reflex still brakes it for whatever lies on its course (guardInput). Never together with
+   * `halting`. Survives a rebuilt engine (core/snapshot.ts).
+   */
+  guarding: boolean;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
   angle: number;
   readonly rate: SpringState;
@@ -103,6 +114,7 @@ export function createDockState(): DockState {
     leftByPilot: false,
     holdSec: 0,
     halting: false,
+    guarding: false,
     angle: 0,
     rate: createSpring(0),
     offset: createSpring(0),
@@ -113,6 +125,10 @@ export function createDockState(): DockState {
 
 function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
   return input.thrust > deadZone || Math.abs(input.turn) > deadZone || input.boost;
+}
+
+function isThrusting(input: Readonly<FlightInput>, deadZone: number): boolean {
+  return input.thrust > deadZone || input.boost;
 }
 
 /**
@@ -133,6 +149,7 @@ export function requestDock(
   dock.phaseSec = 0;
   dock.holdSec = holdSec;
   dock.halting = false;
+  dock.guarding = false;
   dock.leftByPilot = false;
   // Held controls are not news: they only count once they have been let go of.
   dock.armed = !isSteering(pilot, 0) && !(pilot.brake > 0);
@@ -157,7 +174,19 @@ export function releaseDock(dock: DockState, assist: AssistState): void {
  */
 export function haltDock(dock: DockState, assist: AssistState): void {
   releaseDock(dock, assist);
+  dock.guarding = false;
   dock.halting = true;
+}
+
+/**
+ * The pilot has the controls back while the ship is still fast (DockState.guarding): keep the
+ * reflex on for them until it is slow. A throttle that is held already is not news; only a fresh
+ * one says "I am flying this now".
+ */
+export function guardDock(dock: DockState, pilot: Readonly<FlightInput>, deadZone: number): void {
+  dock.halting = false;
+  dock.guarding = true;
+  dock.armed = !isThrusting(pilot, deadZone);
 }
 
 /** u/s. A halting ship this slow is at rest: the orbit assist may have it from here. */
@@ -177,15 +206,73 @@ export function haltingInput(
   params: DockParams,
 ): Readonly<FlightInput> {
   if (!dock.halting) return pilot;
-  if (
-    dock.phase !== 'free' ||
-    isSteering(pilot, params.leaveDeadZone) ||
-    speedOf(state) < HALT_REST
-  ) {
+  const steering = isSteering(pilot, params.leaveDeadZone);
+  if (dock.phase !== 'free' || steering || speedOf(state) < HALT_REST) {
     dock.halting = false;
+    // Steered out of a Stop that has not finished: the pilot flies, and the reflex stays on.
+    if (steering && dock.phase === 'free') guardDock(dock, pilot, params.leaveDeadZone);
     return pilot;
   }
   return HALT;
+}
+
+/**
+ * u/s. A ship handed back to its pilot is guarded (DockState.guarding) until it is this slow: the
+ * cushions stop a ship that meets them head on at about 30 u/s by themselves (sim/collide.ts), and
+ * below freeSpeeds the orbit assist is there too.
+ */
+const GUARD_SPEED = 25;
+/**
+ * The guard's reflex gain (sim/reflex.ts), as a share of what the pilot's own brake can do
+ * (brakeDrag + forwardDrag of tuning.flight): below 1, so that a ship held to it never meets a shell.
+ */
+const GUARD_SHARE = 0.8;
+/** 1/s: how hard the guard closes on the reflex's limit when the ship is faster than it. */
+const GUARD_CATCH = 6;
+/** Scratch: what a guarded ship flies. */
+const guarded: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: false };
+
+/**
+ * FREE FLIGHT, after haltingInput: what a GUARDED ship flies (DockState.guarding). The pilot's own
+ * input, with the brake on as the reflex needs it for whatever lies on the ship's course (the
+ * way it goes, or the way its nose points, sim/reflex.ts): taken back from a journey among the
+ * target's moons at 200 u/s, a ship would otherwise coast on into one of them at the pilot's own
+ * top speed, more than a cushion stops. Nothing is on its course in open space, and there it is
+ * the pilot's input exactly. The guard ends once the ship is slow (GUARD_SPEED), or the pilot opens
+ * the throttle afresh: someone flying at a planet on purpose is left to fly at it.
+ */
+export function guardInput(
+  field: BodyField,
+  dock: DockState,
+  pilot: Readonly<FlightInput>,
+  state: Readonly<ShipState>,
+  flight: FlightParams,
+  params: DockParams,
+): Readonly<FlightInput> {
+  if (!dock.guarding) return pilot;
+  const thrusting = isThrusting(pilot, params.leaveDeadZone);
+  if (!dock.armed && !thrusting) dock.armed = true;
+  const speed = speedOf(state);
+  if (dock.phase !== 'free' || speed < GUARD_SPEED || (dock.armed && thrusting)) {
+    dock.guarding = false;
+    return pilot;
+  }
+  const gain = GUARD_SHARE * (flight.brakeDrag + flight.forwardDrag);
+  const limit = courseLimits(field, state, -1, 0, gain, REFLEX_LEAD_SEC, reflex)[0] ?? Infinity;
+  if (!(limit < Infinity)) return pilot;
+  // What the brake must take out: enough to follow the limit down as the way runs out (it falls
+  // at `gain` times the speed; drag does some of that), to close on it from above, and whatever
+  // the pilot's own throttle adds. Along the nose, either way: the grip takes the rest.
+  const throttle = pilot.thrust > 0 ? Math.min(pilot.thrust, 1) : 0;
+  const push = flight.thrustAccel * throttle * (pilot.boost ? flight.boostFactor : 1);
+  const decel = (gain - flight.forwardDrag) * speed + GUARD_CATCH * (speed - limit) + push;
+  const brake = clamp(decel / (flight.brakeDrag * speed), 0, 1);
+  if (!(brake > pilot.brake)) return pilot;
+  guarded.thrust = pilot.thrust;
+  guarded.turn = pilot.turn;
+  guarded.brake = brake;
+  guarded.boost = pilot.boost;
+  return guarded;
 }
 
 /**
@@ -208,14 +295,30 @@ export function pilotLeaves(
     return false;
   }
   if (!active) return false;
+  const journey = dock.phase !== 'docked';
   releaseDock(dock, assist);
   dock.leftByPilot = true;
+  // A journey handed back must not coast on into whatever lies ahead: the pilot's own top speed,
+  // 81 u/s, is more than a cushion stops. The brake is Stop, as the prompt's button is (haltDock):
+  // it brakes to rest. A turn or the throttle is the pilot flying again, and the reflex stays on
+  // for them until the ship is slow (guardInput). (A docked ship is slow already.)
+  if (journey) {
+    if (steering) guardDock(dock, pilot, params.leaveDeadZone);
+    else {
+      dock.guarding = false;
+      dock.halting = true;
+    }
+  }
   return true;
 }
 
-/** Scratch: the approach's pace, filled from DockParams on every call, and the reflex's limits. */
-const pace = { speed: 0, maxRate: 0, hurry: 0, brakeGain: 0, limit: Infinity };
+/**
+ * Scratch: the approach's pace, filled from DockParams on every call, and the reflex's limits for
+ * every other body and for its own.
+ */
+const pace = { speed: 0, maxRate: 0, hurry: 0, brakeGain: 0, limit: Infinity, brakeAt: Infinity };
 const reflex = new Float64Array(2);
+const own = new Float64Array(2);
 
 /** What the approach needs of the autopilot's own tuning (sim/autopilot.ts, CruiseParams). */
 export interface ApproachDrive {
@@ -253,9 +356,15 @@ export function approachInput(
   pace.maxRate = params.approachMaxRate;
   pace.hurry = params.hurryPerUnit;
   pace.brakeGain = drive.speedGain;
-  pace.limit =
-    courseLimits(field, state, dock.body, 0, drive.openSpaceGain, REFLEX_LEAD_SEC, reflex)[0] ??
-    Infinity;
+  // The reflex counts the body the approach is for as well, with the plain berth (ownLimits), and
+  // past its limit the ship brakes in full (WishPace.brakeAt): a ship diving at the body is
+  // stopped, one on its way onto the ring never meets that limit. Left out (as the autopilot
+  // leaves out the body its plan arrives at), a body asked for just after one beside it, the ship
+  // already closing on it at 44 u/s from 8 u above, had its shell touched at 14 u/s.
+  courseLimits(field, state, dock.body, 0, drive.openSpaceGain, REFLEX_LEAD_SEC, reflex);
+  own.fill(Infinity);
+  pace.brakeAt = ownLimits(field, state, dock.body, 0, drive.openSpaceGain, own)[0] ?? Infinity;
+  pace.limit = Math.min(reflex[0] ?? Infinity, pace.brakeAt);
   return orbitWish(field, dock.body, state, drive.flight, assistParams, assist, out, pace);
 }
 
@@ -393,6 +502,7 @@ function capture(
 ): void {
   dock.phase = 'docked';
   dock.halting = false;
+  dock.guarding = false;
   dock.spin = spin;
   dock.phaseSec = 0;
   dock.leftByPilot = false;

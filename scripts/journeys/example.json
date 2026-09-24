@@ -9,7 +9,7 @@
     {
       "name": "faster ends",
       "tuning": {
-        "cruise": { "keepOutSpeed": 40, "openSpaceGain": 3 },
+        "cruise": { "keepOutSpeed": 60, "openSpaceGain": 6 },
         "assist": { "orbitSpeed": 20 }
       }
     }
