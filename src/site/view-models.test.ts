@@ -4,6 +4,8 @@ import {
   displayUrl,
   featuredPlanets,
   formatDateRange,
+  mixesSystems,
+  sharedTheme,
   formatYearMonth,
   projectContext,
   projectLinks,
@@ -163,6 +165,26 @@ describe('projectTheme', () => {
     const lostMoon = project('lost', { parent: { id: 'nowhere' } });
     expect(projectTheme(orphan, SYSTEMS, PROJECTS)).toBeUndefined();
     expect(projectTheme(lostMoon, SYSTEMS, PROJECTS)).toBeUndefined();
+  });
+});
+
+describe('mixesSystems', () => {
+  it('is true only when the cards name more than one family', () => {
+    expect(mixesSystems([{ theme: 'sky' }, { theme: 'sky' }])).toBe(false);
+    expect(mixesSystems([{ theme: 'sky' }, { theme: 'coral' }])).toBe(true);
+    // A card whose system is gone has no family: next to one that has, that is a mix.
+    expect(mixesSystems([{ theme: 'sky' }, { theme: undefined }])).toBe(true);
+    expect(mixesSystems([])).toBe(false);
+  });
+});
+
+describe('sharedTheme', () => {
+  it('names the family only when every card is in it', () => {
+    expect(sharedTheme([{ theme: 'sky' }, { theme: 'sky' }])).toBe('sky');
+    expect(sharedTheme([{ theme: 'sky' }, { theme: 'coral' }])).toBeUndefined();
+    expect(sharedTheme([{ theme: 'sky' }, { theme: undefined }])).toBeUndefined();
+    expect(sharedTheme([{ theme: undefined }])).toBeUndefined();
+    expect(sharedTheme([])).toBeUndefined();
   });
 });
 

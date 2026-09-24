@@ -161,6 +161,27 @@ export const toCard = <P extends ProjectLike>(project: P, theme?: ThemeKey): Pro
   kind: project.data.parent === undefined ? 'planet' : 'moon',
 });
 
+/**
+ * Does a list of cards name more than one colour family? Then its route line is drawn neutral
+ * (src/components/ProjectCards.astro), and only the stations wear a family: on a transit map a
+ * station takes its line's colour, and a line in one family through stations of another reads
+ * as two lines crossing.
+ */
+export const mixesSystems = (cards: ReadonlyArray<Pick<ProjectCard, 'theme'>>): boolean =>
+  new Set(cards.map((card) => card.theme)).size > 1;
+
+/**
+ * The one colour family every card in a list shares, if there is one. The list wears it, so its
+ * route line takes its stations' colour on any page (the home page's family is butter; a list of
+ * Code planets there is still a sky line). None for an empty list, a mix, or cards with no family.
+ */
+export const sharedTheme = (
+  cards: ReadonlyArray<Pick<ProjectCard, 'theme'>>,
+): ThemeKey | undefined => {
+  const themes = new Set(cards.map((card) => card.theme));
+  return themes.size === 1 ? [...themes][0] : undefined;
+};
+
 export interface PlanetNode extends ProjectCard {
   moons: ProjectCard[];
 }

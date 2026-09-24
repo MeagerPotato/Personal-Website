@@ -259,7 +259,7 @@ describe('StarMap, looking around', () => {
 
     // Through the camera: the middle of the map is 50 px below the middle of the view.
     const pose = createPose();
-    const view = { aspect: 1.6, freeWidth: 1, freeHeight: 1 };
+    const view = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 };
     new MapCam(map, { fovDegrees: 12 }).update(frame(1 / 60), view, pose);
     const camera = new PerspectiveCamera(50, 1.6, 1, 1e6);
     applyPose(camera, pose);
@@ -289,7 +289,7 @@ describe('StarMap, looking around', () => {
     const pose = createPose();
     new MapCam(map, { fovDegrees: 12 }).update(
       frame(1 / 60),
-      { aspect: 1.6, freeWidth: 1, freeHeight: 1 },
+      { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 },
       pose,
     );
     const camera = new PerspectiveCamera(50, 1.6, 1, 1e6);

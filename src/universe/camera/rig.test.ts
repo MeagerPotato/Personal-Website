@@ -18,6 +18,8 @@ const UP = new Vector3(0, 1, 0);
 
 /** A camera mode that looks at a point which may move, from a fixed side. */
 class Looking implements CameraMode {
+  /** Frames its subject, as the orbit camera does (tests of a top band set it). */
+  avoidsTop = false;
   readonly focus = new Vector3();
   readonly quaternion = new Quaternion();
   seen: ViewShape | null = null;
@@ -384,7 +386,12 @@ describe('the camera rig, making room for the panel', () => {
     const spot = onScreen(camera, subject.focus, 1280, 800);
     expect(spot.x).toBeCloseTo((1280 - 496) / 2, 6);
     expect(spot.y).toBeCloseTo(400, 6);
-    expect(subject.seen).toEqual({ aspect: 1.6, freeWidth: 1 - 496 / 1280, freeHeight: 1 });
+    expect(subject.seen).toEqual({
+      aspect: 1.6,
+      freeWidth: 1 - 496 / 1280,
+      freeHeight: 1,
+      freeTop: 0,
+    });
   });
 
   it('and of what a bottom sheet leaves free, on a phone', () => {
@@ -397,6 +404,47 @@ describe('the camera rig, making room for the panel', () => {
     expect(spot.x).toBeCloseTo(195, 6);
     expect(spot.y).toBeCloseTo((844 - 490) / 2, 6);
     expect(subject.seen?.freeHeight).toBeCloseTo(1 - 490 / 844, 12);
+  });
+
+  it('and, over a sheet, of the strip between it and a solid top bar, for a mode that frames', () => {
+    const subject = new Looking(0, 0.4, 60, 40);
+    subject.avoidsTop = true;
+    const { camera, rig } = rigWith(subject, 390, 844);
+    rig.setInset({ top: 160, bottom: 490 }, true);
+    rig.frameUpdate(frame(1 / 60));
+
+    const spot = onScreen(camera, subject.focus, 390, 844);
+    expect(spot.x).toBeCloseTo(195, 6);
+    expect(spot.y).toBeCloseTo((160 + 844 - 490) / 2, 6);
+    expect(subject.seen?.freeTop).toBeCloseTo(160 / 844, 12);
+    expect(subject.seen?.freeHeight).toBeCloseTo(1 - 490 / 844, 12);
+  });
+
+  it('leaves the top band in the view for a mode that looks past its subject into it', () => {
+    const chase = new Looking(0, 0.4, 60, 40);
+    const orbit = new Looking(0, 0.4, 60, 40);
+    orbit.avoidsTop = true;
+    const { camera, rig } = rigWith(chase, 390, 844);
+    rig.setInset({ top: 160, bottom: 490 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    expect(onScreen(camera, chase.focus, 390, 844).y).toBeCloseTo((844 - 490) / 2, 6);
+    expect(chase.seen?.freeTop).toBe(0);
+
+    // Cut to a mode that frames: the band is left out at once.
+    rig.use(orbit, 0);
+    rig.frameUpdate(frame(1 / 60));
+    expect(onScreen(camera, orbit.focus, 390, 844).y).toBeCloseTo((160 + 844 - 490) / 2, 6);
+  });
+
+  it('never lets the top bar take what the sheet left', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    subject.avoidsTop = true;
+    const { rig } = rigWith(subject, 1000, 500);
+    rig.setInset({ top: 900, bottom: 300 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    // The sheet has 60 %; the bar gets at most the next 20 %, and 20 % of the view stays free.
+    expect(subject.seen?.freeHeight).toBeCloseTo(0.4, 12);
+    expect(subject.seen?.freeTop).toBeCloseTo(0.2, 12);
   });
 
   it('keeps a sphere round: the window slides, the perspective stays', () => {

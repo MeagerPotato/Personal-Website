@@ -30,9 +30,11 @@ once), docking from inside the world opens the body's page, and a page opened di
 orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
 first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
-the URL and the panel know nothing about. What Phase 2 still lacks before launch: Allen's copy
-edit, the analytics token, and Astra's visual identity pass (A1). Phase 1's exit gate, the
-playtest on a laptop and a real phone, is Allen's and still open.
+the URL and the panel know nothing about. **The visual identity pass (A1) is done**: Claude did
+the packet at Allen's request, in the "roadmap" direction (one face, Outfit; route lines and
+stations; docs/DESIGN.md holds every decision). What Phase 2 still lacks before launch: Allen's
+copy edit and the analytics token. Phase 1's exit gate, the playtest on a laptop and a real
+phone, is Allen's and still open.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants

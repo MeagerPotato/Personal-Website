@@ -56,6 +56,9 @@ export const tokens = {
     /**
      * Planet surfaces, lowest altitude to highest: sea, shore, low, high, peak. A project picks one
      * by name in its frontmatter (`planet.biome`). First-pass values; Astra's A2 pass refines them.
+     * Some stops were once the system families' colours (tide, ember, bloom). A1 moved the
+     * families (lilac most of all) and left these alone, so a biome is its own palette now: A2
+     * decides whether planets follow their system's family again.
      */
     biome: {
       terra: { sea: '#7fb0dd', shore: '#f3e3b3', low: '#a8d8a0', high: '#7dbb8a', peak: '#f4f1ea' },

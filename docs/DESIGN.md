@@ -68,6 +68,8 @@ vocabulary never change meaning:
   system is butter too, so a focused butter key keeps a navy rim between its fill and the ring.
 - **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
   Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
+  The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button) are
+  drawn as the white keys they are; they are not a control's face.
 - **One solid family fill per view:** the primary action. Route signs above the headings and a
   project's tags are tinted, with a hairline edge; secondary keys are outlined in `ink.low`.
 
@@ -105,7 +107,11 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
   60 / 40, `xl` (h2 and section heads) 30 / 24, `lg` (the lede, card titles) 25 / 21,
   `base` 18 / 17, `sm` 16 / 15, `xs` (caps labels) 13 / 12. The panel pins the scale to
   its narrow end. Names over the bodies are 13 px at every width and on the map (the engine
-  measures them once).
+  measures them once). Nothing a visitor reads is under 12 px.
+- **The one exception: the resume's section heads are `lg`, not `xl`.** A resume is a document
+  of many short sections, where the heads are labels that sort the page and the entries must
+  lead; on a wide screen they hang in a 10.5rem column in the margin, where "Experience" at `xl`
+  would not fit. On paper the name leads instead (the wordmark at a heading's size).
 
 ## Space, shape, motion
 
@@ -115,6 +121,11 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
   only ornament is the route line (3 px) with its stations. A list of projects is a transit line
   (on a phone, in a slim lane down the left, the planet beside its name); the resume is a line of
   stops, its section names hung in the margin on a wide screen, one column on a phone and on paper.
+  In any one column every line of text starts on the same edge (the resume's `--rail`).
+- **A list's route line takes its stations' colour**, as on a transit map. A list of one system
+  wears that system (the home page's "Start here" is a sky line on a butter page while every
+  featured planet is in Code); a list that mixes systems draws its line neutral, in `ink.low`, so
+  that each station is the only thing in its family's colour.
 - **Focus** is a 3 px butter ring outside a 2 px navy rim, on every focusable thing in both modes,
   except the heading the router focuses after a soft navigation. Forced colours keep the ring (an
   outline) and underline the current page.
@@ -133,7 +144,7 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
 | | Plain | Universe |
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
-| `<main>` is | the page | the info panel (side panel on desktop, bottom sheet on phones, from Phase 2) |
+| `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
 | JavaScript | about 2 KB gzipped, no framework, no three.js | engine (~130 KB gzipped) loads on demand |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
@@ -188,8 +199,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The LOOK of the map: how flat the shading goes (`flatness`), how far the stars dim (`starOpacity`), the smallest size of each kind of body in px (`minRadiusPx`), how much room a moon needs beside its planet before it is drawn (`clearPx`), the size of the ship's marker (`shipRadiusPx`) | `tuning.map` (what flat MEANS: `uFlatness` in `shaders/toonFlat.ts`) |
 | The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
 | Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once | `tuning.labels` |
-| The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
-| The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre | `.dock-prompt` in `src/styles/global.css` |
+| The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
+| The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip; on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); hidden while the map is open there | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |

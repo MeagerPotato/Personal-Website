@@ -77,9 +77,9 @@ for (const size of NARROW) {
             ),
           ).size,
       );
-      // One row at 360 px. At 320 px it depends on the visitor's system font: one row with Segoe
-      // or Roboto, two with a wide one (DejaVu on a Linux CI runner), which is a graceful wrap.
-      expect(rows).toBeLessThanOrEqual(size.width >= 360 ? 1 : 2);
+      // One row at both widths. The face is our own (Outfit, preloaded, and certainly there
+      // once the engine is ready), so the count no longer depends on the visitor's system font.
+      expect(rows).toBe(1);
     });
   });
 }

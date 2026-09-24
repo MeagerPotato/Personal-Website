@@ -10,15 +10,30 @@ const sheet = { offsetLeft: 0, offsetTop: 354, offsetWidth: 390, offsetHeight: 4
 
 describe('panel inset', () => {
   it('covers the right of a wide window, from the left edge of the panel', () => {
-    expect(panelInset(column, true, false, desktop)).toEqual({ top: 0, right: 496, bottom: 0 });
+    expect(panelInset(column, true, false, desktop)).toEqual({
+      top: 0,
+      right: 496,
+      bottom: 0,
+      frameTop: 0,
+    });
   });
 
   it('covers the bottom of a narrow window, from the top edge of the sheet', () => {
-    expect(panelInset(sheet, true, true, phone)).toEqual({ top: 0, right: 0, bottom: 490 });
+    expect(panelInset(sheet, true, true, phone)).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 490,
+      frameTop: 0,
+    });
   });
 
   it('covers nothing when the panel is closed, or is not laid out at all (plain mode)', () => {
-    expect(panelInset(column, false, false, desktop)).toEqual({ top: 0, right: 0, bottom: 0 });
+    expect(panelInset(column, false, false, desktop)).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      frameTop: 0,
+    });
     expect(
       panelInset(
         { offsetLeft: 0, offsetTop: 0, offsetWidth: 0, offsetHeight: 0 },
@@ -26,12 +41,35 @@ describe('panel inset', () => {
         false,
         desktop,
       ),
-    ).toEqual({ top: 0, right: 0, bottom: 0 });
+    ).toEqual({ top: 0, right: 0, bottom: 0, frameTop: 0 });
   });
 
   it('passes on how far down the top bar reaches, panel or no panel', () => {
-    expect(panelInset(sheet, true, true, phone, 105)).toEqual({ top: 105, right: 0, bottom: 490 });
-    expect(panelInset(sheet, false, true, phone, 105)).toEqual({ top: 105, right: 0, bottom: 0 });
+    expect(panelInset(sheet, true, true, phone, 105)).toEqual({
+      top: 105,
+      right: 0,
+      bottom: 490,
+      frameTop: 0,
+    });
+    expect(panelInset(sheet, false, true, phone, 105)).toEqual({
+      top: 105,
+      right: 0,
+      bottom: 0,
+      frameTop: 0,
+    });
+  });
+
+  it('leaves the solid top of a phone out of the frame, only while the sheet is up', () => {
+    // The bar reaches 105 px down, and the row of the Map button ends 56 px below that.
+    expect(panelInset(sheet, true, true, phone, 105, 161)).toEqual({
+      top: 105,
+      right: 0,
+      bottom: 490,
+      frameTop: 161,
+    });
+    expect(panelInset(sheet, false, true, phone, 105, 161).frameTop).toBe(0);
+    // A side panel: the bar is a few chips over the sky, which the camera may use.
+    expect(panelInset(column, true, false, desktop, 64, 120).frameTop).toBe(0);
   });
 
   it('measures the top bar by what can be pressed in it, not by its padding', () => {
@@ -47,15 +85,25 @@ describe('panel inset', () => {
 
   it('never goes negative for a panel that is off the screen', () => {
     const away = { offsetLeft: 2000, offsetTop: 2000, offsetWidth: 480, offsetHeight: 700 };
-    expect(panelInset(away, true, false, desktop)).toEqual({ top: 0, right: 0, bottom: 0 });
-    expect(panelInset(away, true, true, phone)).toEqual({ top: 0, right: 0, bottom: 0 });
+    expect(panelInset(away, true, false, desktop)).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      frameTop: 0,
+    });
+    expect(panelInset(away, true, true, phone)).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      frameTop: 0,
+    });
   });
 });
 
 describe('the inset, for the stylesheet', () => {
   it('goes on the root as custom properties, and comes off again', () => {
     const root = document.createElement('div');
-    mirrorInset(root, { top: 64, right: 496, bottom: 0 });
+    mirrorInset(root, { top: 64, right: 496, bottom: 0, frameTop: 0 });
     expect(root.style.getPropertyValue('--panel-inset-top')).toBe('64px');
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('496px');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('0px');
@@ -90,12 +138,12 @@ describe('watching the panel', () => {
     document.documentElement.dataset.panel = 'open';
     const seen: [PanelInset, boolean][] = [];
     const stop = watchPanelInset((inset, first) => seen.push([inset, first]));
-    expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0 }, true]]);
+    expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0, frameTop: 0 }, true]]);
 
     document.documentElement.dataset.panel = 'closed';
     await settle();
     expect(seen).toHaveLength(2);
-    expect(seen[1]).toEqual([{ top: 0, right: 0, bottom: 0 }, false]);
+    expect(seen[1]).toEqual([{ top: 0, right: 0, bottom: 0, frameTop: 0 }, false]);
 
     // A resize that changes nothing is not news.
     window.dispatchEvent(new Event('resize'));

@@ -8,7 +8,7 @@ import { ChaseCam } from './ChaseCam';
 const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 const params = tuning.chaseCam;
 const DEG = Math.PI / 180;
-const WIDE = { aspect: 16 / 9, freeWidth: 1, freeHeight: 1 };
+const WIDE = { aspect: 16 / 9, freeWidth: 1, freeHeight: 1, freeTop: 0 };
 
 function ship(x = 0, z = 0, heading = 0, speed = 0) {
   return { position: new Vector3(x, 0, z), heading, speed };
@@ -17,7 +17,7 @@ function ship(x = 0, z = 0, heading = 0, speed = 0) {
 /** Where the camera stands and which way it faces, after the rig has applied a pose. */
 function view(cam: ChaseCam, aspect = 16 / 9, dt = 1 / 60) {
   const pose = createPose();
-  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1 }, pose);
+  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1, freeTop: 0 }, pose);
   const camera = new PerspectiveCamera();
   applyPose(camera, pose);
   camera.updateMatrixWorld();

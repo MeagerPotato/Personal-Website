@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { THEME_KEYS, tokens } from '../universe/design/tokens';
 import { contrast, luminance, over } from './contrast';
@@ -45,14 +46,30 @@ describe('ink on every surface', () => {
     });
   }
 
-  it('reads on the HUD plate over white: high, mid and butter, never low', () => {
+  it('reads on the HUD plate over white: high, mid and butter', () => {
     expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
     expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
     // The dock prompt's "Stop".
     expect(contrast(color.focus, HUD)).toBeGreaterThanOrEqual(TEXT);
-    // ink.low falls just short here (4.49:1), which is why the stylesheet never sets text in it on
-    // a chip over the world. If this starts passing, the rule may be relaxed; until then, keep it.
-    expect(contrast(color.ink.low, HUD)).toBeLessThan(TEXT);
+  });
+
+  it('is never ink.low on a chip over the world, while that falls short there', () => {
+    if (contrast(color.ink.low, HUD) >= TEXT) return; // lightened enough: the rule may go
+    // Every rule that styles something on the HUD plate (the engine's own controls, and the
+    // page's controls that become chips over the world) must not set its text in ink.low.
+    const css = readFileSync(new URL('../styles/global.css', import.meta.url), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const HUD_CONTROL =
+      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav)\b/;
+    const offenders: string[] = [];
+    for (const [, selector = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (HUD_CONTROL.test(selector) && /(^|;)\s*color:\s*var\(--color-ink-low\)/.test(body)) {
+        offenders.push(selector.trim());
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('reads on the cream "on" face of a toggle and on the butter of focus and targets', () => {

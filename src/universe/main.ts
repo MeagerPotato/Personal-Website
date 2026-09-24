@@ -71,9 +71,12 @@ export interface BootQuality {
 
 /** How much of the viewport the page's own chrome covers, in CSS px (api.ts, `setPanelInset`). */
 export interface ViewInset {
+  /** How far down the top bar's links reach: the names keep below them, and so does the map. */
   top?: number;
   right?: number;
   bottom?: number;
+  /** How much of the top the camera leaves out when it frames what matters (none if left out). */
+  frameTop?: number;
 }
 
 export interface Booted {
@@ -353,7 +356,7 @@ export function boot(
     engine,
     navigator,
     setInset(inset, cut) {
-      rig.setInset(inset, cut);
+      rig.setInset({ top: inset.frameTop, right: inset.right, bottom: inset.bottom }, cut);
       labels?.setTop(inset.top ?? 0);
       starMap.setTop(inset.top ?? 0);
     },
