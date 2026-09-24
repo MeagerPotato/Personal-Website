@@ -74,7 +74,7 @@ export interface JourneySpec {
   dwellSec: number;
 }
 
-export type Failure = 'timeout' | 'shell' | 'graze';
+export type Failure = 'timeout' | 'shell' | 'tunnel' | 'graze';
 
 export interface JourneyResult {
   kind: JourneyKind;
@@ -121,17 +121,29 @@ export interface JourneyResult {
   approachSec: number;
   captureSec: number;
   firstThrustSec: number;
-  /** Closest the ship came to the SURFACE of a body it neither left nor went to, u. */
+  /**
+   * Closest the ship came to the SURFACE of a body it neither left nor went to, u: over the whole
+   * of every step (the straight line it flew, in that body's own frame), not only where each step
+   * ended. At 700 u/s a step is 12 u, and a small moon is 2.4 u across.
+   */
   closestGapU: number;
   closestBody: string;
+  /**
+   * The same over EVERY body, the two it left and went to included, measured to the shell
+   * (surface + cushion.shellGap) rather than to the surface, from the request until a second
+   * after it docked (the dock's springs settle it then). Below 0: a step passed through a shell,
+   * which resolveShells (checking where steps end) cannot see.
+   */
+  shellClearU: number;
   /** Steps in which the ship was stopped by a shell (sim/collide.ts, resolveShells). */
   shellTouches: number;
   /** The approach ran out of time and the ship was captured where it was (dock.approachTimeoutSec). */
   approachTimedOut: boolean;
   /**
-   * timeout: not docked within the limit. shell: touched a shell. graze: came closer than half a
-   * cushion to a body it was only passing (the bound the autopilot's own test pins). A journey
-   * that was STOPPED (`stop`) fails only by a shell or a graze while it coasts.
+   * timeout: not docked within the limit. shell: touched a shell. tunnel: a step passed through a
+   * shell (shellClearU < 0). graze: came closer than half a cushion to a body it was only passing
+   * (the bound the autopilot's own test pins), anywhere along a step. A journey that was STOPPED
+   * (`stop`) fails only by a shell or a graze while it coasts.
    */
   failure: Failure | null;
   /** What happened after Stop, when the journey was stopped on purpose (fly's `stop`). */
@@ -248,6 +260,33 @@ export function fly(
   const onRingBand = 4 * sim.dock.captureDistance;
   const grazeBelow = sim.cushion.depth * 0.5;
 
+  // The whole of every step, not only where it ends: where the bodies and the ship were before it.
+  const before = new Float64Array(field.count * 2);
+  let fromX = state.x;
+  let fromZ = state.z;
+  /** Closest (u) the last step came to body j's centre, in j's own frame. */
+  const swept = (j: number): number => {
+    const ax = fromX - (before[j * 2] ?? 0);
+    const az = fromZ - (before[j * 2 + 1] ?? 0);
+    const dx = state.x - bodyX(j) - ax;
+    const dz = state.z - bodyZ(j) - az;
+    const span = dx * dx + dz * dz;
+    const t = span < 1e-12 ? 0 : Math.min(1, Math.max(0, -(ax * dx + az * dz) / span));
+    return Math.hypot(ax + dx * t, az + dz * t);
+  };
+  let shellClearU = Infinity;
+  const sweep = (): void => {
+    for (let j = 0; j < field.count; j += 1) {
+      const clear = swept(j) - (field.radius[j] ?? 0) - sim.cushion.shellGap;
+      if (clear < shellClearU) shellClearU = clear;
+    }
+  };
+  const remember = (): void => {
+    before.set(field.positions);
+    fromX = state.x;
+    fromZ = state.z;
+  };
+
   let peakSpeed = 0;
   let firstThrust = -1;
   let clear = -1;
@@ -265,8 +304,10 @@ export function fly(
   let stopped: (StopOutcome & { x: number; z: number }) | null = null;
 
   while ((steps - began) * dt < limitSec) {
+    remember();
     step();
     const t = (steps - began) * dt;
+    sweep();
 
     if (
       stop &&
@@ -316,7 +357,7 @@ export function fly(
     if (world.touched >= 0) shellTouches += 1;
     for (let j = 0; j < field.count; j += 1) {
       if (j === start || j === target) continue;
-      const gap = Math.hypot(state.x - bodyX(j), state.z - bodyZ(j)) - (field.radius[j] ?? 0);
+      const gap = swept(j) - (field.radius[j] ?? 0);
       if (gap < closestGapU) {
         closestGapU = gap;
         closestBody = j;
@@ -366,8 +407,10 @@ export function fly(
         break;
       }
       if (t - seconds >= SETTLE_WATCH_SEC || dock.phase !== 'docked') break;
+      remember();
       step();
       t = (steps - began) * dt;
+      if (t - seconds <= 1 + dt / 2) sweep();
     }
   }
 
@@ -387,9 +430,11 @@ export function fly(
         ? 'timeout'
         : shellTouches > 0
           ? 'shell'
-          : closestGapU < grazeBelow
-            ? 'graze'
-            : null;
+          : shellClearU < 0
+            ? 'tunnel'
+            : closestGapU < grazeBelow
+              ? 'graze'
+              : null;
 
   const systemOf = (id: string | null): string =>
     id === null ? 'spawn' : (manifest.bodies.find((body) => body.id === id)?.system ?? '?');
@@ -416,6 +461,7 @@ export function fly(
     firstThrustSec: firstThrust,
     closestGapU,
     closestBody: orbits.ids[closestBody] ?? '-',
+    shellClearU,
     shellTouches,
     approachTimedOut:
       docked && handOff >= 0 && end - handOff >= sim.dock.approachTimeoutSec - dt / 2,

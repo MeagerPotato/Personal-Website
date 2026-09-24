@@ -308,6 +308,67 @@ describe('the autopilot', () => {
     expect(revs[199]).toBeLessThanOrEqual(8);
   });
 
+  it('never passes through a shell between two steps: 200 journeys, every step swept', () => {
+    // Shells are checked where the ship IS after a step (sim/collide.ts, resolveShells). At
+    // 700 u/s a step is 12 u, and a small moon's shell is 4.4 u across: a ship could be outside it
+    // after one step and past it after the next. So the whole of every step is checked here: the
+    // straight line the ship flew, in each body's own frame (the body moves too), must stay out of
+    // every shell, from the request until a second after the ship is in orbit (the dock's springs
+    // are still settling it then: sim/docking.ts, arrive).
+    const rng = createRng('swept');
+    const range = (from: number, to: number): number => from + (to - from) * rng();
+    const { shellGap } = tuning.cushion;
+    const count = MANIFEST.bodies.length;
+    const before = new Float64Array(count * 2);
+    let least = Infinity;
+    let where = '';
+    let fastest = 0;
+    for (let run = 0; run < 200; run += 1) {
+      const t0 = range(0, 900);
+      const from = Math.floor(range(0, count));
+      let to = Math.floor(range(0, count - 1));
+      if (to >= from) to += 1;
+      const ids = begin(t0).world.orbits.ids;
+      const journey = dockedAt(ids[from] ?? '', t0, range(0, Math.PI * 2), rng() < 0.5 ? 1 : -1);
+      const { world, state } = journey;
+      const { positions, radius } = world.field;
+      const label = `run ${run}: ${ids[from]} -> ${ids[to]}`;
+      releaseDock(world.dock, world.assist);
+      requestDock(world.dock, to, NO_INPUT, true, tuning.cruise.minJourneySec);
+      let docked = -1;
+      for (let k = 0; k < 1200 && (docked < 0 || k - docked < 60); k += 1) {
+        before.set(positions);
+        const x0 = state.x;
+        const z0 = state.z;
+        step(journey);
+        fastest = Math.max(fastest, speedOf(state));
+        for (let j = 0; j < count; j += 1) {
+          // The step, seen from body j: from where the ship was relative to it to where it is.
+          const ax = x0 - (before[j * 2] ?? 0);
+          const az = z0 - (before[j * 2 + 1] ?? 0);
+          const dx = state.x - (positions[j * 2] ?? 0) - ax;
+          const dz = state.z - (positions[j * 2 + 1] ?? 0) - az;
+          const span = dx * dx + dz * dz;
+          const t = span < 1e-12 ? 0 : Math.min(1, Math.max(0, -(ax * dx + az * dz) / span));
+          const clear = Math.hypot(ax + dx * t, az + dz * t) - (radius[j] ?? 0) - shellGap;
+          if (clear < least) {
+            least = clear;
+            where = `${label}, step ${k}, past ${ids[j]}`;
+          }
+        }
+        if (docked < 0 && world.dock.phase === 'docked') docked = k;
+      }
+      expect(docked, label).toBeGreaterThanOrEqual(0);
+    }
+    // At full speed, and never through a shell, whatever it went past or came to. The least,
+    // measured: 0.63 u, run 171, a moon passed at 250 u/s just after a replan that kept to a
+    // stretch of the old plan 19 degrees off the ship's course (keepStretch). That is closer than
+    // the half cushion the test above pins at the end of each step; the journey harness, flying
+    // from real docks, comes no nearer than 4 u to a body it passes (npm run journeys).
+    expect(fastest).toBeGreaterThan(0.9 * tuning.cruise.far.cruiseSpeed);
+    expect(least, where).toBeGreaterThan(0);
+  });
+
   it('turns round first when asked while flying the other way at full boost', () => {
     const journey = flyingNear('page/about', 150, 0, 0, 80);
     const to = journey.world.orbits.indexOf('project/fishai');

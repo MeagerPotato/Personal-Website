@@ -13,6 +13,9 @@ export interface Stats {
   peakSpeed: number;
   longestU: number;
   failures: number;
+  /** Closest to a passing body's surface, and to any shell, over the whole of every step, u. */
+  closestGapU: number;
+  shellClearU: number;
   /** The same, until the ship is on its ring (JourneyResult.settledSec). */
   settledMedian: number;
   settledMax: number;
@@ -41,6 +44,8 @@ export function statsOf(rows: readonly JourneyResult[]): Stats {
     peakSpeed: rows.reduce((top, row) => Math.max(top, row.peakSpeed), 0),
     longestU: rows.reduce((top, row) => Math.max(top, row.straightU), 0),
     failures: rows.filter((row) => row.failure !== null).length,
+    closestGapU: rows.reduce((least, row) => Math.min(least, row.closestGapU), Infinity),
+    shellClearU: rows.reduce((least, row) => Math.min(least, row.shellClearU), Infinity),
     settledMedian: quantile(settled, 0.5),
     settledMax: settled.at(-1) ?? NaN,
     worst,
@@ -110,7 +115,7 @@ export function stopTable(rows: readonly JourneyResult[], coastSec: number): str
 /** The table for one galaxy under one variant. */
 export function table(rows: readonly JourneyResult[]): string {
   const lines = [
-    '           n  median    p90    max   mean  <=5 s  peak u/s  longest u  fail  | on ring: median    max',
+    '           n  median    p90    max   mean  <=5 s  peak u/s  longest u  fail  closest u  shell u  | on ring: median    max',
   ];
   const all: Array<[string, readonly JourneyResult[]]> = [
     ...KINDS.map((kind): [string, JourneyResult[]] => [
@@ -126,6 +131,7 @@ export function table(rows: readonly JourneyResult[]): string {
       `${label.padEnd(8)}${pad(String(s.n), 5)}${pad(f1(s.median), 8)}${pad(f1(s.p90), 7)}` +
         `${pad(f1(s.max), 7)}${pad(f1(s.mean), 7)}${pad(`${Math.round(s.within5 * 100)}%`, 7)}` +
         `${pad(s.peakSpeed.toFixed(0), 10)}${pad(s.longestU.toFixed(0), 11)}${pad(String(s.failures), 6)}` +
+        `${pad(f1(s.closestGapU), 11)}${pad(f1(s.shellClearU), 9)}` +
         `  |${pad(f1(s.settledMedian), 16)}${pad(f1(s.settledMax), 7)}`,
     );
   }
