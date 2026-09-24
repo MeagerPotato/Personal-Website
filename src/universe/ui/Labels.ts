@@ -129,9 +129,9 @@ export class Labels implements System {
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
 
+    // A finger that moves on a name moves the map (ui/StarMap.ts), never the page: `touch-action`
+    // on `.body-labels` in src/styles/global.css.
     this.root.className = 'body-labels';
-    // A finger that moves on a name moves the map (ui/StarMap.ts), never the page.
-    this.root.style.touchAction = 'none';
     this.root.setAttribute('role', 'group');
     this.root.setAttribute('aria-label', 'Fly to');
     options.bodies.forEach((body, row) => {

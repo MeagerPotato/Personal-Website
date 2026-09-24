@@ -2197,6 +2197,8 @@ picture {
    * touch target with the name at the end nearest the body it belongs to: its top, or its bottom
    * for a name the engine has put above its body (`data-side='above'`, on the map); the name sits
    * on a small navy tag (::after, the height of the name alone), like a label on a transit map.
+   * The names are part of the world, as the canvas is: a finger on one never scrolls or zooms the
+   * page, and on the map a finger that moves on a name drags the map (universe/ui/StarMap.ts).
    */
   .body-labels {
     position: absolute;
@@ -2204,6 +2206,7 @@ picture {
     left: 0;
     width: 0;
     height: 0;
+    touch-action: none;
   }
 
   .body-label {
