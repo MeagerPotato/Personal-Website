@@ -46,6 +46,12 @@ export interface StarMapOptions {
   view: { readonly freeWidth: number; readonly freeHeight: number };
   params: StarMapParams;
   reducedMotion: boolean;
+  /**
+   * A finger that goes down on a name (ui/Labels.ts) and travels further than this (CSS px) is
+   * dragging the map, not pressing the name (tuning.picking.tapMaxPx, the same bound as for
+   * pointing at a body). Default 10.
+   */
+  tapMaxPx?: number | undefined;
   /** The map opened or closed, whoever did it. `cut`: at once, so the camera should cut too. */
   onChange(open: boolean, cut: boolean): void;
 }
@@ -64,6 +70,11 @@ const PAN_KEYS: Readonly<Record<string, readonly [number, number]>> = {
 };
 const ZOOM_IN_KEYS = new Set(['Equal', 'NumpadAdd']);
 const ZOOM_OUT_KEYS = new Set(['Minus', 'NumpadSubtract']);
+/**
+ * The names over the bodies (ui/Labels.ts) lie over the map, and on a phone they cover much of
+ * it: to a finger that MOVES, or that comes down while another is on the map, they are the map.
+ */
+const NAMES = '.body-labels';
 /** Wheel events further apart than this are separate gestures. */
 const WHEEL_GESTURE_MS = 300;
 /** A wheel that reports lines, or pages, instead of pixels (Firefox with a mouse). */
@@ -100,6 +111,13 @@ export class StarMap implements System, MapSight {
   private readonly label: HTMLSpanElement | null = null;
   private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
   private readonly pointers = new Map<number, { x: number; y: number }>();
+  /**
+   * Fingers (and a mouse) that went down on a name and have not moved far yet: a tap on the name,
+   * or the start of a drag. Where they went down, and where they are.
+   */
+  private readonly onName = new Map<number, { x0: number; y0: number; x: number; y: number }>();
+  /** A press that began on a name became a drag: the click it ends in is not a press of the name. */
+  private swallowClick = false;
   private readonly held = new Set<string>();
   private wheelOut = 0;
   private wheelAt = 0;
@@ -141,6 +159,13 @@ export class StarMap implements System, MapSight {
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
       canvas.addEventListener(type, this.onPointerUp);
     }
+    overlay?.addEventListener('pointerdown', this.onNameDown);
+    overlay?.addEventListener('pointermove', this.onNameMove);
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      overlay?.addEventListener(type, this.onNameUp);
+    }
+    // Capture: before the name hears of it.
+    overlay?.addEventListener('click', this.onNameClick, true);
   }
 
   get isOpen(): boolean {
@@ -258,6 +283,13 @@ export class StarMap implements System, MapSight {
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
       canvas.removeEventListener(type, this.onPointerUp);
     }
+    const { overlay } = this.options;
+    overlay?.removeEventListener('pointerdown', this.onNameDown);
+    overlay?.removeEventListener('pointermove', this.onNameMove);
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      overlay?.removeEventListener(type, this.onNameUp);
+    }
+    overlay?.removeEventListener('click', this.onNameClick, true);
     this.button?.removeEventListener('click', this.toggle);
     this.button?.remove();
     delete canvas.dataset.map;
@@ -342,6 +374,7 @@ export class StarMap implements System, MapSight {
   private readonly letGo = (): void => {
     this.held.clear();
     this.pointers.clear();
+    this.onName.clear();
     delete this.options.canvas.dataset.dragging;
   };
 
@@ -398,9 +431,88 @@ export class StarMap implements System, MapSight {
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (!this.open || (event.pointerType === 'mouse' && event.button !== 0)) return;
     this.measure();
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    this.options.canvas.setPointerCapture?.(event.pointerId);
+    // A finger resting on a name is part of this gesture now: two fingers are never a tap.
+    for (const id of [...this.onName.keys()]) this.fromName(id, false);
+    this.hold(event.pointerId, event.clientX, event.clientY);
+  };
+
+  /** Pointer `id` holds the map from (x, y) on: the canvas hears the rest of it. */
+  private hold(id: number, x: number, y: number): void {
+    this.pointers.set(id, { x, y });
+    try {
+      this.options.canvas.setPointerCapture?.(id);
+    } catch {
+      // Already up (a synthetic event, or a race with the browser): nothing left to follow.
+    }
     this.options.canvas.dataset.dragging = '';
+  }
+
+  /**
+   * A press that began on a name joins the map's gesture: from where it went down (`fromStart`,
+   * so that what was under the finger comes back under it) or from where it is.
+   */
+  private fromName(id: number, fromStart: boolean): void {
+    const press = this.onName.get(id);
+    if (!press) return;
+    this.onName.delete(id);
+    this.swallowClick = true;
+    this.hold(id, fromStart ? press.x0 : press.x, fromStart ? press.y0 : press.y);
+  }
+
+  private readonly onNameDown = (event: PointerEvent): void => {
+    // Whatever the last press on a name became, this is a new one.
+    this.swallowClick = false;
+    if (!this.open || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const name = event.target instanceof Element ? event.target.closest(NAMES) : null;
+    if (!name) return;
+    this.measure();
+    const { pointerId: id, clientX: x, clientY: y } = event;
+    if (this.pointers.size > 0 || this.onName.size > 0) {
+      // Another finger is already down: this one is a pinch, not a press of the name.
+      for (const other of [...this.onName.keys()]) this.fromName(other, false);
+      this.swallowClick = true;
+      this.hold(id, x, y);
+      return;
+    }
+    this.onName.set(id, { x0: x, y0: y, x, y });
+    // A finger stays with what it went down on; a mouse has to be told to.
+    if (event.pointerType === 'mouse' && event.target instanceof Element) {
+      try {
+        event.target.setPointerCapture?.(id);
+      } catch {
+        // Not down any more: its pointerup is on its way.
+      }
+    }
+  };
+
+  private readonly onNameMove = (event: PointerEvent): void => {
+    const { pointerId: id } = event;
+    // Held by the map, but the canvas could not take the pointer over: follow it from here.
+    if (this.pointers.has(id)) {
+      this.onPointerMove(event);
+      return;
+    }
+    const press = this.onName.get(id);
+    if (!press || !this.open) return;
+    press.x = event.clientX;
+    press.y = event.clientY;
+    const tapMaxPx = this.options.tapMaxPx ?? 10;
+    if (Math.hypot(press.x - press.x0, press.y - press.y0) <= tapMaxPx) return;
+    this.fromName(id, true);
+    this.onPointerMove(event);
+  };
+
+  private readonly onNameUp = (event: PointerEvent): void => {
+    this.onName.delete(event.pointerId);
+    if (this.pointers.has(event.pointerId)) this.onPointerUp(event);
+  };
+
+  private readonly onNameClick = (event: MouseEvent): void => {
+    // (A click from the keyboard, detail 0, is always a press of the name.)
+    if (!this.swallowClick || event.detail === 0) return;
+    this.swallowClick = false;
+    event.stopPropagation();
+    event.preventDefault();
   };
 
   private readonly onPointerMove = (event: PointerEvent): void => {

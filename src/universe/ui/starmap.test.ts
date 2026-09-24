@@ -422,6 +422,114 @@ describe('StarMap, looking around', () => {
     expect(map.unitsPerPx).toBeLessThan(perPx);
   });
 
+  it('is dragged by a finger that starts on a name and moves; a tap on the name is still a press', () => {
+    const { map, layer, openCloser } = setup();
+    cleanup = () => map.dispose();
+    // The names (ui/Labels.ts) cover much of a phone's map.
+    const names = document.createElement('div');
+    names.className = 'body-labels';
+    const name = document.createElement('button');
+    names.append(name);
+    layer.append(names);
+    let presses = 0;
+    names.addEventListener('click', () => (presses += 1));
+    const on = (type: string, id: number, x: number, y: number, pointerType = 'touch'): void => {
+      name.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: id,
+          clientX: x,
+          clientY: y,
+          pointerType,
+          button: 0,
+          bubbles: true,
+        }),
+      );
+    };
+    const click = (detail = 1): void => {
+      name.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail }));
+    };
+    openCloser();
+    const [x, z, perPx] = [map.x, map.z, map.unitsPerPx];
+
+    // A tap, with the wobble of a real finger: the map stays put, and the name is pressed.
+    on('pointerdown', 1, 400, 400);
+    on('pointermove', 1, 406, 403);
+    on('pointerup', 1, 406, 403);
+    click();
+    expect([map.x, map.z]).toEqual([x, z]);
+    expect(presses).toBe(1);
+
+    // A drag: past the slop, the map catches up with the finger (what was under it comes back
+    // under it) and follows it; the click it ends in is not a press of the name.
+    on('pointerdown', 2, 400, 400);
+    on('pointermove', 2, 430, 400);
+    expect(map.x).toBeCloseTo(x + 30 * perPx, 9);
+    on('pointermove', 2, 460, 370);
+    expect(map.x).toBeCloseTo(x + 60 * perPx, 9);
+    expect(map.z).toBeCloseTo(z - 30 * perPx, 9);
+    on('pointerup', 2, 460, 370);
+    click();
+    expect(presses).toBe(1);
+    // ...and the next tap is a press again, as is a press from the keyboard at any time.
+    on('pointerdown', 3, 400, 400);
+    on('pointerup', 3, 400, 400);
+    click();
+    click(0);
+    expect(presses).toBe(3);
+
+    // A mouse the same (dragged back left 20 px), and nothing of it while the map is closed.
+    on('pointerdown', 4, 400, 400, 'mouse');
+    on('pointermove', 4, 380, 400, 'mouse');
+    on('pointerup', 4, 380, 400, 'mouse');
+    expect(map.x).toBeCloseTo(x + 40 * perPx, 9);
+    map.setOpen(false, true);
+    const shut = map.x;
+    on('pointerdown', 5, 400, 400);
+    on('pointermove', 5, 500, 400);
+    on('pointerup', 5, 500, 400);
+    click();
+    expect(map.x).toBe(shut);
+    expect(presses).toBe(4);
+  });
+
+  it('takes a second finger that comes down on a name into the pinch', () => {
+    const { map, layer, pointer, openCloser } = setup();
+    cleanup = () => map.dispose();
+    const names = document.createElement('div');
+    names.className = 'body-labels';
+    const name = document.createElement('button');
+    names.append(name);
+    layer.append(names);
+    const on = (type: string, id: number, x: number, y: number): void => {
+      name.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: id,
+          clientX: x,
+          clientY: y,
+          pointerType: 'touch',
+          bubbles: true,
+        }),
+      );
+    };
+    openCloser();
+    const perPx = map.unitsPerPx;
+    // First finger on the map, second on a name: spread from 200 px apart to 400, twice as close.
+    pointer('pointerdown', 1, 400, 400, 'touch');
+    on('pointerdown', 2, 600, 400);
+    pointer('pointermove', 1, 300, 400, 'touch');
+    on('pointermove', 2, 700, 400);
+    expect(map.unitsPerPx).toBeCloseTo(perPx / 2, 9);
+    on('pointerup', 2, 700, 400);
+    pointer('pointerup', 1, 300, 400, 'touch');
+
+    // The other way round: first finger resting on a name, second on the map. Still a pinch.
+    const now = map.unitsPerPx;
+    on('pointerdown', 3, 400, 400);
+    pointer('pointerdown', 4, 600, 400, 'touch');
+    pointer('pointermove', 4, 500, 400, 'touch');
+    expect(map.unitsPerPx).toBeCloseTo(now * 2, 9);
+  });
+
   it('stops zooming at its closest, and at everything: never out into empty space', () => {
     const { map, wheel, run } = setup();
     cleanup = () => map.dispose();

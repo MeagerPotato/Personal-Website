@@ -327,6 +327,88 @@ test.describe('on a phone', () => {
     await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
     await expect(page.locator('.touch-boost')).toBeVisible();
   });
+
+  test('a finger on a name that moves holds the map, and a tap on a name still flies there', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    await openButton(page).tap();
+    await mapOpen(page, 'Code');
+    const code = await settled(nameOf(page, 'Code'));
+    const fish = await settled(nameOf(page, 'FishAI'));
+    const session = await page.context().newCDPSession(page);
+    const touch = (
+      type: 'touchStart' | 'touchMove' | 'touchEnd',
+      points: { x: number; y: number; id: number }[],
+    ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+    const middleOf = async (name: string): Promise<{ x: number; y: number }> => {
+      const box = await nameOf(page, name).boundingBox();
+      if (!box) throw new Error(`${name} has no name on the map`);
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+
+    // Two fingers: the first on empty space beyond the Code sun, the second right on FishAI's
+    // name. Spread twice as far apart: the second finger is part of the pinch, not a press.
+    const clear = await clearOfNames(page);
+    const width = page.viewportSize()?.width ?? 412;
+    const sun = await discOf(page, 'Code');
+    const onName = await middleOf('FishAI');
+    const away = { x: sun.x - onName.x, y: sun.y - onName.y };
+    const first = [0.5, 0.75, 1, 0.25, 1.25]
+      .flatMap((s) => [0, 15, -15, 30, -30].map((side) => ({ s, side })))
+      .map(({ s, side }) => {
+        const length = Math.hypot(away.x, away.y) || 1;
+        return {
+          x: sun.x + away.x * s - (away.y / length) * side,
+          y: sun.y + away.y * s + (away.x / length) * side,
+        };
+      })
+      .find(({ x, y }) => clear(x, y) && x > 10 && y > 60 && x < width - 10);
+    if (!first) throw new Error('names all round the Code sun: nowhere to put a finger');
+    const mid = { x: (first.x + onName.x) / 2, y: (first.y + onName.y) / 2 };
+    const fingers = (spread: number): { x: number; y: number; id: number }[] => [
+      { x: mid.x + (first.x - mid.x) * spread, y: mid.y + (first.y - mid.y) * spread, id: 1 },
+      { x: mid.x + (onName.x - mid.x) * spread, y: mid.y + (onName.y - mid.y) * spread, id: 2 },
+    ];
+    await touch('touchStart', fingers(1).slice(0, 1));
+    await touch('touchStart', fingers(1));
+    for (let step = 1; step <= 8; step += 1) await touch('touchMove', fingers(1 + step / 8));
+    await touch('touchEnd', []);
+    const zoomed = await settled(nameOf(page, 'Code'));
+    const fishZoomed = await settled(nameOf(page, 'FishAI'));
+    expect(Math.hypot(fishZoomed.x - zoomed.x, fishZoomed.y - zoomed.y)).toBeGreaterThan(
+      Math.hypot(fish.x - code.x, fish.y - code.y) * 1.5,
+    );
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+
+    // One finger, down on Code's own name and moved right and up: the map goes along, by as
+    // much, and the name with it. (The finger stops before it lifts, as above.)
+    const start = await middleOf('Code');
+    await touch('touchStart', [{ ...start, id: 1 }]);
+    for (let step = 1; step <= 6; step += 1) {
+      await touch('touchMove', [{ x: start.x + step * 10, y: start.y - step * 5, id: 1 }]);
+    }
+    await page.waitForTimeout(200);
+    await touch('touchMove', [{ x: start.x + 60, y: start.y - 30, id: 1 }]);
+    await touch('touchEnd', []);
+    const dragged = await settled(nameOf(page, 'Code'));
+    expect(dragged.x - zoomed.x).toBeGreaterThan(54);
+    expect(dragged.x - zoomed.x).toBeLessThan(66);
+    expect(dragged.y - zoomed.y).toBeGreaterThan(-36);
+    expect(dragged.y - zoomed.y).toBeLessThan(-24);
+    // Neither was a press of a name: nothing set out, and the map is still open.
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+    await expect(prompt(page)).not.toContainText('Flying to');
+    expect(pathOf(page)).toBe('/');
+
+    // A tap on the same name is a press of it, as ever: there it goes, and the map is put away.
+    const said = await watchText(page, '.dock-prompt');
+    await pointAt(page, nameOf(page, 'Code'), true);
+    await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
+    await expect
+      .poll(async () => (await said()).find(({ text }) => text.includes('Flying to Code')))
+      .toMatchObject({ path: '/' });
+  });
 });
 
 test.describe('with reduced motion', () => {

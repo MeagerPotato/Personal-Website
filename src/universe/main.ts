@@ -171,6 +171,7 @@ export function boot(
       view: rig.shape,
       params: tuning.map,
       reducedMotion,
+      tapMaxPx: tuning.picking.tapMaxPx,
       onChange: (open, cut) => {
         input.setEnabled(!open);
         // Now, not with the next frame: a cut to the map is then a cut in every part of it.
