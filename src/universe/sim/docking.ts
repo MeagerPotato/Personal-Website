@@ -1,4 +1,5 @@
 import { orbitWish, type AssistParams, type AssistState, type BodyField } from './assist';
+import { isSteering } from './flight';
 import { TAU, angleOf } from './math';
 import { createSpring, stepSpring, type SpringState } from './spring';
 import type { FlightInput, FlightParams, ShipState } from './types';
@@ -85,15 +86,6 @@ export function createDockState(): DockState {
     noseOff: createSpring(0),
     noseRest: 0,
   };
-}
-
-/**
- * Is the pilot flying? Boost is not flying: it only multiplies thrust (sim/flight.ts), so on its
- * own it moves nothing. And Shift is also half of Shift+Tab, which only moves the focus back one
- * control; that must never take a reader out of orbit, off their page, or off a journey.
- */
-function isSteering(input: Readonly<FlightInput>, deadZone: number): boolean {
-  return input.thrust > deadZone || Math.abs(input.turn) > deadZone;
 }
 
 /**

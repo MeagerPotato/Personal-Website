@@ -46,6 +46,17 @@ export function speedOf(state: Readonly<ShipState>): number {
   return Math.hypot(state.vx, state.vz);
 }
 
+/**
+ * Is the pilot FLYING: thrusting or turning, past `deadZone`? Boost is not flying: it only
+ * multiplies thrust (stepFlight, below), so on its own it moves nothing. And Shift is also half of
+ * Shift+Tab, which only moves the focus back one control: that must never take a reader out of
+ * orbit, off their page or off a journey (sim/docking.ts), nor count as having flown
+ * (core/input/intents.ts).
+ */
+export function isSteering(input: Readonly<FlightInput>, deadZone = 0): boolean {
+  return input.thrust > deadZone || Math.abs(input.turn) > deadZone;
+}
+
 /** Top speed in a straight line, u/s. */
 export function topSpeed(params: FlightParams, boost = false): number {
   return (params.thrustAccel * (boost ? params.boostFactor : 1)) / params.forwardDrag;

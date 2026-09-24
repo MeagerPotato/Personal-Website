@@ -122,12 +122,12 @@ Each display frame:
 6. **The governor** (`core/quality/governor.ts`) is told how long the frame took and may lower the
    render resolution, give some back, or (once, early) ask for a lower tier.
 
-Order in `main.ts` today: assets → input → ship → navigator → star map → galaxy → ship lighting →
-camera director → camera rig → bodies on screen → picker → labels → sky → stars → dust → the
-map's look → jobs → prompt → debug overlays. The camera comes after everything it looks at (the
-ship AND the planets), so that it sees this frame's world; whoever needs to know where things are
-ON SCREEN comes after the camera. The star map comes BEFORE the galaxy, which draws every body at
-the size the map asks for.
+Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
+only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
+picker → labels → sky → stars → dust → the map's look → jobs → prompt → debug overlays. The
+camera comes after everything it looks at (the ship AND the planets), so that it sees this
+frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
+star map comes BEFORE the galaxy, which draws every body at the size the map asks for.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -176,7 +176,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 
 - **Boot.** `createUniverse()` picks a quality tier (desktops HIGH, phones MEDIUM, small machines
   one lower, never above a tier remembered from an earlier demotion; `?q=` forces one) and calls
-  `boot()` in `main.ts`. `ready` fires with the first frame, `firstinput` with the first steering.
+  `boot()` in `main.ts`. `ready` fires with the first frame, `firstinput` with the first touch of
+  a flight control (thrust, a turn or the brake: a lone Shift is none, since it is also half of
+  Shift+Tab; `touchesControls` in `core/input/intents.ts`).
 - **Demotion.** After a warm-up, two seconds of frames decide whether the tier is too heavy.
   Whether a canvas is anti-aliased is fixed when its WebGL context is created, so a new tier means
   a new engine: snapshot → dispose (canvas and all) → boot one tier down. The shell remembers the
