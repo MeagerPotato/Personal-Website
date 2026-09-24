@@ -62,6 +62,11 @@ describe('ink on every surface', () => {
     });
   }
 
+  it('reads on the lit face of a key on a raised plate (surface.line)', () => {
+    // The panel bar's Close and Expand, and the hint card's "Got it", under a mouse.
+    expect(contrast(color.ink.high, color.surface.line)).toBeGreaterThanOrEqual(TEXT);
+  });
+
   it('reads on the HUD plate over white: high, mid and butter', () => {
     expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
     expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
@@ -111,9 +116,11 @@ describe('every colour family', () => {
         expect(contrast(family.light, over(family.base, 0.12, plate))).toBeGreaterThanOrEqual(TEXT);
         expect(contrast(family.light, plate)).toBeGreaterThanOrEqual(TEXT);
       }
-      // Route lines, stations, glyphs and the panel's band are marks: 3:1 against what they cross.
-      expect(contrast(family.base, color.space[900])).toBeGreaterThanOrEqual(MARK);
-      expect(contrast(family.base, color.surface.panel)).toBeGreaterThanOrEqual(MARK);
+      // Route lines, stations, glyphs and the panel's band are marks: 3:1 against what they cross,
+      // on the page, on a plate, on the panel over the world, and on a raised plate in the panel.
+      for (const ground of [color.space[900], color.surface.panel, PANEL, color.surface.raised]) {
+        expect(contrast(family.base, ground)).toBeGreaterThanOrEqual(MARK);
+      }
     });
   }
 });

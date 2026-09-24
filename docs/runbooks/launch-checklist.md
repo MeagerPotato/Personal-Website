@@ -69,8 +69,10 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       filter `cloudflareinsights`), and none with Do Not Track on.
 - [ ] securityheaders.com: grade A.
 - [ ] Lighthouse, mobile, plain mode, on `/`, `/about/`, `/projects/fishai/`, `/resume/`:
-      performance ≥ 95, the other three 100, LCP < 1.5 s, CLS < 0.02. Measured before launch
+      performance ≥ 95, the other three 100, LCP < 1.5 s, CLS < 0.02. Measured on 2026-09-21
       behind `wrangler dev`: 100 / 100 / 100 / 100, LCP 0.9 to 1.1 s, CLS 0 (docs/PLAN.md §6).
+      That was before A1 added a preloaded 31.5 KiB font to every page: measure again, first
+      behind `npm run preview`, then on the live site.
 
 ## 3. By hand (H)
 

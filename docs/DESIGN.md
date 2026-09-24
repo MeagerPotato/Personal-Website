@@ -8,8 +8,8 @@ Status: **the visual identity (A1) is decided and built.** Claude (Opus 5.5) car
 packet ([handoffs/01-visual-identity.md](handoffs/01-visual-identity.md)) at Allen's request on
 2026-09-23, instead of Astra. Four directions were built and judged by four reviewers; "roadmap"
 won, and three rounds of five reviewers finished it. This page says what was decided. A2 and A3
-remain Astra's: sections marked _(open: A2)_ or _(open: A3)_ are for the scene art-direction pass
-and the motion pass.
+remain Astra's: sections or lines marked _(open: A2)_ or _(open: A3)_ are for the scene
+art-direction pass and the motion pass.
 
 ## The idea
 
@@ -51,7 +51,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | --- | --- | --- |
 | `color.space` | `950 900 800 700 600` | backdrop ramp, deepest to lightest; page background is `900`, the map grid's dots `700`; `950` is the focus ring's rim and a key's ledge |
 | `color.ink` | `high mid low` | text: `high` leads (headings, values, every chip over the world), `mid` is running text, `low` draws edges and marks and is never text on a chip over the world. Every pairing: the contrast table below |
-| `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the hint card, the facts in the panel) and anything lit under a mouse; `line`: hairlines, decoration only |
+| `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a key on a raised plate |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
 | `color.star` | `warm cool white` | starfield tints |
@@ -60,9 +60,10 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
 side of a pairing changes: `src/site/contrast.test.ts` measures every pairing the stylesheet relies
 on (the translucent plates composited over white, the brightest thing in the world), so
-`npm run verify` fails when a colour change breaks one. Each system owns one family; a planet's
-label, lane colour and panel accent all come from its system's family, and a project card wears its
-own system's family on any page (`data-theme` on the card).
+`npm run verify` fails when a colour change breaks one. Each system owns one family: a planet's
+route line and station, its lane colour and its panel's band come from its system's family (its
+name over the world is a navy tag like every name; only the target's is butter), and a project
+card wears its own system's family on any page (`data-theme` on the card).
 
 **The families.** The five family bases are spread in lightness as well as hue (butter and mint
 light, sky and coral in the middle, lilac deepest), so that no two collapse for a colour-blind
@@ -104,7 +105,8 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | Text (4.5:1) | Ratio | Where it is used |
 | --- | --- | --- |
 | `ink.high` on the page / the panel | 17.2 / 14.0 | headings, the lede, card titles, the wordmark, a key's label, a fact's value, the current page in the nav |
-| `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
+| `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card, the Launch the starfield chip; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
+| `ink.high` on `surface.line` | 9.8 | a key on a raised plate under a mouse: the panel bar's Close and Expand, the hint card's "Got it" |
 | `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip |
 | `ink.mid` on the page / the panel | 10.6 / 8.6 | running text, the nav, the crumbs, a card's summary and status chip, the resume's dates, bullets and skills, a caption, the footer |
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
@@ -126,7 +128,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | --- | --- | --- |
 | butter ring on its navy rim (`space.950`) | 14.5 | the focus ring, on everything: the rim is what it meets, whatever lies under the control (a butter key, a pale planet) |
 | butter on the page / the panel / the HUD plate | 13.9 / 11.3 / 9.3 | the ring where it meets the ground outside it; the current page's bar under its word (plain / universe) |
-| `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), the Launch the starfield chip, a mixed list's route line |
+| `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` | 6.3 / 5.6 / 5.1 / 5.0 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill; lilac is the lowest |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
@@ -169,9 +171,10 @@ device's own mono stack (`font.mono`), which costs nothing. The other four stage
 - **Weights.** Body text 430 with a hair of tracking (Outfit is light and narrow at 400), labels
   and nav 600, headings 700. Running text keeps to `--measure` (31 em: about 70 characters a
   line, measured on the rendered lines, where 33 em had run to 77 to 82).
-- **Scale** (`text.*`, fluid from 360 px to about 1200 px; laptop / phone): display (the h1)
+- **Scale** (`text.*`, fluid from 360 px; at 1280 px / on a phone): display (the h1)
   60 / 40, `xl` (h2 and section heads) 30 / 24, `lg` (the lede, card titles) 25 / 21,
-  `base` 18 / 17, `sm` 16 / 15, `xs` (caps labels) 13 / 12. The panel pins the scale to
+  `base` 18 / 17, `sm` 16 / 15, `xs` (caps labels) 13 / 12. Most sizes stop growing at 1200 to
+  1300 px; `base` goes on to 19 px, reached near 1680 px. The panel pins the scale to
   its narrow end. Names over the bodies are 13 px at every width and on the map (the engine
   measures them once). Nothing a visitor reads is under 12 px.
 - **The one exception: the resume's section heads are `lg`, not `xl`.** A resume is a document
@@ -205,7 +208,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 
 | State | How it looks | Where |
 | --- | --- | --- |
-| Hover | A key lights (to `surface.raised`, or `surface.line` on a raised plate) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only brings its words up to `ink.high` and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
+| Hover | A key lights (to `surface.raised`, or `surface.line` on a raised plate) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
 | Focus (`:focus-visible`) | A 3 px butter ring outside a 2 px `space.950` rim, so it reads on anything: a white peak, a pale ring, a butter key (butter meets navy, never butter). A key at rest carries the same three shadows with the rim at nothing, so a focus eases in the rim and nothing else | everything focusable, in both modes. The ring goes round a name's tag, not its 44 px box, round a nav word's 36 px chip (no rim: it sits on navy already), and round a card title's words. The heading the router focuses after a soft navigation, and `<main>` where the skip link lands, show none: they are not controls |
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, with a navy station dot before the name (the tag grows to the left to hold it, out of the flow: the engine measured the name without it) | the body the ship is headed for |
@@ -220,7 +223,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | engine (~130 KB gzipped) loads on demand |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | engine (about 170 KiB gzipped, of a 220 KiB budget) loads on demand |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -265,7 +268,8 @@ transit map.
   tinted in the family (12 %) with a hairline edge; the cover sits in a hairline frame.
 - **Running text** (`.prose`) keeps to the measure. A heading is a stop, with a station ring in
   the page's family before it; bullets, a quote's line and the rule under a table's head are in
-  the family; code sits on `surface.raised` in the mono stack; a rule is dotted.
+  the family; inline code sits on `surface.raised` in the mono stack, and a code block in a
+  hairline frame on the page's ground; a rule is dotted.
 - **Legends** (Elsewhere, Contact): the name, a dotted leader, what it is, with hairlines between
   the rows.
 - **The resume is a line of stops.** Each role is a station on a thin rail down the left, its
@@ -304,11 +308,15 @@ of, is in the table under The 3D world.
   cream face while the text shows.
 - **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
   in the cream face. A finger gets no key cap and a fixed width.
-- **The names** over the bodies are real buttons: a 44 px target with the name at its top on a
-  small navy tag, like a label on a transit map, 13 px at every width and on the map. A sun or the
+- **The names** over the bodies are real buttons: a 44 px target with the name on a small navy
+  tag at the end nearest its body (the top below it, the bottom above it), like a label on a
+  transit map, 13 px at every width and on the map. A sun or the
   home planet names a whole system, in spaced caps at 700; a moon is quieter (`ink.mid`, 500).
-  The body the ship is headed for has the one butter tag. On the map the ship's marker is "you
-  are here": no name lies on it, or on the Plain version chip.
+  The body the ship is headed for has the one butter tag. Either side of its body a tag sits
+  2 px off the disc. On the map the ship's marker is "you are here": no name's tag lies on it,
+  or on the Plain version chip. A name the ship would be under glides a few pixels past it, away
+  from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
+  control). Where the ship is going, and a name the keyboard is on, never make way for the ship.
 - **The dock prompt** ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit") is one
   chip. Its E key cap is butter, the one key cap that is not white, because it is the prompt's
   action and not a key being named; "Stop" is set apart by a hairline, in butter.
@@ -320,7 +328,8 @@ of, is in the table under The 3D world.
 - **The panel** is a legend plate over the world (`surface.panel` at 96 %, with a blur), with a
   5 px band across the top in the page's family (butter for the home system's pages). Its bar
   holds Close (and, on a phone, Expand), keys with an `ink.low` edge, over a hairline that makes
-  the scrolling text an edge, not a cut; the text starts 24 px under it on every page. The panel
+  the scrolling text an edge, not a cut; the text starts about 24 px under it on every page (the
+  route sign's plate 24, the crumbs' words 22). The panel
   pins the type scale to its narrow end. On a wide screen it is a side panel on the HUD's grid: its
   right edge flush with the nav tray, its bottom level with the Plain version chip.
 - **The bottom sheet** (a phone held upright) has rounded top corners. At rest it leaves at least
@@ -330,7 +339,9 @@ of, is in the table under The 3D world.
   sideways keeps a narrower side panel instead (at most 62 % of the width), and at 400 % zoom an
   open panel takes the whole width while the engine's controls wait.
 - **The touch controls** are white rings and a white knob, like the round tools of Mini
-  Motorways; the boost pad is a ring on the HUD plate that fills coral while it is pressed.
+  Motorways; the boost pad is a ring on the HUD plate that fills coral while it is pressed. It is
+  out in free flight only: boost multiplies the pilot's own thrust, and docked or on a journey
+  the stick is what takes the controls back, so there the pad would light up and do nothing.
 - **The Plain version chip** sits bottom left, a HUD chip with a sky station ring. Focused, it
   comes up above any panel.
 
@@ -340,9 +351,9 @@ Drawn from the tokens like everything else, so a palette change repaints them to
 
 - **`/favicon.svg`** (`src/site/favicon.ts`, pure and tested: token colours only, no text): a
   ringed planet on a navy tile, the sky family's base over its shade with a butter ring. It is
-  drawn on a 32 px grid and checked at 16 px: every shape is at least a pixel wide at half size,
-  and where the ring crosses in front of the planet a band of navy cuts it free, as a station cuts
-  a route line.
+  drawn on a 32 px grid and checked at 16 px: where the ring crosses in front of the planet a
+  band of navy cuts it free, as a station cuts a route line, and the ring and the navy either side
+  of it are each at least a pixel wide at 16 px.
 - **`/apple-touch-icon.png`**: the same drawing at 180 px, its corners filled with the tile's navy
   (iOS rounds them itself).
 - **`/og/default.png`**, the link-preview card (`src/site/og.ts`): a small solar system with no
@@ -397,7 +408,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The star map (`M`, the Map button, or scroll out): the lens, how long the way out takes, how far in and out it zooms and how much air the first fit leaves, how quickly pans and zooms settle, wheel and key speeds, how far a wheel must turn to open it | `tuning.map` |
 | The LOOK of the map: how flat the shading goes (`flatness`), how far the stars dim (`starOpacity`), the smallest size of each kind of body in px (`minRadiusPx`), how much room a moon needs beside its planet before it is drawn (`clearPx`), the size of the ship's marker (`shipRadiusPx`) | `tuning.map` (what flat MEANS: `uFlatness` in `shaders/toonFlat.ts`) |
 | The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
-| Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once. On the map the ship's marker is "you are here" and no name lies on it: a name the ship would be under moves above its body (`ui/Labels.ts`, `ship`); names also keep off the footer chip in the corner (`foot`, measured by `src/shell/panel-inset.ts`) | `tuning.labels` |
+| Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once. On the map the ship's marker is "you are here" and no name's tag lies on it: a name the ship would be under glides a few pixels past it or goes above its body, as does one with no room below (`ui/Labels.ts`, `ship`, `eitherSide`); names also keep off the footer chip in the corner (`foot`, measured by `src/shell/panel-inset.ts`) | `tuning.labels` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); hidden while the map is open there. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |

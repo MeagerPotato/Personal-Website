@@ -105,10 +105,11 @@ export const tokens = {
   },
 
   /**
-   * Fluid type scale: min at 360 px wide, max at ~1200 px. Outfit is set a touch larger than the
-   * old system stack at the body sizes: its x-height is smaller than Segoe's or SF's. The steps
-   * that carry the hierarchy, on a laptop and on a phone: display (the h1) 60 / 40 px, xl (h2 and
-   * section heads) 30 / 24, lg (the lede) 25 / 21, base (body) 18 / 17.
+   * Fluid type scale: min at 360 px wide, max at 1200 to 1300 px (base alone goes on growing, to
+   * 19 px near 1680 px). Outfit is set a touch larger than the old system stack at the body sizes:
+   * its x-height is smaller than Segoe's or SF's. The steps that carry the hierarchy, on a 1280 px
+   * laptop and on a phone: display (the h1) 60 / 40 px, xl (h2 and section heads) 30 / 24, lg (the
+   * lede) 25 / 21, base (body) 18 / 17.
    */
   text: {
     xs: 'clamp(0.75rem, 0.72rem + 0.12vw, 0.8125rem)',

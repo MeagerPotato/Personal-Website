@@ -4,9 +4,10 @@ import type { Tokens } from '../universe/design/tokens';
 // tile, flat-shaded like everything else here. Drawn from the design tokens, so it can never drift
 // from the palette again; src/pages/favicon.svg.ts serves it as /favicon.svg.
 //
-// Drawn on a 32 px grid and checked at 16 px: every shape is at least a pixel wide at half size,
-// and where the ring crosses in front of the planet a band of navy cuts it free (the same trick
-// as a station on a route line), so the two never melt into one blob in a small tab.
+// Drawn on a 32 px grid and checked at 16 px. Where the ring crosses in front of the planet a band
+// of navy cuts it free (the same trick as a station on a route line), so the two never melt into
+// one blob in a small tab: the ring is 2.4 units wide and the navy shows 2 units each side of it,
+// so at 16 px both are at least a pixel wide.
 //
 // Pure: same tokens in, same string out.
 
@@ -38,7 +39,7 @@ export function faviconSvg(tokens: Tokens): string {
     `<circle cx="16" cy="16" r="9.4" fill="${planet.shade}"/>`,
     `<circle cx="14" cy="14" r="8.8" fill="${planet.base}" clip-path="url(#favicon-planet)"/>`,
     // The near half: where it crosses the planet, a navy band first, so it reads as in front.
-    `<path d="${ringHalf('near')}" fill="none" stroke="${space[900]}" stroke-width="4.8" ` +
+    `<path d="${ringHalf('near')}" fill="none" stroke="${space[900]}" stroke-width="6.4" ` +
       `transform="${tilt}" clip-path="url(#favicon-planet)"/>`,
     `<path d="${ringHalf('near')}" fill="none" stroke="${ring}" stroke-width="2.4" ` +
       `stroke-linecap="round" transform="${tilt}"/>`,
