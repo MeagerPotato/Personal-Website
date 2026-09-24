@@ -2,6 +2,9 @@ import { maxYawRate, speedOf } from './flight';
 import { angleDelta, angleOf, clamp, smoothstep } from './math';
 import type { FlightInput, FlightParams, ShipState } from './types';
 
+/** An approach gives way to another body out to this many of its ring radii (see orbitWish). */
+const GIVE_WAY = 1.25;
+
 /**
  * ORBIT ASSIST: let go of the controls near a planet and the ship eases onto a ring around it
  * and keeps circling, so a planet is a place to arrive at and not a thing to fly past.
@@ -175,7 +178,8 @@ export interface WishPace {
  *
  * `pace` is for a pilot who ASKED to be there (sim/docking.ts): its own pace, a hurry (the further
  * from the ring, the faster the way back to it), and the brake when the ship is too fast for it.
- * The loose assist never hurries, and never brakes: that is the pilot's to do.
+ * It also gives way: see GIVE_WAY below. The loose assist never hurries, and never brakes: that
+ * is the pilot's to do.
  */
 export function orbitWish(
   field: BodyField,
@@ -231,8 +235,35 @@ export function orbitWish(
   const top = pace ? pace.speed : params.orbitSpeed;
   const rate = pace ? pace.maxRate : params.orbitMaxRate;
   const speed = Math.min(top, Math.min(top, rate * ring) + (pace ? pace.hurry : 0) * Math.abs(off));
-  const wantX = speed * dirX + bodyVx;
-  const wantZ = speed * dirZ + bodyVz;
+  let wantX = speed * dirX + bodyVx;
+  let wantZ = speed * dirZ + bodyVz;
+  if (pace) {
+    // An approach gives way. Inside another body's ring it never closes on that body, whatever
+    // its own ring wants, and slides round it instead (fading out by GIVE_WAY rings): a moon that
+    // lies between the ship and its planet's ring, or the moon it is leaving, is gone round, not
+    // skimmed. The cushions (sim/collide.ts) would stop the ship too, but only at the shell.
+    // (From proposal/warp.)
+    for (let j = 0; j < field.count; j += 1) {
+      if (j === i) continue;
+      const surface = field.radius[j] ?? 0;
+      if (!(surface > 0)) continue;
+      const inner = Math.max(field.ringRadius[j] ?? 0, surface);
+      const reach = GIVE_WAY * inner;
+      const rx = state.x - (field.positions[j * 2] ?? 0);
+      const rz = state.z - (field.positions[j * 2 + 1] ?? 0);
+      const dj = Math.hypot(rx, rz);
+      if (dj >= reach || dj < 1e-9) continue;
+      const nx = rx / dj;
+      const nz = rz / dj;
+      const closing =
+        (wantX - (field.velocities[j * 2] ?? 0)) * nx +
+        (wantZ - (field.velocities[j * 2 + 1] ?? 0)) * nz;
+      if (closing >= 0) continue;
+      const weight = clamp((reach - dj) / (reach - inner), 0, 1);
+      wantX -= closing * weight * nx;
+      wantZ -= closing * weight * nz;
+    }
+  }
   const wantSpeed = Math.hypot(wantX, wantZ);
 
   // Feed-forward. To stay on a circle the nose has to keep turning, and a turning ship slides

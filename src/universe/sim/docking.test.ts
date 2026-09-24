@@ -373,4 +373,42 @@ describe('docking', () => {
     };
     expect(run()).toEqual(run());
   });
+
+  it('goes round a moon that lies between the ship and its planet, not into it', () => {
+    for (const heading of [0, 1.5, 3, 4.5]) {
+      // In orbit round the moon, on the far side of it from the planet: the planet's ring lies
+      // straight through the moon. (From proposal/warp: without GIVE_WAY in sim/assist.ts the
+      // approach skims the moon, inside its cushion.)
+      const flight = start(0, 0, heading);
+      step(flight);
+      const planet = place(flight, 'planet');
+      const moon = place(flight, 'moon');
+      const ux = moon.x - planet.x;
+      const uz = moon.z - planet.z;
+      const u = Math.hypot(ux, uz);
+      const ring = flight.world.field.ringRadius[flight.world.orbits.indexOf('moon')] ?? 0;
+      flight.state.x = moon.x + (ux / u) * ring;
+      flight.state.z = moon.z + (uz / u) * ring;
+      flight.state.vx = moon.vx;
+      flight.state.vz = moon.vz;
+      request(flight, 'planet');
+      const m = flight.world.orbits.indexOf('moon');
+      let touched = false;
+      let least = Infinity;
+      for (let i = 0; i < 600 && flight.world.dock.phase !== 'docked'; i += 1) {
+        step(flight);
+        touched ||= flight.world.touched >= 0;
+        const at = place(flight, 'moon');
+        least = Math.min(
+          least,
+          Math.hypot(flight.state.x - at.x, flight.state.z - at.z) -
+            (flight.world.field.radius[m] ?? 0),
+        );
+      }
+      expect(flight.world.dock.phase, `heading ${heading}`).toBe('docked');
+      expect(touched, `heading ${heading}`).toBe(false);
+      // Clear of the moon's cushion, not merely of its shell.
+      expect(least, `heading ${heading}`).toBeGreaterThan(tuning.cushion.depth);
+    }
+  });
 });
