@@ -5,19 +5,35 @@ import { contrast, luminance, over } from './contrast';
 
 // The colour pairings src/styles/global.css relies on, measured from the tokens. Change a colour
 // and this says at once whether every pairing that uses it still passes WCAG AA: 4.5:1 for text,
-// 3:1 for the edges and marks that make a control or a family visible. The alphas mirror the
-// stylesheet's color-mix() percentages; a plate over the 3D world is measured over white, the
-// brightest thing it can sit on (a sun, a white peak, a pale ring).
+// 3:1 for the edges and marks that make a control or a family visible. The plates' alphas are
+// READ from the stylesheet's color-mix() percentages, so that thinning a plate is measured too;
+// a plate over the 3D world is measured over white, the brightest thing it can sit on (a sun, a
+// white peak, a pale ring).
 
 const { color } = tokens;
 const TEXT = 4.5;
 const MARK = 3;
 const WHITE = '#ffffff';
 
-/** --hud: the plate under every chip over the world (90% surface.panel). */
-const HUD = over(color.surface.panel, 0.9, WHITE);
-/** The info panel over the world (96% surface.panel). */
-const PANEL = over(color.surface.panel, 0.96, WHITE);
+const CSS = readFileSync(new URL('../styles/global.css', import.meta.url), 'utf8');
+
+/** How much of surface.panel a plate is, as the stylesheet mixes it (a share, 0 to 1). */
+function plateAlpha(pattern: RegExp): number {
+  const percent = CSS.match(pattern)?.[1];
+  // A renamed property or a rewritten mix must fail here, not quietly measure an old number.
+  if (percent === undefined) throw new Error(`global.css no longer matches ${pattern}`);
+  return Number(percent) / 100;
+}
+
+const HUD_ALPHA = plateAlpha(/--hud: color-mix\(in srgb, var\(--color-surface-panel\) ([\d.]+)%/);
+const PANEL_ALPHA = plateAlpha(
+  /html\[data-mode='universe'\] \.panel \{[^}]*?background: color-mix\(in srgb, var\(--color-surface-panel\) ([\d.]+)%/,
+);
+
+/** --hud: the plate under every chip over the world. */
+const HUD = over(color.surface.panel, HUD_ALPHA, WHITE);
+/** The info panel over the world. */
+const PANEL = over(color.surface.panel, PANEL_ALPHA, WHITE);
 /** The solid surfaces text sits on, in either mode. */
 const SURFACES = {
   'the page (space.900)': color.space[900],

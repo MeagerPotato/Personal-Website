@@ -69,6 +69,12 @@ for (const size of NARROW) {
         if (path !== '/') await softNavigate(page, path);
         expect(await sidewaysScroll(page), path).toBe(0);
       }
+      // One row at both widths, in our own face (Outfit, preloaded): waited for, not assumed, so
+      // that a runner whose fallback font is wider never measures the fallback.
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+      });
+      expect(await page.evaluate(() => document.fonts.check('600 15px Outfit'))).toBe(true);
       const rows = await page.evaluate(
         () =>
           new Set(
@@ -77,8 +83,6 @@ for (const size of NARROW) {
             ),
           ).size,
       );
-      // One row at both widths. The face is our own (Outfit, preloaded, and certainly there
-      // once the engine is ready), so the count no longer depends on the visitor's system font.
       expect(rows).toBe(1);
     });
   });

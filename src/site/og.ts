@@ -173,9 +173,10 @@ export function defaultOgSvg(tokens: Tokens): string {
     `<rect width="${width}" height="${height}" fill="url(#og-glow-b)"/>`,
     stars(tokens),
     orbits,
-    // The sun: flat discs, no blur, like everything else here.
-    `<circle cx="${SUN.x}" cy="${SUN.y}" r="86" fill="${sun.base}" fill-opacity="0.1"/>`,
-    `<circle cx="${SUN.x}" cy="${SUN.y}" r="66" fill="${sun.base}" fill-opacity="0.18"/>`,
+    // The sun, drawn as the site draws one at the end of a route line (.sun-dot): a disc, a gap
+    // of the ground, then a ring. Flat and opaque: butter mixed into navy would only make olive.
+    `<circle cx="${SUN.x}" cy="${SUN.y}" r="65" fill="${space[900]}"/>`,
+    `<circle cx="${SUN.x}" cy="${SUN.y}" r="61.5" fill="none" stroke="${sun.base}" stroke-width="7"/>`,
     `<circle cx="${SUN.x}" cy="${SUN.y}" r="48" fill="${sun.base}"/>`,
     `<circle cx="${SUN.x - 9}" cy="${SUN.y - 9}" r="30" fill="${sun.light}"/>`,
     bodies,

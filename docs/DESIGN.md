@@ -60,7 +60,9 @@ collapse for a colour-blind visitor (closest pair under any dichromacy about 10 
 and every family also has a **glyph**, a second cue that is not colour: butter a circle, sky a
 diamond, mint a triangle, coral a square, lilac a four-point spark (`--theme-glyph`, drawn with
 `clip-path` on the route sign's marker and the sun on the projects page; no font or image
-cost). Five families are enough for now; a sixth needs a sixth glyph. Three words of the
+cost). The spark and the triangle cover less of their box than a circle or a square, so they are
+drawn a touch larger (`--theme-glyph-scale`, 1.12 and 1.06): at 11 px all five read as the same
+size, and the spark stays a star, not a thin plus. Five families are enough for now; a sixth needs a sixth glyph. Three words of the
 vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
@@ -104,7 +106,8 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
   line break can gain or lose a line (measured: the home lede at 1280 px goes from three lines to
   two). The preload makes a fallback paint rare.
 - **Weights.** Body text 430 with a hair of tracking (Outfit is light and narrow at 400), labels
-  and nav 600, headings 700. Running text keeps to `--measure` (33 em, about 75 characters).
+  and nav 600, headings 700. Running text keeps to `--measure` (31 em: about 70 characters a
+  line, measured on the rendered lines, where 33 em had run to 77 to 82).
 - **Scale** (`text.*`, fluid from 360 px to about 1200 px; laptop / phone): display (the h1)
   60 / 40, `xl` (h2 and section heads) 30 / 24, `lg` (the lede, card titles) 25 / 21,
   `base` 18 / 17, `sm` 16 / 15, `xs` (caps labels) 13 / 12. The panel pins the scale to
@@ -134,7 +137,8 @@ mono stack (`font.mono`), which costs nothing. The other staged candidates are g
 - **Movement on hover or press uses the CSS `translate` (or `scale`) property, never
   `transform`**: the engine writes `transform` on the names and the touch controls every
   frame. There is no hover lift; if one is added, gate it with `(hover: hover)` and switch it off
-  when motion is reduced.
+  when motion is reduced. **Every hover state is gated with `(hover: hover)`**, colours too:
+  after a tap on a phone a lit key would stay lit, and a lit key reads as "on".
 - DOM motion tokens: `motion.fast base slow` with `easeOut` and `easeInOut`. Things ease out when
   they arrive and ease in-out when they move. Nothing bounces more than once.
 - **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax. The
@@ -200,7 +204,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The star map (`M`, the Map button, or scroll out): the lens, how long the way out takes, how far in and out it zooms and how much air the first fit leaves, how quickly pans and zooms settle, wheel and key speeds, how far a wheel must turn to open it | `tuning.map` |
 | The LOOK of the map: how flat the shading goes (`flatness`), how far the stars dim (`starOpacity`), the smallest size of each kind of body in px (`minRadiusPx`), how much room a moon needs beside its planet before it is drawn (`clearPx`), the size of the ship's marker (`shipRadiusPx`) | `tuning.map` (what flat MEANS: `uFlatness` in `shaders/toonFlat.ts`) |
 | The Map button: top right under the bar, `data-state='open'` while the map is up, the key cap hidden for fingers; and the cursor over the map (`canvas[data-map]`, `[data-dragging]`) | `.map-toggle` in `src/styles/global.css` |
-| Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once | `tuning.labels` |
+| Where a name sits under its body, how far names keep from each other, from the edges and from the top bar, how many may show at once. On the map the ship's marker is "you are here" and no name lies on it: a name the ship would be under moves above its body (`ui/Labels.ts`, `ship`); names also keep off the footer chip in the corner (`foot`, measured by `src/shell/panel-inset.ts`) | `tuning.labels` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); hidden while the map is open there. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
