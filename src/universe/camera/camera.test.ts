@@ -60,7 +60,10 @@ describe('the chase camera', () => {
         target.position.z += speed / hz;
         cam.update(frame(1 / hz), WIDE, pose);
       }
-      const ahead = params.lookAheadBase + params.lookAheadPerSpeed * speed;
+      const ahead = Math.min(
+        params.lookAheadMax,
+        params.lookAheadBase + params.lookAheadPerSpeed * speed,
+      );
       return target.position.z - (pose.focus.z - ahead);
     };
     const spring = (2 * 40) / params.positionOmega;
@@ -114,6 +117,30 @@ describe('the chase camera', () => {
     expect(view(new ChaseCam(fast, { reducedMotion: true })).pose.fov).toBe(
       tuning.camera.fovDegrees,
     );
+  });
+
+  it('looks no further ahead than its limit, so the view does not lie flat on the autopilot', () => {
+    const { thrustAccel, forwardDrag, boostFactor } = tuning.flight;
+    const top = (thrustAccel / forwardDrag) * boostFactor;
+    const cruise = tuning.cruise.far.cruiseSpeed;
+    // How far below the horizontal the camera looks, degrees.
+    const pitch = (speed: number): number => {
+      const { forward } = view(new ChaseCam(ship(0, 0, 0, speed), { reducedMotion: false }));
+      return (-Math.asin(forward.y) * 180) / Math.PI;
+    };
+    const warp = view(new ChaseCam(ship(0, 0, 0, cruise), { reducedMotion: false }));
+    expect(warp.pose.focus.z).toBeCloseTo(params.lookAheadMax, 6);
+    // A pilot's own top speed is short of the limit: the same view as before the autopilot's drive.
+    const piloted = view(new ChaseCam(ship(0, 0, 0, top), { reducedMotion: false }));
+    expect(piloted.pose.focus.z).toBeCloseTo(
+      params.lookAheadBase + params.lookAheadPerSpeed * top,
+      6,
+    );
+    // At 700 u/s the view still looks down at the plane (3.2 degrees; uncapped, 140 u ahead, it
+    // was 1.5), and it is the same view whatever the speed past the limit.
+    expect(pitch(cruise)).toBeGreaterThan(3.1);
+    expect(pitch(cruise)).toBeCloseTo(pitch(cruise * 3), 9);
+    expect(pitch(top)).toBeGreaterThan(pitch(cruise));
   });
 
   it('keeps the horizontal view wide enough on a tall phone, and backs off', () => {

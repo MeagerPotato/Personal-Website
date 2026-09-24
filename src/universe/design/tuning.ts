@@ -356,6 +356,12 @@ export const tuning = {
     lookAheadBase: 14,
     lookAheadPerSpeed: 0.18,
     /**
+     * ...but never further than this (u): the autopilot flies at up to 700 u/s, and 140 u ahead
+     * from 4.4 u up lays the view flat along the plane (a pitch of 1.5 degrees; 3.2 at 60 u,
+     * where a pilot's own top speed has 5.8 and a ship at rest 10).
+     */
+    lookAheadMax: 60,
+    /**
      * Springs, rad/s: higher = stiffer. The camera trails the ship by 2 * speed / positionOmega
      * units, easing into a limit of maxTrail (so about 4.4 u at cruise and 5.3 u under boost), and
      * its swing trails a turn by 2 * turnRate / yawOmega radians. That slack is what lets you SEE

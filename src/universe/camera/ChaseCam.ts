@@ -10,6 +10,7 @@ export interface ChaseCamParams {
   readonly up: number;
   readonly lookAheadBase: number;
   readonly lookAheadPerSpeed: number;
+  readonly lookAheadMax: number;
   readonly positionOmega: number;
   readonly maxTrail: number;
   readonly yawOmega: number;
@@ -120,7 +121,12 @@ export class ChaseCam implements CameraMode {
 
     const forwardX = Math.sin(this.yaw.value);
     const forwardZ = Math.cos(this.yaw.value);
-    const ahead = params.lookAheadBase + params.lookAheadPerSpeed * target.speed;
+    // Never further than lookAheadMax: at the autopilot's 700 u/s it would be 140 u, and from
+    // 4.4 u up the view would lie flat along the plane (a pitch of 1.5 degrees; 3.2 at the cap).
+    const ahead = Math.min(
+      params.lookAheadMax,
+      params.lookAheadBase + params.lookAheadPerSpeed * target.speed,
+    );
     out.focus.set(anchorX + forwardX * ahead, 0, anchorZ + forwardZ * ahead);
     this.eye.set(
       anchorX - forwardX * params.back * reach,
