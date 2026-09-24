@@ -6,13 +6,19 @@
  * tokens (src/universe/design/tokens.ts), exposed here as --custom-properties. Never write a hex
  * colour in this file.
  *
- * THE LOOK (A1, "roadmap"): Mini Motorways taken literally. The UI is signage and map legend on a
- * flat navy ground: one geometric face (Outfit), solid pill chips, the system families used as
- * FILLS (route signs, tags, primary buttons, the panel's top band), and thin route lines with
- * stations as the only ornament: a list of projects is a transit line, moons branch off on a
- * dotted spur, a career is a line of stops. Over the 3D world every control is a chip on a navy
- * plate (--hud) opaque enough to read on the brightest thing behind it. Tiles cast a flat hard
- * ledge (--ledge) instead of a soft shadow; nothing has a gradient on its surface.
+ * THE LOOK (A1, "roadmap"): Mini Motorways drawn in space. The UI is signage and map legend on a
+ * flat navy ground, in one geometric face (Outfit), and thin route lines with stations are its
+ * only ornament: a list of projects is a transit line, moons branch off on a dotted spur, a
+ * career is a line of stops. Each solar system is a colour FAMILY and a GLYPH (1c): its route
+ * sign is tinted, its lines and stations are drawn in it, and in any one view only the primary
+ * action is FILLED in it. Over the 3D world every control is a chip on a navy plate (--hud)
+ * opaque enough to read on the brightest thing behind it. Keys and tiles cast a flat hard ledge
+ * (--ledge) instead of a soft shadow; nothing has a gradient on its surface.
+ *
+ * Three words of the vocabulary never change meaning (section 2 says it in full):
+ *   butter      = HERE: the current page, the keyboard's focus, the body the ship is headed for
+ *   cream fill  = ON: a toggle that is switched on (and nothing else is filled in ink.high)
+ *   translate   = how anything moves on hover or press, never transform (the engine owns that)
  *
  * Structure:  0. the typeface (Outfit) and its measured fallback
  *             1. base = PLAIN MODE (also what no-JS visitors and print get)
@@ -106,16 +112,22 @@
  *   --line       the width of a route line
  *   --stop       the size of a planet's station on a line
  *   --ledge      the flat, hard shadow under a tile or a key (Mini Motorways' blocks cast one)
- *   --theme-*    the colour family in force: a solar system's (1c), else the home system's butter
+ *   --measure    the longest comfortable line of running text (about 75 characters of Outfit)
+ *   --rim        the navy band between a control and its focus ring (see :focus-visible, 1a)
+ *   --theme-*    the colour family in force: a solar system's (1c), else the home system's butter.
+ *                --theme-glyph is the family's SHAPE, so that colour is never the only cue.
  */
 :root {
   --ground: var(--color-space-900);
   --line: 0.1875rem;
   --stop: 3rem;
   --ledge: 0.1875rem;
+  --measure: 33em;
+  --rim: 0 0 0 0.125rem var(--color-space-950);
   --theme-base: var(--color-system-butter-base);
   --theme-light: var(--color-system-butter-light);
   --theme-shade: var(--color-system-butter-shade);
+  --theme-glyph: circle(50%);
 }
 
 html {
@@ -139,7 +151,11 @@ body {
   background-size: 1.5rem 1.5rem;
   font-family: var(--font-body);
   font-size: var(--text-base);
-  line-height: 1.6;
+  /* Outfit is light and narrow at its regular weight: a touch heavier and a hair looser for
+     reading (the axis is continuous, so 430 costs nothing). */
+  font-weight: 430;
+  line-height: 1.65;
+  letter-spacing: 0.006em;
   -webkit-font-smoothing: antialiased;
   font-kerning: normal;
 }
@@ -178,10 +194,11 @@ body {
 }
 
 /*
- * The nav is a row of chips. The chip you can see is 36 px tall; the transparent border makes the
- * link itself a 44 px touch target without making the chip chunky.
+ * The nav is a row of words. A hover lights a 36 px chip behind one; the transparent border makes
+ * the link itself a 44 px touch target without making the chip chunky.
  */
 .site-nav a {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
@@ -204,15 +221,56 @@ body {
   background-color: var(--color-surface-raised);
 }
 
-/* You are here: the one filled chip in the row. */
-.site-nav a[aria-current],
-.site-nav a[aria-current]:hover {
-  color: var(--color-space-900);
-  background-color: var(--color-ink-high);
+/*
+ * You are here: the word in full ink over a short butter bar, like a lane marking. BUTTER MEANS
+ * "HERE": the current page, the keyboard's focus, the body the ship is headed for. A shape as
+ * well as a colour, so it reads without colour vision too (and forced colours get an underline).
+ */
+.site-nav a[aria-current] {
+  color: var(--color-ink-high);
 }
 
+.site-nav a[aria-current]::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0.375rem;
+  width: 1.25rem;
+  height: 0.1875rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-focus);
+  translate: -50% 0;
+}
+
+/*
+ * Forced colours (Windows High Contrast) repaint everything in the system's few colours and drop
+ * every shadow and fill. What must survive: the current page (underlined here), the ring (an
+ * outline, which is kept), and each family's glyph, drawn in the text colour. The transparent
+ * borders that make 44 px targets would come back as lines: padding does their job instead.
+ */
+@media (forced-colors: active) {
+  .site-nav a[aria-current] {
+    text-decoration: underline;
+    text-decoration-thickness: 0.15em;
+    text-underline-offset: 0.3em;
+  }
+
+  .site-nav a,
+  .resume-contact a {
+    border-block-width: 0;
+    padding-block: 0.25rem;
+  }
+
+  .eyebrow::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
+/* The ring goes round the 36 px chip, not the 44 px target, and needs no rim on the plain navy. */
 .site-nav a:focus-visible {
-  outline-offset: -0.0625rem;
+  outline-offset: -0.25rem;
+  box-shadow: none;
 }
 
 /* The wordmark: the name, then a little transit line of three stations. */
@@ -272,13 +330,22 @@ h1 {
   text-wrap: balance;
 }
 
-/* A route sign: the kind of place this is, on a plate in the colour of its system. */
+/*
+ * A route sign: the kind of place this is. A tinted plate with a hairline edge and the family's
+ * glyph, quiet enough that the heading under it wins the first glance: the one solid family
+ * fill in a view is the primary action.
+ */
 .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
   width: fit-content;
-  padding: 0.35em 0.8em 0.3em;
+  max-width: 100%;
+  padding: 0.3em 0.8em 0.3em 0.65em;
+  border: 1px solid color-mix(in srgb, var(--theme-base) 50%, transparent);
   border-radius: var(--radius-sm);
-  color: var(--color-space-900);
-  background: var(--theme-base);
+  color: var(--theme-light);
+  background: color-mix(in srgb, var(--theme-base) 10%, transparent);
   font-family: var(--font-display);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -287,11 +354,22 @@ h1 {
   text-transform: uppercase;
 }
 
+/* The family's glyph: circle, diamond, triangle, square or spark (1c). */
+.eyebrow::before {
+  content: '';
+  flex: none;
+  width: 0.875em;
+  height: 0.875em;
+  background: var(--theme-base);
+  clip-path: var(--theme-glyph);
+}
+
 .eyebrow + h1 {
   margin-top: var(--space-4);
 }
 
 .lede {
+  max-width: var(--measure);
   color: var(--color-ink-high);
   font-size: var(--text-lg);
   font-weight: 400;
@@ -300,7 +378,7 @@ h1 {
 }
 
 p {
-  max-width: 62ch;
+  max-width: var(--measure);
   color: var(--color-ink-mid);
   text-wrap: pretty;
 }
@@ -316,10 +394,17 @@ a:hover {
   color: var(--color-ink-high);
 }
 
+/*
+ * Focus: a butter ring with a navy rim between it and the control, so it reads on anything (a
+ * white peak, a pale ring, a butter button: butter meets navy, never butter). Controls that cast
+ * a ledge or draw an edge with box-shadow add --rim to their own shadows in their focus rule.
+ * Forced colours drop the shadow and keep the outline, in the system's own colour.
+ */
 :focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 3px;
+  outline: 0.1875rem solid var(--color-focus);
+  outline-offset: 0.125rem;
   border-radius: var(--radius-sm);
+  box-shadow: var(--rim);
 }
 
 /*
@@ -329,6 +414,7 @@ a:hover {
  */
 h1[tabindex='-1']:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 
 /* A legend: the name, a dotted leader, what it is. */
@@ -378,11 +464,12 @@ h1[tabindex='-1']:focus-visible {
 
 /* 1b. Type ------------------------------------------------------------------------------------ */
 
+/* display / h2 / lede / body: 60 / 30 / 25 / 18 px on a laptop, 40 / 24 / 21 / 17 on a phone. */
 h2 {
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
@@ -422,7 +509,13 @@ main > .resume-section {
  *
  * A page whose header names a family (a system, a project) hands it to everything in the page and
  * to the panel round it, through :has(): route lines, chips, the panel's top band. Anything
- * without one is in the home system, which is butter (:root, 1a).
+ * without one is in the home system, which is butter (:root, 1a). A card names its own family
+ * (src/components/ProjectCards.astro), so a list that mixes systems keeps each planet's colour.
+ *
+ * Every family also has a GLYPH, a shape drawn beside its colour wherever the family is named
+ * (the route sign's marker, a sun on the projects page), so that nobody has to tell sky from
+ * lilac to know which system they are in. Five silhouettes that stay apart at 10 px: butter a
+ * circle, sky a diamond, mint a triangle, coral a square, lilac a four-point spark.
  */
 
 [data-theme='coral'],
@@ -430,6 +523,7 @@ main > .resume-section {
   --theme-base: var(--color-system-coral-base);
   --theme-light: var(--color-system-coral-light);
   --theme-shade: var(--color-system-coral-shade);
+  --theme-glyph: inset(9% round 16%);
 }
 
 [data-theme='butter'],
@@ -437,6 +531,7 @@ main > .resume-section {
   --theme-base: var(--color-system-butter-base);
   --theme-light: var(--color-system-butter-light);
   --theme-shade: var(--color-system-butter-shade);
+  --theme-glyph: circle(50%);
 }
 
 [data-theme='mint'],
@@ -444,6 +539,7 @@ main > .resume-section {
   --theme-base: var(--color-system-mint-base);
   --theme-light: var(--color-system-mint-light);
   --theme-shade: var(--color-system-mint-shade);
+  --theme-glyph: polygon(50% 3%, 100% 93%, 0 93%);
 }
 
 [data-theme='sky'],
@@ -451,6 +547,7 @@ main > .resume-section {
   --theme-base: var(--color-system-sky-base);
   --theme-light: var(--color-system-sky-light);
   --theme-shade: var(--color-system-sky-shade);
+  --theme-glyph: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 [data-theme='lilac'],
@@ -458,10 +555,7 @@ main > .resume-section {
   --theme-base: var(--color-system-lilac-base);
   --theme-light: var(--color-system-lilac-light);
   --theme-shade: var(--color-system-lilac-shade);
-}
-
-[data-theme] .eyebrow {
-  background: var(--theme-base);
+  --theme-glyph: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
 }
 
 [data-biome='terra'] {
@@ -572,9 +666,15 @@ main > .resume-section {
 
 /*
  * Buttons are keys: a flat pill on a hard ledge, which it drops onto when pressed. The primary
- * one is filled in the page's family (sky on a project in the Code system).
+ * one is filled in the page's family (sky on a project in the Code system): the one solid family
+ * fill in a view. The others are outlined keys, their edge in ink.low (6.7:1 on the page, so the
+ * boundary is plain to see, 3:1 being the bar).
+ * --key-edge and --key-ledge are the two shadows a key casts; its focus ring adds --rim to them.
  */
 .button {
+  --key-edge: inset 0 0 0 0.09375rem var(--color-ink-low);
+  --key-ledge: 0 var(--ledge) 0 var(--color-space-950);
+
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -583,33 +683,46 @@ main > .resume-section {
   border: 0;
   border-radius: var(--radius-pill);
   color: var(--color-ink-high);
-  background: var(--color-surface-raised);
-  box-shadow: 0 var(--ledge) 0 var(--color-space-950);
+  background: var(--color-space-900);
+  box-shadow: var(--key-edge), var(--key-ledge);
   font-weight: 600;
   line-height: 1.5;
   text-decoration: none;
   transition:
     color var(--motion-fast) var(--motion-ease-out),
-    background-color var(--motion-fast) var(--motion-ease-out);
+    background-color var(--motion-fast) var(--motion-ease-out),
+    box-shadow var(--motion-fast) var(--motion-ease-out);
 }
 
 .button:hover {
+  --key-edge: inset 0 0 0 0.09375rem var(--color-ink-mid);
+
   color: var(--color-ink-high);
-  background: var(--color-surface-line);
+  background: var(--color-surface-raised);
 }
 
+.button:focus-visible {
+  box-shadow: var(--key-edge), var(--rim), var(--key-ledge);
+}
+
+/* Pressed: the key drops onto its ledge. (The translate property, never transform: see 2.) */
 .button:active {
-  box-shadow: none;
-  transform: translateY(var(--ledge));
+  --key-ledge: 0 0 0 transparent;
+
+  translate: 0 var(--ledge);
 }
 
 .button--primary {
+  --key-edge: inset 0 0 0 0 transparent;
+  --key-ledge: 0 var(--ledge) 0 var(--theme-shade);
+
   color: var(--color-space-900);
   background: var(--theme-base);
-  box-shadow: 0 var(--ledge) 0 var(--theme-shade);
 }
 
 .button--primary:hover {
+  --key-edge: inset 0 0 0 0 transparent;
+
   color: var(--color-space-900);
   background: var(--theme-light);
 }
@@ -624,6 +737,12 @@ main > .resume-section {
  * system's colour, running from the first station to an end-of-line bar. Moons branch off on a
  * dotted spur. No boxes: this is a legend, not a stack of cards.
  */
+.cards,
+.system {
+  /* Where the route line runs: through the middle of the stations. */
+  --lane-x: calc(var(--stop) / 2);
+}
+
 .cards {
   position: relative;
   display: grid;
@@ -644,13 +763,13 @@ main > .resume-section {
 /* The line... */
 .cards::before {
   top: calc(var(--stop) / 2);
-  left: calc(var(--stop) / 2 - var(--line) / 2);
+  left: calc(var(--lane-x) - var(--line) / 2);
   width: var(--line);
 }
 
 /* ...and where it ends. */
 .cards::after {
-  left: calc(var(--stop) / 2 - 0.625rem);
+  left: calc(var(--lane-x) - 0.625rem);
   width: 1.25rem;
   height: var(--line);
 }
@@ -824,12 +943,12 @@ main > .resume-section {
 
 .system::before {
   top: 1.5rem;
-  left: calc(var(--stop) / 2 - var(--line) / 2);
+  left: calc(var(--lane-x) - var(--line) / 2);
   width: var(--line);
 }
 
 .system::after {
-  left: calc(var(--stop) / 2 - 0.625rem);
+  left: calc(var(--lane-x) - 0.625rem);
   width: 1.25rem;
   height: var(--line);
 }
@@ -870,15 +989,26 @@ main > .resume-section {
 .sun-dot {
   position: relative;
   z-index: 1;
+  display: grid;
+  place-items: center;
   flex: none;
-  width: 1.75rem;
-  height: 1.75rem;
-  margin-left: calc(var(--stop) / 2 - 0.875rem);
+  width: var(--sun, 1.75rem);
+  height: var(--sun, 1.75rem);
+  margin-left: calc(var(--lane-x) - var(--sun, 1.75rem) / 2);
   border-radius: var(--radius-pill);
   background: var(--theme-base);
   box-shadow:
     0 0 0 0.25rem var(--ground),
     0 0 0 calc(0.25rem + var(--line)) var(--theme-base);
+}
+
+/* The family's glyph, cut out of the sun: a line's bullet on a transit map. */
+.sun-dot::after {
+  content: '';
+  width: 50%;
+  height: 50%;
+  background: var(--ground);
+  clip-path: var(--theme-glyph);
 }
 
 /* The facts about a project: a legend plate with its system's colour band across the top. */
@@ -915,7 +1045,7 @@ main > .resume-section {
   color: var(--color-ink-high);
 }
 
-/* What it is built with: chips filled in the system's colour. */
+/* What it is built with: chips tinted in the system's colour, with a hairline edge. */
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -926,10 +1056,11 @@ main > .resume-section {
 }
 
 .tags li {
-  padding: 0.2em 0.75em 0.15em;
+  padding: 0.15em 0.75em 0.1em;
+  border: 1px solid color-mix(in srgb, var(--theme-base) 50%, transparent);
   border-radius: var(--radius-pill);
-  color: var(--color-space-900);
-  background: var(--theme-base);
+  color: var(--theme-light);
+  background: color-mix(in srgb, var(--theme-base) 12%, transparent);
   font-size: var(--text-sm);
   font-weight: 500;
   line-height: 1.5;
@@ -1005,9 +1136,10 @@ picture {
   line-height: 1.45;
 }
 
+/* The bullets hang in the list's indent; the words keep the paragraphs' measure. */
 .prose ul,
 .prose ol {
-  max-width: 62ch;
+  max-width: calc(var(--measure) + 1.25em);
   padding-left: 1.25em;
   color: var(--color-ink-mid);
 }
@@ -1118,9 +1250,62 @@ picture {
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
+.resume-contact a:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--color-surface-line),
+    var(--rim);
+}
+
+/* A section of the resume is a stop on the page: its name after a station ring. */
 .resume-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-surface-line);
+  font-size: var(--text-lg);
+}
+
+.resume-section > h2::before {
+  content: '';
+  flex: none;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  border: var(--line) solid var(--theme-base);
+  border-radius: var(--radius-pill);
+}
+
+/*
+ * On a wide screen the resume reads like a printed one: each section's name in a column of its
+ * own, hung in the margin to the left of the text, so the entries keep the page's full measure.
+ * Screen and plain mode only: the panel is a narrow column, a phone has no margin to hang it in,
+ * and paper keeps the one classic column (section 4).
+ */
+@media screen and (min-width: 72rem) {
+  html:not([data-mode='universe']) .resume-section {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+    gap: var(--space-4) var(--space-6);
+    margin-left: calc(-10.5rem - var(--space-6));
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-surface-line);
+  }
+
+  html:not([data-mode='universe']) .resume-section > h2 {
+    align-self: start;
+    padding: 0;
+    border: 0;
+    line-height: 1.3;
+  }
+
+  html:not([data-mode='universe']) .resume-section > :not(h2) {
+    grid-column: 2;
+  }
+
+  html:not([data-mode='universe']) .skills > div {
+    display: grid;
+    grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
 }
 
 /* A career is a route too: each role a station on a thin line down the left. */
@@ -1246,6 +1431,7 @@ picture {
   content: ' · ';
 }
 
+/* The first stop for a keyboard: a butter pill (butter is "here"), off screen until focused. */
 .skip-link {
   position: absolute;
   top: var(--space-4);
@@ -1254,16 +1440,20 @@ picture {
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
-  padding: 0 var(--space-4);
+  padding: 0 1.25rem;
   border-radius: var(--radius-pill);
-  color: var(--color-space-900);
+  color: var(--color-space-950);
   background: var(--color-focus);
-  font-weight: 600;
+  box-shadow: 0 var(--ledge) 0 var(--color-system-butter-shade);
+  font-weight: 700;
   text-decoration: none;
   transform: translateY(-300%);
 }
 
 .skip-link:focus-visible {
+  box-shadow:
+    var(--rim),
+    0 var(--ledge) 0 var(--color-system-butter-shade);
   transform: none;
 }
 
@@ -1298,7 +1488,7 @@ picture {
   gap: var(--space-2);
   min-height: 2.75rem;
   padding: 0 var(--space-4);
-  border: 1px solid var(--color-surface-line);
+  border: 1px solid var(--color-ink-low);
   border-radius: var(--radius-pill);
   color: var(--color-ink-high);
   background: var(--color-surface-panel);
@@ -1335,7 +1525,19 @@ picture {
 
    Every control over the world is a CHIP on a navy plate (--hud), opaque enough that its text
    passes AA over the brightest thing in the world (a white peak, a pale ring, a sun): the
-   contrast never depends on what happens to be behind it. */
+   contrast never depends on what happens to be behind it.
+
+   Three rules hold every piece of it together:
+   - BUTTER MEANS "HERE": the current page (a bar under its name), the keyboard's focus (the
+     ring), the body the ship is headed for (the one filled name tag).
+   - THE CREAM FACE MEANS "ON": a control filled in ink.high is a toggle that is switched on,
+     and nothing else is ever filled in it: the Map button while the map is open, the sheet's
+     Expand while the sheet is up (aria-pressed), the welcome button while its text shows
+     (aria-expanded).
+   - MOVEMENT USES THE translate PROPERTY, NEVER transform. The engine writes transform on the
+     names and the touch controls every frame, and the prompt is centred with translate: a
+     hover lift or a press written as transform would throw them across the screen. Any lift
+     on hover is gated by (hover: hover) and switched off when motion is reduced. */
 
 .panel {
   align-self: start;
@@ -1353,9 +1555,21 @@ picture {
     /* The boost pad, and how far it keeps from the bottom: the dock prompt steps over both. */
     --boost-pad-size: 4.75rem;
     --boost-pad-bottom: max(var(--space-8), calc(env(safe-area-inset-bottom) + var(--space-4)));
-    /* The plate under every chip over the world. */
+    /*
+     * The plate under every chip over the world. Over white (the worst case) it is #2a314a:
+     * ink.high 11.6:1, ink.mid 7.2, butter 9.4. ink.low would be 4.49, a hair under AA, so
+     * ink.low is NEVER text on this plate (src/site/contrast.test.ts holds all of these).
+     */
     --hud: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
     --hud-edge: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
+  }
+
+  /* Asked for more contrast, or in forced colours: nothing of the world shows through any plate. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    html[data-mode='universe'] {
+      --hud: var(--color-surface-panel);
+      --hud-edge: var(--color-ink-low);
+    }
   }
 
   html[data-mode='universe'],
@@ -1466,12 +1680,16 @@ picture {
     touch-action: none;
   }
 
-  /* Pressed: the pad lights up in coral, the colour of the flame. */
+  /* Pressed: the pad lights up in coral, the colour of the flame, and gives a little. */
   .touch-boost[data-active] {
     border-color: var(--color-system-coral-light);
     background: var(--color-system-coral-base);
     color: var(--color-space-900);
-    transform: scale(0.94);
+    scale: 0.94;
+  }
+
+  html[data-motion='reduced'] .touch-boost[data-active] {
+    scale: none;
   }
 
   .touch-stick[hidden],
@@ -1518,7 +1736,8 @@ picture {
     border: 1px solid var(--hud-edge);
     border-radius: var(--radius-md);
     color: var(--color-ink-mid);
-    background: var(--color-surface-panel);
+    /* Opaque: nothing of the world ghosts through the words. */
+    background: var(--color-surface-raised);
     box-shadow:
       inset 0 0.25rem 0 var(--color-system-butter-base),
       0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
@@ -1562,15 +1781,42 @@ picture {
   }
 
   @media (pointer: coarse) {
-    /* Thumbs fly from the bottom of the screen: the card goes under the top bar instead. */
+    /*
+     * Thumbs fly from the bottom of the screen: the card goes under the top bar instead, level
+     * with the Map button (whose corner it leaves free), and as small as its words allow, so
+     * that the home planet below it stays in sight. "Got it" sits beside the last line.
+     */
     html[data-mode='universe'][data-engine='ready'][data-panel='closed']
       .flight-hint:not([hidden]) {
-      top: calc(env(safe-area-inset-top) + 6.75rem);
-      /* The Map button (below) has the corner beside it. */
+      top: calc(var(--panel-inset-top, 6.25rem) + var(--space-3));
       right: calc(max(var(--space-4), env(safe-area-inset-right)) + 4.25rem + var(--space-3));
       bottom: auto;
       left: max(var(--space-4), env(safe-area-inset-left));
-      max-width: none;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: var(--space-2);
+      max-width: 22rem;
+      padding: calc(var(--space-3) + 0.25rem) var(--space-2) var(--space-2) var(--space-4);
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    .flight-hint ul {
+      gap: var(--space-1);
+      padding-bottom: var(--space-2);
+    }
+
+    .flight-hint .panel-button {
+      padding-inline: var(--space-3);
+    }
+
+    /* The narrowest phones: a size smaller, so the card stays short above the home planet. */
+    @media (max-width: 22.49rem) {
+      html[data-mode='universe'][data-engine='ready'][data-panel='closed']
+        .flight-hint:not([hidden]) {
+        font-size: 0.8125rem;
+        line-height: 1.3;
+      }
     }
 
     .flight-hint .flight-hint__keys {
@@ -1585,7 +1831,7 @@ picture {
   @keyframes flight-hint-in {
     from {
       opacity: 0;
-      transform: translateY(0.5rem);
+      translate: 0 0.5rem;
     }
   }
 
@@ -1625,7 +1871,9 @@ picture {
     color: var(--color-ink-high);
     background: none;
     font: inherit;
-    font-size: var(--text-xs);
+    /* One size at every width and in both views: the engine measures each name once (after the
+       font arrives, and on resize), and 13 px is the smallest a name may be on the map. */
+    font-size: 0.8125rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     line-height: 1.4;
@@ -1672,29 +1920,52 @@ picture {
     text-transform: uppercase;
   }
 
+  /* A moon is a smaller thing: quieter ink, a lighter weight. */
   .body-label[data-kind='moon'] {
     color: var(--color-ink-mid);
-    font-weight: 500;
+    font-weight: 450;
   }
 
-  .body-label:hover,
   .body-label:focus-visible {
     color: var(--color-ink-high);
   }
 
-  .body-label:hover::after {
-    background: var(--color-surface-raised);
+  /* A mouse over a name: the tag lights up and takes a thin ring. Never for a finger, where a
+     hover state would stick after the tap. */
+  @media (hover: hover) {
+    .body-label:hover {
+      color: var(--color-ink-high);
+    }
+
+    .body-label:hover::after {
+      background: var(--color-surface-raised);
+      box-shadow: inset 0 0 0 1px var(--color-ink-low);
+    }
   }
 
   /* The ring goes round the tag, not round the 44 px box. */
   .body-label:focus-visible {
     outline: none;
+    box-shadow: none;
   }
 
   .body-label:focus-visible::after {
     box-shadow:
       0 0 0 0.125rem var(--color-space-950),
-      0 0 0 0.25rem var(--color-focus);
+      0 0 0 0.3125rem var(--color-focus);
+  }
+
+  /* Forced colours drop every shadow and every fill: the focused name keeps a real outline, and
+     the one the ship is headed for a border. */
+  @media (forced-colors: active) {
+    .body-label:focus-visible::after {
+      outline: 0.1875rem solid Highlight;
+      outline-offset: 0.125rem;
+    }
+
+    .body-label[data-state='target']::after {
+      border: 0.125rem solid CanvasText;
+    }
   }
 
   /* Where the ship is headed: the one tag filled in, with a station dot. */
@@ -1751,7 +2022,7 @@ picture {
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
-    transform: translateX(-50%);
+    translate: -50% 0;
     animation: dock-prompt-in var(--motion-base) var(--motion-ease-out);
   }
 
@@ -1762,6 +2033,18 @@ picture {
   .dock-prompt:hover {
     border-color: var(--color-ink-low);
     background: var(--color-surface-raised);
+  }
+
+  .dock-prompt:focus-visible {
+    box-shadow:
+      var(--rim),
+      0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+  }
+
+  /* Pressed: the chip drops onto its ledge. */
+  .dock-prompt:active {
+    translate: -50% var(--ledge);
+    box-shadow: none;
   }
 
   .dock-prompt span {
@@ -1789,12 +2072,14 @@ picture {
     display: none;
   }
 
-  /* "Flying to FishAI | Stop": the label is news, this is what pressing the button does. */
+  /* "Flying to FishAI | Stop": the label is news, this is what pressing the button does, set
+     apart by a hairline and in butter (9.4:1 on the plate over white). */
   .dock-prompt .dock-prompt__action {
     flex: none;
     padding-left: var(--space-3);
-    border-left: 1px solid var(--color-surface-line);
-    color: var(--color-ink-mid);
+    border-left: 1px solid color-mix(in srgb, var(--color-ink-high) 28%, transparent);
+    color: var(--color-focus);
+    font-weight: 700;
   }
 
   .dock-prompt .dock-prompt__action[hidden] {
@@ -1824,7 +2109,7 @@ picture {
   @keyframes dock-prompt-in {
     from {
       opacity: 0;
-      transform: translate(-50%, 0.5rem);
+      translate: -50% 0.5rem;
     }
   }
 
@@ -1836,7 +2121,7 @@ picture {
    * The Map button (universe/ui/StarMap.ts): "Map" while flying, "Close map" on the map. Top
    * right of the free view, just under the links of the top bar, whose reach the shell measures
    * (--panel-inset-top, src/shell/panel-inset.ts); the fallback is the bar on a wide screen.
-   * While the map is up it is the filled chip: a toggle that is on.
+   * While the map is up it wears the cream face: a toggle that is on.
    */
   .map-toggle {
     position: absolute;
@@ -1862,6 +2147,17 @@ picture {
   .map-toggle:hover {
     border-color: var(--color-ink-low);
     background: var(--color-surface-raised);
+  }
+
+  .map-toggle:focus-visible {
+    box-shadow:
+      var(--rim),
+      0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+  }
+
+  .map-toggle:active {
+    translate: 0 var(--ledge);
+    box-shadow: none;
   }
 
   .map-toggle[data-state='open'],
@@ -1946,19 +2242,23 @@ picture {
     margin-left: auto;
   }
 
+  /* One tray on the plate, not a chip per link: calmer over the world, and one shape to find. */
+  html[data-mode='universe'] .site-nav ul {
+    margin: 0;
+    padding: 0 var(--space-1);
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+    gap: 0;
+  }
+
   html[data-mode='universe'] .site-nav a {
-    background-color: var(--hud);
+    padding-inline: 0.875rem;
   }
 
   html[data-mode='universe'] .site-nav a:hover {
     color: var(--color-ink-high);
     background-color: var(--color-surface-raised);
-  }
-
-  html[data-mode='universe'] .site-nav a[aria-current],
-  html[data-mode='universe'] .site-nav a[aria-current]:hover {
-    color: var(--color-space-900);
-    background-color: var(--color-ink-high);
   }
 
   .panel-button {
@@ -1982,7 +2282,7 @@ picture {
     background: var(--color-surface-raised);
   }
 
-  /* On: the welcome text is showing, or the sheet is pulled all the way up. */
+  /* On (the cream face): the welcome text is showing, or the sheet is pulled all the way up. */
   .panel-button[aria-expanded='true'],
   .panel-button[aria-pressed='true'],
   .panel-button[aria-expanded='true']:hover,
@@ -2034,6 +2334,14 @@ picture {
       visibility 0s;
   }
 
+  @media (prefers-contrast: more), (forced-colors: active) {
+    html[data-mode='universe'] .panel {
+      background: var(--color-surface-panel);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
   html[data-mode='universe'] .panel-bar {
     display: flex;
     flex: none;
@@ -2053,7 +2361,8 @@ picture {
     background: var(--color-surface-line);
   }
 
-  html[data-mode='universe'] .panel-bar .panel-button[aria-pressed='true'] {
+  html[data-mode='universe'] .panel-bar .panel-button[aria-pressed='true'],
+  html[data-mode='universe'] .panel-bar .panel-button[aria-pressed='true']:hover {
     border-color: transparent;
     background: var(--color-ink-high);
   }
@@ -2089,16 +2398,19 @@ picture {
     background: var(--color-surface-raised);
   }
 
-  html[data-mode='universe'] .button {
-    box-shadow: 0 var(--ledge) 0 var(--color-space-900);
+  /* Keys in the panel: the same outline and ledge, on the panel's own navy. */
+  html[data-mode='universe'] .button:not(.button--primary) {
+    --key-ledge: 0 var(--ledge) 0 var(--color-space-900);
+
+    background: var(--color-surface-panel);
   }
 
-  html[data-mode='universe'] .button--primary {
-    box-shadow: 0 var(--ledge) 0 var(--theme-shade);
+  html[data-mode='universe'] .button:not(.button--primary):hover {
+    background: var(--color-surface-raised);
   }
 
   html[data-mode='universe'] .button:active {
-    box-shadow: none;
+    --key-ledge: 0 0 0 transparent;
   }
 
   /* What is left of the footer is the way out to the plain version: a corner of the HUD. */
@@ -2118,6 +2430,10 @@ picture {
     font-size: var(--text-sm);
   }
 
+  html[data-mode='universe'] .mode-link:focus-visible {
+    box-shadow: var(--rim);
+  }
+
   html[data-mode='universe'] .mode-link:hover {
     border-color: var(--color-ink-low);
     background: var(--color-surface-raised);
@@ -2125,12 +2441,15 @@ picture {
 
   /* Narrow screens: the panel is a sheet that rises from the bottom edge. */
   @media (max-width: 47.99rem) {
+    /* Tight: every pixel of bar is a pixel less of world between it and the sheet. */
     html[data-mode='universe'] .masthead {
-      padding-inline: max(var(--space-4), env(safe-area-inset-left))
-        max(var(--space-4), env(safe-area-inset-right));
+      row-gap: var(--space-1);
+      padding: max(var(--space-2), env(safe-area-inset-top))
+        max(var(--space-4), env(safe-area-inset-right)) var(--space-4)
+        max(var(--space-4), env(safe-area-inset-left));
     }
 
-    /* Two rows: the wordmark and the welcome button, then the nav across the full width. */
+    /* Two rows: the wordmark and the welcome button, then the nav tray across the full width. */
     html[data-mode='universe'] .panel-toggle {
       margin-left: auto;
     }
@@ -2143,6 +2462,17 @@ picture {
     html[data-mode='universe'] .site-nav ul {
       justify-content: space-between;
       margin-inline: 0;
+    }
+
+    html[data-mode='universe'] .site-nav li {
+      display: flex;
+      flex: 1 1 auto;
+    }
+
+    html[data-mode='universe'] .site-nav a {
+      flex: 1;
+      justify-content: center;
+      padding-inline: 0.5rem;
     }
 
     html[data-mode='universe'] .panel {
@@ -2190,7 +2520,8 @@ picture {
 
 /*
  * Phones, plain mode: the nav takes a row of its own under the wordmark and spreads across it,
- * each chip's text lined up with the page's edges (the chips reach into the gutter).
+ * each word lined up with the page's edges (the hover chips reach into the gutter; nothing that
+ * shows at rest does).
  */
 @media (max-width: 29.99rem) {
   .site-nav {
@@ -2200,6 +2531,127 @@ picture {
   .site-nav ul {
     justify-content: space-between;
     margin-inline: -0.75rem;
+  }
+
+  .eyebrow {
+    letter-spacing: 0.065em;
+  }
+
+  /*
+   * A list of projects keeps its route line, but in a slim lane down the left: each planet's
+   * station is a ring on the line, tied to the planet beside its name, and the words take the
+   * card's whole width instead of a column beside a 3 rem station.
+   */
+  .cards,
+  .system {
+    --lane-x: 0.625rem;
+    --sun: 1.25rem;
+  }
+
+  .card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: var(--space-2) var(--space-3);
+    padding-left: 2rem;
+  }
+
+  .card__body {
+    display: contents;
+  }
+
+  .card__body > * {
+    grid-column: 1 / -1;
+  }
+
+  .card__body > .card__title {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: center;
+  }
+
+  .card > .planet-dot {
+    grid-row: 1;
+    grid-column: 1;
+    width: 2.5rem;
+    height: 2.5rem;
+    box-shadow: inset -0.45rem -0.33rem 0 0
+      color-mix(in srgb, var(--color-space-800) 38%, transparent);
+  }
+
+  /* The station on the line, and the short track that ties it to its planet. */
+  .card::before,
+  .card::after {
+    content: '';
+    position: absolute;
+    top: calc(1.25rem - 0.4375rem);
+  }
+
+  .card::before {
+    z-index: 1;
+    left: calc(var(--lane-x) - 0.4375rem);
+    width: 0.875rem;
+    height: 0.875rem;
+    border: var(--line) solid var(--theme-base);
+    border-radius: var(--radius-pill);
+    background: var(--ground);
+  }
+
+  .card::after {
+    top: calc(1.25rem - var(--line) / 2);
+    left: var(--lane-x);
+    width: calc(2rem - var(--lane-x));
+    height: var(--line);
+    background: var(--theme-base);
+  }
+
+  .system > h2 {
+    gap: 0.75rem;
+  }
+
+  .system > p {
+    padding-left: 2rem;
+  }
+
+  /* The ways to reach Allen: one legend plate of 44 px rows, not a loose wrap of chips. */
+  .resume-contact {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--color-surface-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-panel);
+  }
+
+  .resume-contact li + li {
+    border-top: 1px solid var(--color-surface-line);
+  }
+
+  .resume-contact a {
+    display: flex;
+    min-height: 2.75rem;
+    padding: 0 var(--space-4);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow-wrap: anywhere;
+  }
+
+  .resume-contact a:hover {
+    background: var(--color-surface-raised);
+    box-shadow: none;
+  }
+
+  .resume-contact li:first-child a {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .resume-contact li:last-child a {
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  .resume-contact a:focus-visible {
+    outline-offset: -0.1875rem;
+    box-shadow: none;
   }
 }
 
@@ -2247,6 +2699,55 @@ html:not([data-mode]) .mode-link--to-universe {
 html[data-mode-reason='engine-failed'] .notice--engine-failed,
 html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   display: block;
+}
+
+/*
+ * Why this is the plain version, said once, on a legend plate of its own: the plate's band in
+ * ink (a notice is news, not a family), a station ring before the words, and the way back to
+ * the starfield (reduced motion only) as a real 44 px key under them.
+ */
+.notice {
+  position: relative;
+  max-width: var(--measure);
+  padding: calc(var(--space-4) + 0.25rem) var(--space-6) var(--space-4)
+    calc(var(--space-6) + 1.375rem);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-mid);
+  background: var(--color-surface-panel);
+  box-shadow:
+    inset 0 0.25rem 0 var(--color-ink-low),
+    0 var(--ledge) 0 var(--color-space-950);
+  line-height: 1.55;
+}
+
+.notice::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--space-4) + 0.25rem + 0.4em);
+  left: var(--space-6);
+  width: 0.8125rem;
+  height: 0.8125rem;
+  border: var(--line) solid var(--color-ink-low);
+  border-radius: var(--radius-pill);
+}
+
+.notice a {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 2.75rem;
+  margin-top: var(--space-3);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-ink-low);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-high);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.notice a:hover {
+  border-color: var(--color-ink-mid);
+  background: var(--color-surface-raised);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2366,6 +2867,9 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   /* The route ornaments are for the screen: paper gets plain lists. */
   .cards::before,
   .cards::after,
+  .card::before,
+  .card::after,
+  .resume-section > h2::before,
   .system::before,
   .system::after,
   .entries::before,

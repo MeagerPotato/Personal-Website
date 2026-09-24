@@ -4,8 +4,9 @@ The standing brief for anyone making a visual decision on allenkh.com. Handoff p
 they can stay short. Engineering rules are in [AGENTS.md](../AGENTS.md); the full product plan is
 [PLAN.md](PLAN.md) (§3 experience, §5.6 design surface).
 
-Status: **first-pass baseline by Claude.** Sections marked _(open: A1)_ or _(open: A2)_ are for
-Astra's visual identity pass and scene art-direction pass to decide.
+Status: **the visual identity (A1) is decided** (2026-09-23): the "roadmap" direction, chosen from
+four built candidates by four judges, then finished by Claude at Allen's request. Sections marked
+_(open: A2)_ or _(open: A3)_ are for the scene art-direction pass and the motion pass.
 
 ## The idea
 
@@ -40,32 +41,87 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | Group | Keys | Use |
 | --- | --- | --- |
 | `color.space` | `950 900 800 700 600` | backdrop ramp, deepest to lightest; page background is `900` |
-| `color.ink` | `high mid low` | text. On `space.900`: 17.2, 10.6, 6.0 to 1. Worst pairing in use (`low` on `surface.raised`) is 4.8 to 1 |
+| `color.ink` | `high mid low` | text. On `space.900`: 17.2, 10.6, 6.7 to 1. Worst pairing in use (`low` on `surface.raised`) is 5.3 to 1. `low` is never text on the HUD plate (4.49 over white) |
 | `color.surface` | `panel raised line` | panels, cards, hairlines |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system: lit side, highlight, tinted shadow side |
-| `color.accent`, `color.focus` | | links and interactive text; the keyboard focus ring |
+| `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
 | `color.star` | `warm cool white` | starfield tints |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
 
-Rules: body text at least 4.5:1, large text 3:1, re-measure whenever either side of a pairing
-changes. Each system owns one family; a planet's label, lane colour and panel accent all come from
-its system's family. _(open: A1)_ final hues, a sixth family if the galaxy needs one, light-on-dark
-states for buttons and chips.
+Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
+side of a pairing changes: `src/site/contrast.test.ts` measures every pairing the stylesheet relies
+on (the translucent plates composited over white, the brightest thing in the world), so
+`npm run verify` fails when a colour change breaks one. Each system owns one family; a planet's
+label, lane colour and panel accent all come from its system's family, and a project card wears its
+own system's family on any page (`data-theme` on the card).
 
-## Typography _(open: A1)_
+**Decided in A1.** The five family bases are spread in lightness as well as hue, so that no two
+collapse for a colour-blind visitor (closest pair under any dichromacy about 10 CIEDE2000 apart),
+and every family also has a **glyph**, a second cue that is not colour: butter a circle, sky a
+diamond, mint a triangle, coral a square, lilac a four-point spark (`--theme-glyph`, drawn with
+`clip-path` on the route sign's marker and the sun on the projects page; no font or image
+cost). Five families are enough for now; a sixth needs a sixth glyph. Three words of the
+vocabulary never change meaning:
 
-Today: a system rounded stack (`font.body`, and `font.display` for headings and the wordmark,
-which is the same stack until A1 decides otherwise) and a system mono stack (`font.mono`), zero
-font downloads. Five candidates are staged in `public/fonts/` with an `@font-face` each (Nunito,
-Rubik, Outfit, Inter, JetBrains Mono: variable, Latin subset, SIL Open Font License); a face is
-adopted by putting its family name first in a stack, a face that no stack names is never
-downloaded, and whatever A1 does not choose is deleted afterwards. The fluid scale is `text.xs … text.display` (min at 360 px, max near 1200 px). A1 chooses
-at most two self-hosted faces (woff2, subset, `font-display: swap`), a rounded or geometric sans
-for display and a workhorse for body, and revisits the scale. Mono is for eyebrows, stats and code.
+- **Butter means "here":** the current page (a short bar under its name in the nav), the
+  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag). The home
+  system is butter too, so a focused butter key keeps a navy rim between its fill and the ring.
+- **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
+  Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
+- **One solid family fill per view:** the primary action. Route signs above the headings and a
+  project's tags are tinted, with a hairline edge; secondary keys are outlined in `ink.low`.
+
+Measured pairings (WCAG 2, to 1):
+
+| Pairing | Contrast |
+| --- | --- |
+| `ink.low` on `space.900` / `surface.panel` / `surface.raised` / the panel over white | 6.7 / 6.0 / 5.3 / 5.4 |
+| `ink.high` / `ink.mid` on the HUD plate over white | 11.6 / 7.2 |
+| butter ("Stop" in the dock prompt) on the HUD plate over white | 9.4 |
+| `ink.mid` on the hint card (`surface.raised`) / a notice (`surface.panel`) | 8.5 / 9.6 |
+| navy on cream (a toggle that is on) / on butter (target tag, skip link) | 17.2 / 13.9 |
+| a family's light on its route sign (10% tint on the page), lowest is lilac | 10.2 |
+| a family's light on its tags (12% tint on a plate), lowest is lilac in the panel | 7.7 |
+| navy on a family base (primary button), lowest is lilac | 6.3 |
+| `ink.low` edge of a secondary key on the page / in the panel (non-text, 3:1 needed) | 6.7 / 6.0 |
+| butter ring on its navy rim (non-text) | 14.5 |
+
+## Typography
+
+**One face, Outfit**, for everything a visitor reads (variable 100 to 900, Latin subset, 32 KB,
+SIL Open Font License, `public/fonts/`): the clean geometric sans closest to Mini Motorways' own
+lettering, the way every sign on a transit map is set in one face. Code alone uses the system's
+mono stack (`font.mono`), which costs nothing. The other staged candidates are gone.
+
+- **Loading.** Every page preloads the file (`src/components/Head.astro`), and the stacks name
+  `'Outfit Fallback'` next: local Arial (or the metric-identical Liberation Sans or Arimo) with
+  `size-adjust` and ascent, descent and line-gap overrides **measured** from the real Outfit
+  file (section 0 of the stylesheet says how). In Chromium a heading, the nav, a paragraph and a
+  button set in the fallback take the same height as in Outfit and within 1 to 2% of its width,
+  so the swap moves nothing.
+- **Weights.** Body text 430 with a hair of tracking (Outfit is light and narrow at 400), labels
+  and nav 600, headings 700. Running text keeps to `--measure` (33 em, about 75 characters).
+- **Scale** (`text.*`, fluid from 360 px to about 1200 px; laptop / phone): display (the h1)
+  60 / 40, `xl` (h2 and section heads) 30 / 24, `lg` (the lede, card titles) 25 / 21,
+  `base` 18 / 17, `sm` 16 / 15, `xs` (caps labels) 13 / 12. The panel pins the scale to
+  its narrow end. Names over the bodies are 13 px at every width and on the map (the engine
+  measures them once).
 
 ## Space, shape, motion
 
 - Spacing scale `space.1 … space.24` (4 px base). Radii `radius.sm md lg pill`; panels use `lg`.
+- **Shapes.** Controls are pills; keys and tiles cast a flat hard ledge (`--ledge`, 3 px) and
+  drop onto it when pressed; plates are `surface.panel` with a 4 px band across the top; the
+  only ornament is the route line (3 px) with its stations. A list of projects is a transit line
+  (on a phone, in a slim lane down the left, the planet beside its name); the resume is a line of
+  stops, its section names hung in the margin on a wide screen, one column on a phone and on paper.
+- **Focus** is a 3 px butter ring outside a 2 px navy rim, on every focusable thing in both modes,
+  except the heading the router focuses after a soft navigation. Forced colours keep the ring (an
+  outline) and underline the current page.
+- **Movement on hover or press uses the CSS `translate` (or `scale`) property, never
+  `transform`**: the engine writes `transform` on the names and the touch controls every
+  frame. There is no hover lift; if one is added, gate it with `(hover: hover)` and switch it off
+  when motion is reduced.
 - DOM motion tokens: `motion.fast base slow` with `easeOut` and `easeInOut`. Things ease out when
   they arrive and ease in-out when they move. Nothing bounces more than once.
 - **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax. The

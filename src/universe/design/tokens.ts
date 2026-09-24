@@ -20,14 +20,16 @@ export const tokens = {
       600: '#222d57',
     },
     /**
-     * Text on space/surface. Measured WCAG contrast on space.900: high 17.2, mid 10.6, low 6.0.
-     * Worst case is `low` on surface.raised at 4.8, still above AA (4.5). Re-measure if you change
-     * either side.
+     * Text on space/surface. Measured WCAG contrast on space.900: high 17.2, mid 10.6, low 6.7.
+     * Worst case in use is `low` on surface.raised at 5.3. `low` is never text on the HUD plate
+     * over the 3D world (4.49 over white). It also paints the rocket's metal and the docks' dark
+     * parts (design/models): look at the ship after changing it. src/site/contrast.test.ts
+     * measures every pairing the stylesheet relies on.
      */
     ink: {
       high: '#f1f3fb',
       mid: '#b9c1dc',
-      low: '#8690b3',
+      low: '#8e98ba',
     },
     /** Panels, cards, hairlines. */
     surface: {
@@ -42,7 +44,7 @@ export const tokens = {
      * (butter and mint light, sky and coral middle, lilac deepest), so that no two collapse into
      * one for a colour-blind visitor: the closest pair under protanopia, deuteranopia or
      * tritanopia is still about 10 CIEDE2000 apart (was 1.1: sky and lilac under deuteranopia).
-     * Every base carries navy text (space.900) at 6.4:1 or more.
+     * Every base carries navy text (space.900) at 6.2:1 or more (lilac; butter and mint 13.9+).
      */
     system: {
       coral: { base: '#f19389', light: '#f8c9c4', shade: '#c3645c' },
@@ -70,7 +72,10 @@ export const tokens = {
     shading: {
       shadow: '#bbbfdd',
     },
-    /** Interactive text and the keyboard focus ring (the sky and butter bases). */
+    /**
+     * Interactive text (the sky base), and BUTTER, WHICH MEANS "HERE": the focus ring, the current
+     * page's marker, the name the ship is headed for (the butter base).
+     */
     accent: '#8bc0f2',
     focus: '#f8d98c',
     /** Starfield tints. */
@@ -98,15 +103,17 @@ export const tokens = {
 
   /**
    * Fluid type scale: min at 360 px wide, max at ~1200 px. Outfit is set a touch larger than the
-   * old system stack at the body sizes: its x-height is smaller than Segoe's or SF's.
+   * old system stack at the body sizes: its x-height is smaller than Segoe's or SF's. The steps
+   * that carry the hierarchy, on a laptop and on a phone: display (the h1) 60 / 40 px, xl (h2 and
+   * section heads) 30 / 24, lg (the lede) 25 / 21, base (body) 18 / 17.
    */
   text: {
     xs: 'clamp(0.75rem, 0.72rem + 0.12vw, 0.8125rem)',
     sm: 'clamp(0.9375rem, 0.91rem + 0.12vw, 1rem)',
     base: 'clamp(1.0625rem, 1.03rem + 0.15vw, 1.1875rem)',
     lg: 'clamp(1.3125rem, 1.2rem + 0.45vw, 1.5625rem)',
-    xl: 'clamp(1.75rem, 1.5rem + 1.1vw, 2.5rem)',
-    display: 'clamp(2.5rem, 1.95rem + 2.4vw, 4rem)',
+    xl: 'clamp(1.5rem, 1.3rem + 0.75vw, 1.875rem)',
+    display: 'clamp(2.5rem, 1.95rem + 2.4vw, 3.75rem)',
   },
 
   /**
@@ -118,7 +125,7 @@ export const tokens = {
     sm: '0.9375rem',
     base: '1.0625rem',
     lg: '1.3125rem',
-    xl: '1.75rem',
+    xl: '1.5rem',
     display: '2.5rem',
   },
 
