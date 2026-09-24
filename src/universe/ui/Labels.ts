@@ -211,6 +211,14 @@ export class Labels implements System {
     this.measured = false;
   }
 
+  /**
+   * Measure the names again before they are next placed: the stylesheet may set them in another
+   * size now (on the star map, `html[data-map]`, where they are read from further off).
+   */
+  remeasure(): void {
+    this.measured = false;
+  }
+
   dispose(): void {
     this.root.removeEventListener('click', this.onClick);
     this.root.removeEventListener('focusin', this.onFocusIn);

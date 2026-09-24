@@ -176,6 +176,8 @@ export function boot(
         // Now, not with the next frame: a cut to the map is then a cut in every part of it.
         direct(cut);
         hooks.onMap(open);
+        // The names may be set in another size on the map: measure them in the one they now have.
+        labels?.remeasure();
       },
     }),
   );
