@@ -179,10 +179,11 @@ export function defaultOgSvg(tokens: Tokens): string {
     `<circle cx="${SUN.x}" cy="${SUN.y}" r="48" fill="${sun.base}"/>`,
     `<circle cx="${SUN.x - 9}" cy="${SUN.y - 9}" r="30" fill="${sun.light}"/>`,
     bodies,
-    // The three dots of the wordmark, as a signature.
-    `<circle cx="66" cy="566" r="11" fill="${system.coral.base}"/>`,
-    `<circle cx="98" cy="566" r="9.5" fill="${system.butter.base}"/>`,
-    `<circle cx="126" cy="566" r="8" fill="${system.mint.base}"/>`,
+    // The wordmark's signature, as it sits beside the name on every page: three stations on a line.
+    `<path d="M66 566H134" stroke="${tokens.color.ink.low}" stroke-width="3.5"/>`,
+    `<circle cx="66" cy="566" r="10" fill="${system.coral.base}"/>`,
+    `<circle cx="100" cy="566" r="10" fill="${system.butter.base}"/>`,
+    `<circle cx="134" cy="566" r="10" fill="${system.mint.base}"/>`,
     '</svg>',
   ].join('');
 }
