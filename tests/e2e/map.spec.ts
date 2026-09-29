@@ -67,6 +67,10 @@ async function discOf(page: Page, name: string): Promise<{ x: number; y: number 
  * draws in software, a few frames a second): two looks a quarter of a second apart can see the
  * same frame, and a name that the map hides on its way out is no longer moved (ui/Labels.ts), so
  * it holds still where it was hidden, and a click there finds only sky.
+ *
+ * Only for a body that holds still once the view does: a sun, or the home planet at the heart of
+ * its system. A planet is always on its way round its sun: settle the view on the sun, then ask
+ * where the planet is (`shownAt`).
  */
 async function settled(target: Locator): Promise<{ x: number; y: number }> {
   const page = target.page();
@@ -92,6 +96,18 @@ async function settled(target: Locator): Promise<{ x: number; y: number }> {
     )
     .toBeLessThan(1);
   return last;
+}
+
+/**
+ * Where a name is, as soon as it shows. For a planet, once `settled()` has held the view still on
+ * its sun: the planet moves on round its orbit, but its distance from the sun, which is what these
+ * tests measure, stays the same all the way round.
+ */
+async function shownAt(target: Locator): Promise<{ x: number; y: number }> {
+  await expect(target).toHaveAttribute('data-shown', '');
+  const box = await target.boundingBox();
+  if (!box) throw new Error('a name that shows has no box');
+  return { x: box.x, y: box.y };
 }
 
 test('the Map button pulls out to the whole galaxy, and puts it away again', async ({ page }) => {
@@ -275,7 +291,7 @@ test.describe('on a phone', () => {
     // the system opens up round them (as close as the map goes: from a snug fit on a phone, about
     // twice). A finger that comes down on a name is that name's (a tap there flies to it), and
     // on a snug map the names crowd the sun: the fingers go down wherever is clear of them.
-    const planet = await settled(nameOf(page, 'FishAI'));
+    const planet = await shownAt(nameOf(page, 'FishAI'));
     const clear = await clearOfNames(page);
     const sun = await discOf(page, 'Code');
     const disc = await discOf(page, 'FishAI');
@@ -307,7 +323,7 @@ test.describe('on a phone', () => {
     for (let step = 1; step <= 8; step += 1) await touch('touchMove', fingers(20 + step * 5));
     await touch('touchEnd', []);
     const zoomed = await settled(nameOf(page, 'Code'));
-    const planetAfter = await settled(nameOf(page, 'FishAI'));
+    const planetAfter = await shownAt(nameOf(page, 'FishAI'));
     const apart = Math.hypot(planet.x - before.x, planet.y - before.y);
     expect(Math.hypot(planetAfter.x - zoomed.x, planetAfter.y - zoomed.y)).toBeGreaterThan(
       apart * 1.8,
@@ -355,7 +371,7 @@ test.describe('on a phone', () => {
     // before anyone looked would leave the prompt as it was, but not this.
     const said = await watchText(page, '.dock-prompt');
     const code = await settled(nameOf(page, 'Code'));
-    const fish = await settled(nameOf(page, 'FishAI'));
+    const fish = await shownAt(nameOf(page, 'FishAI'));
     const session = await page.context().newCDPSession(page);
     const touch = (
       type: 'touchStart' | 'touchMove' | 'touchEnd',
@@ -395,7 +411,7 @@ test.describe('on a phone', () => {
     for (let step = 1; step <= 8; step += 1) await touch('touchMove', fingers(1 + step / 8));
     await touch('touchEnd', []);
     const zoomed = await settled(nameOf(page, 'Code'));
-    const fishZoomed = await settled(nameOf(page, 'FishAI'));
+    const fishZoomed = await shownAt(nameOf(page, 'FishAI'));
     expect(Math.hypot(fishZoomed.x - zoomed.x, fishZoomed.y - zoomed.y)).toBeGreaterThan(
       Math.hypot(fish.x - code.x, fish.y - code.y) * 1.5,
     );
@@ -447,23 +463,53 @@ test.describe('on the narrowest phone, with a page open', () => {
     const told = await watchText(page, '[data-announcer]');
 
     // A link with the map up: the page opens at once, and the ship sets out behind it, for the
-    // body with the longest name there is.
-    await softNavigate(page, '/projects/fish-onboarding/');
+    // body with the longest name there is. The journey is over in a few seconds, and a busy
+    // machine can take about as long to look and put a finger down: each try looks once and then
+    // taps, and should the ship arrive first all the same, it is sent home, and out again once it
+    // is there (three tries at most).
     const stop = prompt(page).locator('.dock-prompt__action');
-    await expect(stop).toHaveText('Stop');
-    await expect(html(page)).toHaveAttribute('data-map', 'open');
-    // "Close map" is wider than "Map": the name gives way to it (the stylesheet's --map-chip),
-    // as everything in the HUD keeps a --space-3 (12 px) from its neighbours.
-    const row = await prompt(page).boundingBox();
-    const toggle = await closeButton(page).boundingBox();
-    if (!row || !toggle) throw new Error('the prompt or the Map button is not on screen');
-    expect(row.x + row.width + 12).toBeLessThanOrEqual(toggle.x + 0.5);
-
-    // A real finger on Stop, not a click from script: nothing lies over it.
-    await pointAt(page, stop, true);
-    await expect
-      .poll(async () => (await told()).some(({ text }) => text === 'Stopped.'))
-      .toBe(true);
+    const heard = async (start: string): Promise<number> =>
+      (await told()).filter(({ text }) => text.startsWith(start)).length;
+    for (let attempt = 1; (await heard('Stopped.')) === 0; attempt += 1) {
+      if (attempt > 3) throw new Error('every journey was over before a finger could stop it');
+      if (attempt > 1) {
+        const docked = await heard('Docked at');
+        await softNavigate(page, '/about/');
+        await expect.poll(() => heard('Docked at'), { timeout: 30_000 }).toBeGreaterThan(docked);
+      }
+      const arrived = await heard('Docked at');
+      await softNavigate(page, '/projects/fish-onboarding/');
+      await expect
+        .poll(
+          async () => (await stop.textContent()) === 'Stop' || (await heard('Docked at')) > arrived,
+        )
+        .toBe(true);
+      await expect(html(page)).toHaveAttribute('data-map', 'open');
+      // The row and Stop, in one look (Close map is the Map button, open).
+      const seen = await page.evaluate(() => {
+        const action = document.querySelector('.dock-prompt .dock-prompt__action');
+        const row = document.querySelector('.dock-prompt')?.getBoundingClientRect();
+        const toggle = document.querySelector('.map-toggle')?.getBoundingClientRect();
+        if (!(action instanceof HTMLElement) || action.hidden || !row || !toggle) return null;
+        const box = action.getBoundingClientRect();
+        if (box.width === 0) return null;
+        return {
+          rowRight: row.right,
+          toggleLeft: toggle.left,
+          x: box.x + box.width / 2,
+          y: box.y + box.height / 2,
+        };
+      });
+      if (seen === null) continue;
+      // "Close map" is wider than "Map": the name gives way to it (the stylesheet's --map-chip),
+      // as everything in the HUD keeps a --space-3 (12 px) from its neighbours.
+      expect(seen.rowRight + 12).toBeLessThanOrEqual(seen.toggleLeft + 0.5);
+      // A real finger on Stop, not a click from script: nothing lies over it.
+      await page.touchscreen.tap(seen.x, seen.y);
+      await expect
+        .poll(async () => (await heard('Stopped.')) > 0 || (await heard('Docked at')) > arrived)
+        .toBe(true);
+    }
     await expect(prompt(page)).not.toContainText('Stop');
   });
 });
