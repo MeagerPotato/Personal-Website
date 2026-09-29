@@ -16,9 +16,8 @@ Tick the boxes in a copy of this file in the launch PR's description, not here.
 - [ ] **C** The follow-up PR: `workers_dev: false`, and the Web Analytics token in
       `ANALYTICS_TOKEN` (`src/config/analytics.ts`), the one line that turns counting on. The
       beacon only loads on `allenkh.com`, and not for a visitor who sends Global Privacy Control
-      or Do Not Track. `workers_dev: false` is done (#39); the token waits for Allen, whose steps
-      are [cloudflare-setup.md](cloudflare-setup.md) §5 (rewritten 2026-09-28 for the dashboard
-      as it is now).
+      or Do Not Track. `workers_dev: false` is done (#39); the token went in on 2026-09-29, after
+      Allen added the site in manual mode ([cloudflare-setup.md](cloudflare-setup.md) §5).
 - [ ] **H** `allen@allenkh.com` receives mail (Cloudflare Email Routing → a rule for `allen`).
       Send one test message from another account before the address is public.
 - [ ] **H** The copy has had its voice edit: About, the project pages, the home page, the hint
