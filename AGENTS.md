@@ -36,9 +36,9 @@ the URL and the panel know nothing about. **The systems sit close together** (th
 journey is handed back at speed (Stop, a key, the web layer letting go, a reload) brakes or
 guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
 visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
-direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). What
-Phase 2 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md) and the
-analytics token (docs/runbooks/cloudflare-setup.md §5). Phase 1's exit gate, the playtest: Allen did
+direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
+are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
+still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
 some of it on 2026-09-28 and accepted it ("everything is okay for now"); the feel gets its polish
 later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. Phase 3 waits on
 Allen's tree of solar systems (docs/PLAN.md §9).

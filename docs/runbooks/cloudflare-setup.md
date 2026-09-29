@@ -165,8 +165,8 @@ Send Claude: "Cloudflare is connected" plus the analytics token. Claude then ope
 PR (Phase 0 step 9: turns off the public `workers.dev` hostname, and puts the token in
 `ANALYTICS_TOKEN` in `src/config/analytics.ts`, the one line that turns counting on) and runs the
 Phase 0 checks in docs/PLAN.md §7. (As it happened, on 2026-09-23 the domain was connected
-first and the token is still to come: the `workers.dev` half of step 9 is done, the token half
-waits.)
+first: the `workers.dev` half of step 9 was done then, and the token half on 2026-09-29, when
+Allen sent the token.)
 
 Re-run every command from step 0. **The output must match the snapshot.** Then:
 
