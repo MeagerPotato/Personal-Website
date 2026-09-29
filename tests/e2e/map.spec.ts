@@ -61,13 +61,28 @@ async function discOf(page: Page, name: string): Promise<{ x: number; y: number 
   return { x: box.x + box.width / 2, y: box.y - 12 };
 }
 
-/** Wait until something on screen has stopped moving (to within a pixel between two looks). */
+/**
+ * Wait until a name shows and has stopped moving (to within a pixel between two looks, with a
+ * frame of the engine between them). Both conditions matter where frames are slow (WebKit on CI
+ * draws in software, a few frames a second): two looks a quarter of a second apart can see the
+ * same frame, and a name that the map hides on its way out is no longer moved (ui/Labels.ts), so
+ * it holds still where it was hidden, and a click there finds only sky.
+ */
 async function settled(target: Locator): Promise<{ x: number; y: number }> {
+  const page = target.page();
   let last = { x: Number.NaN, y: Number.NaN };
   await expect
     .poll(
       async () => {
-        const box = await target.boundingBox();
+        // The engine draws on animation frames: after two, it has drawn since the last look.
+        await page.evaluate(
+          () =>
+            new Promise<void>((done) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => done()));
+            }),
+        );
+        const shows = await target.evaluate((name) => name.hasAttribute('data-shown'));
+        const box = shows ? await target.boundingBox() : null;
         const now = { x: box?.x ?? Number.NaN, y: box?.y ?? Number.NaN };
         const moved = Math.hypot(now.x - last.x, now.y - last.y);
         last = now;
