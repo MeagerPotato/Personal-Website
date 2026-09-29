@@ -27,14 +27,32 @@ export function printSection(css) {
 }
 
 /**
- * What the PDF is printed FROM, as one hash: everything the resume page says (its <main>) and the
- * print section of the stylesheet. When either changes, the PDF may no longer say what the page
- * says, and verify-dist asks for a new one. A change elsewhere in the stylesheet that happens to
- * show on paper too is not caught: print again by hand after one.
+ * The parts of the resume's <main> that never reach paper, because section 4 of the stylesheet
+ * hides them: the page's own header (its title and eyebrow), the screen-only intro, and the
+ * actions (the download button). A new word there changes nothing in the PDF, so it must not ask
+ * for a new one. Regex, like ./html.mjs: the input is our own generated HTML.
+ */
+const SCREEN_ONLY = [
+  /<header class="page-header"[^>]*>[\s\S]*?<\/header>/g,
+  /<div class="prose screen-only"[^>]*>[\s\S]*?<\/div>/g,
+  /<ul class="actions"[^>]*>[\s\S]*?<\/ul>/g,
+];
+
+/** What of the resume page's <main> is printed. */
+export function printedContent(html) {
+  return SCREEN_ONLY.reduce((main, block) => main.replace(block, ''), mainContent(html));
+}
+
+/**
+ * What the PDF is printed FROM, as one hash: what the resume page prints (its <main>, less the
+ * parts only a screen shows) and the print section of the stylesheet. When either changes, the
+ * PDF may no longer say what the page says, and verify-dist asks for a new one. Not caught: a
+ * change that shows on paper through anything else (the rest of the stylesheet, a design token,
+ * the typeface). Print again by hand after one.
  */
 export function resumeFingerprint(html, css) {
   const lf = (text) => text.replaceAll('\r\n', '\n');
-  return sha256(`${lf(mainContent(html))}\n\n${lf(printSection(css))}`);
+  return sha256(`${lf(printedContent(html))}\n\n${lf(printSection(css))}`);
 }
 
 /**

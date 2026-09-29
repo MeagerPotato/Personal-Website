@@ -19,7 +19,8 @@ tidy geometry, small legible shapes, minimal UI, with the cozy piloting feel of
 [Tiny Skies](https://tinyskies.vercel.app/), a little more detailed. Dark navy space, pastel worlds.
 
 Voice: **playful framing, technical substance.** Jokes live in headings and microcopy. Claims and
-numbers are precise. The owner appears as "Allen".
+numbers are precise. The owner appears as "Allen"; the resume alone (on screen, on paper and as
+a PDF) gives the full name.
 
 **The look (A1): "roadmap".** Mini Motorways taken literally. The UI is road signage and a transit
 map's legend on flat navy, set in one face. The route line with its stations is the only

@@ -372,7 +372,7 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
 11. `core/quality/{tiers,detect,DynamicResolution}.ts` + tests; `fx/PostFX.ts` as a lazy chunk (`?q=` forces a tier; phone holds 30+ fps for 10 min).
 12. Context-loss rebuild (`core/snapshot.ts`) + dispose audit (iOS Safari recovers after 60 s backgrounded).
 13. `lab/LabScene.ts`, `docs/ARCHITECTURE.md` (layers, life of a frame, unit and sign conventions, recipes).
-14. **Playtest + tuning-only PR** (laptop + two phones; decides pointer-steer). Phase 1 exit gate. **Passed 2026-09-28:** Allen played it and found "everything is okay for now"; no tuning PR was needed, and the feel is polished later (the polish list: §5.5, the cluster, and §9, the inter-system distance). Pointer-steer stays behind its flag.
+14. **Playtest + tuning-only PR** (laptop + two phones; decides pointer-steer). Phase 1 exit gate. **Accepted 2026-09-28:** Allen did some of the playtesting and found "everything is okay for now"; no tuning PR was needed, the real-device checks stay on the launch checklist (§3 of docs/runbooks/launch-checklist.md), and the feel is polished later (the polish list: §5.5, the cluster, and §9, the inter-system distance). Pointer-steer stays behind its flag.
 
 ### Phase 2 steps
 

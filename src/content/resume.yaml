@@ -7,7 +7,8 @@
 # Source: Allen's resume of 2026-09-23. Where it and LinkedIn disagreed, Allen chose on 2026-09-28
 # (docs/PLAN.md §9): the resume everywhere, except CyberPatriot's two national finals (2025 and
 # 2026), which LinkedIn has right. What that resume leaves out for space (the YC conference line,
-# the awards, TypeScript in the skills) comes from the earlier resume and LinkedIn.
+# the awards) comes from the earlier resume; TypeScript in the skills comes from the projects'
+# repositories (docs/PLAN.md §9, point 6), and Allen kept it on 2026-09-28.
 
 education:
   section: education
@@ -67,7 +68,7 @@ leadership:
       org: CyberPatriot
       when: Sep 2022 – May 2026
       bullets:
-        - Led the team to 2nd place at the CyberPatriot National Finals twice (2025 and 2026; 1,406 teams entered the 2025 season) and to 1st place in the Cisco Networking Challenge both years.
+        - Led the team to 2nd place at the CyberPatriot National Finals twice (2025 and 2026; 1,406 teams in CyberPatriot 17) and to 1st place in the Cisco Networking Challenge both years.
         - National semifinalist runner-up in 2023 and 2024, competing all four years as the team's Windows specialist.
         - Taught about 200 students over two years as a program instructor and Troy CyberCamp staff.
     - role: Co-Founder & Programmer

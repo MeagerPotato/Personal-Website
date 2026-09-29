@@ -10,13 +10,14 @@ the pieces fit (layers, the life of a frame, conventions) in
 **allenkh.com**: Allen's personal site as a small universe you can fly through. Solar systems are
 passions, planets are projects, moons are sub-projects. Look: Mini Motorways (muted pastels, flat
 shading) on dark navy space. Tone: playful framing, technical substance. The owner appears as
-"Allen", nothing more.
+"Allen"; only the resume page (and its print and PDF) gives the full name (`site.fullName`,
+docs/PLAN.md decision 25).
 
 Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: the content layer
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
-narrow ones). **Phase 1 (flight) is under way**: the engine runs on a fixed 60 Hz simulation
+narrow ones). **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
 **galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
 and the satellite, all moving on their orbits. Let go of the controls near a planet and the
@@ -37,8 +38,9 @@ guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its ga
 visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
 direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). What
 Phase 2 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md) and the
-analytics token (docs/runbooks/cloudflare-setup.md §5). Phase 1's exit gate, the playtest on a
-laptop and a real phone, passed on 2026-09-28; the feel gets its polish later. Phase 3 waits on
+analytics token (docs/runbooks/cloudflare-setup.md §5). Phase 1's exit gate, the playtest: Allen did
+some of it on 2026-09-28 and accepted it ("everything is okay for now"); the feel gets its polish
+later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. Phase 3 waits on
 Allen's tree of solar systems (docs/PLAN.md §9).
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 

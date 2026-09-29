@@ -1707,8 +1707,10 @@ main > .resume-name + .resume-contact {
   color: inherit;
 }
 
-/* Who and what made the site: the last and quietest line of the page (plain mode only). */
+/* Who and what made the site: the last and quietest line of the page (plain mode only). One line
+   where it fits, so not held to the reading measure of a paragraph. */
 .colophon {
+  max-width: none;
   font-size: var(--text-xs);
 }
 

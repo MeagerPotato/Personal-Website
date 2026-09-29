@@ -15,11 +15,16 @@ last checked on 2026-09-28, against your resume of 2026-09-23 and your answers t
 - **B. Edit on github.com** (no setup): open a file below on
   https://github.com/MeagerPotato/Personal-Website, press the pencil, edit, then **Commit
   changes…** → **Create a new branch** (name it `allen/copy-edit`) → **Propose changes** →
-  **Create pull request**. Edit more files on the same branch the same way. Tell Claude when the
-  pull request is up: Claude checks it, fixes anything mechanical, and merges it.
+  **Create pull request**. More files go on the same branch (below). Tell Claude when the pull
+  request is up: Claude checks it, fixes anything mechanical, and merges it.
 - **C. Edit on your laptop** in VS Code, and watch it live: `npm run dev`, then
   http://localhost:4321/about/ (add `?plain` to the address for the plain page). Every save
   shows at once. Tell Claude when you are done; Claude commits, checks and merges.
+
+On github.com, for every file after the first: open the branch menu at the top left of the file
+list and pick `allen/copy-edit` first, then open the file, press the pencil, and choose
+**Commit directly to the `allen/copy-edit` branch**. The pull request picks the change up.
+(Starting from `main` again would open a second pull request.)
 
 Whichever you choose, you only change words. Claude does everything else: `npm run verify`, the
 browser tests, a new resume PDF when the resume changed, and any test that quotes a label you
@@ -32,6 +37,9 @@ reworded.
   `theme`, `order`, `dock`, and folder names. They move planets or change addresses.
 - Lengths: `summary` at most 160 characters, `title` 60, `tagline` 120, `role` 80.
 - A value that contains a colon followed by a space needs quotes: `role: "Solo: the whole thing"`.
+- In a list in square brackets, `[a, b, c]` (the resume's skills, a project's `stack`), a comma
+  starts a new item: an item that needs a comma of its own goes in quotes,
+  `["SolidWorks (CAD, FEA)", Git]`.
 - Headings in a page's text start at `##`: the page's one big heading comes from its `title`.
 - Links to the site's own pages end with a slash: `/projects/fishai/`.
 - **No phone number and no personal email, anywhere.** The only address the site may show is
@@ -39,7 +47,11 @@ reworded.
 - Not sure yet? Write `TODO(copy)` where the words are missing. Nothing breaks while you work,
   and the build refuses to publish a page that still has one, so a half-finished sentence can
   never go live.
-- In an `.astro` file, change only the text between tags. Leave anything in `{ }` alone.
+- In an `.astro` or `.ts` file, change only words: the text between tags, and the words inside
+  quotes (`title="…"`, `description="…"`, `'Home planet'`). Leave everything else as it is, and
+  never type the quote mark a piece of text is wrapped in (write `I'm` inside `"…"`, not `"`).
+- A red check on your pull request is not a disaster: it says what broke, and Claude fixes it.
+  In `.astro` and `.ts` files it is often only the formatting.
 
 ## 3. The list
 
@@ -103,10 +115,15 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
 
 ### Tiny labels: tell Claude rather than editing them
 
-Tests quote these word for word, so a change to one also means changing its tests: "Orbit
-FishAI", "Leave orbit", "Flying to … Stop", "Map" / "Close map", "Boost", "Expand" / "Shrink" /
-"Close", "About this site", "Got it", and what a screen reader hears ("Flying to FishAI.",
-"Docked at FishAI.", "Stopped.", "Star map open.").
+These live in the engine's code rather than in a page: "Orbit FishAI", "Leave orbit", "Flying to
+… Stop", "Map" / "Close map", "Boost", "Expand" / "Shrink" / "Close", and what a screen reader
+hears ("Flying to FishAI.", "Docked at FishAI.", "Stopped.", "Star map open."). Say in chat what
+they should say instead.
+
+Tests quote these, and many of the words above too (the statuses, the link labels, the footer
+notices, the hint card, the place labels, "About this site", "Got it"), so rewording one turns
+the check on your pull request red until Claude updates the test. That is expected: reword
+freely.
 
 ## 4. Small decisions the words raise
 

@@ -17,6 +17,7 @@ import {
 import {
   RESUME_PDF,
   printSection,
+  printedContent,
   resumeFingerprint,
   resumePdfProblems,
   sha256,
@@ -243,6 +244,26 @@ describe("the resume's PDF", () => {
     expect(resumeFingerprint(PAGE.replaceAll('\n', '\r\n'), CSS.replaceAll('\n', '\r\n'))).toBe(
       print,
     );
+  });
+
+  it('ignores what only a screen shows: the title, the intro, the download button', () => {
+    // The page as the site builds it: header, name, screen-only intro, actions, entries.
+    const page = (title: string, intro: string, button: string, entry: string) =>
+      html(
+        `<header class="page-header"><p class="eyebrow">Resume station</p><h1 tabindex="-1">${title}</h1></header>` +
+          '<p class="resume-name">Allen Hsieh</p>' +
+          `<div class="prose screen-only"><p>${intro}</p></div>` +
+          `<ul class="actions"><li><a class="button" href="/allen-hsieh-resume.pdf" download>${button}</a></li></ul>` +
+          `<section class="resume-section"><h2>Experience</h2><p>${entry}</p></section>`,
+      );
+    const print = resumeFingerprint(page('Resume', 'The formal version.', 'PDF', 'Raytheon'), CSS);
+    expect(resumeFingerprint(page('My resume', 'Reworded.', 'Get it', 'Raytheon'), CSS)).toBe(
+      print,
+    );
+    expect(resumeFingerprint(page('Resume', 'The formal version.', 'PDF', 'RTX'), CSS)).not.toBe(
+      print,
+    );
+    expect(printedContent(page('R', 'i', 'b', 'e'))).not.toMatch(/page-header|screen-only|actions/);
   });
 
   it('refuses a stylesheet without its print section', () => {

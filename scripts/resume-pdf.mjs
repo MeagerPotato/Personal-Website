@@ -9,7 +9,7 @@
 // YAML, its page or the print section of the stylesheet), then `npm run verify` and commit both
 // files.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -39,8 +39,18 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 
+const STYLESHEET = join(ROOT, 'src', 'styles', 'global.css');
+
 if (!existsSync(PAGE_FILE)) {
-  console.error('resume-pdf: dist/ has no resume page. Run `npm run build` first.');
+  console.error('resume-pdf: dist/ has no resume page. Run `npm run resume-pdf`, which builds.');
+  process.exit(1);
+}
+// The page is printed with dist/'s stylesheet but the lock records the source's: they must be the
+// same edit, or a stale print would be recorded as a fresh one.
+if (statSync(STYLESHEET).mtimeMs > statSync(PAGE_FILE).mtimeMs) {
+  console.error(
+    'resume-pdf: dist/ is older than the stylesheet. Run `npm run resume-pdf`, which builds.',
+  );
   process.exit(1);
 }
 
@@ -78,6 +88,13 @@ try {
   await page.evaluate((title) => {
     globalThis.document.title = title;
   }, `${name}, resume`);
+  // On paper the name IS the heading (the page's own <h1>, "Resume", is the screen's), and a
+  // tagged PDF takes its structure from what the browser tells assistive technology: make the
+  // name its level-1 heading, for this print only. The page itself keeps its one <h1>.
+  await page.locator('.resume-name').evaluate((element) => {
+    element.setAttribute('role', 'heading');
+    element.setAttribute('aria-level', '1');
+  });
   // US Letter, the margins the stylesheet's @page asks for, and a tagged PDF (headings, lists and
   // reading order survive, for screen readers and for applicant tracking systems).
   pdf = await page.pdf({ format: 'Letter', preferCSSPageSize: false, tagged: true, outline: true });
@@ -87,7 +104,7 @@ try {
 }
 
 const html = await readFile(PAGE_FILE, 'utf8');
-const css = await readFile(join(ROOT, 'src', 'styles', 'global.css'), 'utf8');
+const css = await readFile(STYLESHEET, 'utf8');
 const pages = pdf.toString('latin1').match(/\/Type\s*\/Page(?!s)\b/g)?.length ?? 0;
 const lock = { pdf: sha256(pdf), printedFrom: resumeFingerprint(html, css), pages };
 

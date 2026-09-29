@@ -45,7 +45,7 @@ for a six-player card game and the lab that measures them, and
 [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are meaningless. At
 the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack in twelve hours,
 a tool that turns a single photo into an interactive 3D environment for dementia reminiscence
-therapy. It placed 5th of more than 1,000.
+therapy, and placed 5th of more than 1,000 competitors.
 
 ## Work
 
@@ -57,7 +57,7 @@ models, while shadowing the mechanical, electrical, software, and systems teams.
 
 I founded my school's emergency preparedness club: three Teen CERT trainings and two First Aid/BLS
 trainings, about 150 students certified, more than 300 families reached, and over 2,000 volunteer
-hours. It earned a U.S. Congressional Certificate of Recognition.
+hours, which earned me a U.S. Congressional Certificate of Recognition.
 
 The formal version is on the [resume](/resume/), and the fastest ways to reach me are on the
 [contact](/contact/) page.

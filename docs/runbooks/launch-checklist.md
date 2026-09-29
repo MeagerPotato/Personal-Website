@@ -30,8 +30,9 @@ Tick the boxes in a copy of this file in the launch PR's description, not here.
 - [ ] **H → C** The visual identity pass (A1) is merged. Claude did it at Allen's request (#41,
       2026-09-24): one typeface, Outfit, preloaded.
 - [ ] **H → C** The playtest on a laptop and a real phone (Phase 1's exit gate) has happened, and
-      what it found is in a tuning-only PR. Allen played on 2026-09-28: "everything is okay for
-      now"; no tuning PR was needed, and polish comes later (docs/PLAN.md §6, Phase 1 step 14).
+      what it found is in a tuning-only PR. Allen did some of the playtesting on 2026-09-28 and
+      accepted it ("everything is okay for now"); no tuning PR was needed, polish comes later
+      (docs/PLAN.md §6, Phase 1 step 14), and the real-device checks in §3 below stay open.
 
 ## 1. Held by machines, on every PR (M)
 

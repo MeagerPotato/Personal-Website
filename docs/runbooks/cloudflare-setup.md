@@ -152,11 +152,12 @@ a visitor who asks not to be tracked), and copying one public value, the **token
 To find the token again later: the same link, then **Manage site** on the allenkh.com card.
 Once Claude's PR is merged it also lives in `src/config/analytics.ts`.
 
-After that PR is live, Claude checks it; if you want to see it yourself, open
-https://allenkh.com/ with any ad blocker off (Brave blocks the beacon), DevTools → **Network**,
-filter `cloudflareinsights`: one `beacon.min.js` request (with no `/v…` after it), then a
-`POST` to `cloudflareinsights.com/cdn-cgi/rum` for each page you open. Visits show on the card
-within minutes.
+After that PR is live, Claude checks it. To see it yourself: open https://allenkh.com/ in Chrome or
+Edge with no ad blocker and with Do Not Track and Global Privacy Control off (Brave and DuckDuckGo
+send those by default, and the site honours them by loading no beacon at all), then DevTools →
+**Network**, filter `cloudflareinsights`: one `beacon.min.js` request (with no `/v…` after it),
+then a `POST` to `cloudflareinsights.com/cdn-cgi/rum` for each page you open. Visits show on the
+card within minutes.
 
 ## 6. Tell Claude, then check
 
