@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { extname, join, relative, resolve } from 'node:path';
+import { extname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { site } from '../src/config/site';
 
@@ -8,6 +8,9 @@ import { site } from '../src/config/site';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', '.astro', '.wrangler', 'coverage']);
+// Other agents' checkouts of this repository (the Claude app's worktrees, left out by .gitignore):
+// each is its own checkout, scanned by its own run of this test.
+const SKIP_PATHS = new Set(['.claude/worktrees']);
 const SKIP_FILES = new Set(['package-lock.json']);
 const TEXT = new Set([
   '.astro',
@@ -42,7 +45,9 @@ async function textFiles(dir: string): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) found.push(...(await textFiles(path)));
+      const skipped =
+        SKIP_DIRS.has(entry.name) || SKIP_PATHS.has(relative(ROOT, path).split(sep).join('/'));
+      if (!skipped) found.push(...(await textFiles(path)));
     } else if (!SKIP_FILES.has(entry.name) && TEXT.has(extname(entry.name).toLowerCase())) {
       found.push(path);
     }
