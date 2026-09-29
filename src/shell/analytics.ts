@@ -7,8 +7,9 @@
 //   - for a visitor whose browser does not say "do not track me" (Global Privacy Control, or the
 //     older Do Not Track). Nothing requires honouring them for cookie-less counting; it is polite.
 //
-// The beacon watches the History API by itself, so a soft navigation (src/shell/router.ts) is
-// counted as a page view without anyone telling it.
+// The beacon watches navigations by itself (the Soft Navigation API or the Navigation API where
+// the browser has one, pushState and popstate where it does not), so a soft navigation
+// (src/shell/router.ts) is counted as a page view without anyone telling it.
 
 const BEACON_SRC = 'https://static.cloudflareinsights.com/beacon.min.js';
 

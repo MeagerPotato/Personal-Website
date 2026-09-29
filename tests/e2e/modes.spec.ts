@@ -43,10 +43,13 @@ test.describe('plain mode', () => {
     await expect(page).toHaveURL(/\/about\/$/);
     await expect(page.locator('html')).toHaveAttribute('data-mode', 'plain');
     await expect(page.locator('html')).toHaveAttribute('data-mode-reason', 'session');
+    // The plain page has an end, and the colophon closes it; the world has no room for it.
+    await expect(page.locator('.colophon')).toBeVisible();
 
     await page.getByRole('link', { name: 'Launch the starfield', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-mode', 'universe');
     await engineReady(page);
+    await expect(page.locator('.colophon')).toBeHidden();
     // ...and that choice is remembered: a bare URL is the universe from now on.
     await page.goto('/contact/');
     await expect(page.locator('html')).toHaveAttribute('data-mode', 'universe');

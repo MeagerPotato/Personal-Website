@@ -12,21 +12,27 @@ Tick the boxes in a copy of this file in the launch PR's description, not here.
 ## 0. What must be merged first
 
 - [ ] **H** Cloudflare is connected: [cloudflare-setup.md](cloudflare-setup.md), about ten minutes.
+      Done 2026-09-23; Always Use HTTPS switched on by Allen and checked on 2026-09-28.
 - [ ] **C** The follow-up PR: `workers_dev: false`, and the Web Analytics token in
       `ANALYTICS_TOKEN` (`src/config/analytics.ts`), the one line that turns counting on. The
       beacon only loads on `allenkh.com`, and not for a visitor who sends Global Privacy Control
-      or Do Not Track.
+      or Do Not Track. `workers_dev: false` is done (#39); the token waits for Allen, whose steps
+      are [cloudflare-setup.md](cloudflare-setup.md) §5 (rewritten 2026-09-28 for the dashboard
+      as it is now).
 - [ ] **H** `allen@allenkh.com` receives mail (Cloudflare Email Routing → a rule for `allen`).
       Send one test message from another account before the address is public.
 - [ ] **H** The copy has had its voice edit: About, the project pages, the home page, the hint
-      card. The build already fails on any `TODO(copy)` that would ship.
+      card. The step by step and the list of every piece of copy: [copy-edit.md](copy-edit.md).
+      The build already fails on any `TODO(copy)` that would ship.
 - [ ] **H** The points to confirm in docs/PLAN.md §9 are answered (the summer of 2024, the
       preparedness club's dates, the VEX numbers, the Raytheon title, the name on the resume).
-- [ ] **H → C** The visual identity pass (A1) is merged. Claude did it at Allen's request, on
-      `claude/a1-visual-identity`; it already deletes the typefaces that were not chosen, with
-      their `@font-face` rules, and preloads the one that was (Outfit).
+      Answered 2026-09-28: the resume follows Allen's resume of 2026-09-23.
+- [ ] **H → C** The visual identity pass (A1) is merged. Claude did it at Allen's request (#41,
+      2026-09-24): one typeface, Outfit, preloaded.
 - [ ] **H → C** The playtest on a laptop and a real phone (Phase 1's exit gate) has happened, and
-      what it found is in a tuning-only PR.
+      what it found is in a tuning-only PR. Allen did some of the playtesting on 2026-09-28 and
+      accepted it ("everything is okay for now"); no tuning PR was needed, polish comes later
+      (docs/PLAN.md §6, Phase 1 step 14), and the real-device checks in §3 below stay open.
 
 ## 1. Held by machines, on every PR (M)
 
@@ -93,7 +99,9 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       cache → Test says "restored").
 - [ ] **Link previews.** LinkedIn's Post Inspector and opengraph.xyz for `/`,
       `/projects/fishai/`, `/projects/days2meet/` and `/resume/`: title, sentence, picture.
-- [ ] **Print the resume** (Ctrl+P on `/resume/`): two clean pages, and no phone number.
+- [ ] **Print the resume** (Ctrl+P on `/resume/`): two clean pages headed by the full name, and
+      no phone number. Open **Download the PDF** too: the same two pages (the build checks that
+      the PDF still matches the page, but not what it looks like).
 - [ ] **The ten-second test.** Hand a phone to someone who has never seen the site and ask them
       to find the resume. Then ask them to find FishAI without using the links.
 
@@ -107,4 +115,4 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
 
 - [ ] Web Analytics shows visits, and its Core Web Vitals agree with Lighthouse.
 - [ ] Anything a real visitor tripped over becomes an issue, and Phase 3 carries on
-      (docs/PLAN.md §6; the lazy-JavaScript budget in §9 is the first decision it needs).
+      (docs/PLAN.md §6; the first thing it needs is Allen's tree of solar systems, §9).

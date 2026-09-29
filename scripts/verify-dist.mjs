@@ -13,6 +13,8 @@
 //   7. SWAP CONTRACT: outside <main> and [data-page-head], every page is byte-identical (the
 //      nav's aria-current aside), and has exactly one <h1>. The router (Phase 2) swaps only
 //      those parts, so this is what makes a soft navigation end in the same DOM as a hard one.
+//   8. THE RESUME'S PDF says what the resume page says: it is the file config/resume-pdf.json
+//      describes, printed from this very page and print stylesheet (`npm run resume-pdf`).
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -30,8 +32,10 @@ import {
   pageSkeleton,
   toSitePath,
 } from './lib/html.mjs';
+import { RESUME_PAGE, RESUME_PDF, RESUME_PDF_LOCK, resumePdfProblems } from './lib/resume-pdf.mjs';
 
-const DIST = resolve(import.meta.dirname, '..', 'dist');
+const ROOT = resolve(import.meta.dirname, '..');
+const DIST = resolve(ROOT, 'dist');
 // three.js keeps "THREE.<Class>: ..." strings in its warnings, which survive minification.
 const ENGINE_MARKER = /THREE\.[A-Z]\w+/;
 
@@ -294,6 +298,18 @@ for (const page of [...swappable].sort((a, b) => a.pagePath.length - b.pagePath.
     );
   }
 }
+
+// 8 --- the resume's PDF ------------------------------------------------------------------------
+const readIfThere = (path, encoding) => (existsSync(path) ? readFile(path, encoding) : null);
+const resumeLock = await readIfThere(resolve(ROOT, RESUME_PDF_LOCK), 'utf8');
+errors.push(
+  ...resumePdfProblems({
+    lock: resumeLock === null ? null : JSON.parse(resumeLock),
+    pdf: await readIfThere(resolve(DIST, RESUME_PDF.slice(1))),
+    html: await readIfThere(resolve(DIST, RESUME_PAGE.slice(1), 'index.html'), 'utf8'),
+    css: await readIfThere(resolve(ROOT, 'src', 'styles', 'global.css'), 'utf8'),
+  }),
+);
 
 // --- report ------------------------------------------------------------------------------------
 if (errors.length > 0) {

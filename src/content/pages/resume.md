@@ -1,7 +1,8 @@
 ---
 title: Resume
-summary: Education, experience, leadership, skills and awards, on one page that also prints cleanly.
+summary: Education, experience, leadership, skills and awards, on one page that prints cleanly and downloads as a PDF.
 dock: station
 ---
 
-The formal version. It prints cleanly on one or two pages: use your browser's print command.
+The formal version, as a PDF to download, or printed straight from this page with your browser's
+print command.

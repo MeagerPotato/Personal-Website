@@ -128,17 +128,28 @@ export function isPlainOnly(html) {
  * byte-identical on every page, or a soft navigation and a hard one would end in different DOMs.
  */
 export function pageSkeleton(html) {
+  const { start, end } = mainBounds(html);
+  // <main> is emptied FIRST, so nothing a page says inside it can look like a head node.
+  return (html.slice(0, start) + html.slice(end))
+    .replace(PAGE_HEAD_PAIRED_RE, '')
+    .replace(PAGE_HEAD_VOID_RE, '')
+    .replace(ARIA_CURRENT_RE, '');
+}
+
+/** What a page says inside its one <main>: everything the router would swap in. */
+export function mainContent(html) {
+  const { start, end } = mainBounds(html);
+  return html.slice(start, end);
+}
+
+/** Where the children of the page's one <main> begin and end. */
+function mainBounds(html) {
   const opens = [...html.matchAll(MAIN_OPEN_RE)];
   const close = html.lastIndexOf(MAIN_CLOSE);
   if (opens.length !== 1 || close < 0 || html.indexOf(MAIN_CLOSE) !== close) {
     throw new Error('expected exactly one <main> element');
   }
-  const bodyStart = opens[0].index + opens[0][0].length;
-  // <main> is emptied FIRST, so nothing a page says inside it can look like a head node.
-  return (html.slice(0, bodyStart) + html.slice(close))
-    .replace(PAGE_HEAD_PAIRED_RE, '')
-    .replace(PAGE_HEAD_VOID_RE, '')
-    .replace(ARIA_CURRENT_RE, '');
+  return { start: opens[0].index + opens[0][0].length, end: close };
 }
 
 /** Where two strings first differ, with a little context: an error message a person can act on. */
