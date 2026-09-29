@@ -2,7 +2,13 @@ import { routes } from '../site/routes';
 
 /** Site-wide constants. No phone number, ever (docs/PLAN.md decision 28). */
 export const site = {
+  /** How the site names its owner everywhere (docs/PLAN.md decision 25). */
   name: 'Allen',
+  /**
+   * The resume page, and so its printout and its PDF, alone carries the full name: a resume headed
+   * only "Allen" is unusual (Allen, 2026-09-28; docs/PLAN.md §9).
+   */
+  fullName: 'Allen Hsieh',
   url: 'https://allenkh.com',
   locale: 'en',
 

@@ -1393,6 +1393,19 @@ picture {
 
 /* 1f. The resume -------------------------------------------------------------------------------- */
 
+/* The name that heads the resume, the one place the site gives it in full (site.ts, fullName).
+   On screen it opens the document under the page's title; on paper it IS the heading (section 4). */
+main > .resume-name {
+  margin-top: var(--space-4);
+  color: var(--color-ink-high);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+main > .resume-name + .resume-contact {
+  margin-top: var(--space-3);
+}
+
 /* How to reach Allen: a row of outlined chips (36 px to see, 44 px to press). */
 .resume-contact {
   display: flex;
@@ -1692,6 +1705,11 @@ picture {
 .footer p {
   margin: 0;
   color: inherit;
+}
+
+/* Who and what made the site: the last and quietest line of the page (plain mode only). */
+.colophon {
+  font-size: var(--text-xs);
 }
 
 .mode-link {
@@ -2876,7 +2894,8 @@ picture {
     --key-ledge: 0 0 0 transparent;
   }
 
-  /* What is left of the footer is the way out to the plain version: a corner of the HUD. */
+  /* What is left of the footer is the way out to the plain version: a corner of the HUD. The
+     colophon stays with the plain version, where the page has an end to put it at. */
   html[data-mode='universe'] .footer {
     position: fixed;
     z-index: 1;
@@ -2885,6 +2904,10 @@ picture {
     margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  html[data-mode='universe'] .colophon {
+    display: none;
   }
 
   html[data-mode='universe'] .mode-link {
@@ -3481,7 +3504,7 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     min-height: 0;
     color: black;
     background: white;
-    line-height: 1.4;
+    line-height: 1.35;
   }
 
   .page {
@@ -3520,9 +3543,13 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     margin-top: var(--space-3);
   }
 
-  main > .section,
-  main > .resume-section {
+  main > .section {
     margin-top: var(--space-6);
+  }
+
+  /* A resume is dense on paper: two pages, not three. */
+  main > .resume-section {
+    margin-top: var(--space-4);
   }
 
   .card,
@@ -3570,17 +3597,19 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     font-size: 0.9rem;
   }
 
-  /* A resume on paper is headed by the name: the wordmark at a heading's size, and the page's
-     own title under it as a small label. (Without :has(), it prints like any other page.) */
-  body:has(.resume-section) .wordmark {
-    font-size: 2rem;
+  /* A resume on paper is headed by the name, in full, and by nothing else: the wordmark and the
+     page's own title are the screen's. This is also what the PDF is printed from
+     (`npm run resume-pdf`). Without :has(), it prints like any other page, name and all. */
+  body:has(.resume-name) .wordmark,
+  main:has(.resume-name) > .page-header {
+    display: none;
   }
 
-  main:has(.resume-section) h1 {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  main > .resume-name {
+    margin-top: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
   }
 
   /* A project page: the toy planets, the stations and their rings are the screen's. */
@@ -3619,12 +3648,35 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     border-bottom-color: black;
   }
 
+  /* Block, not grid, on paper: Chromium moves a grid's next row to a new page whole, so an entry
+     that would have fitted left half a page empty. */
   .entries {
-    gap: var(--space-3);
+    display: block;
+  }
+
+  .entries > .entry + .entry {
+    margin-top: var(--space-3);
   }
 
   .entry__bullets {
     margin-top: var(--space-1);
+  }
+
+  /* A skill group on one line: the labels in a column as wide as the longest, the values beside
+     them. */
+  .skills {
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-4);
+  }
+
+  .skills > div {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
+  .awards {
+    gap: var(--space-1);
   }
 
   .entry__bullets li + li {

@@ -180,7 +180,7 @@ device's own mono stack (`font.mono`), which costs nothing. The other four stage
 - **The one exception: the resume's section heads are `lg`, not `xl`.** A resume is a document
   of many short sections, where the heads are labels that sort the page and the entries must
   lead; on a wide screen they hang in a 10.5rem column in the margin, where "Experience" at `xl`
-  would not fit. On paper the name leads instead (the wordmark at a heading's size).
+  would not fit. On paper the full name leads instead, at a heading's size.
 
 ## Space, shape, motion
 
@@ -280,9 +280,14 @@ transit map.
   the title, so that a reader scanning down the rail does not see them zig-zag. The ways to reach
   Allen are outlined chips, and on a phone 44 px rows between hairlines, like the Contact page.
 - **On paper** every page is the plain layout in black on white. The route ornaments, the toy
-  planets and the stations go. The resume is one classic column headed by the name (the wordmark
-  at a heading's size, the page's title a small label under it); its dates are plain words of
-  about 9 pt, and its heads are sized for paper.
+  planets and the stations go. The resume is one classic column headed by the full name and
+  nothing else (the wordmark and the page's own title are the screen's; on screen the name opens
+  the document under the title, `lg` and 600); its dates are plain words of about 9 pt, its heads
+  are sized for paper, and it is dense: entries a block apart, each skill group on one line, so
+  that it fills two Letter pages, not three. The PDF the page offers is this same print
+  (`npm run resume-pdf`).
+- **The colophon** closes every plain page: one line in `xs`, `ink.mid`, under the footer's
+  chips. The universe has no foot to put it at, so it leaves it out; paper leaves it out too.
 - **Notices** (this is the plain version, and why) are a legend plate of their own: the band in
   `ink.low` (a notice is news, not a family), a station ring before the words, and the way back to
   the starfield as a real 44 px key.

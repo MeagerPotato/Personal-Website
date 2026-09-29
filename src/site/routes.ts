@@ -13,6 +13,11 @@ export const routes = {
   universeManifest: (): string => '/universe.json',
   /** The link-preview image for pages without a picture of their own. */
   ogDefault: (): string => '/og/default.png',
+  /**
+   * The resume as a PDF, printed from /resume/ by `npm run resume-pdf` (scripts/lib/resume-pdf.mjs
+   * names the same file; tests/build-scripts.test.ts holds the two together).
+   */
+  resumePdf: (): string => '/allen-hsieh-resume.pdf',
 } as const;
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

@@ -4,8 +4,10 @@
 # NEVER add a phone number or a private email address to this file. The public contact address
 # lives in src/config/site.ts.
 #
-# Sources: Allen's resume (2026) and LinkedIn export (2026-09-20). Where they disagreed, the newer
-# LinkedIn numbers were used; docs/PLAN.md §9 lists the points still to confirm with Allen.
+# Source: Allen's resume of 2026-09-23. Where it and LinkedIn disagreed, Allen chose on 2026-09-28
+# (docs/PLAN.md §9): the resume everywhere, except CyberPatriot's two national finals (2025 and
+# 2026), which LinkedIn has right. What that resume leaves out for space (the YC conference line,
+# the awards, TypeScript in the skills) comes from the earlier resume and LinkedIn.
 
 education:
   section: education
@@ -34,10 +36,23 @@ experience:
       location: Albuquerque, NM
       when: Summer 2024
       bullets:
-        - Designed, built, and iteratively tested a staged-recovery rocket through 11 design iterations, integrating a fragile payload and a dual-event recovery system using OpenRocket and CAD.
+        - Designed, built, and iteratively tested a staged-recovery rocket through 11 design iterations in OpenRocket and CAD; it reached 3,200 ft (barometric altimeter) and deployed its parachute recovery system.
         - Operated FDM and resin 3D printers, a CNC lathe and mill, and a laser cutter to prototype solutions for autonomous robotics projects.
         - Observed cold-atom laboratory research on inertial navigation systems based on Bose-Einstein condensates.
-    - role: Selected Attendee
+    - role: Logistics Director
+      org: Hackathons @ Berkeley
+      location: Berkeley, CA
+      when: Fall 2026 – Present
+      bullets:
+        - Plan catering and hacker bus transportation for Cal Hacks 13.0 (3,000+ attendees), and source event merchandise end to end, from vendor quotes to delivery.
+    - role: Avionics Team Member
+      org: Cal Aero SAE
+      location: Berkeley, CA
+      when: Fall 2026 – Present
+      bullets:
+        - Built a universal motor test jig that measures thrust to guide motor selection for the competition RC plane.
+        - Designing an ESP32 telemetry and black-box system for autonomous turbulence correction through propeller power control.
+    - role: Hacker & Attendee
       org: Y Combinator Startup School
       location: San Francisco, CA
       when: Summer 2026
@@ -55,14 +70,13 @@ leadership:
         - Led the team to 2nd place at the CyberPatriot National Finals twice (2025 and 2026; 1,406 teams entered the 2025 season) and to 1st place in the Cisco Networking Challenge both years.
         - National semifinalist runner-up in 2023 and 2024, competing all four years as the team's Windows specialist.
         - Taught about 200 students over two years as a program instructor and Troy CyberCamp staff.
-    - role: Co-Founder & Lead Programmer
+    - role: Co-Founder & Programmer
       org: VEX Robotics
-      when: May 2023 – May 2026
+      when: Jul 2023 – May 2026
       bullets:
-        - Co-founded the school's first V5RC team with 11 members; by 2026 the program had grown to 14 teams and 90+ students.
-        - Programmed autonomous navigation in C++ using odometry, sensor fusion, motion profiling, and Monte Carlo localization.
-        - "Across the program: 4 VEX Worlds qualifications, back-to-back National Division Finalist (2024, 2025), and 3 California Region 4 State qualifications."
-        - Managed budgets that grew from about $15K to about $80K for parts, tools, and travel, and led summer-camp fundraisers that raised about $12K.
+        - Co-founded the school's first V5RC team and scaled it to a 7-team program of about 60 students, with 9 national appearances.
+        - Programmed autonomous navigation in C++ using sensor fusion, calculus-based odometry, motion profiling, and Monte Carlo algorithms.
+        - Back-to-back National Division Finalist (2024, 2025); organized $11K in fundraising through community partnerships and a robotics camp for 50+ students.
     - role: Founder & President
       org: Troy Preparedness Club
       when: Jul 2023 – May 2026
@@ -81,7 +95,7 @@ skills:
     - label: Programming & tools
       values: [Python, C++, TypeScript, Git, MySQL, MATLAB, LaTeX]
     - label: Design & fabrication
-      values: [SolidWorks (CAD and FEA), Fusion 360, CNC machining, FDM and SLA printing]
+      values: [SolidWorks (CAD and FEA), Fusion 360, OpenRocket, CNC machining, FDM and SLA printing]
     - label: Certifications
       values: [GIAC GFACT (cybersecurity), SolidWorks CSWA, FEMA CERT Basic Training, Red Cross CPR/AED]
 

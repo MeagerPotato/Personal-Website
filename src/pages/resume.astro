@@ -1,12 +1,14 @@
 ---
 // The resume, rendered from src/content/resume.yaml. The print stylesheet (src/styles/global.css,
-// section 4) turns this same page into the paper version.
+// section 4) turns this same page into the paper version, and `npm run resume-pdf` prints that
+// version into the PDF the page offers (verify-dist fails when the two drift apart).
 import { getCollection, getEntry, render } from 'astro:content';
 import PageHeader from '../components/PageHeader.astro';
 import ResumeRoles from '../components/ResumeRoles.astro';
 import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
 import { toResume } from '../site/resume';
+import { routes } from '../site/routes';
 import { pageTitle } from '../site/seo';
 import { DOCK_LABEL, displayUrl } from '../site/view-models';
 
@@ -18,6 +20,9 @@ const resume = toResume(await getCollection('resume'));
 
 <Base title={pageTitle(page.data.title)} description={page.data.summary}>
   <PageHeader eyebrow={DOCK_LABEL[page.data.dock]} title={page.data.title} />
+
+  <!-- The name that heads the paper version (the print stylesheet sets it at a heading's size). -->
+  <p class="resume-name">{site.fullName}</p>
 
   <ul class="resume-contact">
     <li>
@@ -41,6 +46,14 @@ const resume = toResume(await getCollection('resume'));
   <div class="prose screen-only">
     <Content />
   </div>
+
+  <ul class="actions">
+    <li>
+      <a class="button button--primary" href={routes.resumePdf()} download>
+        Download the PDF
+      </a>
+    </li>
+  </ul>
 
   <section class="resume-section" aria-labelledby="resume-education">
     <h2 id="resume-education">Education</h2>

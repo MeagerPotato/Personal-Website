@@ -97,14 +97,66 @@ instead of sending the visitor to `https://` (checked on 2026-09-23: it answered
 
 - **Always Use HTTPS**: on. (Zone → **SSL/TLS** → **Edge Certificates**.) Afterwards
   `curl.exe -sI http://allenkh.com/about/` answers `301` with `location: https://allenkh.com/about/`.
+  **Done by Allen; checked 2026-09-28.**
 
 ## 5. Web Analytics
 
-1. Account home → **Analytics & Logs** → **Web Analytics** → **Add a site** → `allenkh.com`.
-2. If it offers **automatic setup**, decline it: choose the **manual / JS snippet** option. (The
-   site injects the beacon itself, and only on `allenkh.com`, so previews never count as visits.)
-3. Copy the **token** out of the snippet: the 32-character value in `data-cf-beacon='{"token": "…"}'`.
-   It is public (it ships in the page HTML), so it is fine to paste into chat.
+**Rewritten 2026-09-28** for the dashboard as it is now: the first version of this step stopped
+matching when Cloudflare regrouped its sidebar (late 2025, again in 2026), and the add-site screen
+no longer lets you decline automatic setup. Checked against Cloudflare's own docs that day.
+
+What you are doing: adding allenkh.com to Web Analytics, making sure Cloudflare does **not**
+inject its own copy of the beacon (the site loads it itself, only on `allenkh.com` and never for
+a visitor who asks not to be tracked), and copying one public value, the **token**, for Claude.
+
+1. **Open Web Analytics.** Sign in to the dashboard, then paste this link into the address bar:
+   `https://dash.cloudflare.com/?to=/:account/web-analytics` (it opens the page for your account;
+   pick the account that holds allenkh.com if asked). You should see a page called
+   **Web Analytics** with an **Add a site** button.
+   - If the link does not work: press `/` (or Ctrl+K) anywhere in the dashboard, type
+     `Web analytics` and pick the account-level result. It also lives in the left sidebar under
+     **Analytics & logs** (press `t` then `m` to expand every menu).
+   - If you land on a Web Analytics page **inside** the allenkh.com domain instead, do not press
+     **Enable Globally** or **Exclude EU**: both switch on automatic injection. Use the link above.
+2. **Look for an allenkh.com card first.** If one is already listed, do not add a second site:
+   skip to step 4 and use that card.
+3. **Add the site.** **Add a site** → type `allenkh.com` (exactly that: no `www`, no subdomain) →
+   pick the suggestion → **Done**. The card it creates says **Automatic Setup**: expected, and
+   harmless for the minute until step 5 (the site's own beacon is still off, and the site's
+   security policy allows Cloudflare's). If `allenkh.com` is not suggested, select the box
+   showing what you typed, then **Done**; carry on with step 4 either way.
+4. **Open its settings.** On the allenkh.com card: **Manage site**. The page shows
+   **Configured hostname(s)** and a **Real User Measurements (RUM)** section with four choices.
+5. **Switch to manual.** Choose **Enable with JS Snippet installation** ("The JS Snippet needs to
+   be installed manually"), then **Update** at the bottom (or Save / Apply, whatever it is called
+   today). Not **Enable**, not **Enable, excluding visitor data in the EU** (both inject
+   automatically), not **Disable**. If the four choices are missing, look under
+   **Advanced Options** for a switch that turns off "JS Snippet injection" and turn it off.
+6. **Copy the token.** A box now shows a snippet like
+   `<script … data-cf-beacon='{"token": "…"}'></script>`. Copy only the value after `"token"`:
+   32 characters, each `0-9` or `a-f`. Paste it to Claude in chat. It is public (it ships in
+   every page), so that is safe. Do **not** paste the snippet into any file of the site: the
+   site loads the beacon itself, and a second inline script would break its security policy.
+   Not sure which part is the token? Paste the whole snippet; Claude picks it out. (A different
+   value, the site tag, shows in the address bar: that is not it.)
+7. **Optional check** that Cloudflare injects nothing. This must print **nothing**:
+
+   ```bash
+   curl.exe -s -H "Accept: text/html" -A "Mozilla/5.0" https://allenkh.com/ | findstr cloudflareinsights
+   ```
+
+   If it prints a line with `beacon.min.js/v…`, automatic injection is still on: repeat step 5,
+   then check again after a few minutes. (Keep the `Accept: text/html` part: without it the
+   check always comes back clean.)
+
+To find the token again later: the same link, then **Manage site** on the allenkh.com card.
+Once Claude's PR is merged it also lives in `src/config/analytics.ts`.
+
+After that PR is live, Claude checks it; if you want to see it yourself, open
+https://allenkh.com/ with any ad blocker off (Brave blocks the beacon), DevTools → **Network**,
+filter `cloudflareinsights`: one `beacon.min.js` request (with no `/v…` after it), then a
+`POST` to `cloudflareinsights.com/cdn-cgi/rum` for each page you open. Visits show on the card
+within minutes.
 
 ## 6. Tell Claude, then check
 

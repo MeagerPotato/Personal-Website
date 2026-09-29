@@ -8,11 +8,20 @@ import {
   extractUrls,
   firstDifference,
   isPlainOnly,
+  mainContent,
   metaContent,
   pageSkeleton,
   parseAttributes,
   toSitePath,
 } from '../scripts/lib/html.mjs';
+import {
+  RESUME_PDF,
+  printSection,
+  resumeFingerprint,
+  resumePdfProblems,
+  sha256,
+} from '../scripts/lib/resume-pdf.mjs';
+import { routes } from '../src/site/routes';
 
 describe('parseAttributes', () => {
   it('handles quoted, unquoted and boolean attributes', () => {
@@ -189,5 +198,78 @@ describe('head metadata', () => {
   it('finds the canonical link and nothing else', () => {
     expect(canonicalUrl(head)).toBe('https://site.invalid/about/');
     expect(canonicalUrl('<link rel="stylesheet" href="/x.css">')).toBeNull();
+  });
+});
+
+describe('mainContent', () => {
+  it('returns what the router would swap in, and nothing around it', () => {
+    const html =
+      '<head><title>t</title></head><body><main id="main"><h1>A</h1></main><footer>f</footer>';
+    expect(mainContent(html)).toBe('<h1>A</h1>');
+    expect(() => mainContent('<main>a</main><main>b</main>')).toThrow(/one <main>/);
+  });
+});
+
+describe("the resume's PDF", () => {
+  const html = (main: string, head = '') =>
+    `<head><title>Resume</title>${head}</head><body><main id="main">${main}</main><footer>f</footer>`;
+  const css = (print: string, before = '.a { color: red; }') =>
+    `${before}\n/* 4. Print: always the plain layout ---- */\n${print}\n`;
+  const PAGE = html('<p class="resume-name">Allen Hsieh</p>');
+  const CSS = css('@media print { .b { color: black; } }');
+  const PDF = Buffer.from('%PDF-1.7 the bytes');
+  const LOCK = { pdf: sha256(PDF), printedFrom: resumeFingerprint(PAGE, CSS), pages: 2 };
+
+  it('is served where the resume page links to it', () => {
+    expect(RESUME_PDF).toBe(routes.resumePdf());
+  });
+
+  it('is printed from the page and the print section, and nothing else', () => {
+    const print = resumeFingerprint(PAGE, CSS);
+    // What the page says, and how paper looks, both count.
+    expect(resumeFingerprint(html('<p>Allen</p>'), CSS)).not.toBe(print);
+    expect(resumeFingerprint(PAGE, css('@media print { .b { color: blue; } }'))).not.toBe(print);
+    // A new build stamp in the head, or a screen-only style, changes nothing on paper.
+    expect(
+      resumeFingerprint(
+        html('<p class="resume-name">Allen Hsieh</p>', '<meta name="build" content="x">'),
+        CSS,
+      ),
+    ).toBe(print);
+    expect(
+      resumeFingerprint(PAGE, css('@media print { .b { color: black; } }', '.a { color: blue; }')),
+    ).toBe(print);
+    // Windows line endings are the same file.
+    expect(resumeFingerprint(PAGE.replaceAll('\n', '\r\n'), CSS.replaceAll('\n', '\r\n'))).toBe(
+      print,
+    );
+  });
+
+  it('refuses a stylesheet without its print section', () => {
+    expect(() => printSection('.a { color: red; }')).toThrow(/4\. Print/);
+  });
+
+  it('passes when the committed PDF was printed from this very page', () => {
+    expect(resumePdfProblems({ lock: LOCK, pdf: PDF, html: PAGE, css: CSS })).toEqual([]);
+  });
+
+  it('asks for a new PDF when the resume changed since it was printed', () => {
+    const changed = html('<p class="resume-name">Allen Hsieh</p><p>A new job</p>');
+    const problems = resumePdfProblems({ lock: LOCK, pdf: PDF, html: changed, css: CSS });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/changed since .* was printed.*npm run resume-pdf/);
+  });
+
+  it('notices a PDF that is not the one the lock describes, or none at all', () => {
+    const other = Buffer.from('%PDF-1.7 other bytes');
+    expect(resumePdfProblems({ lock: LOCK, pdf: other, html: PAGE, css: CSS })[0]).toMatch(
+      /not the file/,
+    );
+    expect(resumePdfProblems({ lock: LOCK, pdf: null, html: PAGE, css: CSS })[0]).toMatch(
+      /missing from dist/,
+    );
+    expect(resumePdfProblems({ lock: null, pdf: PDF, html: PAGE, css: CSS })[0]).toMatch(
+      /resume-pdf\.json is missing/,
+    );
   });
 });

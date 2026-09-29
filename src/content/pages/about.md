@@ -8,21 +8,29 @@ I'm Allen. I study aerospace engineering at UC Berkeley (class of 2030), and I l
 that have to work in the real world: rockets that come back in one piece, robots that know where
 they are, and software that people actually use.
 
+## Berkeley
+
+I'm on Cal Aero SAE's avionics team, where I built a motor test jig that measures thrust to choose
+the motors for our competition RC plane, and I'm designing an ESP32 telemetry and black-box system
+that corrects for turbulence through the propellers' power. I'm also logistics director at
+Hackathons @ Berkeley: catering, hacker buses, and merchandise for Cal Hacks 13.0, with more than
+3,000 attendees.
+
 ## Rockets
 
 I spent the summer of 2024 as an AFRL Scholars intern in Albuquerque, where I designed, built, and
-tested a staged-recovery rocket through eleven design iterations, with a fragile payload and a
-dual-event recovery system, working in OpenRocket and CAD. The rest of that summer went to the
-machine shop: FDM and resin printers, a CNC lathe and mill, and a laser cutter. Back at school I
-founded and captained an American Rocketry Challenge team.
+tested a staged-recovery rocket through eleven design iterations in OpenRocket and CAD. It reached
+3,200 feet on its barometric altimeter and came back under its parachute. The rest of that summer
+went to the machine shop: FDM and resin printers, a CNC lathe and mill, and a laser cutter. At
+school I founded and captained an American Rocketry Challenge team.
 
 ## Robots
 
-In 2023 I co-founded my high school's first VEX V5RC team and became its lead programmer. I wrote
-the autonomous navigation in C++: odometry, sensor fusion, motion profiling, and Monte Carlo
+In 2023 I co-founded my high school's first VEX V5RC team and became its programmer. I wrote the
+autonomous navigation in C++: odometry, sensor fusion, motion profiling, and Monte Carlo
 localization, so the robot could work out where it was and get where it was going. The program
-grew from one team of 11 to 14 teams and more than 90 students, with four VEX Worlds
-qualifications and two national division finals along the way.
+grew to seven teams and about 60 students, with nine national appearances and back-to-back
+national division finals in 2024 and 2025.
 
 ## Security
 
@@ -35,8 +43,9 @@ years. I also taught it, to about 200 students over two years.
 Most of my software lives in the [Code system](/systems/code/): [FishAI](/projects/fishai/), bots
 for a six-player card game and the lab that measures them, and
 [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are meaningless. At
-a hackathon in 2026 I built RunItBack in twelve hours, a tool that turns a single photo into an
-interactive 3D environment for dementia reminiscence therapy. It placed 5th of more than 1,000.
+the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack in twelve hours,
+a tool that turns a single photo into an interactive 3D environment for dementia reminiscence
+therapy. It placed 5th of more than 1,000.
 
 ## Work
 

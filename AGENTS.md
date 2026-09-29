@@ -36,8 +36,10 @@ journey is handed back at speed (Stop, a key, the web layer letting go, a reload
 guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
 visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
 direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). What
-Phase 2 still lacks before launch: Allen's copy edit and the analytics token. Phase 1's exit
-gate, the playtest on a laptop and a real phone, is Allen's and still open.
+Phase 2 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md) and the
+analytics token (docs/runbooks/cloudflare-setup.md §5). Phase 1's exit gate, the playtest on a
+laptop and a real phone, passed on 2026-09-28; the feel gets its polish later. Phase 3 waits on
+Allen's tree of solar systems (docs/PLAN.md §9).
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -89,6 +91,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
 | `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 2 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
+| `npm run resume-pdf` | build → prints `/resume/` through the print stylesheet into `public/allen-hsieh-resume.pdf` (Playwright's Chromium) and records what it printed from in `config/resume-pdf.json`. `verify-dist` fails a build whose resume page or print stylesheet changed since, so run it after any resume change and commit both files. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
 Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node scripts only, no
@@ -270,8 +273,10 @@ Check 360 px wide, and check print if the resume could be affected.
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
 should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print
-stylesheet render it; a missing or empty section fails the build. No phone number, no private
-email: `tests/privacy.test.ts` scans the whole repository for both.
+stylesheet render it; a missing or empty section fails the build. Then `npm run resume-pdf`: the
+page offers a PDF printed from itself, and `verify-dist` refuses one that no longer matches it.
+The resume page is the one place that gives the name in full (`site.fullName`). No phone number,
+no private email: `tests/privacy.test.ts` scans the whole repository for both.
 
 **Add a project (a planet).** Create `src/content/projects/<id>/index.md` plus a cover image
 beside it. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
