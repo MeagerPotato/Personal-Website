@@ -2,12 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import type { UniverseEvents } from '../universe/api';
 import { startAnnouncer, type AnnouncerOptions } from './announcer';
+import { readDestinations } from './destinations';
 
 type Listener<K extends keyof UniverseEvents> = (payload: UniverseEvents[K]) => void;
 
 const TITLES: Record<string, string> = { 'project/fishai': 'FishAI', 'system/code': 'Code' };
 
-function harness() {
+function harness(titleOf: AnnouncerOptions['titleOf'] = (id) => TITLES[id] ?? null) {
   document.body.innerHTML = '<p role="status" data-announcer></p>';
   const element = document.querySelector('p') as HTMLElement;
   const listeners = new Map<string, Set<Listener<never>>>();
@@ -19,7 +20,7 @@ function harness() {
       return () => set.delete(listener as Listener<never>);
     },
   };
-  const stop = startAnnouncer({ element, universe, titleOf: (id) => TITLES[id] ?? null });
+  const stop = startAnnouncer({ element, universe, titleOf });
   return {
     stop,
     said: () => element.textContent,
@@ -80,6 +81,24 @@ describe('the announcer', () => {
     h.emit('undocked', { id: 'system/code', by: 'asked', halting: true });
     h.emit('statechange', { mode: 'flight', target: null });
     expect(h.said()).toBe('Stopped.');
+  });
+
+  it('says that planned work is planned, in the words the galaxy gives it', () => {
+    const { titleOf } = readDestinations({
+      bodies: [
+        {
+          id: 'project/sports',
+          href: '/projects/sports/',
+          title: 'Sports Analysis',
+          planned: true,
+        },
+      ],
+    });
+    const h = harness(titleOf);
+    h.emit('statechange', { mode: 'autopilot', target: 'project/sports' });
+    expect(h.said()).toBe('Flying to Sports Analysis, planned.');
+    h.emit('statechange', { mode: 'docked', target: 'project/sports' });
+    expect(h.said()).toBe('Docked at Sports Analysis, planned.');
   });
 
   it('has words for a body it has never heard of', () => {

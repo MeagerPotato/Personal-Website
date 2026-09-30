@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../state/appMachine';
 import { Prompt, type PromptNavigator } from './Prompt';
 
-function setup(state: AppState, candidate: string | null, quiet?: () => boolean) {
+function setup(
+  state: AppState,
+  candidate: string | null,
+  quiet?: () => boolean,
+  isPlanned?: (id: string) => boolean,
+) {
   document.body.innerHTML = '<div id="overlay"></div><main data-flight-keys="off"><input /></main>';
   const overlay = document.getElementById('overlay') as HTMLElement;
   const navigator = {
@@ -18,6 +23,7 @@ function setup(state: AppState, candidate: string | null, quiet?: () => boolean)
     navigator: navigator as PromptNavigator,
     titleOf: (id) => (id === 'project/fishai' ? 'FishAI' : id),
     quiet,
+    isPlanned,
   });
   prompt.frameUpdate();
   const button = overlay.querySelector('button') as HTMLButtonElement;
@@ -85,6 +91,33 @@ describe('dock prompt', () => {
 
     button.click();
     expect(navigator.approach).toHaveBeenCalledWith('project/fishai');
+  });
+
+  it('says after the name of planned work that it is planned, seen and heard', () => {
+    const planned = (id: string): boolean => id === 'project/fishai';
+    const { button, navigator, prompt } = setup(
+      { mode: 'flight', target: null },
+      'project/fishai',
+      undefined,
+      planned,
+    );
+    cleanup = () => prompt.dispose();
+    const note = (): HTMLElement | null => button.querySelector('.dock-prompt__note');
+    expect(button.textContent).toBe('EOrbit FishAI, Planned');
+    expect(note()?.querySelector('.dock-prompt__sep')?.textContent).toBe(', ');
+    // On the way there, the same.
+    navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    navigator.candidate = null;
+    prompt.frameUpdate();
+    expect(button.textContent).toBe('Flying to FishAI, PlannedStop');
+    // "Leave orbit", and built work, say nothing of the kind.
+    navigator.state = { mode: 'docked', target: 'project/fishai' };
+    prompt.frameUpdate();
+    expect(button.textContent).toBe('Leave orbit');
+    expect(note()).toBeNull();
+    navigator.state = { mode: 'autopilot', target: 'project/days2meet' };
+    prompt.frameUpdate();
+    expect(button.textContent).toBe('Flying to project/days2meetStop');
   });
 
   it('takes E from the keyboard, but not from a form field, the panel, or a shortcut', () => {

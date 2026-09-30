@@ -293,7 +293,11 @@ export function boot(
         screen: onScreen.map,
         bodies: surroundings.orbits.ids.map((id) => {
           const body = byId.get(id);
-          return { title: body?.title ?? id, kind: body?.kind ?? 'moon' };
+          return {
+            title: body?.title ?? id,
+            kind: body?.kind ?? 'moon',
+            planned: body?.planned === true,
+          };
         }),
         params: tuning.labels,
         view: rig.shape,
@@ -345,11 +349,13 @@ export function boot(
 
   if (options.overlay) {
     const titles = new Map(manifest.bodies.map((body) => [body.id, body.title]));
+    const planned = new Set(manifest.bodies.filter((body) => body.planned).map((body) => body.id));
     prompt = engine.add(
       new Prompt({
         overlay: options.overlay,
         navigator,
         titleOf: (id) => titles.get(id) ?? id,
+        isPlanned: (id) => planned.has(id),
         // The map on a narrow screen with a page open is the strip above the sheet: the prompt's
         // offers would sit on the galaxy. They are back when the map closes; a journey's Stop
         // shows all along.
