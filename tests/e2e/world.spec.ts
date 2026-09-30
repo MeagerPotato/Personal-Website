@@ -8,7 +8,9 @@ import {
   expect,
   nameOf,
   openUniverse,
+  plannedName,
   pointAt,
+  settled,
   test,
   universe,
   watchText,
@@ -197,5 +199,74 @@ test.describe('the first visit', () => {
     await page.reload();
     await engineReady(page);
     await expect(card).toBeHidden();
+  });
+});
+
+test.describe('on a laptop', () => {
+  // On a phone the map gives these names room only part of the time: Research sits at the bottom
+  // edge of the galaxy, and even all the way in, a planet's name there often has the screen's
+  // edge (and the Plain version chip) below it and its sun's name above (measured over a whole
+  // turn: Sports Analysis's name shows from about 70 s to 200 s after the page loads, and not at
+  // all in its first minute). The flight there from a page's link is tree.spec.ts's, on every
+  // screen.
+  test.skip(({ isMobile }) => isMobile, 'a keyboard, and room on the map for a planet of Research');
+
+  test('planned work is flown to like any other, and its one-line page says so', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    const said = await watchText(page, '.dock-prompt');
+    const told = await watchText(page, '[data-announcer]');
+    await page.keyboard.press('m');
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+
+    // Research, whose only work is planned, is at the bottom of the galaxy. Closer in (+, five
+    // times, about the middle), and with the map as far down as it goes (the arrow held until
+    // Research's name holds still), its bodies' names have room beside its sun's.
+    const research = nameOf(page, 'Research');
+    await settled(research);
+    for (let press = 0; press < 5; press += 1) await page.keyboard.press('Equal');
+    await page.keyboard.down('ArrowDown');
+    await settled(research);
+    await page.keyboard.up('ArrowDown');
+
+    // Both of Research's bodies are planned: the planet, and Kalshi, its moon. They are on their
+    // way round (the planet in six minutes), and a name hangs below or above its body where there
+    // is room: measured over a whole turn, the planet's gives way to its moon's or its sun's
+    // twice, for up to 36 s, and for a few seconds neither shows. So: whichever shows first,
+    // however long the way here took (a slow machine gets here later in the turn).
+    const planned = [
+      { title: 'Sports Analysis', path: '/projects/sports-analysis/' },
+      { title: 'Kalshi', path: '/projects/kalshi/' },
+    ] as const;
+    const shows = (title: string) =>
+      nameOf(page, plannedName(title)).and(page.locator('[data-shown]')).count();
+    const found: { body?: (typeof planned)[number] } = {};
+    await expect
+      .poll(
+        async () => {
+          found.body = undefined;
+          for (const body of planned) if ((await shows(body.title)) > 0) found.body ??= body;
+          return found.body?.title;
+        },
+        { timeout: 60_000 },
+      )
+      .toBeDefined();
+    const target = found.body;
+    if (!target) throw new Error('a planned name showed, and then there was none');
+    await pointAt(page, nameOf(page, plannedName(target.title)), false);
+
+    // As for built work: nothing opens until the ship is there, then its page.
+    await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
+    await expect.poll(() => pathOf(page), FLIGHT).toBe(target.path);
+    await expect(heading(page)).toHaveText(target.title);
+    await expect(status(page)).toHaveText(`Docked at ${target.title}, planned.`);
+    expect(
+      (await said()).filter(({ text }) => text.includes(`Flying to ${target.title}`)),
+    ).not.toEqual([]);
+    expect((await told()).map(({ text }) => text)).toContain(`Flying to ${target.title}, planned.`);
+    // One line and a status, and its planet where a picture would be: nothing pretends to be built.
+    await expect(page.locator('main .facts')).toContainText('Planned');
+    await expect(page.locator('main .cover--planet')).toHaveAttribute('data-planned', '');
   });
 });

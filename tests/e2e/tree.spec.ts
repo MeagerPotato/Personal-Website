@@ -1,7 +1,8 @@
-// Allen's tree of solar systems, as the Projects binary (src/content/systems/projects.md): two
-// suns, Software and Hardware, circling one centre. /projects/ is the binary's page, each sun has
-// its own, and the old Code system's URL still works (public/_redirects). Served as Cloudflare
-// will serve it: wrangler dev applies _redirects as it applies _headers.
+// Allen's tree of solar systems: the Projects binary (src/content/systems/projects.md), two suns,
+// Software and Hardware, circling one centre, and two systems of one sun, Research (all of it
+// planned) and Hackathons. /projects/ is the binary's page, each sun has its own, and the old Code
+// system's URL still works (public/_redirects). Served as Cloudflare will serve it: wrangler dev
+// applies _redirects as it applies _headers.
 
 import type { Page } from '@playwright/test';
 import {
@@ -51,9 +52,15 @@ test('Projects is the binary’s page, shown from its first sun, Software', asyn
   await navLink(page, 'Projects').click();
 
   await expect(heading(page)).toHaveText('Projects');
-  // One section per sun, the two suns of the binary first.
-  await expect(page.locator('main h2').nth(0)).toHaveText('Software');
-  await expect(page.locator('main h2').nth(1)).toHaveText('Hardware');
+  // One section per sun, in the galaxy's order: the two suns of the binary first, then
+  // Hackathons; Research (slot 2) comes last because all its work is planned, so the first screen
+  // is finished work.
+  await expect(page.locator('main h2')).toHaveText([
+    'Software',
+    'Hardware',
+    'Hackathons',
+    'Research',
+  ]);
   await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
   await expect
     .poll(async () => (await told()).some(({ text }) => text === 'Docked at Software.'))
@@ -129,4 +136,31 @@ test('planned work is called planned, in the sky and out loud', async ({ page })
   await expect(page.locator('.body-label[data-state="target"]')).toHaveText(
     plannedName('Fish Online'),
   );
+});
+
+test('Hackathons lists its work newest first, and joins the role to the event', async ({
+  page,
+}) => {
+  await page.goto(plain('/systems/hackathons/'));
+  await expect(heading(page)).toHaveText('Hackathons');
+  await expect(page.locator('main .eyebrow')).toHaveText('Solar system');
+  // Built work by date, newest first, and planned work (the Corgi Hackathon's write-up) last.
+  // Hackathons @ Berkeley and HackGT 13 both began in September 2026, and a tie goes by id
+  // (src/site/view-models.ts, byShowcase).
+  await expect(page.locator('main h3')).toHaveText([
+    'Cal Hacks 13.0',
+    'Hackathons @ Berkeley',
+    'HackGT 13',
+    'Corgi Hackathon',
+  ]);
+
+  // The logistics role and the event it runs share a motorway, and each page says so.
+  for (const [from, to] of [
+    ['/projects/hackathons-at-berkeley/', 'Cal Hacks 13.0'],
+    ['/projects/cal-hacks-13/', 'Hackathons @ Berkeley'],
+  ] as const) {
+    await page.goto(plain(from));
+    const lane = page.getByRole('region', { name: 'Connected by motorway' });
+    await expect(lane.getByRole('link', { name: to, exact: true })).toBeVisible();
+  }
 });

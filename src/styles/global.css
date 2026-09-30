@@ -920,6 +920,10 @@ main > .resume-section {
 .card__moons a {
   /* A tall touch target that does not loosen the card's rhythm. */
   display: inline-block;
+  /* A name long enough to wrap ("Hackathons @ Berkeley" on a phone) fills its line, and its
+     target, wider than the words by the padding, would then poke past the card and scroll the
+     page sideways: it stops at the card's edge instead. */
+  max-width: 100%;
   margin: calc(var(--space-3) * -1) -0.625rem;
   padding: var(--space-3) 0.625rem;
   color: var(--color-ink-high);

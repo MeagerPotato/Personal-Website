@@ -9,11 +9,13 @@ import { createOrbitTable } from '../src/universe/sim/orbits';
 // disc when the whole family, keep-outs included, reaches no further than tuning.cruise.familyReach
 // from its body, and round its bodies one by one otherwise (sim/autopilot.ts, planCruise). Which
 // of the two a family gets changes every journey past it, and content decides it. On 2026-09-30
-// (the Projects binary) the families reach, keep-outs in: Software 271.8 u, Hardware 117.8,
-// Canadian Fish with its moons 77.0, the home planet with the station and the satellite 70.2.
-// Hardware stands 2.2 u under the line of 120: one more moon there flips it. The journey times
-// the gate measured (npm run journeys) were measured in THIS regime, so a content change that
-// flips a family fails here, and whoever makes it re-runs the journeys before updating the lists.
+// (the whole tree: the Projects binary, Research and Hackathons) the families reach, keep-outs
+// in: Software 271.8 u, Hackathons 194.6, Hardware 117.8, Research 116.2, Canadian Fish with its
+// moons 77.0, the home planet with the station and the satellite 70.2, Sports Analysis with
+// Kalshi 37.6. Hardware stands 2.2 u under the line of 120 and Research 3.8: one more moon on
+// either flips it. The journey times the gate measured (npm run journeys) were measured in THIS
+// regime, so a content change that flips a family fails here, and whoever makes it re-runs the
+// journeys before updating the lists.
 
 const RERUN =
   'run npm run journeys (the planner now goes round this family differently), and update this list';
@@ -40,13 +42,19 @@ describe('the families the autopilot goes round whole (the regime pin)', () => {
     expect(
       whole.map(({ id }) => id),
       RERUN,
-    ).toEqual(['page/about', 'project/canadian-fish-demo', 'system/hardware']);
+    ).toEqual([
+      'page/about',
+      'project/canadian-fish-demo',
+      'system/hardware',
+      'system/research',
+      'project/sports-analysis',
+    ]);
   });
 
   it('goes round the bodies of these one by one', () => {
     expect(
       byBody.map(({ id }) => id),
       RERUN,
-    ).toEqual(['system/software']);
+    ).toEqual(['system/software', 'system/hackathons']);
   });
 });
