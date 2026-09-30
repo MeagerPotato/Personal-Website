@@ -55,6 +55,11 @@ function serviceWorker(): Plugin {
 }
 
 export default defineConfig({
+  // Every file is compiled with this app's tsconfig, including the two the design package imports
+  // from the main site. Left to itself, Vite would use the tsconfig nearest each file, which for
+  // those two is the repository root's: it extends Astro's, and Astro is not installed where only
+  // sites/ is (CI, Workers Builds), so the build would fail there and nowhere else.
+  tsconfig: 'tsconfig.json',
   // `vite dev` runs the Worker in workerd (Cloudflare's runtime) with local D1 and R2, so the
   // API behaves in development exactly as it will on journal.allenkh.com.
   plugins: [
