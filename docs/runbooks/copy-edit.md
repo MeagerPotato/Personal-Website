@@ -86,17 +86,24 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
       written.
 - [ ] **Canadian Fish** (a planet of Software since 2026-09-30, and FishAI's, Fish Onboarding's
       and Fish Online's planet) · `src/content/projects/canadian-fish-demo/index.md`. New: the
-      sentence at the end of its first paragraph that introduces its moons.
+      sentence at the end of its first paragraph that introduces its moons, which calls Fish
+      Online "a home for the game beyond a single room code" (the drafts' words for it).
 - [ ] **Fish Onboarding** (a moon of Canadian Fish) · `src/content/projects/fish-onboarding/index.md`.
 - [ ] **CyberPatriot** (new, a planet of Software) · `src/content/projects/cyberpatriot/index.md` ·
-      `/projects/cyberpatriot/`. Drafted from your resume and About page; the first paragraph
-      describes the competition's format in general words, and "Along the way I earned the GIAC
-      GFACT" ties your certification to it: keep or cut.
+      `/projects/cyberpatriot/`. Drafted from your resume and About page. Written from general
+      knowledge rather than your own words, so keep or cut: the first paragraph (the
+      competition's format), "the national youth cyber defense competition" in the `summary`
+      (worded so it cannot read as a national team), and "Along the way I earned the GIAC GFACT",
+      which ties your certification to it.
 - [ ] **Model Rocketry** (new, a planet of Hardware) · `src/content/projects/model-rocketry/index.md`
       · `/projects/model-rocketry/`. AFRL and the American Rocketry Challenge, from the resume; it
       grows when the rocket details and the CAD arrive.
 - [ ] **Robotics** (new, a planet of Hardware) · `src/content/projects/robotics/index.md` ·
-      `/projects/robotics/`. The VEX team and program, from the resume and About.
+      `/projects/robotics/`. The VEX team and program, from the resume and About, and two
+      phrases from general knowledge, not from you: "spends the start of every match on its own,
+      with no one to steer it" (the autonomous period), and "to correct itself when the wheels
+      slip" (what Monte Carlo localization is for). Check that they say what your code did, or
+      cut them.
 - [ ] **Fish Online** (new, a planned moon of Canadian Fish) · `src/content/projects/fish-online/index.md`
       · `/projects/fish-online/`. One line: the Fish playing website of your tree. Its name (and
       so its URL, for good) was my pick: say if you want another before it is shared.
@@ -162,8 +169,10 @@ Answer these in chat, or decide them as you edit. None is urgent.
 - **Orbit or dock?** What a visitor sees says orbit ("Orbit FishAI"); what a screen reader hears
   says dock ("Docked at FishAI.").
 - **Map words.** "Star chart" (the projects page) against "star map" and "Map" (the universe).
-- **The game's name.** FishAI says "Canadian Fish"; both moons say "Literature"; one moon is
-  itself called "Canadian Fish".
+- **The game's name.** The planet is called Canadian Fish, while its own page and Fish
+  Onboarding call the game Literature; FishAI, now its moon, still opens with the game's
+  introduction ("Canadian Fish (also called Literature) is…"). Should that introduction move up
+  to the planet, and FishAI's page open with one sentence pointing up to it?
 - **"The formal version"** means LinkedIn on the home page, but the resume on About and Resume.
 - **Page titles are place names.** Your tree called the home planet "About Me", so since
   2026-09-30 that is its page's title and its name in the world ("Orbit About Me", "Docked at

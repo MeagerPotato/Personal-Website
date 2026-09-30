@@ -42,7 +42,7 @@ Networking Challenge both years. I also taught it, to about 200 students over tw
 
 Most of my software orbits [Software](/systems/software/), one of the two suns of
 [Projects](/projects/): [FishAI](/projects/fishai/), bots for
-[Canadian Fish](/projects/canadian-fish-demo/), a six-player card game, and the lab that measures
+[Canadian Fish](/projects/canadian-fish-demo/) (a six-player card game) and the lab that measures
 them, and [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are
 meaningless. At the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack
 in twelve hours, a tool that turns a single photo into an interactive 3D environment for dementia

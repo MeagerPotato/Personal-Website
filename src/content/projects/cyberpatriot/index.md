@@ -1,6 +1,6 @@
 ---
 title: CyberPatriot
-summary: Four years on a national cyber defense team, as its Windows specialist and then its captain, and second at the National Finals twice.
+summary: Four years in the national youth cyber defense competition, as my team's Windows specialist and then its captain, and second at the National Finals twice.
 system: software
 date: "2022-09"
 dateEnd: "2026-05"
