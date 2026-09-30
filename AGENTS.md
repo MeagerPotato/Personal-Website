@@ -109,9 +109,10 @@ exact in open space and approximate near planets, which have moved on by then). 
 **dev server only**: `verify-dist` fails a build that contains it.
 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
-planet of any biome, a moon, a sun, the rocket with its flame, the station, the satellite, in
-front of the real sky and lit and post-processed as in the universe, with sliders for the
-`shading`, `planet`, `world`, `post` and `ship` blocks, the light's direction, and the tier.
+planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
+station, the satellite, in front of the real sky and lit and post-processed as in the universe,
+with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the light's
+direction, and the tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is
 `src/pages/_lab.astro` (the underscore keeps it out of every build; `astro.config.ts` injects the
 route for the dev server alone) and its scene is `src/universe/lab/LabScene.ts`. A new kind of
@@ -138,7 +139,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest) | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `manifest.ts` (reads `/universe.json`), `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
@@ -200,6 +201,14 @@ model) plus named **sockets** for whatever attaches to it. Colours are tokens th
 `hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts`;
 logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
 material, and releases the handle in its scope. Asset names and socket names are API.
+
+**Give a body a world of its own.** Every body is generated from its content (biome, size, rings)
+and its seed; one that should look like no other gets a recipe in `design/worlds.ts`, keyed by its
+manifest id (`project/<id>`, `system/<id>`, `page/<id>`): another biome, a changed `PlanetLook`, a
+ring or none, or a registered model instead of the globe. `world/looks.ts` (`lookOf`) is the one
+place that decides a look (recipe, then the planned maquette, then the generator), for the galaxy
+and the lab alike, and `tests/worlds.test.ts` fails on a key that names no body. A new kind of
+thing a recipe can say is a logic change.
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,
