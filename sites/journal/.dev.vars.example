@@ -1,0 +1,4 @@
+# Copy to .dev.vars (ignored by git) for `npm run dev`. Local only; never the real values.
+RP_ID=localhost
+ORIGIN=http://localhost:5173
+SETUP_TOKEN=local-setup-code

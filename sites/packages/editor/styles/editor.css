@@ -1,0 +1,298 @@
+/*
+ * EDITOR: the chrome around the prose while writing (the prose itself is prose.css).
+ * ProseMirror's own base rules live here because the editor injects no <style> (the CSP allows
+ * none): they are Tiptap's defaults, with the gap cursor in the ink's colour.
+ */
+
+/* ProseMirror base ------------------------------------------------------------------------------ */
+
+.ProseMirror {
+  position: relative;
+  outline: none;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+  caret-color: var(--ink-high);
+}
+
+.ProseMirror [contenteditable='false'] {
+  white-space: normal;
+}
+
+.ProseMirror [contenteditable='false'] [contenteditable='true'] {
+  white-space: pre-wrap;
+}
+
+.ProseMirror pre {
+  white-space: pre-wrap;
+}
+
+img.ProseMirror-separator {
+  display: inline !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.ProseMirror-gapcursor {
+  display: none;
+  position: absolute;
+  margin: 0;
+  pointer-events: none;
+}
+
+.ProseMirror-gapcursor::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid var(--ink-high);
+  animation: gapcursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes gapcursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+.ProseMirror-hideselection *::selection {
+  background: transparent;
+}
+
+.ProseMirror-hideselection * {
+  caret-color: transparent;
+}
+
+.ProseMirror .drop-cursor {
+  background: var(--focus);
+}
+
+.ProseMirror-selectednode {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Placeholders ---------------------------------------------------------------------------------- */
+
+.ProseMirror .is-empty::before,
+.ProseMirror.is-editor-empty > :first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+/* Toggles in the editor: Tiptap draws them as a div with a button, not <details>. ----------------- */
+
+.ProseMirror [data-type='details'] {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.ProseMirror [data-type='details'] > button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.5em;
+  height: 1.65em;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-mid);
+}
+
+.ProseMirror [data-type='details'] > button::before {
+  content: '';
+  border-block: 0.3em solid transparent;
+  border-inline-start: 0.45em solid currentColor;
+  transition: rotate var(--motion-fast) var(--motion-ease-out);
+}
+
+.ProseMirror [data-type='details'].is-open > button::before {
+  rotate: 90deg;
+}
+
+@media (hover: hover) {
+  .ProseMirror [data-type='details'] > button:hover {
+    background: var(--hover);
+  }
+}
+
+.ProseMirror [data-type='details'] > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.ProseMirror [data-type='details'] > div > * + * {
+  margin-top: 0.4em;
+}
+
+.ProseMirror [data-type='detailsContent'][hidden] {
+  display: none;
+}
+
+/* Floating menus -------------------------------------------------------------------------------- */
+
+.floating {
+  z-index: 50;
+}
+
+.slash-menu {
+  width: min(20rem, calc(100vw - 2rem));
+}
+
+.slash-menu__text {
+  display: grid;
+  min-width: 0;
+}
+
+.slash-menu__hint {
+  overflow: hidden;
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item kbd {
+  font-family: var(--font-mono);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--raised);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--ink-high) 8%, transparent),
+    0 8px 24px color-mix(in srgb, var(--ink-high) 12%, transparent);
+}
+
+.toolbar--bubble .menu {
+  border: 0;
+  box-shadow: none;
+}
+
+.toolbar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.4rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.toolbar__button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.toolbar__button[aria-pressed='true'] {
+  background: var(--sunken);
+  color: var(--ink-high);
+}
+
+.toolbar__button:disabled {
+  opacity: 0.35;
+}
+
+@media (hover: hover) {
+  .toolbar__button:not(:disabled):hover {
+    background: var(--hover);
+    color: var(--ink-high);
+  }
+}
+
+.toolbar__turn {
+  padding-inline: 0.6rem 0.4rem;
+  color: var(--ink-high);
+  font-weight: 500;
+}
+
+.toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.25rem 0.2rem;
+  background: var(--line);
+}
+
+.toolbar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: min(20rem, calc(100vw - 2rem));
+  padding-inline-start: 0.5rem;
+}
+
+/* The phone toolbar sits on the keyboard, full width, scrolling sideways if it must. */
+.toolbar--keyboard {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem max(0.5rem, env(safe-area-inset-left)) 0.3rem
+    max(0.5rem, env(safe-area-inset-right));
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.toolbar--keyboard .toolbar__button {
+  min-width: 2.5rem;
+  height: 2.5rem;
+}
+
+.toolbar--keyboard .toolbar__button svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.toolbar__done {
+  margin-inline-start: auto;
+  padding: 0 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--ui-base);
+  font-weight: 600;
+}
+
+.toolbar__sheet .menu {
+  width: 100%;
+  max-height: 40dvh;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

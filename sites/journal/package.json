@@ -1,0 +1,39 @@
+{
+  "name": "journal",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "journal.allenkh.com: a private, end-to-end encrypted journal (installable web app + Cloudflare Worker).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p worker && tsc --noEmit -p tests/e2e",
+    "e2e": "vite build && playwright test",
+    "cf-typegen": "wrangler types worker/worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "@allenkh/design": "*",
+    "@allenkh/editor": "*",
+    "@scure/bip39": "^2.4.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "hash-wasm": "^4.12.0",
+    "hono": "^4.13.11",
+    "idb": "^8.0.3",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@cloudflare/vite-plugin": "^1.62.2",
+    "@cloudflare/workers-types": "^5.20260929.1",
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "wrangler": "^4.144.0"
+  }
+}

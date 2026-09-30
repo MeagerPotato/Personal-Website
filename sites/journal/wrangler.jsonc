@@ -1,0 +1,60 @@
+{
+  // journal.allenkh.com: the web app (static assets) + the API Worker (worker/index.ts).
+  // NOTE: values here overwrite the matching dashboard settings on every deploy.
+  "$schema": "../node_modules/wrangler/config-schema.json",
+
+  // Must equal the Worker name chosen in the dashboard (sites/docs/runbooks/cloudflare-setup.md).
+  "name": "allenkh-journal",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-29",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The Custom Domain is the one public address. No workers.dev twin, and no preview URLs: a
+  // preview would run unreviewed code against the real (encrypted) data, and passkeys only work
+  // on journal.allenkh.com anyway.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    // Only the API runs code; everything else is a file (or the app's index.html).
+    "run_worker_first": ["/api/*"],
+  },
+
+  "vars": {
+    "RP_ID": "journal.allenkh.com",
+    "ORIGIN": "https://journal.allenkh.com",
+    "VAPID_SUBJECT": "https://journal.allenkh.com",
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "allenkh-journal",
+      // Filled in once the database exists (sites/docs/runbooks/cloudflare-setup.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+    },
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "BLOBS",
+      "bucket_name": "allenkh-journal-blobs",
+    },
+  ],
+
+  // Approximate, per location: a speed bump on the sign-in endpoints, not an exact lockout.
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMIT",
+      "namespace_id": "4101",
+      "simple": { "limit": 30, "period": 60 },
+    },
+  ],
+
+  // Sweeps expired sessions and challenges; later, the daily reminder.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "observability": { "enabled": true },
+}

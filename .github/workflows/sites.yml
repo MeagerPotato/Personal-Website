@@ -1,0 +1,89 @@
+name: Sites
+
+# blog.allenkh.com and journal.allenkh.com (sites/): their own workspace, so their own job.
+# `npm run verify` inside sites/ is the same thing everyone runs locally before a commit there:
+# format check -> lint -> typecheck -> Vitest -> build every app.
+#
+# A second job runs the journal end to end (sites/journal/tests/e2e): Chromium against the real
+# build, served by `wrangler dev` with the real headers, passkeys from a virtual authenticator.
+#
+# It runs only when something it depends on changes: sites/ itself, or the two files it imports
+# from the main site (the palette and the WCAG contrast maths). Neither job is a required check
+# (yet): the main site's `verify` job guards `main`, and these are a reason to look when red.
+
+on:
+  pull_request:
+    paths:
+      - 'sites/**'
+      - 'src/universe/design/tokens.ts'
+      - 'src/site/contrast.ts'
+      - '.github/workflows/sites.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'sites/**'
+      - 'src/universe/design/tokens.ts'
+      - 'src/site/contrast.ts'
+      - '.github/workflows/sites.yml'
+
+concurrency:
+  group: sites-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sites
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sites/.node-version
+          cache: npm
+          cache-dependency-path: sites/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run verify
+
+  journal-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sites
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sites/.node-version
+          cache: npm
+          cache-dependency-path: sites/package-lock.json
+
+      - run: npm ci
+
+      # Chromium only: the virtual authenticator with the PRF extension is a DevTools feature.
+      - run: npx playwright install --with-deps chromium
+
+      # build -> playwright test (which starts its own `wrangler dev` on dist/)
+      - run: npm run e2e --workspace=journal
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: journal-playwright-report
+          path: |
+            sites/journal/playwright-report/
+            sites/journal/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
