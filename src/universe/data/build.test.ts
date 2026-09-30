@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
+import { bodyPositions, createOrbitTable } from '../sim/orbits';
 import { buildUniverse, UniverseDataError } from './build';
+import { binaryOrbits, orbitPhase, round, slotPosition } from './layout';
 import type {
   ManifestBody,
   PageInput,
@@ -54,6 +56,41 @@ const v01 = (over: Partial<UniverseInput> = {}): UniverseInput => ({
     project('days2meet', { system: 'code', related: ['fishai'] }),
   ],
   pages: [page('about', 'home'), page('resume', 'station'), page('contact', 'satellite')],
+  includeDrafts: false,
+  ...over,
+});
+
+/** A sun of a binary star: a name and a page, no place or colours of its own. */
+const sunOf = (id: string, over: Partial<SystemInput> = {}): SystemInput => ({
+  id,
+  name: id[0]?.toUpperCase() + id.slice(1),
+  href: `/systems/${id}/`,
+  position: 'auto',
+  ...over,
+});
+
+/**
+ * Projects, a binary star in slot 1: Software (primary) and Hardware, with the families Allen's
+ * tree gives them, less the planned Fish Online (with it the binary reaches 401.6 u, which the
+ * slots only make room for from docs/PLAN.md's next layout move).
+ */
+const binary = (over: Partial<UniverseInput> = {}): UniverseInput => ({
+  systems: [
+    system('projects', 1, { suns: ['software', 'hardware'], href: '/projects/' }),
+    sunOf('software'),
+    sunOf('hardware'),
+  ],
+  projects: [
+    project('cyberpatriot', { system: 'software', date: '2022-09' }),
+    project('canadian-fish-demo', { system: 'software' }),
+    project('fishai', { parent: 'canadian-fish-demo', size: 'l', flagship: true }),
+    project('fish-onboarding', { parent: 'canadian-fish-demo', size: 's' }),
+    project('days2meet', { system: 'software', related: ['fishai'] }),
+    project('model-rocketry', { system: 'hardware', date: '2023-07' }),
+    project('robotics', { system: 'hardware', date: '2023-07' }),
+  ],
+  pages: [page('about', 'home'), page('resume', 'station'), page('contact', 'satellite')],
+  projectsHref: '/projects/',
   includeDrafts: false,
   ...over,
 });
@@ -238,6 +275,178 @@ describe('buildUniverse', () => {
     expect(buildUniverse(input)).toEqual(buildUniverse(input));
   });
 
+  it('builds the galaxy of 2026-09-30 byte for byte as before binary stars existed', () => {
+    // src/content as it stood (one solar system, Code), and /universe.json exactly as it was
+    // served: JSON.stringify keeps the order of keys, so this is the file, byte for byte. A
+    // galaxy of one-sun systems is built by the same code as before binaries (buildFamily). If
+    // this fails, every body of today's galaxy has moved: meant only with the layout
+    // (docs/PLAN.md §5.4), as layout.test's PINNED.
+    const today: UniverseInput = {
+      systems: [system('code', 1, { name: 'Code' })],
+      projects: [
+        project('fishai', { title: 'FishAI', system: 'code', size: 'l', biome: 'tide' }),
+        project('canadian-fish-demo', { title: 'Canadian Fish', parent: 'fishai', size: 's' }),
+        project('fish-onboarding', {
+          title: 'Fish Onboarding',
+          parent: 'fishai',
+          size: 's',
+          biome: 'dune',
+        }),
+        project('days2meet', { title: 'Days2Meet', system: 'code' }),
+      ].map((entry) => ({
+        ...entry,
+        rings: entry.id === 'fishai',
+        flagship: entry.id === 'fishai',
+      })),
+      pages: [
+        { id: 'about', title: 'About', href: '/about/', dock: 'home' },
+        { id: 'contact', title: 'Contact', href: '/contact/', dock: 'satellite' },
+        { id: 'resume', title: 'Resume', href: '/resume/', dock: 'station' },
+      ],
+      projectsHref: '/projects/',
+      includeDrafts: false,
+    };
+    const served = {
+      version: 1,
+      systems: [
+        {
+          id: 'home',
+          name: 'Home',
+          theme: 'butter',
+          position: [0, 0],
+          radius: 66.2,
+          center: 'page/about',
+        },
+        {
+          id: 'code',
+          name: 'Code',
+          theme: 'sky',
+          position: [-431.34, 431.34],
+          radius: 202.6,
+          center: 'system/code',
+        },
+      ],
+      bodies: [
+        {
+          id: 'page/about',
+          kind: 'home',
+          title: 'About',
+          href: '/about/',
+          system: 'home',
+          parent: null,
+          radius: 14,
+          dockRadius: 26.6,
+          orbit: null,
+          seed: 'about',
+          biome: 'terra',
+        },
+        {
+          id: 'page/resume',
+          kind: 'station',
+          title: 'Resume',
+          href: '/resume/',
+          system: 'home',
+          parent: 'page/about',
+          radius: 2.2,
+          dockRadius: 8.2,
+          orbit: { radius: 38.8, phase: 3.3143, periodSec: 124.8 },
+          seed: 'resume',
+        },
+        {
+          id: 'page/contact',
+          kind: 'satellite',
+          title: 'Contact',
+          href: '/contact/',
+          system: 'home',
+          parent: 'page/about',
+          radius: 1.6,
+          dockRadius: 7.6,
+          orbit: { radius: 58.6, phase: 3.18, periodSec: 231.6 },
+          seed: 'contact',
+        },
+        {
+          id: 'system/code',
+          kind: 'sun',
+          title: 'Code',
+          href: '/systems/code/',
+          system: 'code',
+          parent: null,
+          radius: 20,
+          dockRadius: 38,
+          orbit: null,
+          seed: 'code',
+        },
+        {
+          id: 'project/days2meet',
+          kind: 'planet',
+          title: 'Days2Meet',
+          href: '/projects/days2meet/',
+          system: 'code',
+          parent: 'system/code',
+          radius: 8,
+          dockRadius: 15.2,
+          orbit: { radius: 60.2, phase: 1.6094, periodSec: 241.2 },
+          seed: 'days2meet',
+          biome: 'terra',
+          rings: false,
+          decorMoons: 0,
+          flagship: false,
+        },
+        {
+          id: 'project/fishai',
+          kind: 'planet',
+          title: 'FishAI',
+          href: '/projects/fishai/',
+          system: 'code',
+          parent: 'system/code',
+          radius: 12,
+          dockRadius: 22.8,
+          orbit: { radius: 143, phase: 5.5, periodSec: 883.1 },
+          seed: 'fishai',
+          biome: 'tide',
+          rings: true,
+          decorMoons: 0,
+          flagship: true,
+        },
+        {
+          id: 'project/canadian-fish-demo',
+          kind: 'moon',
+          title: 'Canadian Fish',
+          href: '/projects/canadian-fish-demo/',
+          system: 'code',
+          parent: 'project/fishai',
+          radius: 1.2,
+          dockRadius: 7.2,
+          orbit: { radius: 34, phase: 2.9899, periodSec: 102.4 },
+          seed: 'canadian-fish-demo',
+          biome: 'terra',
+          rings: false,
+          decorMoons: 0,
+          flagship: false,
+        },
+        {
+          id: 'project/fish-onboarding',
+          kind: 'moon',
+          title: 'Fish Onboarding',
+          href: '/projects/fish-onboarding/',
+          system: 'code',
+          parent: 'project/fishai',
+          radius: 1.2,
+          dockRadius: 7.2,
+          orbit: { radius: 52.4, phase: 2.0076, periodSec: 195.9 },
+          seed: 'fish-onboarding',
+          biome: 'dune',
+          rings: false,
+          decorMoons: 0,
+          flagship: false,
+        },
+      ],
+      lanes: [],
+      alsoAt: { '/projects/': 'system/code' },
+    };
+    expect(JSON.stringify(buildUniverse(today))).toBe(JSON.stringify(served));
+  });
+
   it('adding a newer project or a whole new system moves nothing that already exists', () => {
     const before = buildUniverse(v01());
     const after = buildUniverse(
@@ -299,6 +508,275 @@ describe('buildUniverse', () => {
   it('draws one undirected lane per related pair, however many times it is declared', () => {
     const manifest = buildUniverse(v01());
     expect(manifest.lanes).toEqual([{ a: 'project/days2meet', b: 'project/fishai' }]);
+  });
+
+  describe('binary stars', () => {
+    const manifest = buildUniverse(binary());
+    const bodies = byId(manifest);
+    const get = (id: string): ManifestBody => {
+      const body = bodies.get(id);
+      if (!body) throw new Error(`no body ${id}`);
+      return body;
+    };
+    /** A body and everything round it, down the parent chain. */
+    const familyOf = (root: string, from = manifest): ManifestBody[] => {
+      const children = from.bodies.filter((body) => body.parent === root);
+      return [
+        ...from.bodies.filter((body) => body.id === root),
+        ...children.flatMap((child) => familyOf(child.id, from)),
+      ];
+    };
+    const HOME_BODIES = ['page/about', 'page/resume', 'page/contact'];
+
+    it('turns two suns round one empty centre, opposite each other, with one period', () => {
+      const [software, hardware] = [get('system/software'), get('system/hardware')];
+      // Each family reaches as far from its sun as a system of its own would (231 u and 113.8 u).
+      const [ra, rb] = [footprint(manifest, software), footprint(manifest, hardware)];
+      expect(ra).toBeCloseTo(231, 1);
+      expect(rb).toBeCloseTo(113.8, 1);
+      const pair = binaryOrbits(ra, rb);
+
+      for (const [sun, name] of [
+        [software, 'Software'],
+        [hardware, 'Hardware'],
+      ] as const) {
+        expect(sun).toMatchObject({ kind: 'sun', title: name, parent: null, system: 'projects' });
+        expect(sun.orbit?.periodSec).toBe(round(pair.periodSec, 1));
+      }
+      // The primary, the bigger family's sun here, circles closer in: each family then reaches
+      // equally far from the centre.
+      expect(software.orbit?.radius).toBeCloseTo(rb + L.binaryGap / 2, 1);
+      expect(hardware.orbit?.radius).toBeCloseTo(ra + L.binaryGap / 2, 1);
+      expect([software.orbit?.radius, hardware.orbit?.radius]).toEqual([133.8, 251]);
+      // Opposite for ever: the same period, and phases half a turn apart (to the 4 places kept).
+      const phase = software.orbit?.phase ?? NaN;
+      expect(phase).toBe(round(orbitPhase('system/projects'), 4));
+      expect(Math.abs((hardware.orbit?.phase ?? NaN) - phase - Math.PI)).toBeLessThanOrEqual(1e-4);
+
+      // The binary is one system, one slot, with no body at its centre.
+      expect(manifest.systems.map((entry) => entry.id)).toEqual(['home', 'projects']);
+      const [x, z] = slotPosition(1);
+      expect(manifest.systems[1]).toEqual({
+        id: 'projects',
+        name: 'projects',
+        theme: 'sky',
+        position: [round(x), round(z)],
+        radius: round(pair.reach),
+        center: 'system/software',
+      });
+      expect(bodies.has('system/projects')).toBe(false);
+      // Every body of both families is filed under the binary: it owns the slot they orbit in.
+      for (const body of manifest.bodies) {
+        if (!HOME_BODIES.includes(body.id)) expect(body.system, body.id).toBe('projects');
+      }
+      expect(get('project/robotics').parent).toBe('system/hardware');
+      expect(get('project/fishai')).toMatchObject({
+        kind: 'moon',
+        parent: 'project/canadian-fish-demo',
+      });
+    });
+
+    it('lays out each family round its sun exactly as a system of its own would be', () => {
+      const alone = buildUniverse(
+        binary({
+          systems: [system('software', 1, { name: 'Software' })],
+          projects: binary().projects.filter(
+            (entry) => !['model-rocketry', 'robotics'].includes(entry.id),
+          ),
+        }),
+      );
+      const own = familyOf('system/software', alone);
+      expect(own.map((body) => body.id)).toEqual(
+        familyOf('system/software').map((body) => body.id),
+      );
+      for (const body of own.slice(1)) {
+        expect(get(body.id), body.id).toEqual({ ...body, system: 'projects' });
+      }
+    });
+
+    it('keeps the two families apart, and inside the binary, however far they have turned', () => {
+      const orbits = createOrbitTable(manifest.systems, manifest.bodies);
+      const positions = new Float64Array(orbits.count * 2);
+      const at = (id: string): [number, number] => {
+        const i = orbits.indexOf(id);
+        return [positions[i * 2] ?? NaN, positions[i * 2 + 1] ?? NaN];
+      };
+      const [a, b] = [familyOf('system/software'), familyOf('system/hardware')];
+      const binarySystem = manifest.systems[1];
+      const [cx, cz] = binarySystem?.position ?? [NaN, NaN];
+
+      // Whatever the phases: each family's docking rings, all the way round every orbit, stay
+      // within its footprint of its sun, and the suns are opposite, so where the two footprints
+      // face each other they are exactly the gap apart (to the 2 places positions are kept).
+      const [software, hardware] = [get('system/software'), get('system/hardware')];
+      const facing =
+        (software.orbit?.radius ?? NaN) +
+        (hardware.orbit?.radius ?? NaN) -
+        footprint(manifest, software) -
+        footprint(manifest, hardware);
+      expect(facing).toBeGreaterThanOrEqual(L.binaryGap - 0.05);
+      expect(facing).toBeLessThanOrEqual(L.binaryGap + 0.05);
+
+      for (const t of [0, 1000, 5000]) {
+        bodyPositions(orbits, t, positions);
+        // And sampled where the bodies really are: no two of different families come closer,
+        // docking ring to docking ring, than the gap.
+        let closest = Infinity;
+        for (const one of a) {
+          for (const other of b) {
+            const [x1, z1] = at(one.id);
+            const [x2, z2] = at(other.id);
+            closest = Math.min(
+              closest,
+              Math.hypot(x1 - x2, z1 - z2) - one.dockRadius - other.dockRadius,
+            );
+          }
+        }
+        expect(closest, `t = ${t}`).toBeGreaterThanOrEqual(L.binaryGap - 0.05);
+        // And nothing of either reaches past the binary's radius: the map and the gap check to
+        // the neighbours can trust it.
+        for (const body of [...a, ...b]) {
+          const [x, z] = at(body.id);
+          expect(
+            Math.hypot(x - cx, z - cz) + body.dockRadius,
+            `${body.id} at ${t}`,
+          ).toBeLessThanOrEqual((binarySystem?.radius ?? 0) + 0.05);
+        }
+        // The suns stay the same distance apart.
+        const [sx, sz] = at('system/software');
+        const [hx, hz] = at('system/hardware');
+        expect(Math.hypot(sx - hx, sz - hz)).toBeCloseTo(133.8 + 251, 2);
+      }
+    });
+
+    it('is shown from its primary sun, the first it lists, whatever the families weigh', () => {
+      expect(manifest.alsoAt).toEqual({ '/projects/': 'system/software' });
+      const swapped = buildUniverse(
+        binary({
+          systems: [
+            system('projects', 1, { suns: ['hardware', 'software'] }),
+            sunOf('software'),
+            sunOf('hardware'),
+          ],
+        }),
+      );
+      expect(swapped.systems[1]?.center).toBe('system/hardware');
+      expect(swapped.alsoAt).toEqual({ '/projects/': 'system/hardware' });
+      // The orbits follow the families, not the order: the bigger one still circles closer in.
+      expect(byId(swapped).get('system/software')?.orbit?.radius).toBe(133.8);
+    });
+
+    it('is deterministic, and does not care about the order of its input', () => {
+      const input = binary();
+      const shuffled: UniverseInput = {
+        ...input,
+        systems: [...input.systems].reverse(),
+        projects: [...input.projects].reverse(),
+        pages: [...input.pages].reverse(),
+      };
+      expect(JSON.stringify(buildUniverse(shuffled))).toBe(JSON.stringify(buildUniverse(input)));
+    });
+
+    it('moves the other sun and the period when one family grows, and nothing outside the binary', () => {
+      // The one exception to "adding a project moves nothing" (data/layout.ts): each sun circles
+      // at a radius set by the OTHER family's reach, and the pair's period by both. Their angles at
+      // t = 0 stay, and so does every body's orbit round its own sun or planet, and everything
+      // outside the binary. (Without Days2Meet, so that the binary has room to grow within
+      // today's limit.)
+      const withResearch = (extra: ProjectInput[]): UniverseInput =>
+        binary({
+          systems: [...binary().systems, system('research', 2, { theme: 'lilac' })],
+          projects: [
+            ...binary().projects.filter((entry) => entry.id !== 'days2meet'),
+            project('sports-analysis', { system: 'research' }),
+            ...extra,
+          ],
+        });
+      const before = buildUniverse(withResearch([]));
+      const after = buildUniverse(withResearch([project('arc', { system: 'hardware' })]));
+      const [was, is] = [byId(before), byId(after)];
+
+      for (const id of ['system/software', 'system/hardware']) {
+        const [then, now] = [was.get(id)?.orbit, is.get(id)?.orbit];
+        expect(now?.phase, id).toBe(then?.phase);
+        expect(now?.periodSec, id).toBeGreaterThan(then?.periodSec ?? Infinity);
+      }
+      // Hardware's family reaches further, so Software's sun circles further out; Hardware's
+      // own sun keeps its distance, which Software's family sets.
+      expect(is.get('system/software')?.orbit?.radius).toBeGreaterThan(
+        was.get('system/software')?.orbit?.radius ?? Infinity,
+      );
+      expect(is.get('system/hardware')?.orbit?.radius).toBe(
+        was.get('system/hardware')?.orbit?.radius,
+      );
+
+      const suns = new Set(['system/software', 'system/hardware', 'project/arc']);
+      for (const body of before.bodies) {
+        if (!suns.has(body.id)) expect(is.get(body.id), body.id).toEqual(body);
+      }
+      expect(after.systems[1]?.position).toEqual(before.systems[1]?.position);
+      expect(after.systems[1]?.radius).toBeGreaterThan(before.systems[1]?.radius ?? Infinity);
+      expect(after.systems[2]).toEqual(before.systems[2]);
+    });
+
+    it('fails the build, naming both families, when it outgrows its slot', () => {
+      // Allen's tree (Fish Online back in) with two moons more round Model Rocketry.
+      const crowded = binary({
+        projects: [
+          ...binary().projects,
+          project('fish-online', {
+            parent: 'canadian-fish-demo',
+            size: 's',
+            date: undefined,
+            planned: true,
+          }),
+          project('payload', { parent: 'model-rocketry', size: 's' }),
+          project('recovery', { parent: 'model-rocketry', size: 's' }),
+        ],
+      });
+      expect(problemsOf(crowded)).toContain(
+        `binary "projects" reaches 475.2 u (Software 267.8, Hardware 187.4, 40 apart), past the ` +
+          `${L.maxSystemRadius} u limit: it would crowd its neighbours. Move a project to another ` +
+          'system, turn one into a moon, or revisit tuning.layout (a new limit moves every ' +
+          'system: docs/PLAN.md §5.4).',
+      );
+    });
+
+    it('checks how binaries and their suns name each other, and lists every problem at once', () => {
+      const problems = problemsOf(
+        binary({
+          systems: [
+            system('projects', 1, { suns: ['software', 'hardware'] }),
+            sunOf('software'),
+            sunOf('hardware', { order: 5, theme: 'coral', position: [900, 900] }),
+            sunOf('stray'),
+            system('twins', 2, { suns: ['software', 'software'] }),
+            system('selfish', 3, { suns: ['selfish', 'ghost'] }),
+            system('nested', 4, { suns: ['projects', 'twins'] }),
+            sunOf('unslotted', { theme: 'mint', suns: ['ghost-a', 'ghost-b'] }),
+            system('pale', 6, { theme: undefined }),
+          ],
+          projects: [...binary().projects, project('odd-one', { system: 'projects' })],
+        }),
+      );
+      for (const expected of [
+        'system "stray" has no order and no binary lists it: give it an order (its place in the galaxy), or list it in a binary\'s suns',
+        'binary "selfish": sun "ghost" does not exist',
+        'binary "twins": lists "software" twice',
+        'binary "selfish": lists itself',
+        'binary "nested": sun "projects" is itself a binary',
+        'binary "nested": sun "twins" is itself a binary',
+        'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its order',
+        'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its theme',
+        'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its position',
+        'system "software" is listed as a sun by both "projects" and "twins"',
+        'project "odd-one": "projects" is a binary star; its planets orbit one of its suns: set system to "software" or "hardware"',
+        'binary "unslotted": needs an order, its place in the galaxy',
+        'system "pale": needs a theme, its colour family',
+      ]) {
+        expect(problems).toContain(expected);
+      }
+    });
   });
 
   describe('drafts', () => {

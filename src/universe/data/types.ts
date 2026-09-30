@@ -6,13 +6,28 @@ import type { BiomeKey, ThemeKey } from '../design/tokens';
 export type PlanetSize = 's' | 'm' | 'l';
 export type DockKind = 'home' | 'station' | 'satellite';
 
+/**
+ * One of three shapes, told apart by which keys are set (buildUniverse checks the combination):
+ * a SYSTEM with one sun (`order`, `theme`: its sun is itself), a BINARY STAR (`order`, `theme`,
+ * `suns`: two suns circling one centre, and no sun of its own), or a SUN OF A BINARY (neither:
+ * it goes where its binary goes and wears its binary's family). Planets name a sun, never a
+ * binary.
+ */
 export interface SystemInput {
   id: string;
   name: string;
+  /** Its sun's page. A binary has no sun of its own: its page is the projects index. */
   href: string;
-  theme: ThemeKey;
-  /** Slot in the galaxy's honeycomb, 1 upwards (slot 0 is the home system). Explicit, so it is stable. */
-  order: number;
+  /** The colour family of a system, or of a binary (its two suns share it). */
+  theme?: ThemeKey | undefined;
+  /**
+   * Slot in the galaxy's honeycomb, 1 upwards (slot 0 is the home system). Explicit, so it is
+   * stable. A sun of a binary has none.
+   */
+  order?: number | undefined;
+  /** A binary star: its two suns, PRIMARY FIRST (the projects index is shown from the first). */
+  suns?: readonly string[] | undefined;
+  /** Where its slot is: 'auto' (the honeycomb) or hand-placed. Only a system or a binary has one. */
   position: 'auto' | readonly [number, number];
 }
 
@@ -50,7 +65,8 @@ export interface UniverseInput {
   pages: readonly PageInput[];
   /**
    * The page that lists every project. It is nobody's own page, so it is shown from the sun of
-   * the first system: that is where the projects are. (From Phase 3, with more systems, the map.)
+   * the first system (for a binary, its primary sun): that is where the projects are. (From
+   * Phase 3, with more systems, the map.)
    */
   projectsHref?: string | undefined;
   /** true in dev, false in production builds. */
@@ -103,7 +119,10 @@ export interface ManifestSystem {
   position: readonly [number, number];
   /** Reach of its outermost docking orbit: nothing of this system lies further out. */
   radius: number;
-  /** Id of the body at the centre (a sun, or the home planet). */
+  /**
+   * Id of the body at the centre (a sun, or the home planet). A binary star's centre is empty:
+   * this is its primary sun, which circles `position` like the other.
+   */
   center: string;
 }
 

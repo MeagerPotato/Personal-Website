@@ -1,5 +1,6 @@
 ---
-// Every project, grouped the way the galaxy is: by solar system, planets with their moons.
+// Every project, grouped the way the galaxy is: one section per sun (a binary star's two suns
+// one after the other), planets with their moons. This is also the page of the binary star.
 import { getCollection } from 'astro:content';
 import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
@@ -9,7 +10,7 @@ import { buildProjectTree, visibleProjects } from '../../site/view-models';
 
 const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
-const tree = buildProjectTree(systems, projects);
+const suns = buildProjectTree(systems, projects).flatMap((system) => system.suns);
 ---
 
 <Base
@@ -22,18 +23,20 @@ const tree = buildProjectTree(systems, projects);
     lede="Solar systems are the things I care about. Planets are projects, and moons are the smaller things in their orbit."
   />
 
-  {tree.map((system) => (
-    <section
-      class="section system"
-      data-theme={system.theme}
-      aria-labelledby={`system-${system.id}`}
-    >
-      <h2 id={`system-${system.id}`}>
+  {suns.map((sun) => (
+    <section class="section system" data-theme={sun.theme} aria-labelledby={`system-${sun.id}`}>
+      <h2 id={`system-${sun.id}`}>
         <span class="sun-dot" aria-hidden="true" />
-        <a href={system.href}>{system.name}</a>
+        <a href={sun.href}>{sun.name}</a>
       </h2>
-      <p>{system.tagline}</p>
-      <ProjectCards cards={system.planets} />
+      <p>{sun.tagline}</p>
+      {sun.twin && (
+        <p class="twin">
+          One of the two suns of {sun.twin.binary.label}; it circles the centre opposite
+          <a href={sun.twin.other.href}>{sun.twin.other.label}</a>.
+        </p>
+      )}
+      <ProjectCards cards={sun.planets} />
     </section>
   ))}
 </Base>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import {
+  binaryOrbits,
   dockRadius,
   homeReach,
   homeRings,
@@ -262,6 +263,52 @@ describe('stackRings', () => {
 
   it('reach falls back when there are no rings', () => {
     expect(reach(stackRings([], 45, 8), 38)).toBe(38);
+  });
+});
+
+describe('binaryOrbits', () => {
+  // The tree Allen asked for: Software (three planets, one with three moons) and Hardware (two).
+  const [software, hardware] = [267.8, 113.8];
+
+  it('keeps the two families gap apart where they face, however unequal they are', () => {
+    for (const [ra, rb, gap] of [
+      [software, hardware, L.binaryGap],
+      [hardware, software, 40],
+      [100, 100, 16],
+      [38, 400, 0],
+    ] as const) {
+      const pair = binaryOrbits(ra, rb, gap);
+      expect(pair.separation).toBeCloseTo(ra + rb + gap, 9);
+      expect(pair.a + pair.b, 'the suns are opposite').toBeCloseTo(pair.separation, 9);
+      // Along the line through both suns, family a ends where the gap begins, family b after it.
+      expect(pair.separation - ra - rb).toBeCloseTo(gap, 9);
+    }
+  });
+
+  it('circles the point both families reach equally far from: the smallest circle round them', () => {
+    const pair = binaryOrbits(software, hardware, 40);
+    expect(pair.a + software).toBeCloseTo(pair.reach, 9);
+    expect(pair.b + hardware).toBeCloseTo(pair.reach, 9);
+    // The smallest circle holding two discs on one line spans both: its diameter is the lot.
+    expect(2 * pair.reach).toBeCloseTo(software + pair.separation + hardware, 9);
+    // As in a real binary, the bigger family's sun circles closer in.
+    expect(pair.a).toBeLessThan(pair.b);
+    expect(pair.separation).toBeCloseTo(421.6, 9);
+    expect(pair.a).toBeCloseTo(133.8, 9);
+    expect(pair.b).toBeCloseTo(287.8, 9);
+    expect(pair.reach).toBeCloseTo(401.6, 9);
+  });
+
+  it('turns both suns with one period, the rule every ring follows at their distance apart', () => {
+    const pair = binaryOrbits(software, hardware);
+    expect(pair.periodSec).toBe(orbitPeriod(pair.separation));
+    expect(round(pair.periodSec, 1)).toBe(4470.3);
+    // Outer is slower: a bigger pair turns more slowly.
+    expect(binaryOrbits(software + 50, hardware).periodSec).toBeGreaterThan(pair.periodSec);
+  });
+
+  it('keeps tuning.layout.binaryGap apart unless told otherwise', () => {
+    expect(binaryOrbits(software, hardware)).toEqual(binaryOrbits(software, hardware, L.binaryGap));
   });
 });
 

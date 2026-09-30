@@ -21,16 +21,67 @@ export interface SchemaHelpers<Image extends z.ZodType, Reference extends z.ZodT
   reference: (collection: 'systems' | 'projects') => Reference;
 }
 
-/** A solar system: one passion. Its sun carries the name and the colour family. */
-export const systemSchema = () =>
-  z.strictObject({
-    name: z.string().min(1).max(32),
-    tagline: z.string().min(1).max(120),
-    theme: z.enum(THEME_KEYS),
-    /** Slot in the galaxy's honeycomb, from 1 (0 is home). Never reuse or renumber: it IS the position. */
-    order: z.number().int().min(1),
-    position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).default('auto'),
-  });
+/** The colour families a system may wear, as a person would list them: butter is home's. */
+const FAMILIES = `${THEME_KEYS.filter((key) => key !== 'butter').join(', ')}; butter is home's`;
+
+/**
+ * A place in the galaxy and its sun(s). Three shapes in one schema, told apart by their keys:
+ *
+ *   a solar system    name, tagline, theme, order, [position], [link]   one sun: itself
+ *   a binary star     name, theme, order, suns, [position]              two suns, no page: its
+ *                                                                       page is the projects index
+ *   a sun of a binary name, tagline, [link]                             goes where its binary goes
+ *
+ * Each file is checked here on its own; what spans files (a sun no binary lists, a binary naming
+ * a sun that is not there) is buildUniverse()'s, which lists every problem at once.
+ */
+export const systemSchema = <Reference extends z.ZodType>({
+  reference,
+}: Pick<SchemaHelpers<z.ZodType, Reference>, 'reference'>) =>
+  z
+    .strictObject({
+      name: z.string().min(1).max(32),
+      /** One sentence under the sun's name. A binary has none: each of its suns has its own. */
+      tagline: z.string().min(1).max(120).optional(),
+      /** A system's colour family; a binary's two suns share their binary's. */
+      theme: z.enum(THEME_KEYS).optional(),
+      /** Slot in the galaxy, from 1 (0 is home). NEVER reuse or renumber: it IS the position. */
+      order: z.number().int().min(1).optional(),
+      position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).optional(),
+      /** A binary star: its two suns, PRIMARY FIRST (the projects index is shown from it). */
+      suns: z.array(reference('systems')).length(2).optional(),
+      /** A system whose work lives on a site of its own (the Blog): its page's first button. */
+      link: httpsUrl.optional(),
+    })
+    .superRefine((data, context) => {
+      const issue = (key: string, message: string): void => {
+        context.addIssue({ code: 'custom', path: [key], message });
+      };
+      if (data.suns !== undefined) {
+        if (data.order === undefined) issue('order', 'a binary needs one, its place in the galaxy');
+        if (data.theme === undefined) {
+          issue('theme', `a binary's two suns share its colour family (${FAMILIES})`);
+        }
+        for (const key of ['tagline', 'link'] as const) {
+          if (data[key] === undefined) continue;
+          issue(key, 'a binary has none; each of its suns has its own');
+        }
+      } else if (data.order !== undefined) {
+        if (data.theme === undefined) {
+          issue('theme', `every solar system needs a colour family (${FAMILIES})`);
+        }
+        if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
+      } else {
+        // No order and no suns: a sun of a binary, placed and coloured by the binary.
+        if (data.theme !== undefined) {
+          issue('theme', "a sun of a binary wears its binary's family; leave it out");
+        }
+        if (data.position !== undefined) {
+          issue('position', 'a sun of a binary goes where its binary goes; leave it out');
+        }
+        if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
+      }
+    });
 
 /**
  * A planet (set `system`) or a moon (set `parent`). One schema, one URL shape.

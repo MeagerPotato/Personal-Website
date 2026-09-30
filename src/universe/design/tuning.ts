@@ -757,6 +757,13 @@ export const tuning = {
      */
     maxSystemRadius: 380,
     minSystemGap: 150,
+    /**
+     * A binary star (two suns sharing one slot, systems/<id>.md with `suns`): each sun's family is
+     * laid out round it as a system's is, and the two circle their common centre this far apart
+     * where they come closest, u. Enough to fly between and to read as two families on the map.
+     * One period for both, orbitPeriod(separation), so they stay opposite (layout.ts, binaryOrbits).
+     */
+    binaryGap: 40,
     /** Orbital period in seconds: periodAtStartSec * (r / orbitStart) ^ periodExponent. */
     periodAtStartSec: 240,
     periodExponent: 1.5,
