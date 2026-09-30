@@ -1,0 +1,19 @@
+{
+  "name": "@allenkh/design",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "The subdomain sites' design tokens and base styles: Notion's calm, allenkh.com's colours.",
+  "exports": {
+    "./tokens": "./src/tokens.ts",
+    "./css": "./src/css.ts",
+    "./vite": "./src/vite.ts",
+    "./pwa": "./src/pwa.ts",
+    "./icons": "./src/icons.ts",
+    "./styles/*": "./styles/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

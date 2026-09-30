@@ -1,0 +1,274 @@
+/*
+ * PROSE: rich text, the same wherever it appears: a post on the blog (HTML rendered from the
+ * editor's JSON on the server), the editor itself while writing (the same classes on
+ * ProseMirror's root), a journal entry. One stylesheet, so what is written is what is read.
+ *
+ * The blocks the editor makes (packages/editor/src/schema.ts): paragraphs, three heading levels,
+ * lists and task lists, quotes, callouts, toggles, code, dividers, tables, images with
+ * captions, and inline and block math. Colours only through tokens.
+ */
+
+.prose {
+  color: var(--ink-high);
+  font-family: var(--font-prose);
+  font-size: var(--ui-md);
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+.prose > * + * {
+  margin-top: 0.75em;
+}
+
+.prose :where(p, li) {
+  text-wrap: pretty;
+}
+
+.prose :where(h1, h2, h3) {
+  margin-top: 1.6em;
+  margin-bottom: -0.1em;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose h1 {
+  font-size: var(--ui-xxl);
+}
+
+.prose h2 {
+  font-size: var(--ui-xl);
+}
+
+.prose h3 {
+  font-size: var(--ui-lg);
+}
+
+.prose :where(ul, ol) {
+  padding-inline-start: 1.625em;
+}
+
+.prose li + li,
+.prose li > :where(ul, ol) {
+  margin-top: 0.25em;
+}
+
+.prose li::marker {
+  color: var(--ink-mid);
+}
+
+/* Task lists: a checkbox per item, done items quieter. */
+.prose ul[data-type='taskList'] {
+  padding-inline-start: 0.25em;
+  list-style: none;
+}
+
+.prose ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.prose ul[data-type='taskList'] li > label {
+  display: flex;
+  flex: none;
+  /* The box's middle on the first line's middle. */
+  margin-top: calc((1lh - 1.5rem) / 2);
+}
+
+.prose ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A 24 px target (WCAG 2.5.8, and a thumb on a phone) around a box drawn at text size: the
+   transparent border is the difference. The tick is the ::before, cut out of the page colour. */
+.prose ul[data-type='taskList'] input[type='checkbox'] {
+  display: grid;
+  place-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0 0 0 -0.25rem;
+  border: 0.25rem solid transparent;
+  border-radius: 0.5rem;
+  background: var(--bg) padding-box;
+  box-shadow: inset 0 0 0 1.5px var(--ink-mid);
+  appearance: none;
+}
+
+.prose ul[data-type='taskList'] input[type='checkbox']::before {
+  width: 0.625rem;
+  height: 0.625rem;
+  background: var(--bg);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+  content: '';
+  scale: 0;
+  transition: scale var(--motion-fast) var(--motion-ease-out);
+}
+
+.prose ul[data-type='taskList'] input[type='checkbox']:checked {
+  background-color: var(--ink-high);
+  box-shadow: none;
+}
+
+.prose ul[data-type='taskList'] input[type='checkbox']:checked::before {
+  scale: 1;
+}
+
+/* The ring around the box, not around the whole target. */
+.prose ul[data-type='taskList'] input[type='checkbox']:focus-visible {
+  outline-offset: -0.125rem;
+}
+
+.prose ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--ink-low);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+
+.prose blockquote {
+  padding-inline-start: 0.9em;
+  border-inline-start: 3px solid var(--ink-high);
+}
+
+.prose hr {
+  height: 1px;
+  margin: 1.5em 0;
+  border: 0;
+  background: var(--line);
+}
+
+.prose :not(pre) > code {
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  background: var(--sunken);
+  color: var(--coral-ink);
+  font-size: 0.85em;
+}
+
+.prose pre {
+  padding: 1em 1.25em;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  font-size: 0.85em;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+  color: var(--ink-high);
+  font-size: inherit;
+}
+
+.prose mark {
+  padding: 0.05em 0.1em;
+  border-radius: 0.2em;
+  background: var(--family-tint, var(--butter-tint));
+  color: inherit;
+}
+
+.prose a {
+  color: var(--accent);
+}
+
+/* Callouts (a <div data-type="callout" data-family=… data-icon=…>) come from base.css's .callout. */
+.prose [data-type='callout'] {
+  display: flex;
+  gap: 0.6em;
+  padding: 0.9em 1em;
+  border-radius: var(--radius-sm);
+  background: var(--family-tint, var(--sunken));
+}
+
+.prose [data-type='callout']::before {
+  content: attr(data-icon);
+  flex: none;
+  line-height: 1.5;
+}
+
+.prose [data-type='callout'] > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.prose [data-type='callout'] > div > * + * {
+  margin-top: 0.5em;
+}
+
+/* Toggles: <details> with a triangle that turns. */
+.prose details {
+  padding-inline-start: 1.4em;
+}
+
+.prose details > summary {
+  position: relative;
+  list-style: none;
+  cursor: pointer;
+}
+
+.prose details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.prose details > summary::before {
+  content: '';
+  position: absolute;
+  top: 0.55em;
+  left: -1.15em;
+  border-block: 0.3em solid transparent;
+  border-inline-start: 0.45em solid var(--ink-mid);
+  transition: rotate var(--motion-fast) var(--motion-ease-out);
+}
+
+.prose details[open] > summary::before {
+  rotate: 90deg;
+}
+
+.prose details > :not(summary) {
+  margin-top: 0.5em;
+}
+
+.prose figure img {
+  border-radius: var(--radius-sm);
+}
+
+.prose figcaption {
+  margin-top: 0.5em;
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  text-align: center;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.prose :where(th, td) {
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--line-strong);
+  text-align: start;
+  vertical-align: top;
+}
+
+.prose th {
+  background: var(--sunken);
+  font-weight: 600;
+}
+
+.prose .table-scroll {
+  overflow-x: auto;
+}
+
+/* Block math (KaTeX display mode) scrolls rather than overflowing a phone. */
+.prose [data-type='block-math'] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25em 0;
+  text-align: center;
+}

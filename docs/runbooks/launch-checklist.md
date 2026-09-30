@@ -19,7 +19,8 @@ Tick the boxes in a copy of this file in the launch PR's description, not here.
       or Do Not Track. `workers_dev: false` is done (#39); the token went in on 2026-09-29, after
       Allen added the site in manual mode ([cloudflare-setup.md](cloudflare-setup.md) §5).
 - [ ] **H** `allen@allenkh.com` receives mail (Cloudflare Email Routing → a rule for `allen`).
-      Send one test message from another account before the address is public.
+      Send one test message from another account before the address is public. Done 2026-09-30:
+      Allen's test message arrived within a minute.
 - [ ] **H** The copy has had its voice edit: About, the project pages, the home page, the hint
       card. The step by step and the list of every piece of copy: [copy-edit.md](copy-edit.md).
       The build already fails on any `TODO(copy)` that would ship.
@@ -62,22 +63,43 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
 
 - [ ] `days2meet.allenkh.com` and `fishai.allenkh.com` still match the snapshot in
       [cloudflare-setup.md](cloudflare-setup.md) §0: status 200, `Server: Vercel`, the same CNAME.
+      Both matched on 2026-09-30.
 - [ ] `curl.exe -sI https://allenkh.com/`: 200, a `content-security-policy`, and
-      `strict-transport-security: max-age=31536000` with **no** `includeSubDomains`.
+      `strict-transport-security: max-age=31536000` with **no** `includeSubDomains`. So on
+      2026-09-30, on `/`, `/resume/` and `/nope` alike.
 - [ ] `/_astro/*` and `/fonts/*` are `immutable`; `/nope` is a 404 with the site's own page;
       `http://` and `www.` answer 301 to the apex with path and query kept; `/index.html` → 307.
+      All four held on 2026-09-30.
 - [ ] `<meta name="build">` on the live page equals the commit that was merged.
-- [ ] A PR's preview URL sends `X-Robots-Tag: noindex` and loads no beacon.
+- [ ] A PR's preview URL sends `X-Robots-Tag: noindex` and loads no beacon. Both held on the
+      preview of #48 (2026-09-30), in both modes.
 - [ ] No CSP error in the console, in either mode, on any page (`npm run dev` cannot show these:
-      only the deployed site and `npm run preview` apply the headers).
+      only the deployed site and `npm run preview` apply the headers). 2026-09-30, headless Edge
+      on the live site, all eleven pages in both modes (the analytics POST aborted, so no visit
+      was counted): no CSP violation and no console error.
 - [ ] Exactly one analytics POST per page view, soft navigations included (DevTools → Network,
       filter `cloudflareinsights`), and none with Do Not Track on.
-- [ ] securityheaders.com: grade A.
+- [ ] securityheaders.com: grade A. **A+** on 2026-09-30 (a hidden scan): all six headers, and
+      `frame-ancestors 'none'` accepted in place of `X-Frame-Options`.
 - [ ] Lighthouse, mobile, plain mode, on `/`, `/about/`, `/projects/fishai/`, `/resume/`:
       performance ≥ 95, the other three 100, LCP < 1.5 s, CLS < 0.02. Measured on 2026-09-21
       behind `wrangler dev`: 100 / 100 / 100 / 100, LCP 0.9 to 1.1 s, CLS 0 (docs/PLAN.md §6).
       That was before A1 added a preloaded 31.5 KiB font to every page: measure again, first
-      behind `npm run preview`, then on the live site.
+      behind `npm run preview`, then on the live site. Measured again on 2026-09-30 (Lighthouse
+      13.5, headless Edge, the beacon blocked):
+      - Behind `npm run preview`: performance 100, LCP 1.4 s, FCP 0.9 s. With the font blocked
+        the LCP is 1.2 s, so Outfit costs about 0.2 s of simulated LCP.
+      - Live: performance 99 on `/`, `/about/` and `/projects/fishai/`, 100 on `/resume/`;
+        the other three categories 100 everywhere; CLS 0; FCP 0.9 s; **simulated LCP 1.9 to
+        2.0 s**. The half second over the preview is most likely the connection setup (TLS)
+        that Lighthouse simulates for a real origin (the preview is plain `http://localhost`):
+        the page and its requests are the same.
+      - Live with real throttling (`--throttling-method=devtools`, Slow 4G and a 4× slower
+        CPU): LCP = FCP = 1.6 s, so the first paint is the largest one and the font does not
+        hold it back (`font-display: swap` and the metric-matched fallback do their job).
+      So the target "LCP < 1.5 s" holds behind the preview and misses on the live origin, most
+      likely by that connection setup. Core Web Vitals call anything under 2.5 s good; Web
+      Analytics' field data (§5) is the number to trust after launch.
 
 ## 3. By hand (H)
 
@@ -92,15 +114,23 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       to …" and then "Docked at …", the page's heading is read after it opens, the names of
       planets are buttons, the Map button says whether it opens or closes, Escape leaves.
 - [ ] **Keyboard only.** Tab reaches everything, the focus ring is always visible, nothing traps
-      focus, the flight keys do nothing while a page has the focus.
+      focus, the flight keys do nothing while a page has the focus. Claude's headless pass on
+      2026-09-30 (`/`, `/about/` and `/projects/fishai/` in universe mode; `/` and `/resume/`
+      in plain mode): every stop shows a ring (a name's is drawn on its `::after`), none lands
+      in `#universe-host`, and Tab comes back round to the start. A real keyboard is still yours.
 - [ ] **Back/forward cache.** Follow a link to GitHub, press Back: the site is there at once, in
       the same mode, and the world still moves (Chrome DevTools → Application → Back/forward
-      cache → Test says "restored").
+      cache → Test says "restored"). Claude's headless pass on 2026-09-30 (Edge 154, behind
+      `npm run preview`, to another origin and Back): restored from the cache in both modes, in
+      the same mode, and in universe mode the world was still moving afterwards. Playwright
+      turns this cache off by default (`--disable-back-forward-cache`), so an e2e test would
+      need `ignoreDefaultArgs` to cover it.
 - [ ] **Link previews.** LinkedIn's Post Inspector and opengraph.xyz for `/`,
       `/projects/fishai/`, `/projects/days2meet/` and `/resume/`: title, sentence, picture.
 - [ ] **Print the resume** (Ctrl+P on `/resume/`): two clean pages headed by the full name, and
       no phone number. Open **Download the PDF** too: the same two pages (the build checks that
-      the PDF still matches the page, but not what it looks like).
+      the PDF still matches the page, but not what it looks like). The committed PDF has two
+      pages (checked 2026-09-30).
 - [ ] **The ten-second test.** Hand a phone to someone who has never seen the site and ask them
       to find the resume. Then ask them to find FishAI without using the links.
 

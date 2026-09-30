@@ -6,5 +6,6 @@
   },
   "include": [".astro/types.d.ts", "**/*"],
   // .claude/worktrees: other agents' checkouts of this repository (see eslint.config.js).
-  "exclude": ["dist", "node_modules", ".wrangler", "coverage", ".claude/worktrees"]
+  // sites/: the subdomain sites, their own workspace with its own tsconfigs.
+  "exclude": ["dist", "node_modules", ".wrangler", "coverage", ".claude/worktrees", "sites"]
 }

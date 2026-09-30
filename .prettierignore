@@ -6,6 +6,9 @@ coverage/
 node_modules/
 package-lock.json
 
+# blog.allenkh.com and journal.allenkh.com format themselves (sites/.prettierrc.mjs, same settings).
+sites/
+
 # Prose is never formatted by a machine: copy and doc edits must not fail CI on whitespace.
 **/*.md
 src/content/
