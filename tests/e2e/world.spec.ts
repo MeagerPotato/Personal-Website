@@ -8,7 +8,9 @@ import {
   expect,
   nameOf,
   openUniverse,
+  plannedName,
   pointAt,
+  settled,
   test,
   universe,
   watchText,
@@ -197,5 +199,47 @@ test.describe('the first visit', () => {
     await page.reload();
     await engineReady(page);
     await expect(card).toBeHidden();
+  });
+});
+
+test.describe('on a laptop', () => {
+  // On a phone the map never gives these names room: Research sits at the bottom edge of the
+  // galaxy, and even all the way in, a planet's name there has the screen's edge (and the Plain
+  // version chip) below it and its sun's name above. The flight there from a page's link is
+  // tree.spec.ts's, on every screen.
+  test.skip(({ isMobile }) => isMobile, 'a keyboard, and room on the map for a planet of Research');
+
+  test('planned work is flown to like any other, and its one-line page says so', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    const said = await watchText(page, '.dock-prompt');
+    const told = await watchText(page, '[data-announcer]');
+    await page.keyboard.press('m');
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+
+    // Research, whose only work is planned, is at the bottom of the galaxy. Closer in (+, five
+    // times, about the middle), and with the map as far down as it goes (the arrow held until
+    // Research's name holds still), its planet's name has room beside its sun's.
+    const research = nameOf(page, 'Research');
+    await settled(research);
+    for (let press = 0; press < 5; press += 1) await page.keyboard.press('Equal');
+    await page.keyboard.down('ArrowDown');
+    await settled(research);
+    await page.keyboard.up('ArrowDown');
+    await pointAt(page, nameOf(page, plannedName('Sports Analysis')), false);
+
+    // As for built work: nothing opens until the ship is there, then its page.
+    await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
+    await expect.poll(() => pathOf(page), FLIGHT).toBe('/projects/sports-analysis/');
+    await expect(heading(page)).toHaveText('Sports Analysis');
+    await expect(status(page)).toHaveText('Docked at Sports Analysis, planned.');
+    expect(
+      (await said()).filter(({ text }) => text.includes('Flying to Sports Analysis')),
+    ).not.toEqual([]);
+    expect((await told()).map(({ text }) => text)).toContain('Flying to Sports Analysis, planned.');
+    // One line and a status, and its planet where a picture would be: nothing pretends to be built.
+    await expect(page.locator('main .facts')).toContainText('Planned');
+    await expect(page.locator('main .cover--planet')).toHaveAttribute('data-planned', '');
   });
 });

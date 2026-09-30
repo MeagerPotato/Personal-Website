@@ -16,9 +16,15 @@ export const PAGES = [
   // Built work without a cover (its planet stands in), and planned work (a one-line page).
   '/projects/cyberpatriot/',
   '/projects/fish-online/',
+  '/projects/sports-analysis/',
+  // A hackathon with a repository and a stack (and no cover).
+  '/projects/hackgt-13/',
   // The two suns of the Projects binary: the binary's own page is /projects/.
   '/systems/software/',
   '/systems/hardware/',
+  // Two systems of one sun: one whose work is all planned, and one with four planets.
+  '/systems/research/',
+  '/systems/hackathons/',
   '/resume/',
   '/contact/',
 ] as const;
