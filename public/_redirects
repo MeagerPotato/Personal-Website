@@ -1,0 +1,5 @@
+# Old URLs that must keep working: source, destination, 301. No wildcards.
+# Checked by verify-dist (scripts/lib/redirects.mjs): one exact path each, to a page of the build.
+# The Code system became Software, one of the two suns of Projects, on 2026-09-30.
+/systems/code/  /systems/software/  301
+/systems/code   /systems/software/  301
