@@ -13,21 +13,70 @@ import {
   createToonMaterial,
   refreshToonLook,
   setBloomMask,
+  type ToonMaterial,
 } from '../design/materials';
 import { tokens, type BiomeKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { BODIES } from '../design/worlds/bodies';
+import { readManifest, type ManifestBody } from '../manifest';
 import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
 import { planetTriangleCount } from '../sim/planet';
 import { Backdrop } from '../world/Backdrop';
+import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { Starfield } from '../world/Starfield';
 import { lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
-const SUBJECTS = ['planet', 'moon', 'sun', 'rocket', 'station', 'satellite', 'relay'] as const;
+const SUBJECTS = [
+  'world',
+  'planet',
+  'moon',
+  'sun',
+  'rocket',
+  'station',
+  'satellite',
+  'relay',
+] as const;
 type Subject = (typeof SUBJECTS)[number];
+
+/** The emblem worlds, by manifest id (design/worlds/): the `world` subject shows any of them. */
+const WORLD_IDS = Object.keys(BODIES).sort();
+
+/** What the lab needs of a body to draw its world as the galaxy does. */
+type WorldBody = Pick<ManifestBody, 'kind' | 'radius' | 'seed' | 'planned'>;
+
+/** A guess at each kind's size, until /universe.json says (tuning.layout has the real ones). */
+const GUESSED_RADIUS: Partial<Record<ManifestBody['kind'], number>> = {
+  home: 14,
+  station: 2.2,
+  satellite: 1.6,
+  link: 1.4,
+  sun: 20,
+};
+
+/**
+ * Before /universe.json has arrived (or if it cannot), a body's kind is guessed from its id, at
+ * a planet's size: close enough to look at its rows. A relay waiting for its URL (Devpost) is
+ * never in the manifest, and is guessed right.
+ */
+function guessBody(id: string): WorldBody {
+  const kind: ManifestBody['kind'] =
+    id === 'page/about'
+      ? 'home'
+      : id === 'page/resume'
+        ? 'station'
+        : id === 'page/contact'
+          ? 'satellite'
+          : id.startsWith('link/')
+            ? 'link'
+            : id.startsWith('system/')
+              ? 'sun'
+              : 'planet';
+  return { kind, radius: GUESSED_RADIUS[kind] ?? 8, seed: id };
+}
 
 /** What kind of body a subject is: a relay is a link's body (a profile elsewhere). */
 const KIND_OF = {
@@ -37,7 +86,7 @@ const KIND_OF = {
   station: 'station',
   satellite: 'satellite',
   relay: 'link',
-} as const satisfies Record<Exclude<Subject, 'rocket'>, LookedAt['kind']>;
+} as const satisfies Record<Exclude<Subject, 'rocket' | 'world'>, LookedAt['kind']>;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -81,7 +130,12 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const assets = engine.add(new AssetStore());
   const jobs = new JobQueue(tuning.world.jobBudget);
   const camera = new TurntableCam(engine.canvas);
-  const table = engine.add(new Turntable(assets, jobs, camera));
+  const table = engine.add(new Turntable(assets, jobs, camera, options.tier === 'low'));
+  // The worlds' kinds and sizes, as the galaxy has them; until then, and without it, a guess.
+  void fetch('/universe.json')
+    .then((response) => response.json())
+    .then((data: unknown) => table.know(readManifest(data).bodies))
+    .catch(() => undefined);
   engine.add(new CameraRig(engine.camera, camera, tuning.cameraRig));
 
   const backdrop = engine.add(new Backdrop());
@@ -104,6 +158,13 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   };
 
   gui.add(state, 'subject', SUBJECTS).onChange(rebuild);
+  // An emblem world, as the galaxy draws it (world/BodyMesh.ts): far, or up close with its
+  // close-up parts and, unless it holds still, its movers; or its star map variant.
+  const emblem = gui.addFolder('world (subject: world)');
+  emblem.add(state, 'world', WORLD_IDS).name('body').onChange(rebuild);
+  emblem.add(state, 'near').name('close-up');
+  emblem.add(state, 'moving').name('moving (close-up)').onChange(rebuild);
+  emblem.add(state, 'onMap').name('star map variant');
   const world = gui.addFolder('planet, moon, sun');
   world.add(state, 'biome', Object.keys(tokens.color.biome)).onChange(rebuild);
   world
@@ -163,7 +224,11 @@ export function bootLab(options: LabOptions): { dispose(): void } {
 class Turntable implements System {
   readonly object = new Group();
   readonly state = {
-    subject: 'planet' as Subject,
+    subject: 'world' as Subject,
+    world: 'page/about',
+    near: false,
+    moving: true,
+    onMap: false,
     biome: 'terra' as BiomeKey,
     theme: 'coral' as ThemeKey,
     radius: 8,
@@ -180,6 +245,12 @@ class Turntable implements System {
 
   private scope = new Scope();
   private planet: PlanetMesh | null = null;
+  private world: BodyMesh | null = null;
+  /** Has the camera been framed on the world's built reach yet? */
+  private framed = false;
+  private bodies = new Map<string, WorldBody>();
+  /** The close-up chunk, loaded the first time a world is looked at up close. */
+  private readonly closeUp = new CloseUpLoader();
   private rocket: Rocket | null = null;
   private flame: EngineFlame | null = null;
   private lit: Array<{ uniforms: { uSunPosition: { value: Vector3 } } }> = [];
@@ -191,13 +262,25 @@ class Turntable implements System {
     private readonly assets: AssetStore,
     private readonly jobs: JobQueue,
     private readonly camera: TurntableCam,
+    private readonly low: boolean,
   ) {
     this.object.name = 'universe-lab';
     this.show();
   }
 
+  /** The galaxy's bodies have arrived: draw the world on show at its real kind and size. */
+  know(bodies: readonly ManifestBody[]): void {
+    this.bodies = new Map(bodies.map((body) => [body.id, body]));
+    if (this.state.subject === 'world') this.show();
+  }
+
   describe(): string {
     const { subject, biome, theme } = this.state;
+    if (subject === 'world') {
+      const { world, near, moving, onMap } = this.state;
+      const how = onMap ? 'map' : near ? (moving ? 'close-up, moving' : 'close-up') : 'far';
+      return `${world} (${this.bodyOf(world).kind}), ${how}`;
+    }
     const what =
       subject === 'sun'
         ? `${theme} sun`
@@ -224,6 +307,10 @@ class Turntable implements System {
     this.triangles = 0;
 
     const { subject } = state;
+    if (subject === 'world') {
+      this.showWorld(surface);
+      return;
+    }
     if (subject === 'rocket') {
       this.rocket = new Rocket(assets, scope);
       this.flame = new EngineFlame(assets, this.rocket.engine, scope, tuning.ship.flame, true);
@@ -308,6 +395,41 @@ class Turntable implements System {
     this.input.thrust = state.thrust;
     this.input.boost = state.boost;
     this.flame?.update(this.input, frame);
+    // Up close as if the ship were at its surface; far as if across its system.
+    this.world?.update(state.near ? 0 : 1000, frame.dt, frame.simTime, state.onMap);
+    if (this.world && !this.framed && this.world.built) {
+      this.framed = true;
+      this.camera.frame(this.bodyOf(state.world).radius * this.world.reach);
+    }
+  }
+
+  private bodyOf(id: string): WorldBody {
+    return this.bodies.get(id) ?? guessBody(id);
+  }
+
+  /** An emblem world, drawn exactly as the galaxy draws it (world/BodyMesh.ts). */
+  private showWorld(surface: ToonMaterial): void {
+    const { state } = this;
+    const recipe = BODIES[state.world];
+    if (!recipe) return;
+    const body = this.bodyOf(state.world);
+    this.world = new BodyMesh({
+      id: state.world,
+      kind: body.kind,
+      planned: body.planned === true,
+      radius: body.radius,
+      seed: body.seed,
+      recipe,
+      material: surface,
+      jobs: this.jobs,
+      low: this.low,
+      reducedMotion: !state.moving,
+      closeUp: this.closeUp,
+    });
+    this.object.add(this.world.object);
+    this.framed = false;
+    // Until it is built and its reach known: its radius and room for what stands out.
+    this.camera.frame(body.radius * 1.8);
   }
 
   dispose(): void {
@@ -318,6 +440,8 @@ class Turntable implements System {
   private clear(): void {
     this.planet?.dispose();
     this.planet = null;
+    this.world?.dispose();
+    this.world = null;
     this.rocket = null;
     this.flame = null;
     this.lit = [];
