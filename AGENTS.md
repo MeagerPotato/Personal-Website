@@ -32,7 +32,7 @@ orbit. Bodies carry **names** (real buttons), and pointing at a planet or its na
 first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
-"cluster"), the autopilot flies any journey in today's galaxy in 1.5 to 4.3 s, and every way a
+"cluster"), the autopilot flies any journey in today's galaxy in 1.5 to 4.4 s, and every way a
 journey is handed back at speed (Stop, a key, the web layer letting go, a reload) brakes or
 guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
 visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"

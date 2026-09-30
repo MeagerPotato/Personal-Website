@@ -71,8 +71,9 @@ const sunOf = (id: string, over: Partial<SystemInput> = {}): SystemInput => ({
 
 /**
  * Projects, a binary star in slot 1: Software (primary) and Hardware, with the families Allen's
- * tree gives them, less the planned Fish Online (with it the binary reaches 401.6 u, which the
- * slots only make room for from docs/PLAN.md's next layout move).
+ * tree gives them, less the planned Fish Online, so that the numbers pinned below stay those of
+ * the first build. The whole tree, Fish Online in, reaches 401.6 u: `allensTree` below, and the
+ * test that it has room.
  */
 const binary = (over: Partial<UniverseInput> = {}): UniverseInput => ({
   systems: [
@@ -94,6 +95,21 @@ const binary = (over: Partial<UniverseInput> = {}): UniverseInput => ({
   includeDrafts: false,
   ...over,
 });
+
+/** Allen's whole tree of 2026-09-30 in the binary: binary() and the planned Fish Online. */
+const allensTree = (extra: ProjectInput[] = []): UniverseInput =>
+  binary({
+    projects: [
+      ...binary().projects,
+      project('fish-online', {
+        parent: 'canadian-fish-demo',
+        size: 's',
+        date: undefined,
+        planned: true,
+      }),
+      ...extra,
+    ],
+  });
 
 const problemsOf = (input: UniverseInput): string[] => {
   try {
@@ -275,12 +291,15 @@ describe('buildUniverse', () => {
     expect(buildUniverse(input)).toEqual(buildUniverse(input));
   });
 
-  it('builds the galaxy of 2026-09-30 byte for byte as before binary stars existed', () => {
+  it('builds the galaxy of 2026-09-30 byte for byte: one-sun systems as before binaries, Code in its moved slot', () => {
     // src/content as it stood (one solar system, Code), and /universe.json exactly as it was
     // served: JSON.stringify keeps the order of keys, so this is the file, byte for byte. A
     // galaxy of one-sun systems is built by the same code as before binaries (buildFamily). If
     // this fails, every body of today's galaxy has moved: meant only with the layout
-    // (docs/PLAN.md §5.4), as layout.test's PINNED.
+    // (docs/PLAN.md §5.4), as layout.test's PINNED. One value differs from the file as served
+    // before 2026-09-30, and on purpose: Code's position, from (-431.34, 431.34) to
+    // (-487.9, 487.9), when the slots made room for a binary star (tuning.layout, homeRoom and
+    // slotRoom). Everything else, down to the last ring, is as it was.
     const today: UniverseInput = {
       systems: [system('code', 1, { name: 'Code' })],
       projects: [
@@ -321,7 +340,7 @@ describe('buildUniverse', () => {
           id: 'code',
           name: 'Code',
           theme: 'sky',
-          position: [-431.34, 431.34],
+          position: [-487.9, 487.9],
           radius: 202.6,
           center: 'system/code',
         },
@@ -681,13 +700,12 @@ describe('buildUniverse', () => {
       // The one exception to "adding a project moves nothing" (data/layout.ts): each sun circles
       // at a radius set by the OTHER family's reach, and the pair's period by both. Their angles at
       // t = 0 stay, and so does every body's orbit round its own sun or planet, and everything
-      // outside the binary. (Without Days2Meet, so that the binary has room to grow within
-      // today's limit.)
+      // outside the binary. (Room to grow: 364.8 u, and 403.2 with the new planet, of 460.)
       const withResearch = (extra: ProjectInput[]): UniverseInput =>
         binary({
           systems: [...binary().systems, system('research', 2, { theme: 'lilac' })],
           projects: [
-            ...binary().projects.filter((entry) => entry.id !== 'days2meet'),
+            ...binary().projects,
             project('sports-analysis', { system: 'research' }),
             ...extra,
           ],
@@ -719,21 +737,54 @@ describe('buildUniverse', () => {
       expect(after.systems[2]).toEqual(before.systems[2]);
     });
 
+    it("has room for Allen's tree and any one more planet or moon under either sun, not two", () => {
+      // What tuning.layout.maxSystemRadius (460) was chosen for, and the slots sized from it
+      // (docs/PLAN.md §5.4): the tree builds, and so does the tree with any single addition,
+      // whatever its size and wherever it goes. The largest, a planet of size l, reaches 455.2 u.
+      expect(problemsOf(allensTree())).toEqual([]);
+      expect(buildUniverse(allensTree()).systems[1]?.radius).toBe(401.6);
+      const planets = (['software', 'hardware'] as const).flatMap((sun) =>
+        (['s', 'm', 'l'] as const).map((size) =>
+          project(`new-${size}-planet`, { system: sun, size, date: '2026-12' }),
+        ),
+      );
+      const moons = [
+        'cyberpatriot',
+        'canadian-fish-demo',
+        'days2meet',
+        'model-rocketry',
+        'robotics',
+      ].flatMap((parent) =>
+        (['s', 'm', 'l'] as const).map((size) => project(`new-${size}-moon`, { parent, size })),
+      );
+      for (const extra of [...planets, ...moons]) {
+        const where = `${extra.id} round ${extra.system ?? extra.parent}`;
+        expect(problemsOf(allensTree([extra])), where).toEqual([]);
+      }
+      const largest = project('new-l-planet', { system: 'hardware', size: 'l', date: '2026-12' });
+      expect(buildUniverse(allensTree([largest])).systems[1]?.radius).toBe(455.2);
+
+      // And the two smallest additions there are, a planet of size s under each sun, trip it.
+      expect(
+        problemsOf(
+          allensTree([
+            project('new-s-planet', { system: 'software', size: 's', date: '2026-12' }),
+            project('other-s-planet', { system: 'hardware', size: 's', date: '2026-12' }),
+          ]),
+        ),
+      ).toEqual([
+        expect.stringContaining(
+          'binary "projects" reaches 461.6 u (Software 297.8, Hardware 143.8, 40 apart), past the 460 u limit',
+        ),
+      ]);
+    });
+
     it('fails the build, naming both families, when it outgrows its slot', () => {
-      // Allen's tree (Fish Online back in) with two moons more round Model Rocketry.
-      const crowded = binary({
-        projects: [
-          ...binary().projects,
-          project('fish-online', {
-            parent: 'canadian-fish-demo',
-            size: 's',
-            date: undefined,
-            planned: true,
-          }),
-          project('payload', { parent: 'model-rocketry', size: 's' }),
-          project('recovery', { parent: 'model-rocketry', size: 's' }),
-        ],
-      });
+      // Allen's tree with two moons more round Model Rocketry.
+      const crowded = allensTree([
+        project('payload', { parent: 'model-rocketry', size: 's' }),
+        project('recovery', { parent: 'model-rocketry', size: 's' }),
+      ]);
       expect(problemsOf(crowded)).toContain(
         `binary "projects" reaches 475.2 u (Software 267.8, Hardware 187.4, 40 apart), past the ` +
           `${L.maxSystemRadius} u limit: it would crowd its neighbours. Move a project to another ` +
