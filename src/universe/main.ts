@@ -13,7 +13,7 @@ import { PointerSteer } from './core/input/PointerSteer';
 import { TouchControls } from './core/input/TouchControls';
 import { JobQueue } from './core/jobs';
 import { lowerTier, type QualityTier } from './core/quality/tiers';
-import type { Snapshot } from './core/snapshot';
+import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
@@ -88,8 +88,8 @@ export interface Booted {
   setInset(inset: ViewInset, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
   setMapOpen(open: boolean, cut: boolean): void;
-  /** Where everything is right now (core/snapshot.ts). */
-  snapshot(): Snapshot;
+  /** Where everything is right now, and in which galaxy (core/snapshot.ts). */
+  snapshot(): StampedSnapshot;
 }
 
 export function boot(
