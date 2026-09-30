@@ -76,13 +76,17 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
       size INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     )`,
-    // Web Push for the daily reminder. The notification text is generic and fixed.
+    // The daily reminder, one row per device: where to push, and when on its own clock. The
+    // pushes carry no content (worker/lib/push.ts), so no payload keys are kept.
     `CREATE TABLE IF NOT EXISTS push_subscriptions (
       endpoint TEXT PRIMARY KEY,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
+      remind_at TEXT NOT NULL,
+      time_zone TEXT NOT NULL,
+      last_sent TEXT,
       created_at INTEGER NOT NULL
     )`,
+    // The server's own few values: 'vapid' (the reminder's key pair) and 'written' (the last
+    // date something was written, so the reminder can skip it).
     `CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL

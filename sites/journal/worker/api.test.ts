@@ -5,7 +5,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { getPlatformProxy } from 'wrangler';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toBase64Url } from '../src/vault/bytes';
 import {
   kekFromPrf,
@@ -18,13 +18,15 @@ import {
 import { newRecoveryPhrase, recoveryEntropy } from '../src/vault/recovery';
 import type { Env } from './env';
 import { app } from './index';
+import { sendReminders } from './lib/push';
+import { fromBase64Url } from './lib/tokens';
 import { SoftAuthenticator } from './test/authenticator';
 
 const ORIGIN = 'http://localhost:5173';
 const RP_ID = 'localhost';
 const SETUP_TOKEN = 'orbit-ladder-velvet';
 
-// Local D1 and R2 exactly as  gets them, from wrangler.jsonc, in memory only.
+// Local D1 and R2 exactly as `wrangler dev` gets them, from wrangler.jsonc, in memory only.
 const platform = await getPlatformProxy<{ DB: D1Database; BLOBS: R2Bucket }>({
   configPath: fileURLToPath(new URL('../wrangler.jsonc', import.meta.url).href),
   persist: false,
@@ -445,6 +447,151 @@ describe('files', () => {
   it('are closed without a session', async () => {
     await setUp(env);
     expect((await new Device(env).call('GET', '/blobs')).status).toBe(401);
+  });
+});
+
+describe('the daily reminder', () => {
+  const ENDPOINT = 'https://push.example.test/send/device-1';
+  // Far from the day the tests run: turning a reminder on looks at the real clock.
+  const EVENING = new Date('2031-03-10T21:00:00Z');
+  const later = (minutes: number) => new Date(EVENING.getTime() + minutes * 60_000);
+
+  /** A push service that records what it is sent and answers with `status`. */
+  function pushService(status = 201) {
+    const sent: { url: string; init: RequestInit }[] = [];
+    const fetcher = (async (url: string, init: RequestInit) => {
+      sent.push({ url, init });
+      return new Response(null, { status });
+    }) as typeof fetch;
+    return { sent, fetcher };
+  }
+
+  async function withReminder(remindAt = '21:00', timeZone = 'UTC') {
+    const { device } = await setUp(env);
+    const put = await device.json('PUT', '/push', { endpoint: ENDPOINT, remindAt, timeZone });
+    expect(put.status).toBe(200);
+    return device;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is closed without a session', async () => {
+    await setUp(env);
+    const stranger = new Device(env);
+    expect((await stranger.call('GET', '/push')).status).toBe(401);
+    const put = { endpoint: ENDPOINT, remindAt: '21:00', timeZone: 'UTC' };
+    expect((await stranger.call('PUT', '/push', put)).status).toBe(401);
+  });
+
+  it('hands out one VAPID key, and keeps each device’s time', async () => {
+    const device = await withReminder('21:30', 'America/Los_Angeles');
+    const first = await device.json('GET', '/push');
+    const key = fromBase64Url(first.body['publicKey'] as string);
+    expect(key.length).toBe(65); // an uncompressed P-256 point
+    expect(key[0]).toBe(4);
+    expect(first.body['devices']).toEqual([
+      { endpoint: ENDPOINT, remindAt: '21:30', timeZone: 'America/Los_Angeles' },
+    ]);
+    expect((await device.json('GET', '/push')).body['publicKey']).toBe(first.body['publicKey']);
+  });
+
+  it('refuses what is not a push address, a time or a time zone', async () => {
+    const { device } = await setUp(env);
+    const good = { endpoint: ENDPOINT, remindAt: '21:00', timeZone: 'UTC' };
+    for (const bad of [
+      { ...good, endpoint: 'http://push.example.test/insecure' },
+      { ...good, endpoint: 'not a url' },
+      { ...good, remindAt: '24:00' },
+      { ...good, remindAt: '9pm' },
+      { ...good, timeZone: 'Mars/Olympus_Mons' },
+      { ...good, extra: true },
+    ]) {
+      expect((await device.call('PUT', '/push', bad)).status).toBe(400);
+    }
+  });
+
+  it('sends one empty push, signed for its push service, when the time comes', async () => {
+    await withReminder();
+    const service = pushService();
+    await sendReminders(env.DB, ORIGIN, later(-1), service.fetcher);
+    expect(service.sent).toHaveLength(0);
+
+    await sendReminders(env.DB, ORIGIN, EVENING, service.fetcher);
+    expect(service.sent).toHaveLength(1);
+    const [{ url, init } = { url: '', init: {} }] = service.sent;
+    expect(url).toBe(ENDPOINT);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeUndefined();
+    const headers = new Headers(init.headers);
+    expect(headers.get('content-length')).toBe('0');
+    expect(headers.get('topic')).toBe('daily-reminder');
+    expect(Number(headers.get('ttl'))).toBeGreaterThan(0);
+
+    // The VAPID token: for this push service's origin, from this site, and truly signed.
+    const [, token = '', publicKey = ''] =
+      /^vapid t=([^,]+), k=(.+)$/.exec(headers.get('authorization') ?? '') ?? [];
+    const [header = '', claims = '', signature = ''] = token.split('.');
+    expect(JSON.parse(new TextDecoder().decode(fromBase64Url(claims)))).toMatchObject({
+      aud: 'https://push.example.test',
+      sub: ORIGIN,
+    });
+    const key = await crypto.subtle.importKey(
+      'raw',
+      fromBase64Url(publicKey),
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    );
+    const signed = new TextEncoder().encode(`${header}.${claims}`);
+    const verify = { name: 'ECDSA', hash: 'SHA-256' };
+    expect(await crypto.subtle.verify(verify, key, fromBase64Url(signature), signed)).toBe(true);
+
+    // Once a day.
+    await sendReminders(env.DB, ORIGIN, later(5), service.fetcher);
+    expect(service.sent).toHaveLength(1);
+  });
+
+  it('keeps to each device’s own clock', async () => {
+    await withReminder('21:00', 'America/Los_Angeles');
+    const service = pushService();
+    // 21:00 in California is 04:00 UTC the next morning (daylight time since March 9th).
+    await sendReminders(env.DB, ORIGIN, new Date('2031-03-11T03:59:00Z'), service.fetcher);
+    expect(service.sent).toHaveLength(0);
+    await sendReminders(env.DB, ORIGIN, new Date('2031-03-11T04:00:00Z'), service.fetcher);
+    expect(service.sent).toHaveLength(1);
+  });
+
+  it('skips a day that is already written, on every device', async () => {
+    const device = await withReminder();
+    expect((await device.call('POST', '/push/written', { date: '2031-03-10' })).status).toBe(200);
+    const service = pushService();
+    await sendReminders(env.DB, ORIGIN, EVENING, service.fetcher);
+    expect(service.sent).toHaveLength(0);
+    await sendReminders(env.DB, ORIGIN, later(24 * 60), service.fetcher);
+    expect(service.sent).toHaveLength(1);
+  });
+
+  it('tries again after a failure, and forgets a device that is gone', async () => {
+    const device = await withReminder();
+    await sendReminders(env.DB, ORIGIN, EVENING, pushService(503).fetcher);
+    const retry = pushService(410);
+    await sendReminders(env.DB, ORIGIN, later(5), retry.fetcher);
+    expect(retry.sent).toHaveLength(1);
+    expect((await device.json('GET', '/push')).body['devices']).toEqual([]);
+  });
+
+  it('sends a test to a device that has a reminder, and turns it off', async () => {
+    const device = await withReminder();
+    const service = pushService();
+    vi.stubGlobal('fetch', service.fetcher);
+    const test = await device.json('POST', '/push/test', { endpoint: ENDPOINT });
+    expect(test.body).toEqual({ result: 'sent' });
+    expect(service.sent).toHaveLength(1);
+    const other = { endpoint: 'https://push.example.test/send/unknown' };
+    expect((await device.call('POST', '/push/test', other)).status).toBe(404);
+
+    expect((await device.call('DELETE', '/push', { endpoint: ENDPOINT })).status).toBe(200);
+    expect((await device.json('GET', '/push')).body['devices']).toEqual([]);
   });
 });
 

@@ -1,7 +1,8 @@
 /**
  * Settings: how the journal locks and unlocks, what a day asks for (moods, activities, prompts,
- * templates), how it looks on this device, and your data. Security changes that need the account
- * key ask for a fresh passkey prompt first, so an unattended unlocked screen cannot change them.
+ * templates), how it looks on this device, the daily reminder, and your data. Security changes
+ * that need the account key ask for a fresh passkey prompt first, so an unattended unlocked
+ * screen cannot change them.
  */
 import { RichTextEditor, type Doc } from '@allenkh/editor';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
@@ -14,13 +15,20 @@ import {
   setPassphrase,
   type UnlockTicket,
 } from '../account/account';
-import { api, type Passkey } from '../api/client';
+import { api, type DeviceReminder, type Passkey } from '../api/client';
 import { useJournal, useLock } from '../app/context';
 import { collectGarbage, queuedUploads } from '../journal/files';
 import { BUILT_IN_TEMPLATES, DEFAULT_ACTIVITIES, DEFAULT_PROMPTS } from '../model/defaults';
 import { blankTemplate } from '../model/records';
 import type { Activities, ActivityGroup, RichText, Template } from '../model/types';
 import { wipe } from '../store/db';
+import {
+  ReminderError,
+  currentSubscription,
+  disableReminder,
+  enableReminder,
+  reminderSupport,
+} from '../reminder';
 import { newRecoveryPhrase } from '../vault/recovery';
 import { randomId } from '../vault/ids';
 import { Bean } from '../ui/Bean';
@@ -57,6 +65,7 @@ export function SettingsScreen({ section }: { section: string | null }) {
       <PromptsSection />
       <TemplatesSection />
       <AppearanceSection />
+      <ReminderSection />
       <DataSection />
     </article>
   );
@@ -765,6 +774,159 @@ function AppearanceSection() {
           onChange={(weekStart) => void journal.updateSettings((s) => ({ ...s, weekStart }))}
         />
       </div>
+    </Section>
+  );
+}
+
+// --- Daily reminder -------------------------------------------------------------------------------
+
+/** What went wrong with the reminder, in words (the browser's own errors are DOMExceptions). */
+function explain(caught: unknown): string {
+  if (caught instanceof ReminderError) return caught.message;
+  if (caught instanceof DOMException) {
+    return `This browser could not set up the reminder (${caught.message || caught.name}).`;
+  }
+  return describe(caught);
+}
+
+function ReminderSection() {
+  const support = reminderSupport();
+  const [server, setServer] = useState<{ publicKey: string; devices: DeviceReminder[] } | null>(
+    null,
+  );
+  /** This device's push address, while its reminder is on. */
+  const [endpoint, setEndpoint] = useState<string | null>(null);
+  const [remindAt, setRemindAt] = useState('21:00');
+  const [saved, setSaved] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (support !== 'ok') return undefined;
+    let live = true;
+    Promise.all([api.reminders(), currentSubscription()]).then(
+      ([found, subscription]) => {
+        if (!live) return;
+        const mine = found.devices.find((device) => device.endpoint === subscription?.endpoint);
+        setServer(found);
+        setEndpoint(mine?.endpoint ?? null);
+        if (mine) {
+          setRemindAt(mine.remindAt);
+          setSaved(mine.remindAt);
+        }
+      },
+      (caught: unknown) => {
+        if (live) setError(explain(caught));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [support]);
+
+  const run = async (task: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await task();
+    } catch (caught) {
+      setError(explain(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const turnOn = (time: string) =>
+    run(async () => {
+      if (!server) return;
+      setEndpoint(await enableReminder(time, server.publicKey));
+      setSaved(time);
+    });
+  const turnOff = () =>
+    run(async () => {
+      await disableReminder();
+      setEndpoint(null);
+    });
+  const test = () =>
+    run(async () => {
+      if (!endpoint) return;
+      const { result } = await api.testReminder(endpoint);
+      if (result === 'gone') setEndpoint(null);
+      setMessage(
+        result === 'sent'
+          ? 'Sent: it should arrive in a few seconds.'
+          : result === 'gone'
+            ? 'This device’s push address has expired. Turn the reminder on again.'
+            : 'The push service did not take it. Try again in a while.',
+      );
+    });
+
+  const others = server?.devices.filter((device) => device.endpoint !== endpoint).length ?? 0;
+
+  return (
+    <Section
+      id="reminder"
+      title="Daily reminder"
+      lede="At the end of the day, a nudge: “How was today?” Days you have already written are skipped."
+    >
+      {support === 'install' ? (
+        <p className="hint">
+          On iPhone and iPad, reminders come to the journal on your Home Screen: in Safari, tap
+          Share, then Add to Home Screen, and turn this on from there.
+        </p>
+      ) : support === 'unsupported' ? (
+        <p className="hint">This browser can’t show reminders.</p>
+      ) : (
+        <>
+          <div className="settings__row">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={endpoint !== null}
+                disabled={busy || !server}
+                onChange={(event) => void (event.target.checked ? turnOn(remindAt) : turnOff())}
+              />
+              <span>Remind me on this device at</span>
+            </label>
+            <input
+              type="time"
+              className="input input--inline"
+              aria-label="Reminder time"
+              required
+              value={remindAt}
+              disabled={busy}
+              onChange={(event) => setRemindAt(event.target.value)}
+              onBlur={() => {
+                if (endpoint && remindAt && remindAt !== saved) void turnOn(remindAt);
+              }}
+            />
+          </div>
+          {endpoint ? (
+            <div className="settings__actions">
+              <button type="button" className="button" disabled={busy} onClick={() => void test()}>
+                Send a test
+              </button>
+            </div>
+          ) : null}
+          {others > 0 ? (
+            <p className="hint">
+              {others === 1 ? 'One other device has' : `${others} other devices have`} a reminder
+              too.
+            </p>
+          ) : null}
+          <p className="hint">
+            The reminder carries no words from your journal. The server knows only when to send it,
+            in your time zone, and whether today is written.
+          </p>
+          {message ? (
+            <p className="muted" role="status">
+              {message}
+            </p>
+          ) : null}
+          <ErrorText error={error} />
+        </>
+      )}
     </Section>
   );
 }

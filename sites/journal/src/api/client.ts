@@ -123,6 +123,15 @@ export type PushResult =
 type CreationOptions = PublicKeyCredentialCreationOptionsJSON;
 type RequestOptions = PublicKeyCredentialRequestOptionsJSON;
 
+/** One device's daily reminder: where its pushes go, and when, on its own clock. */
+export interface DeviceReminder {
+  endpoint: string;
+  /** "HH:MM". */
+  remindAt: string;
+  /** IANA name, e.g. "America/Los_Angeles". */
+  timeZone: string;
+}
+
 export const api = {
   state: () => json<ServerState>('GET', '/state'),
 
@@ -186,4 +195,11 @@ export const api = {
     new Uint8Array(await (await send(`/blobs/${id}`, { method: 'GET' })).arrayBuffer()),
   removeFile: (id: string) => json<{ ok: true }>('DELETE', `/blobs/${id}`),
   files: () => json<{ id: string; size: number; createdAt: number }[]>('GET', '/blobs'),
+
+  reminders: () => json<{ publicKey: string; devices: DeviceReminder[] }>('GET', '/push'),
+  setReminder: (reminder: DeviceReminder) => json<{ ok: true }>('PUT', '/push', reminder),
+  removeReminder: (endpoint: string) => json<{ ok: true }>('DELETE', '/push', { endpoint }),
+  testReminder: (endpoint: string) =>
+    json<{ result: 'sent' | 'gone' | 'failed' }>('POST', '/push/test', { endpoint }),
+  markWritten: (date: string) => json<{ ok: true }>('POST', '/push/written', { date }),
 };

@@ -25,7 +25,6 @@
   "vars": {
     "RP_ID": "journal.allenkh.com",
     "ORIGIN": "https://journal.allenkh.com",
-    "VAPID_SUBJECT": "https://journal.allenkh.com",
   },
 
   "d1_databases": [
@@ -53,8 +52,9 @@
     },
   ],
 
-  // Sweeps expired sessions and challenges; later, the daily reminder.
-  "triggers": { "crons": ["*/15 * * * *"] },
+  // The daily reminders that are due (so one comes within five minutes of its time), and the
+  // sweep of expired sessions and challenges.
+  "triggers": { "crons": ["*/5 * * * *"] },
 
   "observability": { "enabled": true },
 }

@@ -17,10 +17,6 @@ export interface Env {
    * before Allen does can claim it. Unused afterwards.
    */
   readonly SETUP_TOKEN?: string;
-  /** Secrets for the daily reminder (Web Push VAPID keys, base64url). */
-  readonly VAPID_PUBLIC_KEY?: string;
-  readonly VAPID_PRIVATE_KEY?: string;
-  readonly VAPID_SUBJECT?: string;
 }
 
 export interface Session {

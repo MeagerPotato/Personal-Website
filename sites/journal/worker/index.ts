@@ -9,9 +9,11 @@ import { Hono } from 'hono';
 import { migrate } from './db/migrate';
 import type { AppContext, Env } from './env';
 import { HttpError } from './lib/http';
+import { sendReminders } from './lib/push';
 import { readSession, sweep } from './lib/sessions';
 import { auth } from './routes/auth';
 import { blobs } from './routes/blobs';
+import { push } from './routes/push';
 import { sync } from './routes/sync';
 
 export const app = new Hono<AppContext>().basePath('/api');
@@ -35,6 +37,7 @@ app.use('*', async (c, next) => {
 app.route('/', auth);
 app.route('/', sync);
 app.route('/', blobs);
+app.route('/', push);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 app.onError((error, c) => {
@@ -49,7 +52,14 @@ app.onError((error, c) => {
 
 export default {
   fetch: app.fetch,
+  // Every five minutes (wrangler.jsonc): the daily reminders that are due, and the sweep of
+  // expired sessions and challenges.
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(migrate(env.DB).then(() => sweep(env.DB)));
+    ctx.waitUntil(
+      migrate(env.DB).then(async () => {
+        await sendReminders(env.DB, env.ORIGIN);
+        await sweep(env.DB);
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;

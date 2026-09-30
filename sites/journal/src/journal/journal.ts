@@ -7,8 +7,10 @@
  * decrypted record with this object.
  */
 import { ApiError, OfflineError, api } from '../api/client';
+import { today } from '../model/dates';
 import { readActivities, readRecord, readSettings, toDoc } from '../model/normalize';
 import { blankDay, blankMonth } from '../model/records';
+import { hasEntry } from '../model/stats';
 import type {
   Activities,
   Day,
@@ -85,6 +87,8 @@ export class Journal {
   private everyTimer: ReturnType<typeof setInterval> | undefined;
   private failures = 0;
   private closed = false;
+  /** The date the server was last told is written (reportWritten). */
+  private writtenReported: string | null = null;
   private syncStatus: SyncStatus = {
     state: 'idle',
     lastSyncedAt: null,
@@ -308,7 +312,21 @@ export class Journal {
    */
   async updateDay(date: string, change: (day: Day) => Day): Promise<void> {
     const id = await this.keyed(`day:${date}`, () => dayId(this.keys, date));
-    this.write(id, change(this.day(date) ?? blankDay(date)));
+    const next = change(this.day(date) ?? blankDay(date));
+    this.write(id, next);
+    if (date === today() && hasEntry(next)) this.reportWritten(date);
+  }
+
+  /**
+   * Tells the server, once a day, that today is written, so no device is reminded to write it.
+   * The server learns nothing new: it sees every sync already. Offline, the next edit tries again.
+   */
+  private reportWritten(date: string): void {
+    if (this.writtenReported === date) return;
+    this.writtenReported = date;
+    api.markWritten(date).catch(() => {
+      if (this.writtenReported === date) this.writtenReported = null;
+    });
   }
 
   async updateMonth(month: string, change: (review: MonthReview) => MonthReview): Promise<void> {
