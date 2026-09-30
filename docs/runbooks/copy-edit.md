@@ -114,7 +114,9 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
       Each has a name, a `tagline` (one sentence) and a short paragraph. The binary itself,
       `src/content/systems/projects.md`, is only its name and colour.
 - [ ] **Hackathons** (new, a system of one sun) · `src/content/systems/hackathons.md` ·
-      `/systems/hackathons/`. Its tagline and a paragraph naming the three events.
+      `/systems/hackathons/`. Its tagline and a paragraph naming the three events. The
+      paragraph's first line ("A hackathon is a deadline with snacks.") is mine: keep it or cut
+      it.
 - [ ] **Hackathons @ Berkeley** (new, a planet of Hackathons) ·
       `src/content/projects/hackathons-at-berkeley/index.md` · `/projects/hackathons-at-berkeley/`.
       Your logistics director role, from the resume: catering and hacker buses for 3,000+
@@ -123,8 +125,9 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
 - [ ] **Cal Hacks 13.0** (new, a planet of Hackathons) · `src/content/projects/cal-hacks-13/index.md`
       · `/projects/cal-hacks-13/`. October 23 to 25, 2026; you are on the organizing side
       ("Logistics, for Hackathons @ Berkeley"), and a motorway joins it to Hackathons @ Berkeley.
-      Its last line ("if the food arrives and the buses show up, my part went well") is mine:
-      keep it or cut it.
+      Its `summary` ("Berkeley's hackathon, October 23 to 25, 2026…", the line under its name on
+      the projects index and the page's first line) and its last line ("if the food arrives and the buses show up,
+      my part went well") are mine: keep them or rewrite them.
 - [ ] **HackGT 13** (new, a planet of Hackathons) · `src/content/projects/hackgt-13/index.md` ·
       `/projects/hackgt-13/`. HEARSAY, team dh squad's entry to the NSA challenge, written from
       the repository's README: the data findings, the four detectors, the sixteen experts and the
@@ -137,8 +140,11 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
 - [ ] **Research** (new, a system of one sun, all of it planned) · `src/content/systems/research.md`
       · `/systems/research/`, with **Sports Analysis** (`src/content/projects/sports-analysis/index.md`)
       and its moon **Kalshi** (`src/content/projects/kalshi/index.md`): one line each, since
-      nothing has started. "Kalshi" as the moon's name (and so `/projects/kalshi/`, for good) was
-      my pick: say if you want another before it is shared.
+      nothing has started. Research's first line ("Where a project starts from a question instead
+      of a product.") is mine. Each planned page says "Planned" twice already, in the line under
+      its name and in its Status, so its own line only says that nothing has started. "Kalshi" as
+      the moon's name (and so `/projects/kalshi/`, for good) was my pick: say if you want another
+      before it is shared.
 - [ ] **The one-line bio**, which lives in three places that should agree: `description` in
       `src/config/site.ts`, `summary` in `about.md`, and the home page's `description`.
 

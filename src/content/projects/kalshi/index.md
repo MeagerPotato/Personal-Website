@@ -9,4 +9,4 @@ planet:
 ---
 
 A Kalshi project, under [Sports Analysis](/projects/sports-analysis/) because it grows out of that
-research. Planned: nothing has started yet.
+research. Nothing has started yet.

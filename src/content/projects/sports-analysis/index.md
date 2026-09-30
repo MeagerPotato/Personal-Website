@@ -8,5 +8,5 @@ planet:
   biome: terra
 ---
 
-Research in sports analysis, with a [Kalshi](/projects/kalshi/) project under it. Planned: nothing
-has started yet.
+Research in sports analysis, with a [Kalshi](/projects/kalshi/) project under it. Nothing has
+started yet.

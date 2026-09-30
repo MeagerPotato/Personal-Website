@@ -5,6 +5,6 @@ theme: coral
 order: 3
 ---
 
-Things built against a clock, and the logistics that let other people build theirs: HackGT 13,
-where my team took on the NSA's HEARSAY challenge; the Corgi Hackathon at Y Combinator's Startup
-School; and Cal Hacks 13.0, which I help organize with Hackathons @ Berkeley.
+A hackathon is a deadline with snacks. I have competed in two: HackGT 13, where my team took on
+the NSA's HEARSAY challenge, and the Corgi Hackathon at Y Combinator's Startup School. The third I
+help organize: Cal Hacks 13.0, with Hackathons @ Berkeley.
