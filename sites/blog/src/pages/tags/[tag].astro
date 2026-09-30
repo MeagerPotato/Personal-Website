@@ -1,0 +1,37 @@
+---
+/** One tag: its posts, newest first. */
+import NotFound from '../../components/NotFound.astro';
+import PostList from '../../components/PostList.astro';
+import Base from '../../layouts/Base.astro';
+import { tagPage } from '../../server/pages';
+import { blogEnv } from '../../site/env';
+
+const slug = Astro.params.tag ?? '';
+const page = await tagPage(blogEnv(), slug);
+if (page.kind === 'missing') Astro.response.status = 404;
+---
+
+{page.kind === 'tag' ? (
+  <Base
+    title={page.tag.name}
+    path={`/tags/${page.tag.slug}/`}
+    current="tags"
+    description={page.tag.description || `Posts tagged “${page.tag.name}” on Allen’s blog.`}
+  >
+    <header class="page-header">
+      <p class="page-kicker">
+        <a href="/tags/">Tag</a> · {page.tag.count} {page.tag.count === 1 ? 'post' : 'posts'}
+      </p>
+      <h1 class="page-title">
+        <span class="title-dot" data-family={page.tag.family} aria-hidden="true" />
+        {page.tag.name}
+      </h1>
+      {page.tag.description && <p class="page-lede">{page.tag.description}</p>}
+    </header>
+    <PostList posts={page.posts} />
+  </Base>
+) : (
+  <Base title="Not found" path={`/tags/${slug}/`} noindex>
+    <NotFound />
+  </Base>
+)}

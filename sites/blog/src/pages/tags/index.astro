@@ -1,0 +1,28 @@
+---
+/** Every tag a post wears, with how many do. */
+import Base from '../../layouts/Base.astro';
+import { tagsPage } from '../../server/pages';
+import { blogEnv } from '../../site/env';
+
+const page = await tagsPage(blogEnv());
+---
+
+<Base title="Tags" path="/tags/" current="tags" description="Every tag on Allen’s blog.">
+  <header class="page-header">
+    <h1 class="page-title">Tags</h1>
+  </header>
+  {page.tags.length > 0 ? (
+    <ul class="tag-cloud">
+      {page.tags.map((tag) => (
+        <li>
+          <a class="tag tag--large" data-family={tag.family} href={`/tags/${tag.slug}/`}>
+            {tag.name}
+            <span class="tag__count">{tag.count}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p class="empty">No tags yet.</p>
+  )}
+</Base>

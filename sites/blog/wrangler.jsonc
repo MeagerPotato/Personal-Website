@@ -1,0 +1,56 @@
+{
+  // blog.allenkh.com: Astro pages rendered by this Worker, the studio's API, and the media.
+  // NOTE: values here overwrite the matching dashboard settings on every deploy.
+  "$schema": "../node_modules/wrangler/config-schema.json",
+
+  // Must equal the Worker name chosen in the dashboard (sites/docs/runbooks/blog-setup.md).
+  "name": "allenkh-blog",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-09-29",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The Custom Domain is the one public address. No preview URLs: a branch's code would run
+  // against the real database, and passkeys only work on blog.allenkh.com anyway.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+  },
+
+  "vars": {
+    "RP_ID": "blog.allenkh.com",
+    "ORIGIN": "https://blog.allenkh.com",
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "allenkh-blog",
+      // Filled in once the database exists (sites/docs/runbooks/blog-setup.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+    },
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "allenkh-blog-media",
+    },
+  ],
+
+  // Approximate, per location: speed bumps, not exact lockouts.
+  "ratelimits": [
+    // The studio's sign-in.
+    { "name": "AUTH_LIMIT", "namespace_id": "4201", "simple": { "limit": 30, "period": 60 } },
+    // Readers' forms: comments and subscriptions.
+    { "name": "FORM_LIMIT", "namespace_id": "4202", "simple": { "limit": 6, "period": 60 } },
+  ],
+
+  // The mail that is waiting (new posts to subscribers, retries), and the sweep of expired
+  // sessions, challenges and unconfirmed subscriptions.
+  "triggers": { "crons": ["*/5 * * * *"] },
+
+  "observability": { "enabled": true },
+}

@@ -1,0 +1,37 @@
+---
+/** Every series: posts meant to be read in order. */
+import Base from '../../layouts/Base.astro';
+import { seriesIndexPage } from '../../server/pages';
+import { blogEnv } from '../../site/env';
+
+const page = await seriesIndexPage(blogEnv());
+---
+
+<Base
+  title="Series"
+  path="/series/"
+  current="series"
+  description="Posts on Allen’s blog meant to be read in order."
+>
+  <header class="page-header">
+    <h1 class="page-title">Series</h1>
+    <p class="page-lede">Posts meant to be read in order.</p>
+  </header>
+  {page.series.length > 0 ? (
+    <ul class="series-list">
+      {page.series.map((series) => (
+        <li class="series-card">
+          <h2 class="series-card__title">
+            <a href={`/series/${series.slug}/`}>{series.title}</a>
+          </h2>
+          {series.description && <p class="series-card__description">{series.description}</p>}
+          <p class="series-card__count">
+            {series.count} {series.count === 1 ? 'part' : 'parts'}
+          </p>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p class="empty">No series yet.</p>
+  )}
+</Base>

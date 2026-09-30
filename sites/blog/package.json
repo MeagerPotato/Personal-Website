@@ -1,0 +1,46 @@
+{
+  "name": "blog",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "blog.allenkh.com: Allen's blog, written in a studio in the browser (Astro on a Cloudflare Worker).",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "typecheck": "astro check && tsc --noEmit -p tests/e2e",
+    "e2e": "astro build && playwright test",
+    "cf-typegen": "wrangler types src/worker-configuration.d.ts"
+  },
+  "devDependencies": {
+    "@allenkh/testing": "*",
+    "@astrojs/check": "^0.9.10",
+    "@axe-core/playwright": "^4.13.0",
+    "@cloudflare/workers-types": "^5.20260930.1",
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "wrangler": "^4.144.0"
+  },
+  "dependencies": {
+    "@allenkh/design": "*",
+    "@allenkh/editor": "*",
+    "@astrojs/cloudflare": "^14.3.3",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-code-block-lowlight": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "astro": "^7.3.5",
+    "hast-util-to-html": "^9.0.5",
+    "highlight.js": "^11.12.0",
+    "hono": "^4.13.11",
+    "lowlight": "^3.3.0",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "temml": "^0.13.5",
+    "zod": "^4.6.5"
+  }
+}

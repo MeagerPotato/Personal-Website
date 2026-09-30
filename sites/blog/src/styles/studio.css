@@ -1,0 +1,719 @@
+/*
+ * STUDIO: the writing app (src/studio), on the frame it shares with the journal
+ * (@allenkh/design/styles/app.css) and the editor's sheets. Colours only through tokens; every
+ * pairing here is one contrast.test.ts measures. Butter means "here" (the sidebar's current
+ * page), nothing else.
+ *
+ * Sections:  1. frame and gate  2. dialogs and banners  3. the list of posts  4. writing a post
+ *            5. the editor's own blocks  6. comments, subscribers, organize, settings  7. phones
+ */
+
+/* 1. Frame and gate ------------------------------------------------------------------------------ */
+
+.studio-boot {
+  padding: var(--space-8);
+  color: var(--ink-mid);
+}
+
+.sidebar__head img {
+  flex: none;
+}
+
+.nav-link__count {
+  min-width: 1.25rem;
+  margin-inline-start: auto;
+  padding: 0 0.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--coral-tint);
+  color: var(--coral-ink);
+  font-size: var(--ui-xs);
+  font-weight: 650;
+  line-height: 1.25rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.gate__mark {
+  width: 3rem;
+  height: 3rem;
+}
+
+.gate__back {
+  justify-self: center;
+  color: var(--ink-low);
+  font-size: var(--ui-sm);
+}
+
+.inline-icon {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-inline-start: 0.2em;
+  vertical-align: -0.05em;
+}
+
+/* 2. Dialogs and banners ------------------------------------------------------------------------- */
+
+.dialog__body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.dialog__title {
+  font-size: var(--ui-lg);
+  font-weight: 650;
+}
+
+.dialog__text {
+  color: var(--ink-mid);
+}
+
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Something to know before going on: a problem (coral edge), or good news (mint). */
+.banner {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--coral-base);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  color: var(--ink-high);
+  font-size: var(--ui-sm);
+}
+
+.banner--good {
+  border-inline-start-color: var(--mint-base);
+  background: var(--mint-tint);
+}
+
+.banner--good a {
+  color: var(--ink-high);
+}
+
+.studio-notice {
+  margin-bottom: var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  font-size: var(--ui-sm);
+}
+
+/* 3. The list of posts --------------------------------------------------------------------------- */
+
+.post-item {
+  justify-content: space-between;
+  min-height: 3rem;
+}
+
+.post-item__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.post-item__meta {
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+}
+
+.record-row__name[data-untitled] {
+  color: var(--ink-low);
+}
+
+/* Where a post stands with readers. */
+.standing {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  color: var(--ink-mid);
+  font-size: var(--ui-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.standing[data-standing='published'] {
+  background: var(--mint-tint);
+  color: var(--mint-ink);
+}
+
+.standing[data-standing='changed'] {
+  background: var(--sky-tint);
+  color: var(--sky-ink);
+}
+
+.standing[data-standing='unpublished'] {
+  background: var(--lilac-tint);
+  color: var(--lilac-ink);
+}
+
+/* 4. Writing a post ------------------------------------------------------------------------------ */
+
+.post-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.post-bar .back-link {
+  min-height: 2rem;
+}
+
+.post-bar__save {
+  color: var(--ink-low);
+  font-size: var(--ui-sm);
+}
+
+.post-bar__save:is([data-state='retrying'], [data-state='failed'], [data-state='conflict']) {
+  color: var(--coral-ink);
+}
+
+.post-bar__spacer {
+  flex: 1;
+}
+
+.post-bar .button svg,
+.post-foot .button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.page.post-page {
+  padding-top: var(--space-8);
+}
+
+.editor-cover {
+  margin: 0 0 var(--space-6);
+}
+
+.editor-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 22rem;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.post-title {
+  display: block;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+}
+
+.post-title::placeholder {
+  color: var(--ink-faint);
+}
+
+.post-properties {
+  margin: var(--space-4) 0 0;
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.post-properties dd {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.post-properties dd.row {
+  display: flex;
+}
+
+.post-properties__summary {
+  width: 100%;
+  resize: none;
+  field-sizing: content;
+}
+
+.post-properties__address {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.post-properties__host {
+  flex: none;
+  color: var(--ink-low);
+}
+
+.post-properties__address .bare-input {
+  flex: 1;
+  min-width: 6rem;
+}
+
+.post-properties__part {
+  gap: var(--space-2);
+  color: var(--ink-mid);
+}
+
+.post-properties__part .input {
+  width: 5rem;
+}
+
+.post-properties__cover {
+  justify-items: start;
+}
+
+.post-properties__cover .bare-input {
+  width: 100%;
+}
+
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.tag-input__tag {
+  gap: 0.1rem;
+  padding-inline-end: 0.125rem;
+}
+
+.tag-input__remove {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+}
+
+.tag-input__remove svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+@media (hover: hover) {
+  .tag-input__remove:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+  }
+}
+
+.tag-input__field {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.studio-editor {
+  margin-top: var(--space-6);
+}
+
+.studio-prose {
+  min-height: 40vh;
+  padding-bottom: var(--space-12);
+}
+
+.post-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* 5. The editor's own blocks (editor/views.tsx): Tiptap wraps each in div.node-<name> ----------- */
+
+.studio-figure {
+  margin: 1.5em 0;
+}
+
+.studio-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  border-radius: var(--radius-sm);
+}
+
+.studio-figure__caption {
+  position: relative;
+  min-height: 1.5em;
+  margin-top: 0.5em;
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  text-align: center;
+}
+
+/* An empty caption says what it is for, where it is (not as the figure's own placeholder). */
+.ProseMirror .node-image.is-empty::before {
+  content: none;
+}
+
+.ProseMirror .node-image.is-empty .studio-figure__caption::before {
+  content: 'Add a caption';
+  position: absolute;
+  inset-inline: 0;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+.studio-figure__alt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+}
+
+.studio-figure__alt span {
+  flex: none;
+  font-weight: 600;
+}
+
+.studio-figure__alt .bare-input {
+  flex: 1;
+  min-width: 0;
+  /* A 24 px target, though the words are small. */
+  min-height: 1.5rem;
+  color: var(--ink-mid);
+}
+
+.studio-math--inline {
+  position: relative;
+}
+
+.studio-math--block {
+  margin: 1em 0;
+}
+
+.studio-math__empty {
+  display: inline-block;
+  padding: 0 0.4em;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-low);
+  font-size: var(--ui-sm);
+}
+
+.studio-math--block .studio-math__empty {
+  display: block;
+  padding: var(--space-3);
+  text-align: center;
+}
+
+/* Its LaTeX, while it is open: under the line for inline math, under the block for a block. */
+.studio-math__editor {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--sunken);
+  font-family: var(--font-body);
+  font-size: var(--ui-sm);
+  line-height: 1.4;
+}
+
+.studio-math--inline .studio-math__editor {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  min-width: 14rem;
+  max-width: min(28rem, 80vw);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink-high) 12%, transparent);
+}
+
+.studio-math--block .studio-math__editor {
+  margin-top: var(--space-2);
+}
+
+.studio-math__input,
+.studio-math__source {
+  width: 100%;
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--ink-high);
+  font-family: var(--font-mono);
+  font-size: var(--ui-sm);
+}
+
+.studio-math__source {
+  resize: vertical;
+}
+
+.studio-math__hint {
+  color: var(--ink-low);
+}
+
+.studio-math__error {
+  color: var(--coral-ink);
+}
+
+/* Code: the language menu sits in the block's corner, quiet until wanted. */
+.studio-code {
+  position: relative;
+  margin: 1em 0;
+}
+
+.studio-code pre {
+  margin: 0;
+  padding-top: 2em;
+}
+
+.studio-code__language {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 1;
+  min-height: 1.5rem;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+}
+
+@media (hover: hover) {
+  .studio-code__language:hover {
+    background: var(--hover);
+    color: var(--ink-high);
+  }
+}
+
+.upload-placeholder {
+  display: block;
+  margin: 0.5em 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--sunken);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  text-align: center;
+}
+
+/* 6. Comments, subscribers, organize, settings ------------------------------------------------- */
+
+.comment-queue {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comments-empty {
+  margin-top: var(--space-6);
+}
+
+.comment-card {
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.comment-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.comment-card__meta strong {
+  color: var(--ink-high);
+}
+
+.comment-card__body {
+  margin: var(--space-2) 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.comment-card__actions {
+  margin-top: var(--space-3);
+}
+
+.comment-reply {
+  display: grid;
+  flex-basis: 100%;
+  gap: var(--space-2);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-sm);
+}
+
+.data-table th {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink-low);
+  font-weight: 600;
+  text-align: start;
+}
+
+.data-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table__main {
+  overflow-wrap: anywhere;
+}
+
+.data-table__actions {
+  text-align: end;
+}
+
+.data-table tr[data-status='unsubscribed'] td {
+  color: var(--ink-low);
+}
+
+.organize-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organize-item {
+  border-bottom: 1px solid var(--line);
+}
+
+.organize-item__summary {
+  min-height: 2.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.organize-item__summary::-webkit-details-marker {
+  display: none;
+}
+
+.organize-item__name {
+  font-weight: 600;
+}
+
+.organize-item__meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organize-item__chevron {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--ink-low);
+  transition: rotate var(--motion-fast) var(--motion-ease-out);
+}
+
+.organize-item__details[open] .organize-item__chevron {
+  rotate: 90deg;
+}
+
+.organize-item__form {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-5);
+}
+
+.organize-item--new .organize-item__form {
+  padding-top: var(--space-4);
+}
+
+.organize-item__new {
+  font-size: var(--ui-md);
+}
+
+.organize__add {
+  justify-self: start;
+}
+
+.passkey {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.passkey__icon {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--ink-low);
+}
+
+.passkey__meta {
+  margin: 0;
+  padding-inline-start: calc(1.1rem + var(--space-3));
+}
+
+/* 7. Phones -------------------------------------------------------------------------------------- */
+
+@media (max-width: 899px) {
+  .tabbar .nav-link {
+    position: relative;
+  }
+
+  .tabbar .nav-link__count {
+    position: absolute;
+    top: 0.15rem;
+    left: calc(50% + 0.35rem);
+    margin: 0;
+  }
+
+  .post-bar {
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top));
+  }
+}
+
+@media (max-width: 599px) {
+  .post-bar .standing {
+    display: none;
+  }
+
+  .post-properties {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .post-properties dd + dt {
+    margin-top: var(--space-3);
+  }
+}

@@ -13,7 +13,7 @@ import { Placeholder } from '@tiptap/extensions';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { BLOCKS, type BlockItem } from './blocks';
-import { schemaExtensions } from './schema';
+import { schemaExtensions, type SchemaOptions } from './schema';
 import { SlashCommands } from './slash';
 import { BubbleToolbar, KeyboardToolbar } from './Toolbar';
 
@@ -31,9 +31,14 @@ export interface RichTextEditorProps {
   placeholder?: string;
   /** For assistive technology: what this text is ("Journal entry"). */
   label: string;
-  /** Extra blocks for the schema (the blog's images and math) and their catalogue entries. */
-  extra?: Extensions;
+  /**
+   * The blog's additions to the schema (images, math, a highlighted code block), here with their
+   * editing views, and the "/" menu's catalogue to match.
+   */
+  schema?: SchemaOptions;
   blocks?: BlockItem[];
+  /** Behaviour for the editor alone, nothing stored (the blog's image paste and drop). */
+  editorExtensions?: Extensions;
   autofocus?: boolean;
   saveDelayMs?: number;
   className?: string;
@@ -94,8 +99,9 @@ export function RichTextEditor({
   onEmptyChange,
   placeholder = 'Write something, or type “/” for blocks',
   label,
-  extra,
+  schema,
   blocks = BLOCKS,
+  editorExtensions,
   autofocus = false,
   saveDelayMs = 400,
   className,
@@ -113,7 +119,8 @@ export function RichTextEditor({
 
   const extensions = useMemo(
     () => [
-      ...schemaExtensions({ extra }),
+      ...schemaExtensions(schema),
+      ...(editorExtensions ?? []),
       SlashCommands.configure({ blocks }),
       Prompt,
       Placeholder.configure({
@@ -127,7 +134,7 @@ export function RichTextEditor({
         },
       }),
     ],
-    [extra, blocks],
+    [schema, blocks, editorExtensions],
   );
 
   const editor = useEditor({

@@ -486,13 +486,17 @@ textarea.input {
 
 /* 5. Motion and accessibility ------------------------------------------------------------------ */
 
+/* Nothing moves. Transitions are off, not merely short: a 0.01 ms one would give every element a
+   transition on every property (transition-property defaults to all), and each change would show
+   a frame late (a theme switch included). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }

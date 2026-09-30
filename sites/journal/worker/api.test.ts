@@ -20,7 +20,7 @@ import type { Env } from './env';
 import { app } from './index';
 import { sendReminders } from './lib/push';
 import { fromBase64Url } from './lib/tokens';
-import { SoftAuthenticator } from './test/authenticator';
+import { SoftAuthenticator } from '@allenkh/testing/passkey';
 
 const ORIGIN = 'http://localhost:5173';
 const RP_ID = 'localhost';

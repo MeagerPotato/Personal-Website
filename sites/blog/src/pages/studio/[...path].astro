@@ -1,0 +1,47 @@
+---
+/**
+ * The studio, where Allen writes: one React app (src/studio), started by one bundled module
+ * script. Every /studio/… address is this page; the app reads the rest of the address itself.
+ */
+import 'virtual:allenkh/tokens.css';
+import '@allenkh/design/styles/base.css';
+import '@allenkh/design/styles/prose.css';
+import '@allenkh/editor/styles/editor.css';
+import '@allenkh/design/styles/app.css';
+import 'temml/dist/Temml-Local.css';
+import '../../styles/code.css';
+import '../../styles/studio.css';
+import { themes } from '@allenkh/design/tokens';
+import { site } from '../../config';
+import { contentSecurityPolicy } from '../../server/headers';
+
+Astro.response.headers.set('Content-Security-Policy', contentSecurityPolicy({ studio: true }));
+Astro.response.headers.set('Cache-Control', 'no-store');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+---
+
+<!doctype html>
+<html lang={site.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Studio · {site.title}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content={themes.day.bg} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content={themes.night.bg} media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body class="studio-body">
+    <div id="studio" class="studio-root">
+      <p class="studio-boot">Opening the studio…</p>
+      <noscript>
+        <p class="studio-boot">The studio needs JavaScript. The blog itself does not.</p>
+      </noscript>
+    </div>
+    <script>
+      import '../../studio/main';
+    </script>
+  </body>
+</html>

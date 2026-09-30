@@ -1,0 +1,22 @@
+---
+/** A post's tags as chips, each in its colour family, each a link to the tag's page. */
+import type { TagRef } from '../server/posts';
+
+interface Props {
+  tags: readonly TagRef[];
+  label?: string;
+}
+const { tags, label = 'Tags' } = Astro.props;
+---
+
+{tags.length > 0 && (
+  <ul class="tag-list" aria-label={label}>
+    {tags.map((tag) => (
+      <li>
+        <a class="tag" data-family={tag.family} href={`/tags/${tag.slug}/`}>
+          {tag.name}
+        </a>
+      </li>
+    ))}
+  </ul>
+)}

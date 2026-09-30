@@ -4,8 +4,9 @@ name: Sites
 # `npm run verify` inside sites/ is the same thing everyone runs locally before a commit there:
 # format check -> lint -> typecheck -> Vitest -> build every app.
 #
-# A second job runs the journal end to end (sites/journal/tests/e2e): Chromium against the real
-# build, served by `wrangler dev` with the real headers, passkeys from a virtual authenticator.
+# Two more jobs run the journal and the blog end to end (sites/<app>/tests/e2e): Chromium against
+# the real build, served by `wrangler dev` with the real headers, passkeys from a virtual
+# authenticator.
 #
 # It runs only when something it depends on changes: sites/ itself, or the two files it imports
 # from the main site (the palette and the WCAG contrast maths). Neither job is a required check
@@ -85,5 +86,40 @@ jobs:
           path: |
             sites/journal/playwright-report/
             sites/journal/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  blog-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sites
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sites/.node-version
+          cache: npm
+          cache-dependency-path: sites/package-lock.json
+
+      - run: npm ci
+
+      # Chromium only: the studio's passkeys come from a virtual authenticator, a DevTools feature.
+      - run: npx playwright install --with-deps chromium
+
+      # build -> playwright test (which starts its own `wrangler dev` on the build's Worker)
+      - run: npm run e2e --workspace=blog
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: blog-playwright-report
+          path: |
+            sites/blog/playwright-report/
+            sites/blog/test-results/
           retention-days: 7
           if-no-files-found: ignore

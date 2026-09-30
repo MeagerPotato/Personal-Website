@@ -1,0 +1,58 @@
+---
+/**
+ * Posts as Notion's list view: the title, the summary, then the date, reading time and tags.
+ * A cover, when there is one, sits small at the row's end.
+ */
+import { mediaUrl, pickWidth } from '../editor/nodes';
+import type { PostSummary } from '../server/posts';
+import { isoDate, readingTime, shortDate } from '../site/format';
+import TagList from './TagList.astro';
+
+interface Props {
+  posts: readonly PostSummary[];
+  /** In a series' own page: "Part 2" before each title. */
+  parts?: boolean;
+}
+const { posts, parts = false } = Astro.props;
+---
+
+<ol class="post-list">
+  {posts.map((post) => (
+    <li class="post-row">
+      <div class="post-row__text">
+        <h2 class="post-row__title">
+          <a href={`/${post.slug}/`}>
+            {parts && post.series?.part && (
+              <span class="post-row__part">Part {post.series.part}</span>
+            )}
+            {post.title}
+          </a>
+        </h2>
+        {post.summary && <p class="post-row__summary">{post.summary}</p>}
+        <p class="post-row__meta">
+          <time datetime={isoDate(post.publishedAt)}>{shortDate(post.publishedAt)}</time>
+          <span aria-hidden="true">·</span>
+          <span>{readingTime(post.words)}</span>
+          {!parts && post.series && (
+            <>
+              <span aria-hidden="true">·</span>
+              <a href={`/series/${post.series.slug}/`}>{post.series.title}</a>
+            </>
+          )}
+        </p>
+        <TagList tags={post.tags} />
+      </div>
+      {post.cover && (
+        <img
+          class="post-row__cover"
+          src={mediaUrl(post.cover.id, pickWidth(post.cover.widths, 320), post.cover.ext)}
+          alt=""
+          width={post.cover.width}
+          height={post.cover.height}
+          loading="lazy"
+          decoding="async"
+        />
+      )}
+    </li>
+  ))}
+</ol>

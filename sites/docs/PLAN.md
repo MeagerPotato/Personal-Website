@@ -8,16 +8,17 @@
 This page is the source of truth for both, as `docs/PLAN.md` is for allenkh.com itself. The
 short rules for agents are in [sites/AGENTS.md](../AGENTS.md); the journal's security design is
 [journal-crypto.md](journal-crypto.md); putting a site on Cloudflare is
-[runbooks/cloudflare-setup.md](runbooks/cloudflare-setup.md).
+[runbooks/cloudflare-setup.md](runbooks/cloudflare-setup.md) for the journal and
+[runbooks/blog-setup.md](runbooks/blog-setup.md) for the blog.
 
 ## Context
 
 On 2026-09-29 Allen asked for two things. A blog at blog.allenkh.com, "relatively simple and
 clean", in the manner of Notion. And a journal at journal.allenkh.com, to "securely journal and
-record events" in his life: DailyBean is the model he likes, but it has too little room to write
-and too much behind a paywall, so this one is his own and private, with DailyBean's monthly
+record events" in Allen's life: DailyBean is the model, but it has too little room to write and
+too much behind a paywall, so this one is Allen's own and private, with DailyBean's monthly
 overview that can be posted. Both are built first as complete, working sites; the time after
-that goes into the details. Later, every site on his subdomains should look like one family.
+that goes into the details. Later, every site on Allen's subdomains should look like one family.
 
 ## 1. Decisions
 
@@ -36,7 +37,7 @@ Answered by Allen on 2026-09-29 unless marked otherwise.
 | 9 | **The blog is written in the browser,** in a studio at `blog.allenkh.com/studio` that only Allen can open (passkey). Posts live in the blog's database, not in the repository, so writing one needs no commit and no build. |
 | 10 | **The blog has tags and series, math and code, comments, and email subscriptions.** Comments are held until Allen approves them; subscribing is double opt-in (a confirmation email first). |
 | 11 | **Hosting is Cloudflare, like the main site:** each site is its own Worker with static assets and a Custom Domain, with D1 for records and R2 for files. Deploys happen only from `main`, through Workers Builds. The journal has no preview builds (a branch's code would run against the real journal). |
-| 12 | **The blog is built on Astro 7,** rendering on the Worker (`@astrojs/cloudflare`), because its pages come from a database: Astro gives the pages, styles and scripts their build pipeline, and the studio is one React island. Its API is a Hono app, as the journal's is, so both are tested the same way. The journal is a Vite + React app with a Hono Worker (decided by Claude 2026-09-29: an app behind a lock screen gains nothing from server rendering). |
+| 12 | **The blog is built on Astro 7,** rendering on the Worker (`@astrojs/cloudflare`), because its pages come from a database: Astro gives the pages, styles and scripts their build pipeline, and the studio is a React app started by its page's bundled script (not an island: no inline script, so the Content-Security-Policy needs no exception). Its API is a Hono app, as the journal's is, so both are tested the same way. The journal is a Vite + React app with a Hono Worker (decided by Claude 2026-09-29: an app behind a lock screen gains nothing from server rendering). |
 | 13 | **No third parties in the journal,** of any kind: no analytics, fonts, CDNs or error trackers; a strict Content-Security-Policy says so. The blog allows exactly what a feature needs and names it in its policy (Cloudflare Turnstile on the comment form, when it is set up). |
 | 14 | **Privacy of the owner:** as on the main site, the sites say "Allen"; no phone number or private email address anywhere in the repository (the main site's privacy test scans `sites/` too). The public address is `allen@allenkh.com`. |
 
@@ -67,7 +68,14 @@ stylesheets use against WCAG, with the main site's own contrast maths.
 **Editor package.** One schema (`schema.ts`) that both the editor and the renderer use, so what is
 written is exactly what is shown; the editor (`Editor.tsx`, `Toolbar.tsx`, `slash.tsx`); the
 renderer (`render.ts`, no DOM needed); and `text.ts`, a document's plain text (search, word
-counts, excerpts).
+counts, excerpts). A document's headings sit one level below the page's own title: "Heading 1"
+is stored as level 1 and drawn as an `<h2>`, in the editor as on the page, so every screen keeps
+exactly one `<h1>`.
+
+**Shared app frame.** `packages/design/styles/app.css` is the frame both apps are built from (the
+sidebar, the phone tab bar, sheets and dialogs) and their common parts (chips, property lists,
+swatches, segmented controls, record lists, settings sections, the sign-in gate). Each app's own
+sheet adds only what is its alone.
 
 **The journal** (built). A local-first app: records are sealed and kept in IndexedDB, synced
 with compare-and-set writes and merged on the device (the server cannot read what it would
@@ -77,15 +85,24 @@ screens. The Worker (`worker/`) does sign-in, sync, sealed files in R2, and the 
 (empty Web Push, from a cron every five minutes). Offline, the app opens and unlocks from the
 device's own copy, and its service worker keeps the code.
 
-**The blog** (next). Pages rendered by the Worker from D1: the front page, a post, a tag, a
-series, the archive, the feeds (RSS and Atom), the sitemap. A post's HTML (with its code
-highlighted and its math typeset) is made once when it is published, by the editor package's
-renderer, and stored beside its document, so a reader's request only reads it. Images go to R2
-and are served by the Worker with long cache lives. The studio is a React app (the post list,
-the editor with a cover, tags and series, publishing, the comment queue, the subscribers),
-signed in with a passkey and a `__Host-` session cookie, as the journal is but without
-encryption: a blog is public. Comments and subscriptions are plain HTML forms that work without
-JavaScript.
+**The blog** (built). Pages rendered by the Worker from D1: the front page, a post, the tags and
+each tag, the series and each series, the RSS feed, the sitemap, and the subscription pages. A
+post's HTML (code highlighted by lowlight, math typeset by Temml into MathML) is made once when
+it is published, by the editor package's renderer, and stored beside its document, so a
+reader's request only reads it; its few math style attributes are allowed by hash in that page's
+policy. Math is drawn with the reader's own math font (Cambria Math on Windows, STIX Two Math on
+Apple devices). Images are sized on the device, go to R2, and are served by the Worker with long
+cache lives. Reader pages carry no script: comments and subscriptions are plain HTML forms.
+
+The studio (`/studio/`) is a React app signed in with a passkey and a `__Host-` session cookie,
+as the journal is but without encryption: a blog is public. Screens: the posts (drafts, then what
+is live), a post (the editor with images, math and code, and its properties: summary, address,
+date, tags, series and part, cover), preview, publish, update, take down, delete, and emailing a
+post to subscribers once; the comment queue (approve, reply, spam); the subscribers; tags and
+series (Organize); and the passkeys (Settings). A draft saves as it is written, in order, each
+save over the version it started from, so two tabs on one post ask which version to keep
+instead of losing either. Mail (a subscription's confirmation, a new post) goes through an
+outbox in D1 that a cron drains and retries.
 
 ## 4. Roadmap
 
@@ -95,10 +112,10 @@ JavaScript.
 | **J1** | The journal: encryption, sync, offline app, every screen of decisions 6 to 8 | Done (commit 0abd946) |
 | **J2** | The daily reminder (Web Push), the crypto design written down, the runbook | Done |
 | **J3** | Launch: Allen follows the runbook; the journal goes live | Waiting on Allen |
-| **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Next |
-| **B2** | Comments, held for approval | With B1 |
-| **B3** | Email subscriptions, double opt-in, and a new post by email | With B1; needs a sending service (§7) |
-| **B4** | Launch: the blog's runbook; the main site's Log station links there (docs/PLAN.md Phase 5) | After B1 |
+| **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Done |
+| **B2** | Comments, held for approval | Done |
+| **B3** | Email subscriptions, double opt-in, and a new post by email | Built; sending waits on Allen's choice (§7) |
+| **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | Waiting on Allen |
 | **D** | The details: Allen's pass over both sites, and the list below | Ongoing |
 
 **Known details for D** (noticed while building; none blocks a launch):
@@ -113,6 +130,13 @@ JavaScript.
 - The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
   that the server is hiding recent changes) is designed but not built (journal-crypto.md,
   "Limits").
+- The blog's name ("Captain's Log", the main site's working name) and its one-line description
+  are placeholders for Allen's words.
+- Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
+  Math) with the blog.
+- The studio keeps a draft that has not reached the server only in memory (it warns before the
+  tab closes); keep a copy on the device until it is saved.
+- The studio could tell Allen about a new comment by email, once email is set up.
 
 ## 5. Verification
 
@@ -122,6 +146,11 @@ JavaScript.
   over HTTPS, with virtual passkeys (PRF included): setup, lock and unlock, offline, a second
   device, recovery, the month snapshot, keyboard use, and axe in both themes on every screen. It
   also reads every byte the server was sent and finds none of the journal's words.
+- `npm run e2e --workspace=blog`: the same, for the blog: the studio set up with its code, a post
+  written with every kind of block (math, code, an image) and published, read without scripts,
+  a comment held and answered, a preview, two tabs saving one post, a series, signing out and in,
+  and axe in both themes on every reader page and studio screen (and at a phone's width), with
+  no console error or CSP violation anywhere.
 - The main site's `npm run verify` still passes (its privacy test covers `sites/`).
 - Screenshots of every screen changed, at phone and laptop sizes, in both themes.
 
@@ -140,11 +169,14 @@ JavaScript.
 
 ## 7. Open items for Allen
 
-- **J3:** the journal's Cloudflare setup (runbook), whenever convenient.
-- **The blog's email** (B3). Cloudflare's own Email Service sends from a Worker with no API key,
-  but sending to readers needs Workers Paid ($5 a month, 3,000 emails included). The other road
-  is a separate service (Resend, Postmark, Amazon SES) with an API key. Either way the sending
+- **J3:** the journal's Cloudflare setup ([runbook](runbooks/cloudflare-setup.md)), whenever
+  convenient.
+- **B4:** the blog's Cloudflare setup ([runbook](runbooks/blog-setup.md)).
+- **The blog's email** (B3). Built for Cloudflare's own Email Service, which sends from a Worker
+  with no API key but needs Workers Paid ($5 a month, 3,000 emails included) to reach readers;
+  the runbook's §7 sets it up. The other road is a separate service (Resend, Postmark, Amazon
+  SES) with an API key, a small change in `blog/src/server/mail.ts`. Either way the sending
   domain needs DNS records, which are Allen's to add.
-- **Turnstile** for the comment form (a free Cloudflare widget, made in the dashboard): until it
-  exists, comments rely on a honeypot, rate limits and approval.
-- **The first post,** once the blog is up.
+- **Turnstile** for the comment form (a free Cloudflare widget, the runbook's §8): until it
+  exists, comments rely on a honeypot, a minimum time to fill the form, rate limits and approval.
+- **The blog's name and description,** and **the first post,** once the blog is up.

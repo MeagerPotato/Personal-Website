@@ -5,7 +5,7 @@
  *
  * The blocks the editor makes (packages/editor/src/schema.ts): paragraphs, three heading levels,
  * lists and task lists, quotes, callouts, toggles, code, dividers, tables, images with
- * captions, and inline and block math. Colours only through tokens.
+ * captions, and (on the blog) inline and block math. Colours only through tokens.
  */
 
 .prose {
@@ -24,7 +24,8 @@
   text-wrap: pretty;
 }
 
-.prose :where(h1, h2, h3) {
+/* A document's headings sit one level below the page's title (schema.ts): Heading 1 is an h2. */
+.prose :where(h2, h3, h4) {
   margin-top: 1.6em;
   margin-bottom: -0.1em;
 }
@@ -33,15 +34,15 @@
   margin-top: 0;
 }
 
-.prose h1 {
+.prose h2 {
   font-size: var(--ui-xxl);
 }
 
-.prose h2 {
+.prose h3 {
   font-size: var(--ui-xl);
 }
 
-.prose h3 {
+.prose h4 {
   font-size: var(--ui-lg);
 }
 
@@ -265,10 +266,20 @@
   overflow-x: auto;
 }
 
-/* Block math (KaTeX display mode) scrolls rather than overflowing a phone. */
-.prose [data-type='block-math'] {
+/* Math: MathML from Temml (the blog renders it on the server; browsers draw it natively, in the
+   system's math font: Temml's own stylesheet names it). Display math scrolls rather than
+   overflowing a phone. */
+.prose .math-block {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.25em 0;
-  text-align: center;
+}
+
+.prose .math-error {
+  color: var(--coral-ink);
+}
+
+/* Read-only boxes (a published post's to-dos): shown, not tickable, and not dimmed. */
+.prose ul[data-type='taskList'] input[type='checkbox']:disabled {
+  opacity: 1;
 }

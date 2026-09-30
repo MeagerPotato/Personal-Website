@@ -1,0 +1,6 @@
+# Copy to .dev.vars (ignored by git) for `npm run dev --workspace=blog`. Local only; never the real values.
+RP_ID=localhost
+ORIGIN=http://localhost:4322
+SETUP_TOKEN=local-setup-code
+# Mail stays in the outbox instead of being sent; GET /api/test/mailbox shows it.
+E2E_MAILBOX=1

@@ -1,0 +1,48 @@
+---
+/**
+ * A draft as readers will see it, from the studio's "Preview": the real post markup, rendered
+ * now. Signed in only; never cached, never indexed.
+ */
+import NotFound from '../../../components/NotFound.astro';
+import PostArticle from '../../../components/PostArticle.astro';
+import Base from '../../../layouts/Base.astro';
+import { contentSecurityPolicy } from '../../../server/headers';
+import { previewDraft } from '../../../server/posts';
+import { readSession } from '../../../server/sessions';
+import { HttpError } from '../../../server/util';
+import { blogEnv } from '../../../site/env';
+
+const env = blogEnv();
+const id = Astro.params.id ?? '';
+const session = await readSession(env.DB, Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/studio/', 303);
+
+let post = null;
+try {
+  post = await previewDraft(env.DB, id);
+} catch (error) {
+  if (!(error instanceof HttpError)) throw error;
+}
+Astro.response.headers.set('Cache-Control', 'no-store');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+if (post)
+  Astro.response.headers.set(
+    'Content-Security-Policy',
+    contentSecurityPolicy({ styleHashes: post.styleHashes }),
+  );
+else Astro.response.status = 404;
+---
+
+<Base title={post ? `Preview: ${post.title}` : 'Not found'} path={`/studio/preview/${id}/`} noindex>
+  {post ? (
+    <>
+      <p class="preview-banner" role="note">
+        A preview of the draft, as readers will see it.{' '}
+        <a href={`/studio/posts/${id}/`}>Back to the studio</a>
+      </p>
+      <PostArticle post={post} />
+    </>
+  ) : (
+    <NotFound />
+  )}
+</Base>

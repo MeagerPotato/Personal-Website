@@ -1,0 +1,22 @@
+---
+/** The front page: the blog's name and every post, newest first. */
+import PostList from '../components/PostList.astro';
+import Base from '../layouts/Base.astro';
+import { site } from '../config';
+import { homePage } from '../server/pages';
+import { blogEnv } from '../site/env';
+
+const page = await homePage(blogEnv());
+---
+
+<Base path="/" current="posts">
+  <header class="page-header">
+    <h1 class="page-title">{site.title}</h1>
+    <p class="page-lede">{site.description}</p>
+  </header>
+  {page.posts.length > 0 ? (
+    <PostList posts={page.posts} />
+  ) : (
+    <p class="empty">Nothing here yet: the first post is on its way.</p>
+  )}
+</Base>

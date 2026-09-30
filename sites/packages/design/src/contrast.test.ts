@@ -46,6 +46,13 @@ describe.each(Object.entries(themes))('the %s theme', (_name, theme) => {
     expect(contrast(theme.ink.mid, family.tint)).toBeGreaterThanOrEqual(TEXT);
   });
 
+  it.each(FAMILY_KEYS)(
+    '%s: its ink reads as code on a code block (highlighting, inline code)',
+    (key) => {
+      expect(contrast(theme.family[key].ink, theme.sunken)).toBeGreaterThanOrEqual(TEXT);
+    },
+  );
+
   it.each(FAMILY_KEYS)('%s: a face drawn on its base colour reads', (key) => {
     expect(contrast(theme.onFamily, theme.family[key].base)).toBeGreaterThanOrEqual(TEXT);
   });

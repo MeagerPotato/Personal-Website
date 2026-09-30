@@ -18,6 +18,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "sites/journal", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "blog",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "sites/blog", "run", "dev"],
+      "port": 4322
     }
   ]
 }

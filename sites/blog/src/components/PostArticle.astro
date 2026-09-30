@@ -1,0 +1,68 @@
+---
+/**
+ * A post as readers see it: its cover, series, title, summary and properties, the contents, the
+ * words. The live page and the studio's preview both use it, so a preview is the real thing.
+ */
+import { mediaUrl, pickWidth } from '../editor/nodes';
+import type { LivePost } from '../server/posts';
+import { isoDate, longDate, readingTime } from '../site/format';
+import TagList from './TagList.astro';
+import Toc from './Toc.astro';
+
+interface Props {
+  post: LivePost;
+  /** Approved comments, for the "3 comments" link. */
+  commentCount?: number;
+}
+const { post, commentCount = 0 } = Astro.props;
+const cover = post.cover;
+const withToc = post.headings.length >= 3;
+---
+
+<article class:list={['post', { 'post--toc': withToc }]}>
+  {cover && (
+    <figure class="post-cover">
+      <img
+        src={mediaUrl(cover.id, pickWidth(cover.widths, 1280), cover.ext)}
+        srcset={cover.widths
+          .map((width) => `${mediaUrl(cover.id, width, cover.ext)} ${width}w`)
+          .join(', ')}
+        sizes="(min-width: 62rem) 62rem, 100vw"
+        alt={cover.alt}
+        width={cover.width}
+        height={cover.height}
+        fetchpriority="high"
+      />
+    </figure>
+  )}
+  <header class="post-header">
+    {post.series && (
+      <p class="page-kicker">
+        <a href={`/series/${post.series.slug}/`}>{post.series.title}</a>
+        {post.series.part && <span> · Part {post.series.part}</span>}
+      </p>
+    )}
+    <h1 class="page-title">{post.title}</h1>
+    {post.summary && <p class="page-lede">{post.summary}</p>}
+    <p class="post-meta">
+      <time datetime={isoDate(post.publishedAt)}>{longDate(post.publishedAt)}</time>
+      <span aria-hidden="true">·</span>
+      <span>{readingTime(post.words)}</span>
+      {commentCount > 0 && (
+        <>
+          <span aria-hidden="true">·</span>
+          <a href="#comments">
+            {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
+          </a>
+        </>
+      )}
+    </p>
+    <TagList tags={post.tags} />
+  </header>
+
+  {withToc && <Toc headings={post.headings} />}
+
+  <div class="prose post-body" set:html={post.html} />
+
+  <slot />
+</article>
