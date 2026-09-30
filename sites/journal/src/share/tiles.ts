@@ -1,7 +1,7 @@
 /**
  * Where the month snapshot's photos go (share/snapshot.ts): side by side in one row or, for two to
- * four of them, in two rows: two stacked, four in a grid, three as one large (the first picked)
- * beside two small. Each arrangement takes the room the snapshot gives it and grows towards the
+ * four of them, in two rows: two stacked, four in a grid, three as one large (the first) beside
+ * two small. Each arrangement takes the room the snapshot gives it and grows towards the
  * photos' own shape, a tile never taller than 3:4; then the one that shows them best is drawn.
  * Each tile counts its area times the square of the share of its photo it shows, so a photo cut
  * in half is worth a quarter of its tile: landscape photos take two rows when that lets them grow,
