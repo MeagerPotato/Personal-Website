@@ -73,7 +73,8 @@ describe('the model conventions', () => {
         ),
       ).toBe(false);
     }
-    // And it is not the satellite: fewer faces, and no wings.
+    // And it is not the satellite: no solar wings. They spread the satellite over 1.5 wide; the
+    // relay is under 1 (above).
     const satellite = bounds(buildSatellite().mesh);
     expect((satellite.max[0] ?? 0) - (satellite.min[0] ?? 0)).toBeGreaterThan(1.5);
   });

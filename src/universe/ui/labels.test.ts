@@ -660,6 +660,21 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     labels.frameUpdate();
     expect(shows(hidden)).toBe(true);
     expect(document.activeElement).toBe(link(hidden));
+    // It stays on the frames after, once the beckon is spent, because the keyboard is on it: even
+    // with the other body now right on top of it, and nearer, which would otherwise win the room.
+    const [mine, theirs] = hidden === 'GitHub' ? [2, 3] : [3, 2];
+    screen.x[theirs] = screen.x[mine] ?? 0;
+    screen.y[theirs] = screen.y[mine] ?? 0;
+    screen.depth[theirs] = 100;
+    for (let frame = 0; frame < 3; frame += 1) {
+      labels.frameUpdate();
+      expect(shows(hidden)).toBe(true);
+    }
+    expect(document.activeElement).toBe(link(hidden));
+    // Once the focus moves on, the nearer name has the room.
+    link(hidden).blur();
+    labels.frameUpdate();
+    expect(shows(hidden)).toBe(false);
   });
 
   it('beckons nothing whose body cannot be seen, and leaves the focus where it was', () => {
