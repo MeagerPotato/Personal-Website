@@ -137,6 +137,34 @@ describe('Picker', () => {
     expect('pick' in canvas.dataset).toBe(false);
   });
 
+  it('answers clicks, so that a browser does not hand a finger on the world to a name nearby', () => {
+    // Touch adjustment only moves a finger onto what answers clicks, and a canvas that does not
+    // loses every finger near a link to it: tests/e2e/links.spec.ts shows that in a browser.
+    const canvas = document.createElement('canvas');
+    const added: string[] = [];
+    const removed: string[] = [];
+    const add = canvas.addEventListener.bind(canvas);
+    const remove = canvas.removeEventListener.bind(canvas);
+    canvas.addEventListener = (type: string, ...rest: [EventListener]) => {
+      added.push(type);
+      add(type, ...rest);
+    };
+    canvas.removeEventListener = (type: string, ...rest: [EventListener]) => {
+      removed.push(type);
+      remove(type, ...rest);
+    };
+    const picker = new Picker({
+      canvas,
+      screen: createScreenMap(0),
+      params: PARAMS,
+      ignore: () => -1,
+      onPick: () => {},
+    });
+    expect(added).toContain('click');
+    picker.dispose();
+    expect(removed).toContain('click');
+  });
+
   it('stops listening, and cleans up, when disposed', () => {
     const { canvas, picker, picked, fire } = setup();
     fire('pointermove', 205, 295);
