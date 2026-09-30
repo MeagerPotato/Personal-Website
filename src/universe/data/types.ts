@@ -23,8 +23,10 @@ export interface ProjectInput {
   /** Exactly one of `system` (a planet) or `parent` (a moon of that project). */
   system?: string | undefined;
   parent?: string | undefined;
-  /** "YYYY-MM". Older projects orbit closer in. */
-  date: string;
+  /** "YYYY-MM". Older projects orbit closer in; planned work without a date, outermost. */
+  date?: string | undefined;
+  /** Work that is planned, not built. Only planned work may leave out its date. */
+  planned?: boolean | undefined;
   size: PlanetSize;
   biome: BiomeKey;
   rings: boolean;
@@ -89,6 +91,8 @@ export interface ManifestBody {
   rings?: boolean;
   decorMoons?: number;
   flagship?: boolean;
+  /** Planned work, not built yet: drawn and labelled as such. Absent for everything else. */
+  planned?: true;
 }
 
 export interface ManifestSystem {

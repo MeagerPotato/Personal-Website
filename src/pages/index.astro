@@ -5,11 +5,11 @@ import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
 import { routes } from '../site/routes';
 import { personLd, websiteLd } from '../site/seo';
-import { buildProjectTree, featuredPlanets, visibleProjects } from '../site/view-models';
+import { buildProjectTree, featured as featuredWork, visibleProjects } from '../site/view-models';
 
 const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
-const featured = featuredPlanets(buildProjectTree(systems, projects), 3);
+const featured = featuredWork(buildProjectTree(systems, projects), 3);
 ---
 
 <Base

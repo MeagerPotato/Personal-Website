@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProjectTree,
   displayUrl,
-  featuredPlanets,
+  featured,
+  isPlanet,
   formatDateRange,
   mixesSystems,
   sharedTheme,
   formatYearMonth,
   projectContext,
+  projectFacts,
   projectLinks,
   projectTheme,
   projectWhen,
@@ -66,9 +68,23 @@ describe('dates', () => {
   it('says "present" for work that is still going, and only for that', () => {
     expect(projectWhen({ date: '2026-08', status: 'in-progress' })).toBe('Aug 2026 – present');
     expect(projectWhen({ date: '2026-08', status: 'shipped' })).toBe('Aug 2026');
+    expect(projectWhen({ status: 'planned' })).toBeUndefined();
+    expect(projectWhen({ date: '2026-11', status: 'planned' })).toBe('Nov 2026');
     expect(projectWhen({ date: '2026-08', dateEnd: '2026-09', status: 'in-progress' })).toBe(
       'Aug – Sep 2026',
     );
+  });
+});
+
+describe('projectFacts', () => {
+  it('lists status, when and role for built work', () => {
+    expect(
+      projectFacts({ date: '2026-08', status: 'shipped', role: 'Solo' }).map((f) => f.label),
+    ).toEqual(['Status', 'When', 'Role']);
+  });
+
+  it('leaves out what planned work does not have yet', () => {
+    expect(projectFacts({ status: 'planned' })).toEqual([{ label: 'Status', value: 'Planned' }]);
   });
 });
 
@@ -127,11 +143,27 @@ describe('buildProjectTree', () => {
       summary: 'Summary of moon-b',
       date: '2026-02',
       status: 'Shipped',
+      planned: false,
+      pictured: false,
       biome: 'dune',
       theme: 'sky',
       flagship: false,
       kind: 'moon',
     });
+  });
+
+  it('lists planned work after built work, even a planned flagship, and gives it no date', () => {
+    const [code] = buildProjectTree(SYSTEMS, [
+      ...PROJECTS,
+      project('someday', {
+        system: { id: 'code' },
+        date: undefined,
+        status: 'planned',
+        flagship: true,
+      }),
+    ]);
+    expect(code?.planets.map((planet) => planet.id)).toEqual(['older', 'newer', 'someday']);
+    expect(code?.planets[2]).toMatchObject({ planned: true, status: 'Planned', date: '' });
   });
 
   it('paints every card in its own system, a moon in its planet’s', () => {
@@ -188,18 +220,49 @@ describe('sharedTheme', () => {
   });
 });
 
-describe('featuredPlanets', () => {
+describe('featured', () => {
+  const COVER = { src: 'cover.png', alt: 'A picture' };
+  const ids = (cards: ReadonlyArray<{ id: string }>): string[] => cards.map((card) => card.id);
+
   it('puts flagships first, then the newest work, and respects the limit', () => {
     const tree = buildProjectTree(SYSTEMS, PROJECTS);
     // A mixed list: each planet keeps its own system's colours.
-    expect(featuredPlanets(tree, 3).map((planet) => planet.theme)).toEqual(['sky', 'sky', 'coral']);
+    expect(featured(tree, 3).map((card) => card.theme)).toEqual(['sky', 'sky', 'coral']);
     // "rover" sits in another system and is the oldest of the three: newest-first is galaxy-wide.
-    expect(featuredPlanets(tree, 3).map((planet) => planet.id)).toEqual([
-      'older',
-      'newer',
-      'rover',
+    expect(ids(featured(tree, 3))).toEqual(['older', 'newer', 'rover']);
+    expect(ids(featured(tree, 1))).toEqual(['older']);
+  });
+
+  it('never features planned work, however few built planets there are', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('only', { system: { id: 'code' } }),
+      project('someday', { system: { id: 'code' }, status: 'planned', flagship: true }),
     ]);
-    expect(featuredPlanets(tree, 1).map((planet) => planet.id)).toEqual(['older']);
+    expect(ids(featured(tree, 3))).toEqual(['only']);
+  });
+
+  it('features a flagship moon, and lists it once', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('home', { system: { id: 'code' }, cover: COVER }),
+      project('star', { parent: { id: 'home' }, flagship: true }),
+      project('quiet', { parent: { id: 'home' } }),
+      project('later', { parent: { id: 'home' }, status: 'planned', flagship: true }),
+    ]);
+    const cards = featured(tree, 3);
+    expect(ids(cards)).toEqual(['star', 'home']);
+    // Its planet's card lists the rest of the family, not the moon that has a card of its own.
+    const planet = cards[1];
+    expect(planet && isPlanet(planet) ? ids(planet.moons) : []).toEqual(['quiet', 'later']);
+  });
+
+  it('prefers work with a picture, and takes work without one only to fill the list', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('bare-new', { system: { id: 'code' }, date: '2026-09' }),
+      project('shown-old', { system: { id: 'code' }, date: '2024-01', cover: COVER }),
+      project('shown-mid', { system: { id: 'robots' }, date: '2025-01', cover: COVER }),
+    ]);
+    expect(ids(featured(tree, 2))).toEqual(['shown-mid', 'shown-old']);
+    expect(ids(featured(tree, 3))).toEqual(['shown-mid', 'shown-old', 'bare-new']);
   });
 });
 
