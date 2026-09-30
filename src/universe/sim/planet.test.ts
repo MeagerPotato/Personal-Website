@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { tuning } from '../design/tuning';
-import { hexToLinear } from './color';
 import type { Point, Rgb } from './meshBuilder';
 import {
   finish,
@@ -8,6 +6,8 @@ import {
   planetTriangleCount,
   shapePoint,
   type FacetPlace,
+  type PlanetBands,
+  type PlanetLook,
   type PlanetSpec,
 } from './planet';
 
@@ -25,20 +25,30 @@ function fingerprint(...arrays: Float32Array[]): string {
   return hash.toString(16).padStart(8, '0');
 }
 
-// Five fixed colours, not the tokens: the pin must not move when a palette does.
-const BANDS = {
-  sea: hexToLinear('#7fb0dd'),
-  shore: hexToLinear('#f3e3b3'),
-  low: hexToLinear('#a8d8a0'),
-  high: hexToLinear('#7dbb8a'),
-  peak: hexToLinear('#f4f1ea'),
+// A fixed look and five fixed colours, not tuning.ts and the tokens: the pin must not move when
+// the design does. (The look is the generated planets' of 2026-09-30, frozen here.)
+const LOOK: PlanetLook = {
+  reliefShare: 0.05,
+  frequency: 1.45,
+  octaves: 4,
+  seaLevel: -0.04,
+  peakAt: 0.5,
+  terraces: 4,
+  terraceStrength: 0.6,
+  bandStops: [0.1, 0.46, 0.8],
+  colorJitter: 0.03,
+};
+const BANDS: PlanetBands = {
+  sea: [0.2, 0.4, 0.8],
+  shore: [0.9, 0.8, 0.5],
+  low: [0.4, 0.7, 0.3],
+  high: [0.3, 0.5, 0.35],
+  peak: [0.95, 0.95, 0.9],
 };
 const RED: Rgb = [1, 0, 0];
 
 const build = (spec: Partial<PlanetSpec> = {}) =>
-  finish(
-    generatePlanet({ seed: 'pin', radius: 1, detail: 5, bands: BANDS, ...spec }, tuning.planet),
-  );
+  finish(generatePlanet({ seed: 'pin', radius: 1, detail: 5, bands: BANDS, ...spec }, LOOK));
 
 /** Every vertex of a mesh. */
 function vertices(positions: Float32Array): Point[] {
@@ -51,14 +61,15 @@ function vertices(positions: Float32Array): Point[] {
 
 describe('the planet generator, without the options of sim/world', () => {
   it('makes, bit for bit, the planets it made before they existed', () => {
-    // Taken from the generator as it was before `flat`, `shape`, `up` and `paint` (2026-09-30).
-    // A planet in flight is exactly this code path, so a change here reshapes every world.
+    // Computed by the generator of main at f78b64d (git show f78b64d:src/universe/sim/planet.ts),
+    // before `flat`, `shape`, `up` and `paint`, with this look and these bands (2026-09-30). A
+    // planet in flight is exactly this code path, so a change here reshapes every world.
     for (const [seed, radius, detail, expected] of [
-      ['pin', 8, 5, '63d74199'],
-      ['project/robotics', 1, 8, 'acab10c0'],
-      ['about', 14, 3, '7199d1d3'],
+      ['pin', 8, 5, 'bbf66146'],
+      ['project/robotics', 1, 8, 'd86e73a1'],
+      ['about', 14, 3, '33f423de'],
     ] as const) {
-      const mesh = finish(generatePlanet({ seed, radius, detail, bands: BANDS }, tuning.planet));
+      const mesh = finish(generatePlanet({ seed, radius, detail, bands: BANDS }, LOOK));
       expect(mesh.triangleCount).toBe(planetTriangleCount(detail));
       expect(fingerprint(mesh.positions, mesh.normals, mesh.colors), seed).toBe(expected);
     }
@@ -71,7 +82,7 @@ describe('the options for worlds of their own', () => {
     expect(mesh.triangleCount).toBe(planetTriangleCount(5));
     for (const [x, y, z] of vertices(mesh.positions)) expect(Math.hypot(x, y, z)).toBeCloseTo(1, 5);
     // 0.3 is between the stops 0.1 and 0.46: the low band, nudged by at most the jitter.
-    const jitter = tuning.planet.colorJitter;
+    const jitter = LOOK.colorJitter;
     for (let i = 0; i < mesh.colors.length; i += 3) {
       const ratio = (mesh.colors[i + 1] ?? 0) / BANDS.low[1];
       expect(ratio).toBeGreaterThanOrEqual(1 - jitter - 1e-6);
@@ -82,7 +93,9 @@ describe('the options for worlds of their own', () => {
   it('flat below zero is all sea', () => {
     const mesh = build({ flat: -1 });
     const green = mesh.colors.filter((_, i) => i % 3 === 1);
-    for (const g of green) expect(Math.abs(g / BANDS.sea[1] - 1)).toBeLessThanOrEqual(0.031);
+    for (const g of green) {
+      expect(Math.abs(g / BANDS.sea[1] - 1)).toBeLessThanOrEqual(LOOK.colorJitter + 1e-6);
+    }
   });
 
   it('shape: every corner lies on the superellipsoid', () => {

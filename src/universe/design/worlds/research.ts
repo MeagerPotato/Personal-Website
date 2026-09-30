@@ -1,7 +1,7 @@
 import { TAU } from '../../sim/math';
 import { brg, type Vec2 } from '../../sim/world/kit';
 import { crane, chip, dashes, pebbles, planned } from '../../sim/world/planned';
-import type { BodyRecipe, Item, Mod, Rows } from '../../sim/world/rows';
+import { FLAG, type BodyRecipe, type Item, type Mod, type Rows } from '../../sim/world/rows';
 import { rad, sunGround } from './shared';
 
 /**
@@ -22,11 +22,15 @@ const sun: Rows = [
   sunGround('mint'),
   [
     'light-curve',
-    3,
+    FLAG.hold | FLAG.flat,
     ['ring', (t) => [1.17, outer(t) - 0.04], 0, TAU, 72, 0, 0, 'mint.shade'],
     ['ring', (t) => [outer(t) - 0.04, outer(t)], 0, TAU, 72, 0.001, 0.001, 'ink.high'],
   ],
-  ['cursor', 3, ['rq', rad(200), 1.02, 1.66, 0.022, 0.022, 0, 0.001, 'ink.high']],
+  [
+    'cursor',
+    FLAG.hold | FLAG.flat,
+    ['rq', rad(200), 1.02, 1.66, 0.022, 0.022, 0, 0.001, 'ink.high'],
+  ],
 ];
 
 // Sports Analysis: research that has not started. A plain ball (no sport is chosen), a court
@@ -74,7 +78,7 @@ const sportsAnalysis: Rows = [
   ...planned('mint', { n: 16, r: [1.42, 1.5], crane: [50, 232], chip: [78, 120, 3.65] }),
   [
     'ball',
-    1,
+    FLAG.hold,
     ['bead', 0.1, 'ink.high', { at: [brg(rad(300), 1.46)[0], 0.02, brg(rad(300), 1.46)[1]] }],
   ],
 ];
@@ -121,7 +125,7 @@ const kalshi: Rows = [
   ],
   [
     'yes-face',
-    17,
+    FLAG.hold | FLAG.ghost,
     [
       'g',
       ['prism', ARC, 0.11, 0.128, 'mint.light', 'mint.base', 'mint.base', 1],
@@ -132,7 +136,7 @@ const kalshi: Rows = [
   ],
   [
     'no-face',
-    17,
+    FLAG.hold | FLAG.ghost,
     [
       'g',
       faceBar([-0.72, -0.4], [-0.2, 0.36], 0.12, 0.03, 0.125),
@@ -142,7 +146,7 @@ const kalshi: Rows = [
   ],
   [
     'outcome-ring',
-    1,
+    FLAG.hold,
     [
       'g',
       ...dashes('mint', [1.32, 1.4], 6, -Math.PI / 2, Math.PI / 2),
@@ -152,12 +156,12 @@ const kalshi: Rows = [
   ],
   ['crane', 0, onCoin(crane('mint'), [0.3, 0.128, -0.55], 0.8)],
   ['paint-chip', 0, onCoin(chip('mint'), [-0.5, 0.128, 0.42])],
-  ['debris', 1, ['g', pebbles(5, 1.05, 0.14), COIN_TILT]],
+  ['debris', FLAG.hold, ['g', pebbles(5, 1.05, 0.14), COIN_TILT]],
 ];
 
 export const RESEARCH: Readonly<Record<string, BodyRecipe>> = {
   'system/research': { rows: sun },
-  'project/sports-analysis': { rows: sportsAnalysis },
+  'project/sports-analysis': { rows: sportsAnalysis, ghost: 'mint' },
   // The coin never turns with a planet's spin: it rocks, as a whole (motion.ts).
-  'project/kalshi': { rows: kalshi, still: true },
+  'project/kalshi': { rows: kalshi, still: true, ghost: 'mint' },
 };

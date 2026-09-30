@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { THEME_KEYS } from '../../design/tokens';
+import { tuning } from '../../design/tuning';
+import type { GroundLooks } from './ground';
 import { colorOf } from './palette';
 import { chip, crane, dashes, pebbles, planned } from './planned';
 import { FLAG, make, mk } from './rows';
 
 // The planned kit's parts and their counts are the vocabulary's (section 6).
+
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
 
 describe('the planned kit', () => {
   it.each(THEME_KEYS.map((family) => [family]))('builds its parts in %s', (family) => {
@@ -47,7 +51,11 @@ describe('the planned kit', () => {
       ['paint-chip', 0],
       ['debris', FLAG.hold],
     ]);
-    const build = make('t', { rows: [[['bead', 0.1, 'ink.high']], ...rows] }, { detail: 0 });
+    const build = make(
+      't',
+      { rows: [[['bead', 0.1, 'ink.high']], ...rows] },
+      { detail: 0, looks: LOOKS },
+    );
     expect(build.parts.map((p) => p.tris.length)).toEqual([64, 80, 64, 48]);
   });
 });

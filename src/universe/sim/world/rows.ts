@@ -1,9 +1,10 @@
 import type { ThemeKey } from '../../design/tokens';
 import { TAU } from '../math';
+import type { Rgb } from '../meshBuilder';
 import { finish } from '../planet';
 import { bead, fin, pix, tile } from './atoms';
 import { glyph } from './glyphs';
-import { groundOf, type GroundSpec } from './ground';
+import { groundOf, type GroundLooks, type GroundSpec } from './ground';
 import {
   add,
   basisM,
@@ -47,9 +48,10 @@ import { atNormal, normalFrame, onSurf, surfaceFrame, type SurfaceOptions } from
  *   ground   a generator spec (ground.ts), or a HULL: items that are the body themselves (the
  *            Resume station, the Contact satellite, a relay's plinth, the Kalshi coin)
  *   part     `[name, flags, ...items]`. The name is how the motion table, the tests and the
- *            documents refer to it. Flags add up (FLAG): 1 hold (it does not turn with the ground),
- *            2 flat and unlit, 4 glow (it blooms), 8 decal (it hugs the ground), 16 ghost (still
- *            to come: drawn as a blueprint, with its edges as lines).
+ *            documents refer to it. Flags are written by name and combined (`FLAG.hold |
+ *            FLAG.ghost`): hold (it does not turn with the ground), flat (unlit), glow (it
+ *            blooms), decal (it hugs the ground), ghost (still to come: drawn as a blueprint,
+ *            with its edges as lines, in the recipe's `ghost` family).
  *   item     `[op, ...args, modifiers?]`: an op of the kit or the atoms with its positional
  *            arguments, or a structural op. A string that looks like a colour path ('coral.base')
  *            is turned into a colour HERE, through palette.ts, and nowhere else. The last argument
@@ -95,40 +97,55 @@ type Op<
   | readonly [Name, ...Required, ...Prefixes<Optional>]
   | readonly [Name, ...Required, ...Prefixes<Optional>, Mod];
 
-/** The kit's ops and the atoms, with their positional arguments (kit.ts, atoms.ts, glyphs.ts). */
-export type OpItem =
-  | Op<'lathe', [profile: readonly Vec2[], sides: number, colors: Cs], [phase: number]>
-  | Op<'cyl', [r: number, y0: number, y1: number, sides: number, color: C], [side: C, top: C]>
-  | Op<
-      'cone',
-      [r0: number, r1: number, y0: number, y1: number, sides: number, color: C],
-      [base: C, top: C]
-    >
-  | Op<'dome', [r: number, sides: number, steps: number, color: C]>
-  | Op<'box', [sx: number, sy: number, sz: number, color: C]>
-  | Op<
-      'prism',
-      [outline: readonly Vec2[], y0: number, y1: number, top: C],
-      [side: C, bottom: C, flags: number]
-    >
-  | Op<
-      'ring',
-      [radii: Radii, b0: number, b1: number, steps: number, y0: number, y1: number, top: Cs],
-      [side: Cs, flags: number]
-    >
-  | Op<
-      'rq',
-      [b: number, r0: number, r1: number, w0: number, w1: number, y0: number, y1: number, top: C],
-      [side: C]
-    >
-  | Op<'quad', [a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: C], [hint: Vec3]>
-  | Op<'tri', [a: Vec3, b: Vec3, c: Vec3, color: C], [hint: Vec3]>
-  | Op<'poly', [points: readonly Vec3[], color: C], [hint: Vec3]>
-  | Op<'glyph', [family: ThemeKey, r: number], [y: number, h: number]>
-  | Op<'bead', [r: number, color: C]>
-  | Op<'tile', [r: number, sides: number, color: C], [y: number, phase: number]>
-  | Op<'fin', [outline: readonly Vec2[], thick: number, color: C]>
-  | Op<'pix', [art: string | readonly string[], px: number, color: C]>;
+/**
+ * The kit's ops and the atoms (kit.ts, atoms.ts, glyphs.ts), with their positional arguments as
+ * the rows write them: the ones each needs, then the ones it may be given, in order. A colour is
+ * a path here; the function behind the op takes it as a colour (`KitArgs`). The op table below
+ * is checked against this in both directions (rows.test.ts), so a change to a kit signature that
+ * the rows do not follow is a compile error, not a surprise.
+ */
+export interface OpArgs {
+  lathe: [[profile: readonly Vec2[], sides: number, colors: Cs], [phase: number]];
+  cyl: [[r: number, y0: number, y1: number, sides: number, color: C], [side: C, top: C]];
+  cone: [
+    [r0: number, r1: number, y0: number, y1: number, sides: number, color: C],
+    [base: C, top: C],
+  ];
+  dome: [[r: number, sides: number, steps: number, color: C], []];
+  box: [[sx: number, sy: number, sz: number, color: C], []];
+  prism: [
+    [outline: readonly Vec2[], y0: number, y1: number, top: C],
+    [side: C, bottom: C, flags: number],
+  ];
+  ring: [
+    [radii: Radii, b0: number, b1: number, steps: number, y0: number, y1: number, top: Cs],
+    [side: Cs, flags: number],
+  ];
+  rq: [
+    [b: number, r0: number, r1: number, w0: number, w1: number, y0: number, y1: number, top: C],
+    [side: C],
+  ];
+  quad: [[a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: C], [hint: Vec3]];
+  tri: [[a: Vec3, b: Vec3, c: Vec3, color: C], [hint: Vec3]];
+  poly: [[points: readonly Vec3[], color: C], [hint: Vec3]];
+  glyph: [[family: ThemeKey, r: number], [y: number, h: number]];
+  bead: [[r: number, color: C], []];
+  tile: [[r: number, sides: number, color: C], [y: number, phase: number]];
+  fin: [[outline: readonly Vec2[], thick: number, color: C], []];
+  pix: [[art: string | readonly string[], px: number, color: C], []];
+}
+export type OpName = keyof OpArgs;
+
+export type OpItem = { [K in OpName]: Op<K, OpArgs[K][0], OpArgs[K][1]> }[OpName];
+
+/** An argument as the kit takes it: a colour path is a colour, a list of them a list of colours. */
+type Decoded<T> = T extends ColorPath ? Rgb : T extends readonly ColorPath[] ? readonly Rgb[] : T;
+type DecodedAll<T extends readonly unknown[]> = { [I in keyof T]: Decoded<T[I]> };
+/** The parameters of the function behind an op. */
+export type KitArgs<K extends OpName> = [
+  ...DecodedAll<OpArgs[K][0]>,
+  ...Partial<DecodedAll<OpArgs[K][1]>>,
+];
 
 export type ItemFn = (index: number) => Item;
 
@@ -156,7 +173,11 @@ export type Item =
   | ItemFn
   | readonly Item[];
 
-/** A part's flags, added together. */
+/**
+ * A part's flags, combined with `|` in the rows (`FLAG.hold | FLAG.ghost`); 0 is none. What each
+ * one does to the drawing is glue.ts's business: hold decides the draw group, flat and glow the
+ * lighting of every vertex, decal and ghost how a part is packed.
+ */
 export const FLAG = { hold: 1, flat: 2, glow: 4, decal: 8, ghost: 16 } as const;
 
 /** `[name, flags, ...items]`. */
@@ -177,11 +198,18 @@ export interface BodyRecipe {
   readonly rows: Rows | ((options: RowOptions) => Rows);
   /** It never turns, not even with the planet's slow spin (the Kalshi coin rocks instead). */
   readonly still?: boolean;
+  /**
+   * The family its ghost parts (FLAG.ghost) are drawn in: their edge lines take its base colour
+   * (vocabulary.md, section 6), over a navy blueprint fill. The family the body WILL wear, as
+   * its paint chip shows it. A body with ghost parts must name one; `makeBody` says so.
+   */
+  readonly ghost?: ThemeKey;
 }
 
 // --- the interpreter ------------------------------------------------------------------------------
 
-const OPS: Readonly<Record<OpItem[0], (...args: never[]) => Tri[]>> = {
+/** The function behind each op. Typed op by op (`KitArgs`): a kit signature change breaks here. */
+export const OPS: { readonly [K in OpName]: (...args: KitArgs<K>) => Tri[] } = {
   lathe,
   cyl,
   cone,
@@ -200,13 +228,13 @@ const OPS: Readonly<Record<OpItem[0], (...args: never[]) => Tri[]>> = {
   pix,
 };
 
-const isOp = (op: string): op is OpItem[0] => Object.hasOwn(OPS, op);
+const isOp = (op: string): op is OpName => Object.hasOwn(OPS, op);
 
 const isMod = (x: unknown): x is Mod => typeof x === 'object' && x !== null && !Array.isArray(x);
 
-/** A list of items, rather than one item (whose first element is its op's name). */
+/** A list of items, rather than one item (whose first element is its op's name). Empty is a list. */
 const isList = (item: readonly unknown[]): item is readonly Item[] =>
-  Array.isArray(item[0]) || typeof item[0] === 'function';
+  item.length === 0 || Array.isArray(item[0]) || typeof item[0] === 'function';
 
 /** Every colour path in an op's arguments, as a colour. */
 const decode = (x: unknown): unknown =>
@@ -217,6 +245,13 @@ const decode = (x: unknown): unknown =>
     : Array.isArray(x)
       ? x.map(decode)
       : x;
+
+/**
+ * Call an op with the arguments an item gave it. The rows' own type (`OpItem`) checked them at
+ * compile time; `decode` has turned their colour paths into colours, which is what `KitArgs` says.
+ */
+const runOp = <K extends OpName>(op: K, args: readonly unknown[]): Tri[] =>
+  OPS[op](...(decode(args) as KitArgs<K>));
 
 /** An item's op, its arguments, and its modifiers (the trailing plain object, if there is one). */
 function parse(item: readonly unknown[]): { op: string; args: unknown[]; mod: Mod | undefined } {
@@ -263,7 +298,7 @@ export function mk(item: Item, index = 0): Tri[] {
     }
     default: {
       if (!isOp(op)) throw new Error(`mk: '${op}' is not an op of the kit, the atoms or the rows`);
-      tris = (OPS[op] as (...decoded: unknown[]) => Tri[])(...(decode(args) as unknown[]));
+      tris = runOp(op, args);
     }
   }
   const { g } = mod ?? {};
@@ -391,11 +426,15 @@ export interface Build {
   readonly id: string;
   readonly ground: readonly Tri[];
   readonly parts: readonly BuiltPart[];
+  /** The family its ghost parts are drawn in (BodyRecipe.ghost). */
+  readonly ghost?: ThemeKey;
 }
 
 export interface BuildOptions {
   /** The ground's detail (glue.ts, `groundDetail`); a hull has none. */
   readonly detail: number;
+  /** The generator's looks for a ground (design/tuning.ts, `planet` and `terrain`). */
+  readonly looks: GroundLooks;
   /** Build the star map's variant of the rows. */
   readonly map?: boolean;
   /** The body's own seed, for a ground that names none (the manifest's `seed`). Default: its id. */
@@ -422,7 +461,7 @@ export function* makeBody(
   const [ground, ...far] = rowsOf(recipe, { map: options.map ?? false });
   const groundTris = isHull(ground)
     ? mk(ground)
-    : yield* groundOf(ground, options.seed ?? id, options.detail);
+    : yield* groundOf(ground, options.seed ?? id, options.detail, options.looks);
   const parts: BuiltPart[] = [];
   const names = new Set<string>();
   const tiers: ReadonlyArray<readonly [Tier, readonly PartRow[]]> = [
@@ -434,13 +473,17 @@ export function* makeBody(
       // A name is how the motion table finds a part: two with one name would move together.
       if (names.has(name)) throw new Error(`${id}: two parts are called '${name}'`);
       names.add(name);
+      // A ghost is drawn in its family's colour: a body that has one must say which.
+      if (flags & FLAG.ghost && !recipe.ghost) {
+        throw new Error(`${id}: '${name}' is a ghost, so the recipe names its family (ghost)`);
+      }
       const g: Unlit = flags & FLAG.glow ? 2 : flags & FLAG.flat ? 1 : 0;
       const tris = items.flatMap((x, j) => mk(x, j)).map((t) => (t.g ? t : { ...t, g }));
       parts.push({ name, tier, flags, tris, pivot: pivotOf(items) });
       yield;
     }
   }
-  return { id, ground: groundTris, parts };
+  return { id, ground: groundTris, parts, ...(recipe.ghost ? { ghost: recipe.ghost } : {}) };
 }
 
 export const make = (id: string, recipe: BodyRecipe, options: BuildOptions): Build =>

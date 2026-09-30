@@ -2,7 +2,7 @@ import { TAU } from '../../sim/math';
 import { add, brg, cross, norm, scale, sub, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
 import { dirOf, shapeNormal, shapePoint } from '../../sim/world/placement';
-import type { Item, PartRow } from '../../sim/world/rows';
+import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
 import { BUS, WAVE } from './hackathons';
 import { rocket } from './home';
@@ -166,10 +166,14 @@ const fishai: PartRow[] = [
       ];
     }),
   ],
-  ['scan-bar', 1, ['n', scale(BAR, 1.03), BAR, 0, 1, ['box', 0.012, 0.03, 0.66, 'coral.base']]],
+  [
+    'scan-bar',
+    FLAG.hold,
+    ['n', scale(BAR, 1.03), BAR, 0, 1, ['box', 0.012, 0.03, 0.66, 'coral.base']],
+  ],
   [
     'athena-loop',
-    3,
+    FLAG.hold | FLAG.flat,
     [
       'g',
       ...Array.from({ length: 16 }, (_, i): Item => [
@@ -272,7 +276,7 @@ const JIG = { spin: 0.6, alt: 0.02 } as const;
 const modelRocketry: PartRow[] = [
   [
     'parachute',
-    1,
+    FLAG.hold,
     [
       'g',
       ...GORES,
@@ -399,7 +403,7 @@ const fishOnboarding: PartRow[] = [
 const researchSun: PartRow[] = [
   [
     'ticks',
-    3,
+    FLAG.hold | FLAG.flat,
     [
       'around',
       12,
@@ -416,7 +420,7 @@ const researchSun: PartRow[] = [
 const sportsAnalysis: PartRow[] = [
   [
     'bar-chart',
-    16,
+    FLAG.ghost,
     [
       's',
       14,
@@ -454,7 +458,7 @@ const segment = (p0: Vec2, p1: Vec2): Item => [
 const kalshi: PartRow[] = [
   [
     'price-chart',
-    17,
+    FLAG.hold | FLAG.ghost,
     onCoinFace(
       [
         'g',
@@ -470,7 +474,7 @@ const kalshi: PartRow[] = [
   ],
   [
     'order-table',
-    17,
+    FLAG.hold | FLAG.ghost,
     onCoinFace(
       [
         'g',
@@ -504,7 +508,7 @@ const CONFETTI: readonly ColorPath[] = [
 const hackathonsSun: PartRow[] = [
   [
     'confetti',
-    1,
+    FLAG.hold,
     [
       'x',
       Array.from({ length: 10 }, (_, i): Vec3 => {
@@ -560,7 +564,7 @@ const hackgt: PartRow[] = [
   ],
   [
     'magnifier',
-    1,
+    FLAG.hold,
     [
       'g',
       ['ring', [0.15, 0.22], 0, TAU, 14, -0.02, 0.035, 'ink.high', 'ink.mid', 1],
@@ -655,7 +659,7 @@ const calHacks: PartRow[] = [
 const corgi: PartRow[] = [
   [
     'photo',
-    16,
+    FLAG.ghost,
     [
       's',
       16,
@@ -666,7 +670,7 @@ const corgi: PartRow[] = [
   ],
   [
     'room',
-    16,
+    FLAG.ghost,
     [
       's',
       12,
@@ -682,7 +686,7 @@ const corgi: PartRow[] = [
   ],
   [
     'fifth-block',
-    16,
+    FLAG.ghost,
     [
       's',
       6,

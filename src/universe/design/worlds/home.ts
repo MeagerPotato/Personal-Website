@@ -1,7 +1,7 @@
 import { TAU } from '../../sim/math';
 import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
-import type { BodyRecipe, Item, Mod, Rows } from '../../sim/world/rows';
+import { FLAG, type BodyRecipe, type Item, type Mod, type Rows } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
 import { cutRect, nth, rad } from './shared';
 
@@ -78,7 +78,7 @@ const about = ({ map }: { readonly map: boolean }): Rows => [
   },
   [
     'circle-line',
-    1,
+    FLAG.hold,
     map
       ? ['ring', [1.27, 1.43], 0, TAU, 12, 0, 0, ['butter.light', 'ink.mid']]
       : [
@@ -90,7 +90,7 @@ const about = ({ map }: { readonly map: boolean }): Rows => [
   ],
   [
     'stops',
-    1,
+    FLAG.hold,
     [
       'x',
       STOPS.map(([, deg]) => onLine(deg, 1.35, 0.004)),
@@ -110,7 +110,7 @@ const about = ({ map }: { readonly map: boolean }): Rows => [
   ],
   [
     'train',
-    1,
+    FLAG.hold,
     ['bead', 0.075, 'ink.high', { at: [brg(rad(340), 1.35)[0], 0.06, brg(rad(340), 1.35)[1]] }],
   ],
 ];
@@ -213,7 +213,7 @@ const resume: Rows = [
   ],
   [
     'two-pages',
-    1,
+    FLAG.hold,
     ['g', page('ink.high'), { at: [-0.14, 1.05, 0.02], rot: [0, 0.32, 0] }],
     ['g', page('ink.mid'), { at: [0.14, 1.02, -0.02], rot: [0, -0.32, 0] }],
   ],
@@ -290,7 +290,7 @@ const contact: Rows = [
   // inside 2.2 radii (the lane rule, vocabulary.md section 9).
   [
     'letter',
-    1,
+    FLAG.hold,
     [
       'g',
       ['box', 0.24, 0.014, 0.17, 'ink.high'],
@@ -309,7 +309,7 @@ const contact: Rows = [
   ],
   [
     'trail',
-    1,
+    FLAG.hold,
     [
       'x',
       [0, 1, 2, 3, 4].map((i): Vec3 => [0, 0.16, 0.5 + i * 0.36]),

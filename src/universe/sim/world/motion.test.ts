@@ -1,15 +1,31 @@
 import { describe, expect, it } from 'vitest';
+import { BODIES } from '../../design/worlds/bodies';
 import { MOTION } from '../../design/worlds/motion';
+import { NEAR } from '../../design/worlds/near';
 import { absentAtRest, drive, SHAPES, type MotionRow, type Shape } from './motion';
+import { rowsOf } from './rows';
 
 // Calm first (vocabulary.md, section 7). These rules hold over the WHOLE table, so a row that
-// breaks them fails here, whoever wrote it.
+// breaks them fails here, whoever wrote it. (That every mover's still is exactly the still mesh,
+// pivots and all, is measured on the built bodies: tests/world-bodies.test.ts.)
 
 const CONTINUOUS: ReadonlySet<Shape> = new Set(['ramp', 'sine']);
 const rows = Object.entries(MOTION).flatMap(([id, list]) => list.map((row) => [id, row] as const));
 
+/**
+ * Parts that do ONE motion together, said here rather than guessed: the twin rocket hops with its
+ * flame, and the Cal Hacks stands do one wave between them. Rows of one part are one motion too
+ * (the letter slides and swells). The planned kit's crane is not counted: it is the kit's.
+ */
+const TOGETHER: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  'page/about': [['twin-rocket', 'twin-flame']],
+  'project/cal-hacks-13': [['stands-1', 'stands-2', 'stands-3', 'stands-4']],
+};
+const motionOf = (id: string, part: string): string =>
+  TOGETHER[id]?.find((parts) => parts.includes(part))?.join('+') ?? part;
+
 describe('the motion table', () => {
-  it('moves continuously no faster than once in 6 s, and glows no faster than 2.4 s', () => {
+  it('moves continuously no faster than once in 6 s, an event every 10 s, a glow every 2.4 s', () => {
     for (const [id, row] of rows) {
       const [part, target, , shape, , period] = row;
       const floor = target === 'glow' ? 2.4 : CONTINUOUS.has(shape) ? 6 : 10;
@@ -29,22 +45,49 @@ describe('the motion table', () => {
 
   it('gives each body at most two motions, besides a planned body’s crane', () => {
     for (const [id, list] of Object.entries(MOTION)) {
-      // Rows that share a period are one motion: the letter slides and swells, the twin rocket
-      // and its flame hop together, the Cal Hacks stands do one wave.
-      const motions = new Set(list.filter(([part]) => part !== 'crane').map((row) => row[5]));
-      expect(motions.size, id).toBeLessThanOrEqual(2);
+      const motions = new Set(
+        list.filter(([part]) => part !== 'crane').map(([part]) => motionOf(id, part)),
+      );
+      expect(motions.size, `${id}: ${[...motions].join(', ')}`).toBeLessThanOrEqual(2);
     }
   });
 
-  it('has a still for every row: at rest, a turn and a slide are 0 and a scale is 1 or absent', () => {
-    for (const [id, row] of rows) {
-      const { target, value } = drive(row, 'still');
-      if (target === 'rot' || target === 'pos') expect(Math.abs(value), `${id} ${row[0]}`).toBe(0);
-      if (target === 'scale') {
-        const absent = absentAtRest([row]).has(row[0]);
-        expect(absent || value === 1, `${id} ${row[0]}`).toBe(true);
+  it('keeps the parts of one motion in step: one period and one wave, and every one of them moves', () => {
+    for (const [id, groups] of Object.entries(TOGETHER)) {
+      const list = MOTION[id] ?? [];
+      for (const parts of groups) {
+        const own = list.filter(([part]) => parts.includes(part));
+        expect(new Set(own.map((row) => row[0])), id).toEqual(new Set(parts));
+        expect(new Set(own.map((row) => row[5])).size, `${id}: one period`).toBe(1);
+        expect(new Set(own.map((row) => row[3])).size, `${id}: one wave`).toBe(1);
       }
-      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it('leaves out of the still only close-up parts, so the everyday mesh never has a hole', () => {
+    for (const [id, list] of Object.entries(MOTION)) {
+      const absent = [...absentAtRest(list)];
+      const recipe = BODIES[id];
+      if (!recipe) throw new Error(`motion for ${id}, which has no rows`);
+      const [, ...parts] = rowsOf(recipe, { map: false });
+      const far = new Set(parts.map(([name]) => name));
+      const near = new Set((NEAR[id] ?? []).map(([name]) => name));
+      for (const part of absent) {
+        expect(far.has(part), `${id} ${part} is far`).toBe(false);
+        expect(near.has(part), `${id} ${part} is near`).toBe(true);
+      }
+    }
+  });
+
+  it('is at its still at its rest time, and a period on (a turn by a whole amount more)', () => {
+    for (const [id, row] of rows) {
+      const [part, target, , shape, amount, period, , rest = 0] = row;
+      const still = drive(row, 'still').value;
+      for (const k of [0, 1, 3]) {
+        const at = drive(row, (rest + k) * period).value;
+        const turns = target === 'rot' && (shape === 'ramp' || shape === 'step');
+        expect(at, `${id} ${part} +${k}`).toBeCloseTo(turns ? still + k * amount : still, 9);
+      }
     }
   });
 });
@@ -52,9 +95,10 @@ describe('the motion table', () => {
 describe('the driver', () => {
   const sway: MotionRow = ['dish', 'rot', 'z', 'sine', 0.25, 8];
 
-  it('is a pure function of the row and the time', () => {
-    expect(drive(sway, 3.7)).toEqual(drive(sway, 3.7));
+  it('turns by its amount at the top of its wave, and not at all at its still', () => {
     expect(drive(sway, 2)).toEqual({ target: 'rot', axis: 'z', value: 0.25 });
+    expect(drive(sway, 6).value).toBeCloseTo(-0.25, 12);
+    expect(drive(sway, 'still').value).toBe(0);
   });
 
   it('comes back to the same picture each period, except a turn, which keeps turning', () => {
@@ -88,6 +132,10 @@ describe('the driver', () => {
     expect([...absentAtRest(MOTION['system/hackathons'] ?? [])]).toEqual(['confetti']);
     expect([...absentAtRest(MOTION['project/cyberpatriot'] ?? [])]).toEqual(['fix-tick']);
     expect([...absentAtRest(MOTION['project/robotics'] ?? [])]).toEqual([]);
+    // A scale at 0 at its still, and nothing else.
+    expect([...absentAtRest([['a', 'scale', '*', 'sine', 1, 8]])]).toEqual(['a']);
+    expect([...absentAtRest([['a', 'pos', 'x', 'hill', 1, 10]])]).toEqual([]);
+    expect([...absentAtRest([['a', 'scale', '*', 'hill', 1, 10, 0, 0.3]])]).toEqual([]);
   });
 
   it('has waves that rest where they say', () => {

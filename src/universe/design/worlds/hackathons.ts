@@ -1,7 +1,7 @@
 import { TAU } from '../../sim/math';
 import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import { planned } from '../../sim/world/planned';
-import type { BodyRecipe, Item, PartRow, Rows } from '../../sim/world/rows';
+import { FLAG, type BodyRecipe, type Item, type PartRow, type Rows } from '../../sim/world/rows';
 import { rad, sunGround } from './shared';
 
 /**
@@ -21,7 +21,7 @@ const sun: Rows = [
   sunGround('lilac'),
   [
     'stopwatch',
-    3,
+    FLAG.hold | FLAG.flat,
     ['ring', [1.2, 1.34], 0, TAU, 24, 0, 0.001, 'lilac.light', 'lilac.base'],
     [
       'around',
@@ -57,7 +57,7 @@ const sun: Rows = [
   ],
   [
     'hand',
-    3,
+    FLAG.hold | FLAG.flat,
     ['rq', rad(-6), 0, 1.5, 0.06, 0.012, 1.02, 1.02, 'star.white'],
     ['cyl', 0.07, 1.0, 1.05, 6, 'star.white'],
   ],
@@ -82,7 +82,7 @@ const hackgt: Rows = [
   { seed: 'hackgt-13', biome: 'tide', recipe: 'isles', stops: [0.12, 9, 9] },
   [
     'wave-ring',
-    1,
+    FLAG.hold,
     ['ring', real, 0, Math.PI, 36, 0, 0, 'ink.high'],
     ['ring', fake, Math.PI, TAU, 36, 0, 0, 'coral.base'],
   ],
@@ -124,7 +124,7 @@ const berkeley: Rows = [
   // Windows are props (crisp at any facet size): seven panes a side and a two-part windshield.
   [
     'windows',
-    8,
+    FLAG.decal,
     ...[-1, 1].flatMap((side) => Array.from({ length: 7 }, (_, i) => pane(-0.84 + i * 0.28, side))),
     ...(
       [
@@ -166,7 +166,7 @@ const berkeley: Rows = [
   ['destination-sign', 0, ['box', 0.04, 0.2, 0.62, 'space.900', { at: [SIGN, 0.56, 0] }]],
   [
     'sign-digits',
-    4,
+    FLAG.glow,
     ['pix', '13.0', 0.034, 'star.warm', { at: [SIGN + 0.024, 0.56, 0], rot: [0, Math.PI / 2, 0] }],
   ],
   [
@@ -226,7 +226,7 @@ const calHacks: Rows = [
       { at: [0, 0.16, -0.98] },
     ],
   ],
-  ['score-digits', 4, ['pix', '13.0', 0.04, 'star.warm', { at: [0, 1.48, -0.956] }]],
+  ['score-digits', FLAG.glow, ['pix', '13.0', 0.04, 'star.warm', { at: [0, 1.48, -0.956] }]],
   // The Campanile, Berkeley's own tower, beside the stadium: a needle over a lit lantern.
   [
     'campanile',
@@ -296,7 +296,7 @@ const corgi: Rows = [
   ],
   [
     'ears',
-    16,
+    FLAG.ghost,
     ...[1, -1].map((side): Item => [
       'fin',
       [
@@ -311,7 +311,7 @@ const corgi: Rows = [
   ],
   [
     'stub-tail',
-    16,
+    FLAG.ghost,
     ['cone', 0.11, 0.02, 0, 0.26, 6, 'lilac.base', { at: [-1.04, 0.14, 0], rot: [0, 0, 1.15] }],
   ],
   ...planned('lilac', { n: 12, r: loafRing, crane: [30, 235], chip: [66, 60, 4.45] }),
@@ -322,5 +322,5 @@ export const HACKATHONS: Readonly<Record<string, BodyRecipe>> = {
   'project/hackgt-13': { rows: hackgt },
   'project/hackathons-at-berkeley': { rows: berkeley },
   'project/cal-hacks-13': { rows: calHacks },
-  'project/corgi': { rows: corgi },
+  'project/corgi': { rows: corgi, ghost: 'lilac' },
 };

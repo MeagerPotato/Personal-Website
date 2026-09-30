@@ -15,6 +15,7 @@ import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
+import type { Terrain, TerrainName } from '../sim/world/ground';
 import type { LabelsParams } from '../ui/Labels';
 import type { PickerParams } from '../ui/Picker';
 import type { StarMapParams } from '../ui/StarMap';
@@ -583,6 +584,89 @@ export const tuning = {
     /** Each facet's colour is nudged by up to this share: flat areas look hand-made. */
     colorJitter: 0.03,
   } satisfies PlanetLook,
+
+  /**
+   * The terrains of the worlds of their own (sim/world/ground.ts; vocabulary.md, 3.1): how a
+   * body's ground shapes the noise, as overrides of `planet` above. A body's rows name one.
+   */
+  terrain: {
+    /** The home planet: few, large continents in three terraces. */
+    continents: {
+      look: {
+        reliefShare: 0.045,
+        frequency: 1.0,
+        octaves: 3,
+        seaLevel: 0.02,
+        peakAt: 0.55,
+        terraces: 3,
+        terraceStrength: 0.7,
+        bandStops: [0.12, 0.5, 0.85],
+      },
+    },
+    /** Rolling ground with few peaks and little sea. */
+    calm: {
+      look: {
+        reliefShare: 0.03,
+        frequency: 0.95,
+        octaves: 3,
+        seaLevel: -0.5,
+        peakAt: 0.55,
+        terraces: 2,
+        terraceStrength: 0.85,
+        bandStops: [0.08, 0.5, 0.86],
+      },
+    },
+    /** Small islands in a sea. */
+    isles: {
+      look: {
+        reliefShare: 0.04,
+        frequency: 2.3,
+        octaves: 3,
+        seaLevel: 0.12,
+        peakAt: 0.6,
+        terraces: 3,
+        terraceStrength: 0.8,
+        bandStops: [0.12, 0.5, 0.85],
+      },
+    },
+    /**
+     * Planned work: unfired clay, rougher than any built world (the note on `planet.reliefShare`:
+     * above 0.07 the outline turns lumpy, which is the point).
+     */
+    lumpy: {
+      look: {
+        reliefShare: 0.07,
+        frequency: 1.5,
+        octaves: 3,
+        seaLevel: -0.6,
+        peakAt: 0.55,
+        terraces: 2,
+        terraceStrength: 0.6,
+        bandStops: [0.1, 0.5, 0.86],
+      },
+    },
+    /**
+     * A smooth ball, every facet at one level (0.3: the low band), so that ALL the character is
+     * paint and props. Its stops are pinned here rather than read from `planet`: a level was
+     * chosen for the band it falls in (-1 the sea, 0.3 low, 0.5 to 0.7 high), and a retune of the
+     * generated planets must not repaint these worlds.
+     */
+    flat: { look: { bandStops: [0.1, 0.46, 0.8] }, flat: 0.3 },
+    /** A sun's smooth ball: mostly its base, with lighter and darker patches, and no nudge at all. */
+    sun: {
+      look: {
+        reliefShare: 0,
+        frequency: 1.3,
+        octaves: 3,
+        seaLevel: -0.9,
+        peakAt: 0.55,
+        terraces: 3,
+        terraceStrength: 0.7,
+        bandStops: [0.36, 0.6, 0.78],
+        colorJitter: 0,
+      },
+    },
+  } satisfies Record<TerrainName, Terrain>,
 
   /** How the galaxy is drawn (world/Galaxy.ts). */
   world: {

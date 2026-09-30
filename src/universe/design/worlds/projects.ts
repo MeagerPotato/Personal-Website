@@ -4,7 +4,7 @@ import { add, norm, scale, type Vec2 } from '../../sim/world/kit';
 import { colorOf } from '../../sim/world/palette';
 import { shapeNormal, shapePoint } from '../../sim/world/placement';
 import { planned } from '../../sim/world/planned';
-import type { BodyRecipe, Item, Rows } from '../../sim/world/rows';
+import { FLAG, type BodyRecipe, type Item, type Rows } from '../../sim/world/rows';
 import { cutRect, rad, sunGround } from './shared';
 
 /**
@@ -24,7 +24,7 @@ const hardware: Rows = [
   // The cog: a ring with twelve teeth. It ratchets one tooth every twelve seconds.
   [
     'cog',
-    3,
+    FLAG.hold | FLAG.flat,
     ['ring', [1.02, 1.2], 0, TAU, 24, -0.035, 0.035, 'coral.light', 'coral.shade'],
     [
       'around',
@@ -67,13 +67,13 @@ const software: Rows = [
   // `<` and `>`: two chevrons of two arms each, flanking the sun; a caret glows after the `>`.
   [
     'brackets',
-    3,
+    FLAG.hold | FLAG.flat,
     ...[-1, 1].flatMap((s) => [
       bracketArm(s * 1.46, 0, s * 1.08, -0.55),
       bracketArm(s * 1.46, 0, s * 1.08, 0.55),
     ]),
   ],
-  ['caret', 3, ['box', 0.14, 0.14, 0.5, 'ink.high', { at: [1.6, 0, 0] }]],
+  ['caret', FLAG.hold | FLAG.flat, ['box', 0.14, 0.14, 0.5, 'ink.high', { at: [1.6, 0, 0] }]],
 ];
 
 // --- Hardware ------------------------------------------------------------------------------------
@@ -205,7 +205,7 @@ const modelRocketry: Rows = [
   // The roll number: eleven design iterations, painted big on the belly like a real airframe.
   [
     'roll-number',
-    8,
+    FLAG.decal,
     [
       's',
       -12,
@@ -391,7 +391,7 @@ const fishai: Rows = [
   // tick at 50%, the line to beat.
   [
     'win-ring',
-    3,
+    FLAG.hold | FLAG.flat,
     [
       'g',
       ['ring', [1.3, 1.46], 0, TAU * 0.5838, 20, -0.03, 0.03, 'ink.high', 'sky.light', 1],
@@ -472,7 +472,7 @@ const days2meet: Rows = [
   // people are free; the last weekend is the best window, and it stands proud.
   [
     'month-grid',
-    8,
+    FLAG.decal,
     ...HEAT.flatMap((row, r) =>
       row.map((v, k): Item => {
         const x = D2M.cx + k * D2M.dx;
@@ -502,7 +502,7 @@ const fishOnline: Rows = [
   { seed: 'fish-play', biome: 'primer', recipe: 'lumpy', up: 'vertex' },
   [
     'table',
-    16,
+    FLAG.ghost,
     [
       'n',
       scale(TABLE_AT, 1.04),
@@ -527,7 +527,7 @@ const fishOnline: Rows = [
   ],
   [
     'card-hand',
-    16,
+    FLAG.ghost,
     [
       'g',
       ...[-50, -30, -10, 10, 30, 50].map((deg): Item => [
@@ -558,5 +558,5 @@ export const PROJECTS: Readonly<Record<string, BodyRecipe>> = {
   'project/fishai': { rows: fishai },
   'project/fish-onboarding': { rows: fishOnboarding },
   'project/days2meet': { rows: days2meet },
-  'project/fish-online': { rows: fishOnline },
+  'project/fish-online': { rows: fishOnline, ghost: 'sky' },
 };

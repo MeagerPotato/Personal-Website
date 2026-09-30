@@ -1,6 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { tuning } from '../../design/tuning';
 import { HOME } from '../../design/worlds/home';
-import { centroidOf, dot, type Vec3 } from './kit';
+import { bead, fin, pix, tile } from './atoms';
+import { glyph } from './glyphs';
+import type { GroundLooks } from './ground';
+import {
+  box,
+  centroidOf,
+  cone,
+  cyl,
+  dome,
+  dot,
+  lathe,
+  poly,
+  prism,
+  quad,
+  ring,
+  rq,
+  tri,
+  type Vec3,
+} from './kit';
 import { colorOf } from './palette';
 import { surfaceFrame } from './placement';
 import { planned } from './planned';
@@ -11,12 +30,15 @@ import {
   make,
   makeBody,
   mk,
+  OPS,
   pivotOf,
   rowsOf,
   toPivot,
   trianglesOf,
   type BodyRecipe,
   type Item,
+  type KitArgs,
+  type OpName,
   type PartRow,
 } from './rows';
 
@@ -25,6 +47,7 @@ import {
 const close = (a: readonly number[], b: readonly number[], digits = 9): void =>
   a.forEach((v, i) => expect(v, `component ${i}`).toBeCloseTo(b[i] ?? NaN, digits));
 
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
 const BOX: Item = ['box', 0.1, 0.1, 0.1, 'ink.high'];
 const partOf = (build: ReturnType<typeof make>, name: string) => {
   const part = build.parts.find((p) => p.name === name);
@@ -45,19 +68,23 @@ describe('the interpreter', () => {
     const build = make(
       't',
       { rows: [{}, ['a', 0, BOX], ['b', FLAG.hold, BOX, BOX]] },
-      { detail: 1 },
+      { detail: 1, looks: LOOKS },
     );
     expect(build.ground).toHaveLength(80);
     expect(build.parts.map((p) => [p.name, p.tier, p.flags, p.tris.length])).toEqual([
       ['a', 'far', 0, 12],
-      ['b', 'far', 1, 24],
+      ['b', 'far', FLAG.hold, 24],
     ]);
     expect(trianglesOf(build)).toBe(116);
     expect(trianglesOf(build, 'far')).toBe(36);
   });
 
   it('takes a hull as the body itself, with no ground to generate', () => {
-    const build = make('t', { rows: [[BOX, ['bead', 0.1, 'ink.mid']]] }, { detail: 8 });
+    const build = make(
+      't',
+      { rows: [[BOX, ['bead', 0.1, 'ink.mid']]] },
+      { detail: 8, looks: LOOKS },
+    );
     expect(build.ground).toHaveLength(20);
     expect(build.parts).toEqual([]);
   });
@@ -65,8 +92,8 @@ describe('the interpreter', () => {
   it('adds the close-up parts only when it is given them', () => {
     const recipe: BodyRecipe = { rows: [[BOX], ['far-one', 0, BOX]] };
     const near: PartRow[] = [['near-one', 0, BOX, BOX]];
-    expect(trianglesOf(make('t', recipe, { detail: 0 }))).toBe(24);
-    const close = make('t', recipe, { detail: 0, near });
+    expect(trianglesOf(make('t', recipe, { detail: 0, looks: LOOKS }))).toBe(24);
+    const close = make('t', recipe, { detail: 0, looks: LOOKS, near });
     expect(close.parts.map((p) => [p.name, p.tier])).toEqual([
       ['far-one', 'far'],
       ['near-one', 'near'],
@@ -75,7 +102,11 @@ describe('the interpreter', () => {
   });
 
   it('builds a body a slice at a time', () => {
-    const job = makeBody('t', { rows: [{}, ['a', 0, BOX], ['b', 0, BOX]] }, { detail: 2 });
+    const job = makeBody(
+      't',
+      { rows: [{}, ['a', 0, BOX], ['b', 0, BOX]] },
+      { detail: 2, looks: LOOKS },
+    );
     let slices = 0;
     let step = job.next();
     while (!step.done) {
@@ -91,8 +122,8 @@ describe('the interpreter', () => {
     const recipe: BodyRecipe = {
       rows: ({ map }) => [[BOX], ...(map ? [] : [['sign', 0, BOX] as const])],
     };
-    expect(make('t', recipe, { detail: 0 }).parts).toHaveLength(1);
-    expect(make('t', recipe, { detail: 0, map: true }).parts).toHaveLength(0);
+    expect(make('t', recipe, { detail: 0, looks: LOOKS }).parts).toHaveLength(1);
+    expect(make('t', recipe, { detail: 0, looks: LOOKS, map: true }).parts).toHaveLength(0);
   });
 
   it('lights a part by its flags, and an item by its own g', () => {
@@ -105,7 +136,7 @@ describe('the interpreter', () => {
           ['sign', FLAG.flat, BOX, ['bead', 0.1, 'star.warm', { g: 2 }]],
         ],
       },
-      { detail: 0 },
+      { detail: 0, looks: LOOKS },
     );
     expect(partOf(build, 'lamp').tris.every((t) => t.g === 2)).toBe(true);
     expect(partOf(build, 'sign').tris.map((t) => t.g)).toEqual([
@@ -125,9 +156,57 @@ describe('the interpreter', () => {
     expect(() => mk(['blob', 1] as unknown as Item)).toThrow("'blob'");
   });
 
+  it('makes nothing of an empty list', () => {
+    expect(mk([])).toEqual([]);
+    expect(mk(['g'])).toEqual([]);
+    expect(mk(['g', [], BOX])).toHaveLength(12);
+  });
+
+  it('calls the function behind each op, whose parameters are exactly what the rows may say', () => {
+    const KIT = {
+      lathe,
+      cyl,
+      cone,
+      dome,
+      box,
+      prism,
+      ring,
+      rq,
+      quad,
+      tri,
+      poly,
+      glyph,
+      bead,
+      tile,
+      fin,
+      pix,
+    };
+    // Both ways: a kit signature the rows do not follow, or rows the kit cannot take, is a compile
+    // error here (and the op table's own type catches the one direction in rows.ts).
+    expectTypeOf<{ [K in OpName]: Parameters<(typeof KIT)[K]> }>().toEqualTypeOf<{
+      [K in OpName]: KitArgs<K>;
+    }>();
+    expect(Object.keys(OPS).sort()).toEqual(Object.keys(KIT).sort());
+    for (const op of Object.keys(KIT) as OpName[]) expect(OPS[op], op).toBe(KIT[op]);
+  });
+
+  it('asks a body with a ghost for the family its edges are drawn in', () => {
+    const rows: BodyRecipe['rows'] = [[BOX], ['plan', FLAG.ghost, BOX]];
+    expect(() => make('t', { rows }, { detail: 0, looks: LOOKS })).toThrow("'plan' is a ghost");
+    expect(() =>
+      make('t', { rows: [[BOX]] }, { detail: 0, looks: LOOKS, near: [['plan', FLAG.ghost, BOX]] }),
+    ).toThrow("'plan' is a ghost");
+    expect(make('t', { rows, ghost: 'mint' }, { detail: 0, looks: LOOKS }).ghost).toBe('mint');
+    expect(make('t', { rows: [[BOX]] }, { detail: 0, looks: LOOKS }).ghost).toBeUndefined();
+  });
+
   it('refuses two parts of one name: the motion table would move both', () => {
     expect(() =>
-      make('t', { rows: [[BOX], ['a', 0, BOX]] }, { detail: 0, near: [['a', 0, BOX]] }),
+      make(
+        't',
+        { rows: [[BOX], ['a', 0, BOX]] },
+        { detail: 0, looks: LOOKS, near: [['a', 0, BOX]] },
+      ),
     ).toThrow("two parts are called 'a'");
   });
 
