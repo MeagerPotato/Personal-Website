@@ -962,7 +962,7 @@ function MissingNotice({ behind, withheld }: { behind: number; withheld: number 
       <span>
         <strong>The server is missing changes.</strong>{' '}
         {behind > 0
-          ? `It has an older version of ${count(behind, 'record', 'records')} than this device has had, or none at all: it may have been restored from a backup. This device keeps its own, and its changes to them wait here. `
+          ? `It has an older version of ${count(behind, 'record', 'records')} than this device has had, or none at all: it may have been restored from a backup. This device keeps its own, and puts it back as soon as the server takes it. `
           : ''}
         {withheld > 0
           ? `Another of your devices has had ${count(withheld, 'change', 'changes')} that the server hasn’t given this one. `

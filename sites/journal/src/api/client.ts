@@ -112,6 +112,8 @@ export interface Change {
   id: string;
   baseRev: number;
   sealed: string | null;
+  /** The version to write, past baseRev + 1: putting back what the server lost (replica.ts). */
+  rev?: number;
 }
 
 export type PushResult =

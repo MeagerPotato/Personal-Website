@@ -183,9 +183,9 @@ the §0 commands again: days2meet and fishai should still answer from Vercel, un
 - **A bad deploy:** the Worker → **Deployments** → an earlier version → **Rollback**. The
   database keeps its own history as well (D1 Time Travel: a week on Free, a month on Paid), but
   restoring it to an earlier time loses, on the server, everything written since. The devices
-  notice (Settings → **Your data** says the server is missing changes) and keep their copies,
-  but do not put them back yet. So roll back the Worker first, and restore the database only if
-  its data is damaged, after **Export everything** on a device that has synced.
+  put back what they still have when they next sync, but what only the server had is gone. So
+  roll back the Worker first, and restore the database only if its data is damaged, after
+  **Export everything** on a device that has synced.
 - **Deleting the database or the bucket** is the one step that cannot be undone: it destroys
   the journal, except for what each device still holds. Before anything like that, use Settings →
   **Export everything** on a device that has synced.

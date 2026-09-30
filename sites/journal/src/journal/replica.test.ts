@@ -35,7 +35,8 @@ class FakeServer implements ReplicaRemote {
         return { id: change.id, ok: false, current: current ? { ...current } : null };
       }
       this.seq += 1;
-      const next = { id: change.id, rev: change.baseRev + 1, seq: this.seq, sealed: change.sealed };
+      const rev = change.rev ?? change.baseRev + 1;
+      const next = { id: change.id, rev, seq: this.seq, sealed: change.sealed };
       this.records.set(change.id, next);
       return { id: change.id, ok: true, rev: next.rev, seq: next.seq };
     });
@@ -373,6 +374,152 @@ describe('a server that goes back', () => {
     expect(phone.replica.status).toMatchObject({ behind: 1, pending: 1 });
     expect(server.records.has(EVENT)).toBe(false);
     expect(phone.replica.get(EVENT)).toEqual({ kind: 'event', title: 'Launch day', updatedAt: 2 });
+  });
+});
+
+describe('putting back what the server lost', () => {
+  const PERSON = 'r_person0000000000000000';
+  // A backup of the server's records, and restoring one: its numbering goes on (sync.ts).
+  const backUp = () => new Map([...server.records].map(([id, row]) => [id, { ...row }]));
+  const restore = (backup: Map<string, RemoteRecord>) => {
+    server.records = new Map([...backup].map(([id, row]) => [id, { ...row }]));
+  };
+
+  it('sends this device’s versions back past every other, and every device takes them', async () => {
+    const phone = await device();
+    const laptop = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch', updatedAt: 1 });
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    phone.replica.write(PERSON, { kind: 'person', name: 'Maya', updatedAt: 2 });
+    phone.replica.write(EVENT, null);
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    restore(backup); // the day and the event as they were, and no person
+
+    laptop.replica.write(DAY, { kind: 'day', mood: 2, activities: ['gym'], updatedAt: 3 });
+    await laptop.replica.sync();
+    expect(laptop.replica.status.behind).toBe(1);
+    // Changed again since, and not saved yet: what goes up is the latest, and nothing is left over.
+    laptop.replica.write(DAY, { kind: 'day', mood: 4, activities: ['gym'], updatedAt: 3 });
+    // The day with the change held here, the person, and the event's deletion.
+    expect(await laptop.replica.repair()).toBe(3);
+    expect(laptop.replica.status).toMatchObject({ behind: 0, pending: 0 });
+    expect(laptop.store.pending.size).toBe(0);
+
+    const day = { kind: 'day', mood: 4, activities: ['gym'], updatedAt: 3 };
+    const person = { kind: 'person', name: 'Maya', updatedAt: 2 };
+    await phone.replica.sync();
+    const tablet = await device();
+    await tablet.replica.sync();
+    for (const other of [phone, tablet]) {
+      expect(other.replica.get(DAY)).toEqual(day);
+      expect(other.replica.get(PERSON)).toEqual(person);
+      expect(other.replica.get(EVENT)).toBeNull();
+      expect(other.replica.status.behind).toBe(0);
+    }
+    // Nothing is left to put back.
+    const pushes = server.pushes;
+    expect(await laptop.replica.repair()).toBe(0);
+    expect(server.pushes).toBe(pushes);
+  });
+
+  it('merges with what another device wrote after the server went back', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    await phone.replica.sync();
+    restore(backup);
+    // A device new since then writes the day on the older version: another one under rev 2.
+    const tablet = await device();
+    await tablet.replica.sync();
+    tablet.replica.write(DAY, {
+      kind: 'day',
+      mood: 1,
+      note: note('from the tablet'),
+      updatedAt: 3,
+    });
+    await tablet.replica.sync();
+
+    await phone.replica.sync();
+    expect(phone.replica.status.behind).toBe(1);
+    expect(await phone.replica.repair()).toBe(1);
+    const both = {
+      kind: 'day',
+      mood: 1,
+      activities: ['gym'],
+      note: note('from the tablet'),
+      updatedAt: 3,
+    };
+    expect(phone.replica.get(DAY)).toEqual(both);
+    await tablet.replica.sync();
+    expect(tablet.replica.get(DAY)).toEqual(both);
+  });
+
+  it('puts nothing back when the log, read whole, has it all', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    // One wrong answer: no such record.
+    const push = server.push.bind(server);
+    server.push = async (changes) => {
+      server.push = push;
+      return { results: changes.map(({ id }) => ({ id, ok: false as const, current: null })) };
+    };
+    phone.replica.write(DAY, { kind: 'day', mood: 3, updatedAt: 2 });
+    await phone.replica.sync();
+    expect(phone.replica.status.behind).toBe(1);
+
+    expect(await phone.replica.repair()).toBe(0);
+    expect(phone.replica.status.behind).toBe(0);
+    await phone.replica.sync(); // and the change goes up as any other
+    expect(server.records.get(DAY)?.rev).toBe(2);
+    expect(phone.replica.status.pending).toBe(0);
+  });
+
+  it('keeps what was written here while a version went back up', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    await phone.replica.sync();
+    restore(backup);
+    const tablet = await device();
+    await tablet.replica.sync();
+    tablet.replica.write(DAY, {
+      kind: 'day',
+      mood: 1,
+      note: note('from the tablet'),
+      updatedAt: 3,
+    });
+    await tablet.replica.sync();
+    await phone.replica.sync();
+
+    const push = server.push.bind(server);
+    server.push = async (changes) => {
+      // Typed on the phone mid-flight, on the day as it showed it then.
+      phone.replica.write(DAY, { kind: 'day', mood: 5, activities: ['gym'], updatedAt: 4 });
+      server.push = push;
+      return push(changes);
+    };
+    await phone.replica.repair();
+    await phone.replica.sync();
+    await tablet.replica.sync();
+    const all = {
+      kind: 'day',
+      mood: 5,
+      activities: ['gym'],
+      note: note('from the tablet'),
+      updatedAt: 4,
+    };
+    expect(phone.replica.get(DAY)).toEqual(all);
+    expect(tablet.replica.get(DAY)).toEqual(all);
   });
 });
 
