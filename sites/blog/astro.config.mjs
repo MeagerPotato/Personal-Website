@@ -1,3 +1,9 @@
+// @ts-check
+// JavaScript on purpose. Astro imports a .mjs config with Node itself (Node 24 runs the design
+// package's TypeScript as it is), but a .ts config through a Vite of its own, which reads the
+// tsconfig nearest each file: for the two files the design package imports from the main site,
+// the repository root's. That one extends Astro's, which is not installed where only sites/ is
+// (CI, Workers Builds), so the build would fail there and nowhere else.
 import cloudflare from '@astrojs/cloudflare';
 import { defineConfig } from 'astro/config';
 import { fileURLToPath } from 'node:url';

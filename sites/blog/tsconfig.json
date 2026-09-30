@@ -5,6 +5,6 @@
     // come from `npm run cf-typegen`, the DOM from the base config.
     "types": ["./src/worker-configuration.d.ts"]
   },
-  "include": [".astro/types.d.ts", "src", "astro.config.ts"],
+  "include": [".astro/types.d.ts", "src"],
   "exclude": ["dist"]
 }
