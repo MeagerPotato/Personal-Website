@@ -16,8 +16,10 @@ export function readManifest(data: unknown): UniverseManifest {
   if (typeof manifest !== 'object' || manifest === null) {
     throw new Error('universe manifest: not an object');
   }
-  if (manifest.version !== 1) {
-    throw new Error(`universe manifest: version ${String(manifest.version)}, this engine reads 1`);
+  // Only its own version. 2 brought bodies that must never be docked at (a link), which an engine
+  // that reads 1 would dock at: across that deploy each refuses the other, and the page stays plain.
+  if (manifest.version !== 2) {
+    throw new Error(`universe manifest: version ${String(manifest.version)}, this engine reads 2`);
   }
   if (!Array.isArray(manifest.systems) || !Array.isArray(manifest.bodies)) {
     throw new Error('universe manifest: systems or bodies missing');

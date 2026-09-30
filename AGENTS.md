@@ -28,8 +28,10 @@ within reach of a body a quiet prompt offers to orbit it (`E`, or tap it), the s
 the ring and then carried round it, and steering away leaves. **The route and the ship follow
 each other**: a link flies the ship to that page's body with the **autopilot** (the page opens at
 once), docking from inside the world opens the body's page, and a page opened directly boots in
-orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
-first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
+orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there.
+Allen's profiles elsewhere (GitHub, LinkedIn) circle home as **relays** nothing docks at: their
+names are real links, and pointing at one only brings its link forward. A first-time visitor gets
+a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
 "cluster"), the autopilot docks every journey in today's galaxy (median 2.5 s, p90 3.3 s, the
@@ -113,9 +115,9 @@ exact in open space and approximate near planets, which have moved on by then). 
 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
 planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
-station, the satellite, in front of the real sky and lit and post-processed as in the universe,
-with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the light's
-direction, and the tier.
+station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as
+in the universe, with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the
+light's direction, and the tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is
 `src/pages/_lab.astro` (the underscore keeps it out of every build; `astro.config.ts` injects the
 route for the dev server alone) and its scene is `src/universe/lab/LabScene.ts`. A new kind of
@@ -333,6 +335,18 @@ too): if one moves, look at it in flight before updating that list.
 `/old/ /new/ 301`, and the same without the slash: exact paths only, never a wildcard. The
 destination must be a page of the build and no page may link to the old path (`verify-dist`,
 check 3b); `tests/e2e/tree.spec.ts` shows `wrangler dev` answering it.
+
+**Add a profile (a network elsewhere: GitHub, LinkedIn, Devpost).** Give its https URL in
+`site.socials` (`src/config/site.ts`), the one place the URLs live: the home page's "Elsewhere", the
+contact page, the JSON-LD `sameAs` and a relay circling home (its name a real link) all follow, and
+nothing that exists moves. Devpost is that one line. A new relay is a new body, so it changes the
+galaxy's key (`galaxyKey`, `src/universe/manifest.ts`): each open tab's saved pose is dropped once
+on that deploy, as for any new body, and the ship starts afresh. A network the site does not know
+yet is an entry in `PROFILE` (`src/site/profiles.ts`): its label, its note for the home page, and
+the next free `slot` (1 to 7), its place on the Contact satellite's ring in steps of 45 degrees.
+**Never renumber a slot:** it is where the relay flies. The resume keeps its own two links, so a new
+profile never changes its PDF. A relay is a body nothing docks at (`docks: false` in the manifest):
+the autopilot, the assist and the journeys harness go round it.
 
 **Unfinished copy.** Write `TODO(copy)` where words are missing and, on a project, set
 `draft: true`. Drafts show in `npm run dev` and are left out of production. Pages (about, resume,

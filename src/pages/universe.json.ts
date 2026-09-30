@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
+import { site } from '../config/site';
+import { profiles } from '../site/profiles';
 import { toUniverseInput } from '../site/universe-input';
 import { buildUniverse } from '../universe/data/build';
 
@@ -15,7 +17,13 @@ export const GET: APIRoute = async () => {
   ]);
 
   const manifest = buildUniverse(
-    toUniverseInput({ systems, projects, pages, includeDrafts: import.meta.env.DEV }),
+    toUniverseInput({
+      systems,
+      projects,
+      pages,
+      profiles: profiles(site.socials),
+      includeDrafts: import.meta.env.DEV,
+    }),
   );
 
   return new Response(JSON.stringify(manifest), {

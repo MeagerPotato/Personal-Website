@@ -292,7 +292,14 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   there by a tap and cannot know that steering takes the ship back.
 - **Names over the bodies** (`ui/Labels.ts`): one real `<button>` per body in
   `#universe-overlay`, so a name can be tapped, tabbed to and read out, and pressing it is
-  pointing at the body. They read the same map of the screen as the picker. Which names may show
+  pointing at the body. A link (a profile elsewhere, `docks: false` in the manifest: GitHub on
+  the satellite's ring) is the exception: its name is a real `<a rel="me noopener">` in a second
+  group, "Elsewhere", because a link that leaves the site is not a way to fly. Nothing docks at
+  a link: its pull is 0 (`BodyField.docks`, `sim/assist.ts`), so the assist never takes a ship
+  onto its ring and it is never offered, while the cushions and the planner still go round it,
+  and the Navigator refuses every request for it. Pointing at its body (main.ts, `pickRow`)
+  never leaves the site either: it beckons the name (`Labels.beckon`: shown, focused and lit
+  with the next frame), and leaving is a second, explicit press. They read the same map of the screen as the picker. Which names may show
   is `sim/declutter.ts` (pure): where the ship is going first, then systems, planets, moons, the
   nearer first; never touching, never under the panel or the top bar, and steady (a name that
   shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
@@ -494,7 +501,7 @@ run there is a reason to look, not a locked door.
 | Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
-| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station or satellite on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |
+| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
 The lab and the tuning panel are imported behind `import.meta.env.DEV`. A production build drops

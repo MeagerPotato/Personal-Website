@@ -59,10 +59,26 @@ export interface PageInput {
   dock: DockKind;
 }
 
+/**
+ * A profile on another site (src/site/profiles.ts): a relay on the Contact satellite's ring, at
+ * `slot` steps of 45 degrees ahead of the satellite. Its `href` is the profile itself, never a
+ * page of this site, so the ship can never dock at it.
+ */
+export interface LinkInput {
+  /** The network: "github". Its body is "link/github". */
+  id: string;
+  title: string;
+  href: string;
+  /** 1 to 7; 0 is the satellite. Never renumbered: it is where the relay is. */
+  slot: number;
+}
+
 export interface UniverseInput {
   systems: readonly SystemInput[];
   projects: readonly ProjectInput[];
   pages: readonly PageInput[];
+  /** Allen's profiles elsewhere, as relays round the home planet. None when left out. */
+  links?: readonly LinkInput[] | undefined;
   /**
    * The page that lists every project. It is nobody's own page, so it is shown from the sun of
    * the first system (for a binary, its primary sun): that is where the projects are. (From
@@ -76,7 +92,8 @@ export interface UniverseInput {
 // OUTPUT: /universe.json. Everything the engine needs to place, draw and label the galaxy, and
 // nothing it does not (no prose: that lives in the HTML pages).
 
-export type BodyKind = 'sun' | 'planet' | 'moon' | DockKind;
+/** `link`: a profile on another site, circling home as a relay; it is only ever in the way. */
+export type BodyKind = 'sun' | 'planet' | 'moon' | DockKind | 'link';
 
 export interface Orbit {
   /** Distance from the parent's centre, in world units. */
@@ -91,7 +108,10 @@ export interface ManifestBody {
   id: string;
   kind: BodyKind;
   title: string;
-  /** The page this body docks to. The router maps URL -> body through this. */
+  /**
+   * The page this body docks to. The router maps URL -> body through this. For a `link`, the
+   * other site it stands for: never routed, never docked at.
+   */
   href: string;
   /** Id of the ManifestSystem it belongs to. */
   system: string;
@@ -109,6 +129,12 @@ export interface ManifestBody {
   flagship?: boolean;
   /** Planned work, not built yet: drawn and labelled as such. Absent for everything else. */
   planned?: true;
+  /**
+   * Only ever `false`, for a body the ship can never dock at (a link): no orbit is offered round
+   * it, and nothing flies there. It is still solid, so it is only in the way. Absent for every
+   * body that can be docked at.
+   */
+  docks?: false;
 }
 
 export interface ManifestSystem {
@@ -133,7 +159,8 @@ export interface ManifestLane {
 }
 
 export interface UniverseManifest {
-  version: 1;
+  /** 2 since links (bodies the ship must never dock at): an engine that reads 1 would dock at one. */
+  version: 2;
   systems: ManifestSystem[];
   bodies: ManifestBody[];
   lanes: ManifestLane[];

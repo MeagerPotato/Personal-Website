@@ -8,30 +8,21 @@
 // next page what it made of it.
 
 import type { Page } from '@playwright/test';
-import { engineReady, expect, openUniverse, test, universe } from './support';
+import {
+  engineReady,
+  expect,
+  keptNow,
+  loadWith,
+  openUniverse,
+  test,
+  universe,
+  type Kept,
+} from './support';
 
-/** The shell's key in sessionStorage (src/shell/pose-memory.ts). */
-const KEY = 'universe:snapshot';
 /** An hour of simulation (60 steps a second): a clock no page in these tests reaches by itself. */
 const HOUR = 60 * 60 * 60;
 
-/** As much of a snapshot as these tests read or change (src/universe/core/snapshot.ts). */
-interface Kept {
-  steps: number;
-  ship: { x: number; z: number; vx: number; vz: number; heading: number; yawRate: number };
-  dock: { id: string; docked: boolean } | null;
-  galaxy?: string;
-}
-
 const apart = (a: Kept['ship'], b: Kept['ship']): number => Math.hypot(a.x - b.x, a.z - b.z);
-
-/** What the page would leave behind if it went away now: the shell saves on `pagehide`. */
-function keptNow(page: Page): Promise<Kept> {
-  return page.evaluate((key) => {
-    dispatchEvent(new Event('pagehide'));
-    return JSON.parse(sessionStorage.getItem(key) ?? 'null') as Kept;
-  }, KEY);
-}
 
 /**
  * The sky, and a snapshot of THIS galaxy with the ship somewhere else an hour later: at rest,
@@ -48,32 +39,6 @@ async function elsewhere(page: Page): Promise<{ spawn: Kept; moved: Kept }> {
     ship: { ...spawn.ship, x: 2 * x, z: 2 * z, vx: 0, vz: 0, yawRate: 0 },
   };
   return { spawn, moved };
-}
-
-let plantings = 0;
-
-/**
- * Load `path` (or reload) with `planted` in storage. The page that goes away saves its own
- * snapshot first (pagehide), so the planting happens at the start of the next document, before
- * any of the page's scripts, and only once.
- */
-async function loadWith(page: Page, planted: unknown, path?: string): Promise<void> {
-  plantings += 1;
-  await page.addInitScript(
-    ({ key, value, flag }) => {
-      try {
-        if (sessionStorage.getItem(flag) !== null) return;
-        sessionStorage.setItem(flag, '1');
-        sessionStorage.setItem(key, value);
-      } catch {
-        // A document with no storage of its own (about:blank): nothing to plant.
-      }
-    },
-    { key: KEY, value: JSON.stringify(planted), flag: `e2e:planted:${plantings}` },
-  );
-  if (path === undefined) await page.reload();
-  else await page.goto(universe(path));
-  await engineReady(page);
 }
 
 /** A key that is certainly not this galaxy's: its first digit changed. */
