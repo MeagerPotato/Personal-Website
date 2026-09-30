@@ -5,6 +5,14 @@
 // Playwright turns this cache off in Chromium (`--disable-back-forward-cache`), so this file
 // turns it back on. WebKit's page cache is not driven by that switch: whether it restores there
 // is reported, not required (a real iPhone is the launch checklist's, §3).
+//
+// On a busy machine (a dozen browsers starting at once, at the top of a local run) Chromium
+// sometimes starts a restore, cancels its own navigation and loads the page afresh, visit after
+// visit, until the machine calms down. It says so and says nothing else: the only reason it
+// gives is `navigation-canceled` ("cancelled after js eviction was disabled", in Chromium's
+// words), which is about the machine, not the page. So the visit is made again, at growing
+// intervals, until Chromium finishes one. Any other reason (an unload listener, `no-store`, a
+// request left open, …) is the page's own doing and fails the test at once.
 
 import type { Page } from '@playwright/test';
 import {
@@ -33,6 +41,9 @@ test.use({
   ],
 });
 
+// Room for a minute of visits that Chromium cancels (see the header), on top of the test itself.
+test.describe.configure({ timeout: 150_000 });
+
 /** Counts the times this document is shown again from the cache. */
 async function countRestores(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -49,13 +60,61 @@ const restores = (page: Page): Promise<number> =>
   page.evaluate(() => (window as Window & { e2eRestored?: number }).e2eRestored ?? 0);
 
 /**
- * Away by a full load, then Back. A restore fires no load event. (Away to a blank page, the
- * nearest thing to another site here: a page of this site with ?plain would change the mode
- * the visitor chose, and a page restored after that rightly reloads in the new mode.)
+ * What became of the visit: 'restored', 'pending', or, for a page that was loaded afresh, the
+ * reasons the browser gives (Chromium's `notRestoredReasons`; none in WebKit).
  */
-async function awayAndBack(page: Page, away: string): Promise<void> {
-  await page.goto(away);
+const outcome = (page: Page): Promise<string> =>
+  page
+    .evaluate(() => {
+      if (((window as Window & { e2eRestored?: number }).e2eRestored ?? 0) > 0) return 'restored';
+      const entry = performance.getEntriesByType('navigation')[0] as
+        | (PerformanceEntry & {
+            type?: string;
+            notRestoredReasons?: { reasons?: { reason: string }[] } | null;
+          })
+        | undefined;
+      if (entry?.type !== 'back_forward') return 'pending';
+      return (entry.notRestoredReasons?.reasons ?? []).map((r) => r.reason).join(' ') || 'none';
+    })
+    // The document may change under the question; ask again.
+    .catch(() => 'pending');
+
+/** Leave by a full load, then Back. A restore fires no load event. */
+async function awayAndBack(page: Page): Promise<void> {
+  await page.goto('about:blank');
   await page.goBack({ waitUntil: 'commit' });
+}
+
+/**
+ * Open the page, leave, come back, and say what became of the visit; a visit that Chromium
+ * cancelled itself is tried again (see the header). Away to a blank page, the nearest thing to
+ * another site here: a page of this site with ?plain would change the mode the visitor chose,
+ * and a page restored after that rightly reloads in the new mode.
+ */
+async function visitAwayAndBack(page: Page, open: () => Promise<void>): Promise<string> {
+  let visits = 0;
+  const visit = async (): Promise<string> => {
+    visits += 1;
+    await open();
+    await markDocument(page);
+    await awayAndBack(page);
+    let result = 'pending';
+    await expect.poll(async () => (result = await outcome(page))).not.toBe('pending');
+    return result;
+  };
+  let result = 'pending';
+  await expect
+    .poll(async () => (result = await visit()), {
+      timeout: 60_000,
+      intervals: [1_000, 2_000, 4_000],
+    })
+    .not.toBe('navigation-canceled');
+  if (visits > 1) {
+    test
+      .info()
+      .annotations.push({ type: 'restores Chromium cancelled', description: `${visits - 1}` });
+  }
+  return result;
 }
 
 test('Back after leaving the site restores the page in plain mode, still plain', async ({
@@ -64,11 +123,12 @@ test('Back after leaving the site restores the page in plain mode, still plain',
 }) => {
   test.skip(browserName === 'webkit', 'WebKit under Playwright: reported by the universe test');
   await countRestores(page);
-  await page.goto(plain('/about/'));
-  await markDocument(page);
-  await awayAndBack(page, 'about:blank');
+  const result = await visitAwayAndBack(page, async () => {
+    await page.goto(plain('/about/'));
+  });
 
-  await expect.poll(() => restores(page)).toBe(1);
+  expect(result).toBe('restored');
+  expect(await restores(page)).toBe(1);
   expect(await sameDocument(page)).toBe(true);
   await expect(page.locator('html')).toHaveAttribute('data-mode', 'plain');
   await expect(page.locator('main h1')).toHaveText('About');
@@ -79,13 +139,16 @@ test('Back after leaving the site restores the world as it was, and it is still 
   browserName,
 }) => {
   await countRestores(page);
-  await page.goto(universe('/about/'));
-  await engineReady(page);
-  await markDocument(page);
-  await awayAndBack(page, 'about:blank');
+  const open = async (): Promise<void> => {
+    await page.goto(universe('/about/'));
+    await engineReady(page);
+  };
 
   if (browserName === 'webkit') {
-    // Reported, not required: see the header.
+    // Reported, not required: see the header. One visit, no second try.
+    await open();
+    await markDocument(page);
+    await awayAndBack(page);
     const restored = await expect
       .poll(() => restores(page), { timeout: 5_000 })
       .toBe(1)
@@ -97,7 +160,8 @@ test('Back after leaving the site restores the world as it was, and it is still 
     return;
   }
 
-  await expect.poll(() => restores(page)).toBe(1);
+  expect(await visitAwayAndBack(page, open)).toBe('restored');
+  expect(await restores(page)).toBe(1);
   expect(await sameDocument(page)).toBe(true);
   expect(await sameCanvas(page)).toBe(true);
   const html = page.locator('html');
