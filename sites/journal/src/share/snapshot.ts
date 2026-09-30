@@ -6,7 +6,8 @@
  * Sizes: portrait (1080 × 1350, a feed post), story (1080 × 1920), square (1080 × 1080). The
  * parts stack from the top. When they do not all fit, the calendar shrinks first (and moves the
  * mood summary and activities into a column beside it), then the photos; only then is a part
- * left out (the note first), and the caller is told which.
+ * left out (the note first), and the caller is told which. Room left over goes to the photos, as
+ * far as their own shape allows.
  */
 import { monthGrid, monthName, shortDate, weekdayNames } from '../model/dates';
 import type { MonthSummary } from '../model/stats';
@@ -171,6 +172,8 @@ const PAD = 72;
 const GAP = 28;
 /** Between the calendar and the column beside it. */
 const COLUMN_GAP = 48;
+/** Between photos side by side. */
+const PHOTO_GAP = 16;
 /** Kept free at the bottom for the journal's mark. */
 const MARK = 56;
 const HEADER = 150;
@@ -332,6 +335,19 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
   }
   plan ??= plans[plans.length - 1] as Plan;
 
+  // Room left over (a story is tall) goes to the photos: up to their average height at this
+  // width, so that they show more of themselves rather than less, and never past 3:4.
+  if (parts.has('photos')) {
+    const w = (inner - PHOTO_GAP * (photos.length - 1)) / photos.length;
+    const natural =
+      photos.reduce((sum, { image }) => sum + (w * image.height) / Math.max(image.width, 1), 0) /
+      photos.length;
+    const tallest = Math.min(natural, (w * 4) / 3);
+    const slack = room - measure(plan, parts);
+    const grown = Math.floor(Math.min(plan.photoHeight + slack, tallest));
+    plan = { ...plan, photoHeight: Math.max(plan.photoHeight, grown) };
+  }
+
   // --- Drawing ---------------------------------------------------------------------------------------
 
   const drawHeader = (y: number) => {
@@ -412,10 +428,9 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
   };
 
   const drawPhotos = (y: number, h: number) => {
-    const gap = 16;
-    const w = (inner - gap * (photos.length - 1)) / photos.length;
+    const w = (inner - PHOTO_GAP * (photos.length - 1)) / photos.length;
     photos.forEach(({ image }, i) => {
-      const x = PAD + i * (w + gap);
+      const x = PAD + i * (w + PHOTO_GAP);
       ctx.save();
       roundRect(ctx, x, y, w, h, 18);
       ctx.clip();

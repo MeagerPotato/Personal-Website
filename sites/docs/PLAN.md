@@ -130,7 +130,8 @@ cron drains and retries.
 **Known details for D** (noticed while building; none blocks a launch):
 
 - On the day page, the activity chips take more room than the writing; try them folded.
-- The story-sized snapshot leaves room at the bottom; give it to the photos.
+- A story-sized snapshot gives its spare room to the photos, but three or four landscape photos
+  in one row are already as tall as their shape allows: they could take two rows instead.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
 - The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
   that the server is hiding recent changes) is designed but not built (journal-crypto.md,

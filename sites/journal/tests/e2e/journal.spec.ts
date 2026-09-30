@@ -12,6 +12,7 @@ import {
   type BrowserContextOptions,
   type Page,
 } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
@@ -269,7 +270,31 @@ test('the month review draws its snapshot', async () => {
   await page.getByRole('link', { name: 'Month review' }).click();
   const picture = page.locator('.share__preview img');
   await expect(picture).toBeVisible();
-  expect(await picture.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1080);
+  // Each shape at its own size (and, for a look, saved beside the screenshots).
+  const shapes = page.getByRole('radiogroup', { name: 'Shape' });
+  for (const [shape, height] of [
+    ['Story', 1920],
+    ['Square', 1080],
+    ['Post', 1350],
+  ] as const) {
+    await shapes.getByRole('radio', { name: shape }).click();
+    await expect
+      .poll(() =>
+        picture.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+      )
+      .toEqual([1080, height]);
+    if (SHOTS) {
+      // Through a canvas: the page's policy lets nothing fetch the picture's blob: address.
+      const png = await picture.evaluate((image: HTMLImageElement) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        canvas.getContext('2d')?.drawImage(image, 0, 0);
+        return canvas.toDataURL('image/png').split(',')[1] ?? '';
+      });
+      writeFileSync(join(SHOTS, `journal-snapshot-${shape.toLowerCase()}.png`), png, 'base64');
+    }
+  }
 });
 
 test('the year in pixels is one tab stop, walked with the keyboard', async () => {
