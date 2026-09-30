@@ -11,10 +11,12 @@ import { createRng } from '../sim/rng';
 // moon, widens the rings from that planet outwards. Angles never change. Phase 3's
 // galaxy.lock.json pins even that.
 //
-// One exception reaches further: in a BINARY STAR (binaryOrbits) the two suns circle their centre
-// at radii set by both families' reach. A planet or a moon added under either sun moves both
-// suns' orbit radii and their shared period (never their angles at t = 0), and with them every
-// body of the binary; nothing outside it moves. galaxy.lock.json will pin those too.
+// One exception reaches further: in a BINARY STAR (binaryOrbits) each sun circles the centre at a
+// radius set by the OTHER family's reach (so that both reach equally far from it). A planet or a
+// moon added under one sun widens that family's reach, which moves the other sun's orbit radius,
+// the separation, the binary's reach and the pair's shared period (never their angles at t = 0,
+// and not the growing family's own sun's radius), and with them where every body of the binary is
+// at any later time; nothing outside the binary moves. galaxy.lock.json will pin those too.
 
 const L = tuning.layout;
 const TAU = Math.PI * 2;

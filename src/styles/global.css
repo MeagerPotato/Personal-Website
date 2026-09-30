@@ -1119,10 +1119,15 @@ main > .resume-section {
 
 /*
  * A sun of a binary star says so, under its tagline here and after its prose on its own page:
- * which binary it belongs to, and the twin it circles opposite. A quieter voice than the tagline.
+ * which binary it belongs to, and the twin it circles opposite. Small print, a step quieter than
+ * the tagline: `sm` in the paragraph's `ink.mid`, as a caption or a card's summary is set. Here it
+ * is a second line of the sun's caption, so it keeps the tagline's indent and sits as close under
+ * it as the tagline sits under the name (`.system > p`: the grid's space-4 less space-2), and the
+ * first planet keeps the air it has after a tagline alone. On the sun's page it follows the prose
+ * at the page's own pace (`main > * + *`), within the measure like any paragraph.
  */
 .twin {
-  color: var(--color-ink-mid);
+  font-size: var(--text-sm);
 }
 
 .system > .cards {

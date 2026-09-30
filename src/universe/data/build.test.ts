@@ -604,9 +604,23 @@ describe('buildUniverse', () => {
       const [a, b] = [familyOf('system/software'), familyOf('system/hardware')];
       const binarySystem = manifest.systems[1];
       const [cx, cz] = binarySystem?.position ?? [NaN, NaN];
+
+      // Whatever the phases: each family's docking rings, all the way round every orbit, stay
+      // within its footprint of its sun, and the suns are opposite, so where the two footprints
+      // face each other they are exactly the gap apart (to the 2 places positions are kept).
+      const [software, hardware] = [get('system/software'), get('system/hardware')];
+      const facing =
+        (software.orbit?.radius ?? NaN) +
+        (hardware.orbit?.radius ?? NaN) -
+        footprint(manifest, software) -
+        footprint(manifest, hardware);
+      expect(facing).toBeGreaterThanOrEqual(L.binaryGap - 0.05);
+      expect(facing).toBeLessThanOrEqual(L.binaryGap + 0.05);
+
       for (const t of [0, 1000, 5000]) {
         bodyPositions(orbits, t, positions);
-        // Where the families face each other, their docking rings keep the gap between them.
+        // And sampled where the bodies really are: no two of different families come closer,
+        // docking ring to docking ring, than the gap.
         let closest = Infinity;
         for (const one of a) {
           for (const other of b) {
@@ -663,11 +677,12 @@ describe('buildUniverse', () => {
       expect(JSON.stringify(buildUniverse(shuffled))).toBe(JSON.stringify(buildUniverse(input)));
     });
 
-    it('moves both suns and their period when one family grows, and nothing outside the binary', () => {
-      // The one exception to "adding a project moves nothing" (data/layout.ts): the suns circle
-      // at radii set by both families' reach. Their angles at t = 0 stay, and so does every
-      // body's orbit round its own sun or planet, and everything outside the binary. (Without
-      // Days2Meet, so that the binary has room to grow within today's limit.)
+    it('moves the other sun and the period when one family grows, and nothing outside the binary', () => {
+      // The one exception to "adding a project moves nothing" (data/layout.ts): each sun circles
+      // at a radius set by the OTHER family's reach, and the pair's period by both. Their angles at
+      // t = 0 stay, and so does every body's orbit round its own sun or planet, and everything
+      // outside the binary. (Without Days2Meet, so that the binary has room to grow within
+      // today's limit.)
       const withResearch = (extra: ProjectInput[]): UniverseInput =>
         binary({
           systems: [...binary().systems, system('research', 2, { theme: 'lilac' })],
