@@ -2289,7 +2289,8 @@ main > .resume-name + .resume-contact {
    * The names are part of the world, as the canvas is: a finger on one never scrolls or zooms the
    * page, and on the map a finger that moves on a name drags the map (universe/ui/StarMap.ts).
    * A link's name (Allen's profiles elsewhere, `data-kind='link'`) is a real link, in a group of its
-   * own, with an outward arrow; pointing at its body beckons it (`data-beckon`).
+   * own, with an outward arrow; pointing at its body beckons it (`data-beckon`). Every other name
+   * wears its family (`data-theme`): the family's glyph before the name, as on the page's eyebrow.
    */
   .body-labels {
     position: absolute;
@@ -2382,10 +2383,29 @@ main > .resume-name + .resume-contact {
     font-weight: 500;
   }
 
+  /* The family's glyph before the name, in its base colour: which system a body belongs to,
+     read off its tag as off a line's bullet on a transit map, and never by colour alone. In the
+     flow, so that the engine measures the name with it; centred on the line whichever side of its
+     body the tag is on. */
+  .body-label[data-theme]:not([data-kind='link']) {
+    gap: 0.4em;
+  }
+
+  .body-label[data-theme]:not([data-kind='link'])::before {
+    content: '';
+    flex: none;
+    width: 0.6em;
+    height: 0.6em;
+    margin-block: 0.4em;
+    background: var(--theme-base);
+    clip-path: var(--theme-glyph);
+    scale: var(--theme-glyph-scale);
+  }
+
   /* A link leaves the site (a profile elsewhere): an arrow pointing out, after the name, in the
      name's own ink. In the flow, so that the engine measures the name with it; centred on the
      line whichever side of its body the tag is on. Drawn by clip-path: no icon font, no image. A
-     link is never where the ship is headed, so its ::before is free (a target's holds its dot). */
+     link wears no family glyph: its ::before is the arrow. */
   .body-label[data-kind='link'] {
     gap: 0.3em;
   }
@@ -2502,42 +2522,30 @@ main > .resume-name + .resume-contact {
     }
   }
 
-  /* Where the ship is headed: the one tag filled in, with a station dot. */
+  /* Where the ship is headed: the one tag filled in, its glyph turned navy, the station it stops
+     at. (The tag keeps its size: the engine can read a tag grown to the left, its `left`, and
+     measures none here.) */
   .body-label[data-state='target'],
   .body-label[data-state='target']:hover {
     color: var(--color-space-900);
   }
 
-  /* The tag grows to the left to hold the dot: out of the flow, because the engine measured the
-     name without it. The engine reads how far (this `left`) and keeps the dot off the ship too. */
   .body-label[data-state='target']::after {
-    left: -0.75rem;
     background: var(--color-focus);
   }
 
-  .body-label[data-state='target']::before {
-    content: '';
-    position: absolute;
-    top: calc(var(--space-1) + 0.45em);
-    left: -0.125rem;
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: var(--radius-pill);
+  /* (As specific as the glyph's own rule, `:not()` counting its argument, and after it.) */
+  .body-label[data-theme][data-state='target']::before {
     background: var(--color-space-900);
   }
 
-  .body-label[data-state='target'][data-side='above']::before {
-    top: auto;
-    bottom: calc(var(--space-1) + 0.45em);
-  }
-
-  /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,
-     like the tag's border. And they would paint a link's arrow in the colour of the tag it sits
-     on, when it is the one sign that the name leaves the site: it takes the colour forced colours
-     give the name, the system's link colour. (Not currentColor: an element they leave alone
-     inherits the page's own ink, the cream, which may be the very colour of a light tag.) */
+  /* Forced colours would drop a glyph's fill and leave a gap before the name: the text colour,
+     like the target tag's border. And they would paint a link's arrow in the colour of the tag it
+     sits on, when it is the one sign that the name leaves the site: it takes the colour forced
+     colours give the name, the system's link colour. (Not currentColor: an element they leave
+     alone inherits the page's own ink, the cream, which may be the very colour of a light tag.) */
   @media (forced-colors: active) {
-    .body-label[data-state='target']::before {
+    .body-label[data-theme]:not([data-kind='link'])::before {
       forced-color-adjust: none;
       background: CanvasText;
     }

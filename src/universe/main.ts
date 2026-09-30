@@ -17,7 +17,7 @@ import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
-import { galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
+import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
@@ -299,6 +299,7 @@ export function boot(
     // A name under every body that has room for one: pressing it is pointing at the body, and
     // for a link (which nothing docks at) following the link.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+    const families = familiesOf(manifest);
     labels = engine.add(
       new Labels({
         overlay: options.overlay,
@@ -310,6 +311,7 @@ export function boot(
             kind: body?.kind ?? 'moon',
             planned: body?.planned === true,
             href: body?.docks === false ? body.href : undefined,
+            theme: families.get(id),
           };
         }),
         params: tuning.labels,

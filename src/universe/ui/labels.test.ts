@@ -139,6 +139,8 @@ describe('Labels', () => {
     ]);
     expect(buttons.every((button) => button.type === 'button')).toBe(true);
     expect(buttons.map((button) => button.dataset.kind)).toEqual(['sun', 'planet', 'moon', 'home']);
+    // Each wears its family, whose glyph its tag shows (global.css): here, none was given.
+    expect(buttons.every((button) => button.dataset.theme === undefined)).toBe(true);
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
@@ -695,5 +697,32 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     labels.dispose();
     cleanup = null;
     expect(overlay.children).toHaveLength(0);
+  });
+});
+
+describe('the family of each name', () => {
+  it('wears the family it is given, and a link (whose mark is its arrow) wears it too', () => {
+    document.body.innerHTML = '<div id="overlay"></div>';
+    const overlay = document.getElementById('overlay') as HTMLElement;
+    const screen = createScreenMap(3);
+    const labels = new Labels({
+      overlay,
+      screen,
+      bodies: [
+        { title: 'Software', kind: 'sun', theme: 'sky' },
+        { title: 'Robotics', kind: 'planet', theme: 'coral' },
+        { title: 'GitHub', kind: 'link', href: 'https://github.com/someone', theme: 'butter' },
+      ],
+      params: PARAMS,
+      view: { freeWidth: 1, freeHeight: 1 },
+      target: () => -1,
+      docked: () => false,
+      onPick: () => undefined,
+    });
+    const themes = [...overlay.querySelectorAll<HTMLElement>('.body-label')].map(
+      (name) => `${name.textContent ?? ''}:${name.dataset.theme ?? '-'}`,
+    );
+    expect(themes).toEqual(['Software:sky', 'Robotics:coral', 'GitHub:butter']);
+    labels.dispose();
   });
 });

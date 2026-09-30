@@ -1,4 +1,5 @@
 import type { System, Viewport } from '../core/Engine';
+import type { ThemeKey } from '../design/tokens';
 import type { ManifestBody } from '../manifest';
 import {
   createLabelBoxes,
@@ -33,13 +34,15 @@ export interface LabelsOptions {
   /**
    * By row of the orbit table. `planned`: work not built yet, and its name says so. `href`: a
    * profile on another site (a link, which nothing docks at): its name is a real link to it, in a
-   * group of its own, and pressing it leaves the site the way any link does.
+   * group of its own, and pressing it leaves the site the way any link does. `theme`: the colour
+   * family it wears (manifest.ts, `familiesOf`), whose glyph its tag shows before the name.
    */
   bodies: ReadonlyArray<{
     readonly title: string;
     readonly kind: BodyKind;
     readonly planned?: boolean;
     readonly href?: string | undefined;
+    readonly theme?: ThemeKey | undefined;
   }>;
   params: LabelsParams;
   /** The part of the view that the info panel leaves free, as shares of its width and height. */
@@ -116,7 +119,10 @@ export class Labels implements System {
   private readonly widths: Float64Array;
   private readonly heights: Float64Array;
   private readonly tags: Float64Array;
-  /** How far the target's tag reaches left of its box, to hold the station dot (CSS px). */
+  /**
+   * How far the target's tag reaches left of its box (CSS px), should the stylesheet grow it
+   * there: 0 while the target's mark is its glyph, in the flow (global.css).
+   */
   private lead = 0;
   private leadMeasured = false;
   private readonly wasShown: Uint8Array;
@@ -159,6 +165,8 @@ export class Labels implements System {
       name.classList.add('body-label');
       name.dataset.row = String(row);
       name.dataset.kind = body.kind;
+      // Its family: the tag's glyph is `--theme-glyph` in `--theme-base` (global.css).
+      if (body.theme !== undefined) name.dataset.theme = body.theme;
       this.names.push(name);
     });
     const links = this.names.filter((name) => name instanceof HTMLAnchorElement);
