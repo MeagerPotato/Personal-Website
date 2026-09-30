@@ -211,9 +211,12 @@ describe('systemSchema: three shapes', () => {
       'tagline: required: one sentence under its name',
     ]);
     expect(issues({ ...sun, theme: 'coral', position: [0, 900] })).toEqual([
-      "theme: a sun of a binary wears its binary's family; leave it out",
       'position: a sun of a binary goes where its binary goes; leave it out',
     ]);
+    // Its own colour family is its to choose (Hardware's coral beside Software's sky), or its
+    // binary's without one.
+    expect(issues({ ...sun, theme: 'coral' })).toEqual([]);
+    expect(issues(sun)).toEqual([]);
     expect(issues({ name: 'Hardware' })).toEqual([
       'tagline: required: one sentence under its name',
     ]);

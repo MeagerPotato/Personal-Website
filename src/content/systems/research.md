@@ -1,7 +1,7 @@
 ---
 name: Research
 tagline: Questions I want to answer with data. Planned, for now.
-theme: lilac
+theme: mint
 order: 2
 ---
 

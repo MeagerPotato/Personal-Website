@@ -444,6 +444,26 @@ describe('a binary star in the project tree', () => {
       'software',
     ]);
   });
+
+  it('dresses a sun that wears a family of its own in it, and keeps the binary’s', () => {
+    const own = TREE.map((entry) =>
+      entry.id === 'hardware'
+        ? { ...entry, data: { ...entry.data, theme: 'coral' as const } }
+        : entry,
+    );
+    const mixed = buildProjectTree(own, TREE_PROJECTS);
+    const each = mixed.flatMap((system) => system.suns);
+    // The binary's own family is its projects index's: sky.
+    expect(mixed[0]).toMatchObject({ id: 'projects', theme: 'sky' });
+    expect(each.find((entry) => entry.id === 'software')?.theme).toBe('sky');
+    const hardware = each.find((entry) => entry.id === 'hardware');
+    expect(hardware?.theme).toBe('coral');
+    expect(hardware?.planets.map((planet) => planet.theme)).toEqual(['coral', 'coral']);
+    // Its page and its planets' pages.
+    expect(systemView(own[1] as SystemLike, own, TREE_PROJECTS).theme).toBe('coral');
+    const robotics = TREE_PROJECTS.find((entry) => entry.id === 'robotics') as ProjectLike;
+    expect(projectContext(robotics, own, TREE_PROJECTS).theme).toBe('coral');
+  });
 });
 
 describe('where a project of a binary sits', () => {

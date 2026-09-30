@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildUniverse as buildWithReach } from './data/build';
 import type { ProjectInput, UniverseInput, UniverseManifest } from './data/types';
-import { galaxyKey } from './manifest';
+import { familiesOf, galaxyKey } from './manifest';
 
 /**
  * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
@@ -54,6 +54,38 @@ function withBody(
   change(body);
   return copy;
 }
+
+describe('familiesOf', () => {
+  it('gives every body its system’s family, or that of the first sun up its chain with its own', () => {
+    const manifest = buildUniverse(input());
+    const families = familiesOf(manifest);
+    for (const body of manifest.bodies) {
+      const system = manifest.systems.find((entry) => entry.id === body.system);
+      expect(families.get(body.id), body.id).toBe(system?.theme);
+    }
+    // A sun that wears a family of its own passes it to its planets and their moons.
+    const sun = manifest.bodies.find((body) => body.kind === 'sun');
+    if (!sun) throw new Error('fixture');
+    const own = {
+      ...manifest,
+      bodies: manifest.bodies.map((body) =>
+        body === sun ? { ...body, theme: 'lilac' as const } : body,
+      ),
+    };
+    const byId = new Map(own.bodies.map((body) => [body.id, body]));
+    const under = (id: string): boolean => {
+      for (let at = byId.get(id); at; at = byId.get(at.parent ?? ''))
+        if (at.id === sun.id) return true;
+      return false;
+    };
+    const mixed = familiesOf(own);
+    for (const body of own.bodies) {
+      const system = own.systems.find((entry) => entry.id === body.system);
+      expect(mixed.get(body.id), body.id).toBe(under(body.id) ? 'lilac' : system?.theme);
+    }
+    expect([...own.bodies].filter((body) => under(body.id)).length).toBeGreaterThan(2);
+  });
+});
 
 describe('galaxyKey', () => {
   const manifest = buildUniverse(input());

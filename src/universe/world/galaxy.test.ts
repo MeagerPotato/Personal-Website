@@ -1,4 +1,4 @@
-import { Vector3, type Mesh, type Object3D } from 'three';
+import { Color, Vector3, type LineBasicMaterial, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
@@ -6,6 +6,7 @@ import { JobQueue } from '../core/jobs';
 import { buildUniverse as buildWithReach } from '../data/build';
 import type { UniverseInput } from '../data/types';
 import { KEY_LIGHT_POSITION, type ToonMaterial } from '../design/materials';
+import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import {
   centerBodyOf,
@@ -745,6 +746,69 @@ describe('Galaxy, where suns move', () => {
       else
         expect(lightFrom(galaxy, at).angleTo(own), planet).toBeLessThan((within * Math.PI) / 180);
     }
+    galaxy.dispose();
+  });
+
+  it('draws each sun’s rings and paths in its own family, when it wears one', () => {
+    const systems: UniverseInput['systems'] = [
+      ...input.systems,
+      {
+        id: 'pair',
+        name: 'Pair',
+        href: '/projects/',
+        theme: 'sky',
+        order: 2,
+        position: 'auto',
+        suns: ['soft', 'hard'],
+      },
+      { id: 'soft', name: 'Soft', href: '/systems/soft/', position: 'auto' },
+      { id: 'hard', name: 'Hard', href: '/systems/hard/', position: 'auto', theme: 'coral' },
+    ];
+    const built = buildUniverse({
+      ...input,
+      systems,
+      projects: [
+        ...input.projects,
+        project('demo', { system: 'soft', rings: true }),
+        project('online', { parent: 'demo', size: 's' }),
+        project('meet', { system: 'soft' }),
+        project('rocket', { system: 'hard', rings: true }),
+        project('payload', { parent: 'rocket', size: 's' }),
+      ],
+    });
+    const galaxy = new Galaxy({
+      manifest: built,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+      bodies: NO_ROWS,
+    });
+    const lineOf = (id: string): Color => {
+      const line = galaxy.object.getObjectByName(`${id}:orbit`) as Mesh | undefined;
+      if (!line) throw new Error(`no path of ${id}`);
+      return (line.material as LineBasicMaterial).color;
+    };
+    const ringOf = (id: string): Color => {
+      const ring = galaxy.object
+        .getObjectByName(id)
+        ?.getObjectByName('planetRing')
+        ?.getObjectByProperty('type', 'Mesh') as Mesh;
+      return (ring.material as unknown as { uniforms: { uTint: { value: Color } } }).uniforms.uTint
+        .value;
+    };
+    const shade = (family: ThemeKey): Color => new Color(tokens.color.system[family].shade);
+    const light = (family: ThemeKey): Color => new Color(tokens.color.system[family].light);
+    // Hardware's own coral: its path round the centre, its planets', its moons', its rings.
+    for (const id of ['system/hard', 'project/rocket', 'project/payload']) {
+      expect(lineOf(id).equals(shade('coral')), id).toBe(true);
+    }
+    expect(ringOf('project/rocket').equals(light('coral'))).toBe(true);
+    // Software wears none of its own: its binary's sky.
+    for (const id of ['system/soft', 'project/demo', 'project/online']) {
+      expect(lineOf(id).equals(shade('sky')), id).toBe(true);
+    }
+    expect(ringOf('project/demo').equals(light('sky'))).toBe(true);
     galaxy.dispose();
   });
 });

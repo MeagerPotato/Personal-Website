@@ -1003,7 +1003,6 @@ describe('buildUniverse', () => {
         'binary "nested": sun "projects" is itself a binary',
         'binary "nested": sun "twins" is itself a binary',
         'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its order',
-        'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its theme',
         'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its position',
         'system "software" is listed as a sun by both "projects" and "twins"',
         'project "odd-one": "projects" is a binary star; its planets orbit one of its suns: set system to "software" or "hardware"',
@@ -1011,6 +1010,31 @@ describe('buildUniverse', () => {
         'system "pale": needs a theme, its colour family',
       ]) {
         expect(problems).toContain(expected);
+      }
+      // A family of its own is a sun's to wear.
+      expect(problems.join('\n')).not.toMatch(/leave out its theme/);
+    });
+
+    it('lets a sun of a binary wear a colour family of its own, and says so in the manifest', () => {
+      const own = buildUniverse(
+        binary({
+          systems: binary().systems.map((entry) =>
+            entry.id === 'hardware' ? { ...entry, theme: 'coral' as const } : entry,
+          ),
+        }),
+      );
+      const suns = byId(own);
+      expect(suns.get('system/hardware')?.theme).toBe('coral');
+      // Without one it wears its binary's, and the manifest says nothing.
+      expect(suns.get('system/software')).not.toHaveProperty('theme');
+      expect(own.systems.find((entry) => entry.id === 'projects')?.theme).toBe(
+        binary().systems[0]?.theme,
+      );
+      // A colour moves nothing: every body is where it was.
+      for (const body of own.bodies) {
+        const rest: Partial<ManifestBody> = { ...body };
+        delete rest.theme;
+        expect(rest, body.id).toEqual(bodies.get(body.id));
       }
     });
   });

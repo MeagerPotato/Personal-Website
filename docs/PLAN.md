@@ -115,26 +115,32 @@ Fish family moved under a planet that is the game itself.
 | Destination | Kind | Route |
 |---|---|---|
 | Projects | Binary star (`systems/projects.md`: name, family, slot, `suns`) | `/projects/` (the index is its page; in the universe it is shown from Software) |
-| Software sun | Sun of Projects (primary) | `/systems/software/` |
+| Software sun | Sun of Projects (primary), sky | `/systems/software/` |
 | ↳ CyberPatriot | Planet, completed, no cover | `/projects/cyberpatriot/` |
 | ↳ **Canadian Fish** | Planet (was a moon of FishAI) | `/projects/canadian-fish-demo/` |
 | ↳ ↳ **FishAI** (flagship), Fish Onboarding | Moons | `/projects/fishai/`, `/projects/fish-onboarding/` |
 | ↳ ↳ Fish Online | Moon, planned | `/projects/fish-online/` |
 | ↳ Days2Meet | Planet | `/projects/days2meet/` |
-| Hardware sun | Sun of Projects | `/systems/hardware/` |
+| Hardware sun | Sun of Projects, coral (its own family, since 2026-09-30: below) | `/systems/hardware/` |
 | ↳ Model Rocketry, Robotics | Planets, completed, no cover | `/projects/model-rocketry/`, `/projects/robotics/` |
 | `/systems/code/`, `/systems/code` | 301 to `/systems/software/` (`public/_redirects`) | |
 
 The home planet is called "About Me" (the tree's name; the nav keeps "About").
 
+**Families per sun (2026-09-30, with the emblem worlds, "allocation A").** A sun of a binary may
+wear a colour family of its own (`theme` in its file; without one it wears its binary's), and its
+planets and moons wear what it wears, in the galaxy (their rings' glow, their orbit lines, their
+names' glyphs) and on the pages. The worlds were drawn for one family per sun: Software sky (the
+binary's, which the projects index keeps), Hardware coral, Research mint, Hackathons lilac.
+
 **The second half (2026-09-30): Research and Hackathons**, two systems of one sun in slots 2 and 3.
 
 | Destination | Kind | Route |
 |---|---|---|
-| Research sun | System (lilac, `order` 2) | `/systems/research/` |
+| Research sun | System (mint, `order` 2; lilac until the worlds) | `/systems/research/` |
 | ↳ Sports Analysis | Planet, planned | `/projects/sports-analysis/` |
 | ↳ ↳ Kalshi | Moon, planned | `/projects/kalshi/` |
-| Hackathons sun | System (coral, `order` 3) | `/systems/hackathons/` |
+| Hackathons sun | System (lilac, `order` 3; coral until the worlds) | `/systems/hackathons/` |
 | ↳ Hackathons @ Berkeley | Planet, in progress (logistics director), a lane to Cal Hacks 13.0 | `/projects/hackathons-at-berkeley/` |
 | ↳ HackGT 13 | Planet, shipped (HEARSAY, team dh squad) | `/projects/hackgt-13/` |
 | ↳ Cal Hacks 13.0 | Planet, in progress (organizing, October 23 to 25, 2026) | `/projects/cal-hacks-13/` |

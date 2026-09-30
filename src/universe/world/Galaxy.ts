@@ -249,8 +249,9 @@ export class Galaxy implements System {
     }
     // One line for each path, named after the first body on it in the manifest. A path is its
     // circle: the body it goes round (or its system's centre) and its radius. It wears the
-    // family of that first body (bodies that share a path are of one family: the relays and the
-    // Contact satellite are home's).
+    // family of that first body: bodies that share a path are of one family (the relays and the
+    // Contact satellite are home's), except the two suns of a binary whose families reach exactly
+    // as far, whose one circle wears the primary's.
     const paths = new Map<string, OrbitLine>();
     for (const body of manifest.bodies) {
       const system = this.systems.get(body.system);

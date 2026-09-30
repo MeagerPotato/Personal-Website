@@ -18,7 +18,10 @@ export interface SystemInput {
   name: string;
   /** Its sun's page. A binary has no sun of its own: its page is the projects index. */
   href: string;
-  /** The colour family of a system, or of a binary (its two suns share it). */
+  /**
+   * The colour family of a system, or of a binary; a sun of a binary may wear one of its own,
+   * and without one wears its binary's.
+   */
   theme?: ThemeKey | undefined;
   /**
    * Slot in the galaxy's honeycomb, 1 upwards (slot 0 is the home system). Explicit, so it is
@@ -135,6 +138,11 @@ export interface ManifestBody {
   flagship?: boolean;
   /** Planned work, not built yet: drawn and labelled as such. Absent for everything else. */
   planned?: true;
+  /**
+   * A sun of a binary that wears a colour family of its own (Hardware's coral beside Software's
+   * sky): its planets and moons wear it too (manifest.ts, `familiesOf`). Absent: its system's.
+   */
+  theme?: ThemeKey;
   /**
    * Only ever `false`, for a body the ship can never dock at (a link): no orbit is offered round
    * it, and nothing flies there. It is still solid, so it is only in the way. Absent for every

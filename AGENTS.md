@@ -330,9 +330,11 @@ Moons cannot have moons. Promoting a moon to a planet is swapping that one line;
 **A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
 file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no
 page of its own (its page is the projects index, shown in the universe from the primary). Each
-sun is a file of its own with `name` and `tagline` and its text: no `order`, `theme` or
-`position`, since it goes where its binary goes and wears its family; its page is
-`/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
+sun is a file of its own with `name` and `tagline` and its text: no `order` or `position`,
+since it goes where its binary goes; a `theme` if it wears a family of its own (Software sky,
+Hardware coral), else it wears its binary's, and its planets and moons wear what it wears, in
+the galaxy (`familiesOf`, `src/universe/manifest.ts`) and on the pages (`familyOf`,
+`src/site/view-models.ts`); its page is `/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
 if one does. A binary is the one exception to "adding a project moves nothing": a planet under
 one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
 And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a

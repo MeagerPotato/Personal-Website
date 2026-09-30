@@ -118,7 +118,8 @@ interface Ref {
 /**
  * An entry of the systems collection, in one of its three shapes (src/site/schemas.ts): a solar
  * system (`order`, `theme`: its sun is itself), a binary star (`order`, `theme`, `suns`), or a
- * sun of a binary (neither: its binary gives it a place and a colour family).
+ * sun of a binary (no `order`: its binary gives it a place, and a colour family unless it wears
+ * one of its own).
  */
 export interface SystemLike {
   id: string;
@@ -191,13 +192,16 @@ export interface ProjectCard {
 const binaryOf = (sunId: string, systems: readonly SystemLike[]): SystemLike | undefined =>
   systems.find((system) => system.data.suns?.some((sun) => sun.id === sunId));
 
-/** The colour family a sun wears: its own system's, or its binary's (both suns share it). */
+/**
+ * The colour family a sun wears: its own (a solar system's, or a sun of a binary that has one),
+ * or else its binary's. The galaxy says the same with universe/manifest.ts, `familiesOf`.
+ */
 const familyOf = (sun: SystemLike, systems: readonly SystemLike[]): ThemeKey | undefined =>
   sun.data.theme ?? binaryOf(sun.id, systems)?.data.theme;
 
 /**
- * The colour family of a project's system: its sun's, or, for a moon, its planet's sun's (a sun
- * of a binary wears its binary's).
+ * The colour family of a project: its sun's, or, for a moon, its planet's sun's (a sun of a
+ * binary wears its own, or else its binary's).
  */
 export function projectTheme(
   project: ProjectLike,

@@ -135,9 +135,9 @@ function validate(input: UniverseInput): string[] {
     if (system.id === HOME) problems.push(`system id "${HOME}" is reserved for the home system`);
     const binary = binaryOf.get(system.id);
     if (binary !== undefined) {
-      // A sun of a binary goes where its binary goes, in its binary's colours.
-      const own = { order: system.order, theme: system.theme, position: system.position };
-      for (const key of ['order', 'theme', 'position'] as const) {
+      // A sun of a binary goes where its binary goes (in its own colours, or its binary's).
+      const own = { order: system.order, position: system.position };
+      for (const key of ['order', 'position'] as const) {
         if (own[key] === undefined || own[key] === 'auto') continue;
         problems.push(
           `system "${system.id}" is listed as a sun by "${binary}", so it goes where ` +
@@ -510,11 +510,18 @@ function buildBinary(
     );
   }
 
+  // A sun that wears a family of its own says so; one that does not wears its binary's.
+  const own = (sun: SystemInput): { theme?: ThemeKey } =>
+    sun.theme === undefined ? {} : { theme: sun.theme };
   return {
     bodies: [
-      { ...a.sun, orbit: { radius: round(pair.a), phase, periodSec } },
+      { ...a.sun, ...own(primary), orbit: { radius: round(pair.a), phase, periodSec } },
       ...a.bodies,
-      { ...b.sun, orbit: { radius: round(pair.b), phase: round(phase + Math.PI, 4), periodSec } },
+      {
+        ...b.sun,
+        ...own(secondary),
+        orbit: { radius: round(pair.b), phase: round(phase + Math.PI, 4), periodSec },
+      },
       ...b.bodies,
     ],
     reach: pair.reach,

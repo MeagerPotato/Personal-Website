@@ -33,7 +33,9 @@ const FAMILIES = `${THEME_KEYS.filter((key) => key !== 'butter').join(', ')}; bu
  *   a solar system    name, tagline, theme, order, [position], [link]   one sun: itself
  *   a binary star     name, theme, order, suns, [position]              two suns, no page: its
  *                                                                       page is the projects index
- *   a sun of a binary name, tagline, [link]                             goes where its binary goes
+ *   a sun of a binary name, tagline, [theme], [link]                    goes where its binary goes,
+ *                                                                       in its own family or its
+ *                                                                       binary's
  *
  * Each file is checked here on its own; what spans files (a sun no binary lists, a binary naming
  * a sun that is not there) is buildUniverse()'s, which lists every problem at once.
@@ -46,7 +48,10 @@ export const systemSchema = <Reference extends z.ZodType>({
       name: z.string().min(1).max(32),
       /** One sentence under the sun's name. A binary has none: each of its suns has its own. */
       tagline: z.string().min(1).max(120).optional(),
-      /** A system's colour family; a binary's two suns share their binary's. */
+      /**
+       * A system's colour family, or a binary's. A sun of a binary may wear one of its own (each
+       * of Projects' suns does: Software sky, Hardware coral); without one it wears its binary's.
+       */
       theme: z.enum(THEME_KEYS).optional(),
       /** Slot in the galaxy, from 1 (0 is home). NEVER reuse or renumber: it IS the position. */
       order: z.number().int().min(1).optional(),
@@ -75,10 +80,8 @@ export const systemSchema = <Reference extends z.ZodType>({
         }
         if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
       } else {
-        // No order and no suns: a sun of a binary, placed and coloured by the binary.
-        if (data.theme !== undefined) {
-          issue('theme', "a sun of a binary wears its binary's family; leave it out");
-        }
+        // No order and no suns: a sun of a binary, placed by the binary, and in its own family
+        // or the binary's.
         if (data.position !== undefined) {
           issue('position', 'a sun of a binary goes where its binary goes; leave it out');
         }

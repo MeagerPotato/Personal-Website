@@ -104,16 +104,26 @@ export function nearestNeighbourOf(
 }
 
 /**
- * The colour FAMILY every body wears, by id: its system's. What the galaxy draws in it: the glow
- * of a planet's ring and the lines of the orbits (world/Galaxy.ts); its name tag's glyph
- * (ui/Labels.ts). A body of a system the manifest does not list has none.
+ * The colour FAMILY every body wears, by id: that of the first sun up its chain of parents that
+ * wears one of its own (a sun of a binary may: Hardware's coral beside Software's sky), else its
+ * system's. What the galaxy draws in it: the glow of a planet's ring and the lines of the orbits
+ * (world/Galaxy.ts); its name tag's glyph (ui/Labels.ts). The pages say the same with
+ * src/site/view-models.ts, `familyOf`. A body of a system the manifest does not list has none.
  */
 export function familiesOf(manifest: UniverseManifest): ReadonlyMap<string, ThemeKey> {
   const themes = new Map(manifest.systems.map((system) => [system.id, system.theme]));
+  const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
   const families = new Map<string, ThemeKey>();
   for (const body of manifest.bodies) {
-    const theme = themes.get(body.system);
-    if (theme !== undefined) families.set(body.id, theme);
+    let theme = themes.get(body.system);
+    if (theme === undefined) continue;
+    for (let at: ManifestBody | undefined = body; at; at = byId.get(at.parent ?? '')) {
+      if (at.kind === 'sun' && at.theme !== undefined) {
+        theme = at.theme;
+        break;
+      }
+    }
+    families.set(body.id, theme);
   }
   return families;
 }
