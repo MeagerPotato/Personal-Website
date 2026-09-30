@@ -231,6 +231,13 @@ const project = (id: string, over: Partial<ProjectInput>): ProjectInput => ({
 });
 
 /**
+ * How many slots of the galaxy these systems fill: the entries with an `order`. The two suns of
+ * a binary star are entries too, but they share their binary's slot.
+ */
+const slotsFilled = (systems: readonly SystemInput[]): number =>
+  systems.filter((system) => system.order !== undefined).length;
+
+/**
  * The real content plus synthetic systems until there are `systemCount` systems, home included.
  * Each takes the lowest order no real system claims, so this keeps working as Allen adds systems.
  */
@@ -241,7 +248,7 @@ export function grow(real: UniverseInput, systemCount: number): UniverseInput {
   const projects: ProjectInput[] = [...real.projects];
   let order = 1;
   for (const extra of SYNTHETIC) {
-    if (systems.length + 1 >= systemCount) break;
+    if (slotsFilled(systems) + 1 >= systemCount) break;
     if (ids.has(extra.id)) continue;
     while (taken.has(order)) order += 1;
     taken.add(order);
@@ -263,8 +270,8 @@ export function grow(real: UniverseInput, systemCount: number): UniverseInput {
       }
     }
   }
-  if (systems.length + 1 < systemCount) {
-    throw new Error(`only ${systems.length + 1} systems can be made; add more to SYNTHETIC`);
+  if (slotsFilled(systems) + 1 < systemCount) {
+    throw new Error(`only ${slotsFilled(systems) + 1} systems can be made; add more to SYNTHETIC`);
   }
   return { ...real, systems, projects };
 }
@@ -325,7 +332,10 @@ export function buildGalaxy(
     const systems = input.systems.map((system): SystemInput => {
       const placed = overrides.positions?.[system.id];
       if (placed) return { ...system, position: placed };
-      if (formula === null || system.position !== 'auto') return system;
+      // A sun of a binary has no slot of its own: it goes where its binary goes.
+      if (formula === null || system.position !== 'auto' || system.order === undefined) {
+        return system;
+      }
       return { ...system, position: formula(system.order, system.id, slotPosition) };
     });
     return buildUniverse({ ...input, systems });
