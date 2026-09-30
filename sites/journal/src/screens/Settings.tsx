@@ -15,7 +15,7 @@ import {
   setPassphrase,
   type UnlockTicket,
 } from '../account/account';
-import { api, type DeviceReminder, type Passkey } from '../api/client';
+import { api, ApiError, type DeviceReminder, type Passkey } from '../api/client';
 import { useJournal, useLock } from '../app/context';
 import { collectGarbage, queuedUploads } from '../journal/files';
 import { BUILT_IN_TEMPLATES, DEFAULT_ACTIVITIES, DEFAULT_PROMPTS } from '../model/defaults';
@@ -96,6 +96,14 @@ function useFreshTicket(): () => Ticket | null {
     return current;
   };
 }
+
+/** Ends this device's session; false if the server could not be told. */
+const signOutHere = (): Promise<boolean> =>
+  api.logout().then(
+    () => true,
+    // A session that had already ended is as good as ended.
+    (error: unknown) => error instanceof ApiError && error.status === 401,
+  );
 
 function SecuritySection() {
   const journal = useJournal();
@@ -272,9 +280,18 @@ function SecuritySection() {
             }
             void journal
               .close()
-              .then(() => api.logout().catch(() => undefined))
-              .then(() => wipe())
-              .then(() => location.reload());
+              .then(signOutHere)
+              .then(
+                (ended) =>
+                  ended ||
+                  confirm(
+                    'The journal’s server can’t be reached, so this device stays signed in to it for up to an hour. That opens nothing: the keys go with the journal. Remove it from this device anyway?',
+                  ),
+              )
+              .then(async (go) => {
+                if (go) await wipe();
+                location.reload();
+              });
           }}
         >
           Remove from this device

@@ -108,9 +108,10 @@ save over the version it started from, so two tabs on one post ask which version
 instead of losing either. Until the server has it, the writing is also kept on the device
 (`studio/screens/post/backup.ts`), so a tab that dies first (offline, a crash) loses nothing:
 the post opened there again brings it back, or asks which version to keep if the server's draft
-has moved on since. Signing out saves first; what cannot be saved yet goes at the next sign-in.
-Mail (a subscription's confirmation, a new post) goes through an outbox in D1 that a cron
-drains and retries.
+has moved on since. Signing out saves first (what cannot be saved yet goes at the next sign-in),
+and counts only once the blog has ended the session: offline, the studio says it is still
+signed in. Mail (a subscription's confirmation, a new post) goes through an outbox in D1 that a
+cron drains and retries.
 
 ## 4. Roadmap
 
@@ -130,7 +131,6 @@ drains and retries.
 
 - On the day page, the activity chips take more room than the writing; try them folded.
 - The story-sized snapshot leaves room at the bottom; give it to the photos.
-- Passkeys are labelled by device type ("iPhone"); let Allen rename them.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
 - The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
   that the server is hiding recent changes) is designed but not built (journal-crypto.md,

@@ -381,6 +381,40 @@ test('no screen has a serious accessibility issue', async () => {
   expect.soft(await seriousIssues(page, 'lock screen'), 'lock screen').toEqual([]);
 });
 
+test('removed from a device that cannot tell the server, the journal says it stays signed in', async () => {
+  const { page } = phone;
+  const remove = page.getByRole('button', { name: 'Remove from this device' });
+  const unlock = page.getByRole('button', { name: /^Unlock with/ });
+  // The browser's own questions, answered in turn.
+  const answers: boolean[] = [];
+  const asked: string[] = [];
+  page.on('dialog', (dialog) => {
+    asked.push(dialog.message());
+    void (answers.shift() ? dialog.accept() : dialog.dismiss());
+  });
+  // The session cannot be ended: no connection for that one request.
+  await page.route('**/api/logout', (route) => route.abort('internetdisconnected'));
+
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.locator('#more').getByRole('link', { name: 'Settings' }).click();
+  await expect(title(page)).toHaveText('Settings');
+
+  // Remove? Yes. Still signed in to the server, then: remove anyway? No, and the journal stays.
+  answers.push(true, false);
+  await remove.click();
+  await expect.poll(() => asked.length).toBe(2);
+  expect(asked[1]).toContain('can’t be reached');
+  await expect(unlock).toBeVisible();
+
+  // Yes both times: this device is empty, and joins again like a new one.
+  await unlock.click();
+  await expect(title(page)).toHaveText('Settings');
+  answers.push(true, true);
+  await remove.click();
+  await expect(page.getByRole('button', { name: 'Use recovery phrase' })).toBeVisible();
+  expect(asked).toHaveLength(4);
+});
+
 test('neither device logged an error or a CSP violation', () => {
   expect(laptop.problems).toEqual([]);
   expect(phone.problems).toEqual([]);

@@ -1,10 +1,6 @@
-/**
- * The passkey ceremonies, through @simplewebauthn/browser, with the API's two halves around each;
- * and signing out.
- */
+/** The passkey ceremonies, through @simplewebauthn/browser, with the API's two halves around each. */
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { api } from './api';
-import { DraftSession } from './screens/post/session';
 
 type CreationOptions = Parameters<typeof startRegistration>[0]['optionsJSON'];
 type RequestOptions = Parameters<typeof startAuthentication>[0]['optionsJSON'];
@@ -46,12 +42,6 @@ export async function signIn(): Promise<void> {
     optionsJSON: begin.options as unknown as RequestOptions,
   });
   await api.loginFinish({ challengeId: begin.challengeId, response });
-}
-
-/** Ends the session, once whatever is written has been saved if it can be: signed out, it cannot. */
-export async function signOut(): Promise<void> {
-  await DraftSession.saveAll().catch(() => undefined);
-  await api.logout().catch(() => undefined);
 }
 
 export async function addPasskey(label: string): Promise<void> {

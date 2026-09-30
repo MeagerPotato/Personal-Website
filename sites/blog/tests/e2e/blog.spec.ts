@@ -1,9 +1,9 @@
 // The blog end to end: Allen sets up the studio with a passkey, writes a post with every kind of
 // block and publishes it; a reader reads it (with JavaScript and without), and comments; Allen
 // approves and replies; two tabs on one post meet a conflict; writing that never reached the
-// server comes back, and signing out saves first; and every page, the readers' and the studio's,
-// passes axe in light and in dark. One blog for the whole file, so the tests run in order and
-// each builds on the last.
+// server comes back; signing out saves first, and only counts once the blog has heard it; and
+// every page, the readers' and the studio's, passes axe in light and in dark. One blog for the
+// whole file, so the tests run in order and each builds on the last.
 
 import { AxeBuilder } from '@axe-core/playwright';
 import {
@@ -502,6 +502,31 @@ test('signing out saves the writing first; what cannot be saved goes at the next
   expect(await kept(page)).toEqual([]);
   await page.reload();
   await expect(summary).toHaveValue('Written with no connection.');
+});
+
+test('a sign-out the blog never heard of is not one: the studio says so, and tries again', async () => {
+  const { page } = allen;
+  const signOut = page.locator('.sidebar').getByRole('button', { name: 'Sign out' });
+  const dialog = page.getByRole('dialog', { name: 'Not signed out' });
+  // No connection for that one request: the session cannot be ended.
+  await page.route('**/auth/logout/', (route) => route.abort('internetdisconnected'));
+
+  await signOut.click();
+  await expect(dialog).toContainText('can’t be reached');
+  expect.soft(await seriousIssues(page, 'studio-not-signed-out'), 'not signed out').toEqual([]);
+  // Left as it is, the studio is still signed in, and still all there.
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.sidebar')).toBeVisible();
+
+  // Once the blog can be reached, trying again signs out.
+  await signOut.click();
+  await expect(dialog).toBeVisible();
+  await page.unroute('**/auth/logout/');
+  await dialog.getByRole('button', { name: 'Try again' }).click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  await page.getByRole('button', { name: /^Sign in with/ }).click();
+  await expect(page.locator('.sidebar')).toBeVisible();
 });
 
 test('no page has a serious accessibility issue', async ({ browser }) => {

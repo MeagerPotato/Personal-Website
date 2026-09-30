@@ -485,8 +485,11 @@ auth.delete('/credentials/:id', async (c) => {
     n: number;
   }>();
   if ((count?.n ?? 0) <= 1) throw new HttpError(409, 'Keep at least one passkey');
+  // Its slot goes, and every session it signed in: a lost device stops talking to the server now,
+  // not when its session runs out.
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM slots WHERE credential_id = ?1').bind(id),
+    c.env.DB.prepare('DELETE FROM sessions WHERE credential_id = ?1').bind(id),
     c.env.DB.prepare('DELETE FROM credentials WHERE id = ?1').bind(id),
   ]);
   return c.json({ ok: true });
