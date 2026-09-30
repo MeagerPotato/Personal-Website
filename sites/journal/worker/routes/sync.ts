@@ -9,6 +9,11 @@
  * on its own (it can read the content; the server cannot), and tries again. D1 runs a batch as one
  * transaction, statement after statement, so seq numbers come out unique and in order without a
  * lock or a Durable Object. A deletion is a tombstone (sealed = NULL) so other devices learn of it.
+ * No row is ever removed: any of them may be listed in a device's manifest, the rollback check.
+ *
+ * seq never goes back, even if the database does (D1 Time Travel, the runbook's undo): it counts
+ * on from the clock, in microseconds, so a write after a restore still numbers past every cursor
+ * a device holds, and every device pulls it.
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -80,36 +85,45 @@ sync.post('/sync', async (c) => {
   }
 
   const now = Date.now();
-  const nextSeq = '(SELECT COALESCE(MAX(seq), 0) + 1 FROM records)';
+  // ?4 is `now` in both statements.
+  const nextSeq = '(SELECT MAX(COALESCE(MAX(seq), 0) + 1, ?4 * 1000) FROM records)';
   const statements = changes.map((change) =>
     change.baseRev === 0
       ? c.env.DB.prepare(
           `INSERT INTO records (id, rev, seq, sealed, size, updated_at)
-           VALUES (?1, 1, ${nextSeq}, ?2, ?3, ?4) ON CONFLICT (id) DO NOTHING`,
+           VALUES (?1, 1, ${nextSeq}, ?2, ?3, ?4) ON CONFLICT (id) DO NOTHING
+           RETURNING rev, seq`,
         ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now)
       : c.env.DB.prepare(
           `UPDATE records SET rev = rev + 1, seq = ${nextSeq}, sealed = ?2, size = ?3, updated_at = ?4
-           WHERE id = ?1 AND rev = ?5`,
+           WHERE id = ?1 AND rev = ?5
+           RETURNING rev, seq`,
         ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now, change.baseRev),
   );
-  const results = await c.env.DB.batch(statements);
+  // What each write made, from the write itself: read afterwards, it could already be another
+  // device's next version, and this device would take that for its own.
+  const written = (await c.env.DB.batch<Pick<RecordRow, 'rev' | 'seq'>>(statements)).map(
+    (result) => result.results[0],
+  );
 
-  const placeholders = changes.map((_, i) => `?${i + 1}`).join(', ');
-  const current = await c.env.DB.prepare(
-    `SELECT id, rev, seq, sealed FROM records WHERE id IN (${placeholders})`,
-  )
-    .bind(...changes.map((change) => change.id))
-    .all<RecordRow>();
-  const byId = new Map(current.results.map((row) => [row.id, row]));
+  const refused = changes.filter((_, i) => !written[i]);
+  const current = new Map<string, RecordRow>();
+  if (refused.length > 0) {
+    const placeholders = refused.map((_, i) => `?${i + 1}`).join(', ');
+    const rows = await c.env.DB.prepare(
+      `SELECT id, rev, seq, sealed FROM records WHERE id IN (${placeholders})`,
+    )
+      .bind(...refused.map((change) => change.id))
+      .all<RecordRow>();
+    for (const row of rows.results) current.set(row.id, row);
+  }
 
   return c.json({
     results: changes.map((change, i) => {
-      const row = byId.get(change.id);
-      if ((results[i]?.meta.changes ?? 0) === 1 && row) {
-        return { id: change.id, ok: true as const, rev: row.rev, seq: row.seq };
-      }
+      const row = written[i];
+      if (row) return { id: change.id, ok: true as const, rev: row.rev, seq: row.seq };
       // Someone else wrote first: here is what is there now, to merge with and retry.
-      return { id: change.id, ok: false as const, current: row ?? null };
+      return { id: change.id, ok: false as const, current: current.get(change.id) ?? null };
     }),
   });
 });

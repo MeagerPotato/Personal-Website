@@ -12,6 +12,11 @@
  * answers with what is there now, the device merges, seals again on the new version, and
  * retries. Nothing here knows about kinds of record: it moves JSON documents.
  *
+ * It never goes back. A version older than the one it has, another version under the same
+ * number, or none at all where it had one, is the server going back (restored from a backup,
+ * or keeping changes from it: journal-crypto.md, "Sync"): the record is counted as `behind`,
+ * this device's copy stays as it is, and its changes to it wait here for the next session.
+ *
  * Headless and testable: the server, the storage and the sealing are all passed in.
  */
 import type { Change, PushResult, RemoteRecord } from '../api/client';
@@ -74,6 +79,8 @@ export class Replica {
   private readonly listeners = new Set<(ids: readonly string[]) => void>();
   /** Records whose conflicts cannot be merged here (the server copy is unreadable). */
   private readonly stuck = new Set<string>();
+  /** Records the server has gone back on (see above). */
+  private readonly behind = new Set<string>();
   private cursor = 0;
   private clock = 0;
   private queue: Promise<unknown> = Promise.resolve();
@@ -129,10 +136,32 @@ export class Replica {
     }
   }
 
-  get status(): { pending: number; unreadable: number; stuck: number; cursor: number } {
+  get status(): {
+    pending: number;
+    unreadable: number;
+    stuck: number;
+    behind: number;
+    cursor: number;
+  } {
     let unreadable = 0;
     for (const entry of this.confirmed.values()) if (entry.unreadable) unreadable += 1;
-    return { pending: this.local.size, unreadable, stuck: this.stuck.size, cursor: this.cursor };
+    return {
+      pending: this.local.size,
+      unreadable,
+      stuck: this.stuck.size,
+      behind: this.behind.size,
+      cursor: this.cursor,
+    };
+  }
+
+  /** The version of a record the server last confirmed to this device (0: none). */
+  revision(id: string): number {
+    return this.confirmed.get(id)?.rev ?? 0;
+  }
+
+  /** Every record the server has confirmed to this device, with its version. */
+  *versions(): IterableIterator<[string, number]> {
+    for (const [id, entry] of this.confirmed) yield [id, entry.rev];
   }
 
   subscribe(listener: (ids: readonly string[]) => void): () => void {
@@ -169,6 +198,40 @@ export class Replica {
       await this.pullNow(report);
       await this.pushNow(report);
       return report;
+    });
+  }
+
+  /**
+   * Puts what this device says about itself (its manifest, manifest.ts) on the server now, over
+   * whichever version is there. A statement, not a change: never merged, never kept to send
+   * later, never counted as waiting. 'behind' if the server has gone back on it: best given up
+   * for a new id.
+   */
+  publish(id: string, doc: Doc): Promise<'published' | 'behind'> {
+    return this.exclusive(async () => {
+      for (let round = 0; round < PUSH_ROUNDS; round += 1) {
+        const known = this.confirmed.get(id);
+        const baseRev = known?.rev ?? 0;
+        const sealed = await this.codec.seal(id, baseRev + 1, doc);
+        const [result] = (await this.remote.push([{ id, baseRev, sealed }])).results;
+        if (result?.id !== id) break;
+        if (result.ok) {
+          this.confirmed.set(id, { rev: result.rev, seq: result.seq, doc });
+          await this.store.confirm([{ id, rev: result.rev, seq: result.seq, sealed }]);
+          this.emit([id]);
+          return 'published';
+        }
+        if (wentBack(known, result.current)) {
+          this.behind.add(id);
+          return 'behind';
+        }
+        // Written first by another tab of this browser (the same device): say it again on top.
+        if (result.current) {
+          this.confirmed.set(id, await this.openConfirmed(result.current));
+          await this.store.confirm([result.current]);
+        }
+      }
+      throw new Error('The server would not take this device’s manifest');
     });
   }
 
@@ -235,8 +298,12 @@ export class Replica {
       const fresh: StoredRecord[] = [];
       for (const change of page.changes) {
         const known = this.confirmed.get(change.id);
-        // Our own write coming back, or an old version replayed: nothing new.
-        if (known && known.rev >= change.rev) continue;
+        if (known && known.rev >= change.rev) {
+          // Our own write coming back is the version we have; anything else, the server going back.
+          if (wentBack(known, change)) this.behind.add(change.id);
+          continue;
+        }
+        this.behind.delete(change.id);
         const next = await this.openConfirmed(change);
         this.confirmed.set(change.id, next);
         fresh.push(change);
@@ -257,7 +324,8 @@ export class Replica {
     for (let round = 0; round < PUSH_ROUNDS; round += 1) {
       await this.flushNow();
       const outgoing = [...this.local].filter(
-        ([id, entry]) => entry.savedStamp === entry.stamp && !this.stuck.has(id),
+        ([id, entry]) =>
+          entry.savedStamp === entry.stamp && !this.stuck.has(id) && !this.behind.has(id),
       );
       if (outgoing.length === 0) return;
 
@@ -298,15 +366,20 @@ export class Replica {
   }
 
   private async rejected(id: string, current: RemoteRecord | null): Promise<void> {
+    const known = this.confirmed.get(id);
+    if (wentBack(known, current)) {
+      // Merged with, the server's older version would undo what this device has: keep it as is.
+      this.behind.add(id);
+      return;
+    }
     const mine = this.local.get(id);
     if (!mine) return;
     if (current === null) {
-      // The server has no such record (it was reset?): start again from nothing.
-      this.confirmed.delete(id);
+      // Neither the server nor this device has a version of it: send it again, as new.
       mine.savedStamp = 0;
       return;
     }
-    const base = this.confirmed.get(id)?.doc ?? null;
+    const base = known?.doc ?? null;
     const next = await this.openConfirmed(current);
     this.confirmed.set(id, next);
     await this.store.confirm([current]);
@@ -318,6 +391,16 @@ export class Replica {
     const now = this.local.get(id);
     if (now) now.savedStamp = 0;
   }
+}
+
+/**
+ * Whether the server's version of a record goes back on the one this device had confirmed: an
+ * older one, another under the same number (each version has one seq, for good), or none.
+ */
+function wentBack(known: Confirmed | undefined, current: RemoteRecord | null): boolean {
+  if (!known) return false;
+  if (current === null) return true;
+  return current.rev < known.rev || (current.rev === known.rev && current.seq !== known.seq);
 }
 
 async function inBatches<T>(items: readonly T[], task: (item: T) => Promise<void>): Promise<void> {

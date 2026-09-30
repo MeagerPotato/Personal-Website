@@ -37,7 +37,8 @@ encrypted under keys derived from it:
 
 - `recordWrap` (AES-256-GCM, by HKDF-SHA-256): wraps each record's own random key.
 - `ids` (HMAC-SHA-256): turns a name like `day:2026-09-29` into an id the server cannot read.
-- `manifest` (HMAC-SHA-256): reserved for a rollback check (see "Limits"); not used yet.
+- `manifest` (HMAC-SHA-256): reserved. The rollback check ("Sync") needs no key of its own: a
+  manifest is sealed like any record, which already shows it came from one of Allen's devices.
 
 HKDF labels and the salt are fixed strings in `vault/aad.ts`; they are part of the storage format.
 
@@ -105,8 +106,24 @@ the server answers with what is there now, and the device, which can read both, 
 (`src/journal/merge.ts`, field by field, three-way) and tries again. The server never merges: it
 cannot read what it would be merging.
 
-A device never goes backwards: it ignores a pulled record older than the version it already
-holds (`replica.ts`).
+**A device never goes back** (`src/journal/replica.ts`). Each version of a record has one number
+(its rev) and one place in the log (its seq), for good: no row is ever removed, and a deletion is
+a version too. So a device shown an older version than the one it has, another version under the
+same number, or nothing where it had a record, is looking at a server that has gone back:
+restored from a backup, or keeping changes from it. It keeps its own version, holds its changes
+to that record until the next session, and says so (Settings, "Your data"). The log's numbers
+count on from the clock, in microseconds, so a database restored to an earlier time never gives a
+new write a number a device has already passed: every device still pulls it.
+
+**The rollback check** (`src/journal/manifest.ts`). The server could also keep a change from a
+device without showing it anything older: by never sending it. So each device publishes a
+manifest, a record of its own, sealed like the rest, that lists the version of every record the
+server has confirmed to it, the other devices' manifests included. A version reaches the server
+before a manifest can list it, and a pull comes in the log's order, so a device that has pulled
+past another device's manifest has been sent every version it lists, or a later one. Whatever it
+lacks, the server kept from it, and it says so. A device publishes its manifest at the first sync
+of each session, then at most every ten minutes while what it has changes. To the server a
+manifest is one more record, written when a device syncs, which it sees anyway.
 
 ## Signing in
 
@@ -135,8 +152,9 @@ the device. Unlocking and signing in are one passkey prompt.
 ## On the device
 
 The device's copy lives in IndexedDB, sealed exactly as on the server, including edits not yet
-synced and cached photos. The only plain values are bookkeeping: the sync cursor, which passkeys
-work on this device with their PRF salts, and the sealed slots, so the journal unlocks offline.
+synced and cached photos. The only plain values are bookkeeping: the sync cursor, the id of this
+device's manifest, which passkeys work on this device with their PRF salts, and the sealed
+slots, so the journal unlocks offline.
 None of it is secret.
 
 While unlocked, the working keys are non-extractable WebCrypto keys, and decrypted records sit
@@ -180,10 +198,12 @@ What this design does not protect against, said plainly:
 - **An unlocked device.** Whoever holds an unlocked device reads the journal. Auto-lock narrows
   the window; it does not close it.
 - **Malware on a device** can read what the journal shows, like anything else on that device.
-- **Withholding.** The server cannot forge or alter records, but it could hide recent changes
-  from a device (show a new device an older journal) or refuse to store new ones. A device never
-  accepts an older version of a record it has already seen; a manifest signed with the `manifest`
-  key, so every device can check it has everything, is the planned fix.
+- **Withholding.** The server cannot forge or alter records, and a device notices when it goes
+  back on a version the device has had, or keeps back one that another device's manifest lists
+  ("Sync"). What no device can notice on its own: a server that shows it a consistent older
+  journal, with every manifest held back as well, as if the other devices had been quiet since.
+  A device can only be as sure as the newest manifest it is shown. And a device that notices
+  keeps its own copy, but does not yet put back what the server lost.
 - **Traffic analysis.** Sizes (padded), times and counts are visible to the server.
 
 ## Formats
@@ -198,7 +218,11 @@ Each record names the id of the AK that sealed it, so the AK can one day be rota
 - `src/vault/vault.test.ts`: every seal round-trips; tampering, swapping, truncating and
   replaying ciphertext all fail; ids and padding hide what they should.
 - `worker/api.test.ts`: the server's half with a software passkey (setup, sign-in, recovery,
-  sync conflicts, files, the reminder), including the refusal of PRF results and of other origins.
+  sync conflicts, a restored database, files, the reminder), including the refusal of PRF results
+  and of other origins.
+- `src/journal/replica.test.ts` and `manifest.test.ts`: a server that goes back (an older
+  version, another under the same number, a lost record) and one that keeps a record back.
 - `tests/e2e/journal.spec.ts`: two real browsers with virtual passkeys. The test writes a day with
   words, a to-do, a person and a photo, then searches every byte the server was sent for them and
-  for a JPEG, and finds nothing.
+  for a JPEG, and finds nothing. Later the laptop's pulls leave out a change the phone made, and
+  the laptop says so.

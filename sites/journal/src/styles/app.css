@@ -38,7 +38,8 @@
   background: var(--ink-faint);
 }
 
-.sync[data-state='error'] .sync__dot {
+.sync[data-state='error'] .sync__dot,
+.sync[data-missing] .sync__dot {
   background: var(--coral-base);
 }
 
