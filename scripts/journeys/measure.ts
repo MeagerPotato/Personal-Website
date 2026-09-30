@@ -77,7 +77,8 @@ export interface MeasureOptions {
   /**
    * What each galaxy must show (gate.ts): limits per galaxy name ("real", "6"), "*" for the rest.
    * Every report carries its breaches in words, and journeys.measure.ts fails the run on any.
-   * Null: measure only.
+   * Null: the gate is off, no limits; stress flights and Stop, when they ran, are still held to
+   * 0 failures.
    */
   gate: Gate | null;
   log: (text: string) => void;
@@ -110,7 +111,10 @@ export interface GalaxyReport {
   stops: JourneyResult[];
   /** The stress test's flights (MeasureOptions.stress). */
   stress: StressFlight[];
-  /** What it was held to (MeasureOptions.gate), and every way it missed that, in words. */
+  /**
+   * What it was held to (MeasureOptions.gate; null with the gate off), and every way it missed
+   * that, in words.
+   */
   gate: GalaxyGate | null;
   breaches: string[];
   wallSec: number;
@@ -293,13 +297,18 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
       );
     }
   }
-  if (options.gate !== null) {
-    log('\n== the gate (gate.ts; stress flights and Stop, when they ran: 0 failures)');
+  // With the gate off it is `{}`: no limits, and stress flights and Stop still held to 0 failures.
+  for (const report of reports) report.breaches = breachesOf(report, report.gate ?? {});
+  if (options.gate !== null || options.stress !== null || options.stop !== null) {
+    log(
+      options.gate === null
+        ? '\n== the gate: off ("gate": false), but stress flights and Stop, when they ran: 0 failures'
+        : '\n== the gate (gate.ts; stress flights and Stop, when they ran: 0 failures)',
+    );
     for (const report of reports) {
-      const gate = report.gate ?? {};
-      report.breaches = breachesOf(report, gate);
+      const gate = report.gate === null ? 'off' : describeGate(report.gate);
       const verdict = report.breaches.length === 0 ? 'passed' : 'BREACHED';
-      log(`${labelOf(report).padEnd(width)}${describeGate(gate)}: ${verdict}`);
+      log(`${labelOf(report).padEnd(width)}${gate}: ${verdict}`);
       for (const breach of report.breaches) log(`    ${breach}`);
     }
   }

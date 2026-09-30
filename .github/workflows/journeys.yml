@@ -6,13 +6,16 @@ name: Journeys
 # slowest <= 6.5 s, at most 1.5% over 5 s). A breach fails the run and is printed in words.
 #
 # It runs only when something a journey depends on changes: the content (where the bodies are),
-# the engine (how the ship flies), the site config, or the harness itself. NOT a required check,
-# like E2E: `verify` (ci.yml) guards `main`, and a red run here is a reason to look before merging.
+# src/site (the schemas and toUniverseInput, which turn the content into bodies as the build does:
+# scripts/journeys/galaxies.ts), the engine (how the ship flies), the site config, or the harness
+# itself. NOT a required check, like E2E: `verify` (ci.yml) guards `main`, and a red run here is a
+# reason to look before merging.
 
 on:
   pull_request:
     paths:
       - 'src/content/**'
+      - 'src/site/**'
       - 'src/universe/**'
       - 'scripts/journeys/**'
       - 'src/config/site.ts'

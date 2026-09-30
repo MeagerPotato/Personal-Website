@@ -155,18 +155,30 @@ describe('breachesOf', () => {
     ]);
   });
 
-  it('breaches a galaxy that could not be built, since none of it was measured', () => {
+  it('breaches a galaxy that could not be built, when it is held to any limit', () => {
     const error = 'system "code" reaches 402 u, past the 380 u limit';
-    expect(breachesOf(measured({ error, rows: [] }), {})).toEqual([
+    expect(breachesOf(measured({ error, rows: [] }), { failures: 0 })).toEqual([
       `could not be built, so no journey was flown: ${error}`,
     ]);
+    // Held to nothing (a galaxy with no entry and no "*", or the gate off): nothing to miss.
+    expect(breachesOf(measured({ error, rows: [] }), {})).toEqual([]);
+  });
+
+  it('breaches a galaxy with no journeys, when it is held to any limit', () => {
+    // No rows: the p90 and the slowest are NaN, which no comparison catches.
+    for (const gate of [{ failures: 0 }, { p90Sec: 4.2 }, { maxSec: 6.5 }, { over5sShare: 0 }]) {
+      expect(breachesOf(measured({ rows: [] }), gate)).toEqual([
+        'no journey was flown (the sample is empty), so no limit is known to be met',
+      ]);
+    }
+    expect(breachesOf(measured({ rows: [] }), {})).toEqual([]);
   });
 });
 
 describe('the gate from JOURNEYS', () => {
   const gateOf = (gate: unknown) => optionsFromEnv({ JOURNEYS: JSON.stringify({ gate }) }).options;
 
-  it('replaces the default gate whole, or with false measures only', () => {
+  it('replaces the default gate whole, or with false switches it off', () => {
     expect(gateOf({ real: { p90Sec: 1 } }).gate).toEqual({ real: { p90Sec: 1 } });
     expect(gateOf(false).gate).toBeNull();
     expect(optionsFromEnv({}).options.gate).toBeUndefined(); // so measure() uses DEFAULT_GATE
@@ -200,11 +212,37 @@ describe('measure', () => {
     ]);
   });
 
-  it('measures only, with no gate', () => {
-    const [report] = measure({ galaxies: ['real'], sample: small, gate: null, log: quiet });
-    expect(report?.gate).toBeNull();
-    expect(report?.breaches).toEqual([]);
-    expect(report?.rows).toHaveLength(2);
+  it('breaches a gated galaxy whose sample is empty', () => {
+    const [report] = measure({
+      galaxies: ['real'],
+      sample: { ...small, between: 0 },
+      gate: { real: { failures: 0, p90Sec: 4.2 } },
+      log: quiet,
+    });
+    expect(report?.rows).toEqual([]);
+    expect(report?.breaches).toEqual([
+      'no journey was flown (the sample is empty), so no limit is known to be met',
+    ]);
+  });
+
+  it('with the gate off, holds no limits but still says how Stop did', () => {
+    // (A failing Stop cannot be flown on purpose; breachesOf's own tests hold `{}` to that rule.)
+    const lines: string[] = [];
+    const [off] = measure({
+      galaxies: ['real'],
+      sample: small,
+      gate: null,
+      stop: { coastSec: 2 },
+      log: (text) => lines.push(text),
+    });
+    expect(off?.gate).toBeNull();
+    expect(off?.rows).toHaveLength(2);
+    expect(off?.stops.length).toBeGreaterThan(0);
+    expect(off?.breaches).toEqual([]);
+    expect(lines.join('\n')).toMatch(
+      /== the gate: off \("gate": false\), but stress flights and Stop/,
+    );
+    expect(lines.join('\n')).toMatch(/real \(\d systems\)\s+off: passed/);
   });
 });
 

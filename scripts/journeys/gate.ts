@@ -10,7 +10,9 @@ import { describeFlight } from './stress';
 // .github/workflows/journeys.yml).
 
 /**
- * What one galaxy must show; every limit is optional. Whatever it says, a stress flight
+ * What one galaxy must show; every limit is optional, and limits on journeys that were never
+ * flown cannot be met: a galaxy held to any limit must be built and its sample must not be empty.
+ * Whatever it says, and with the gate off too (JOURNEYS "gate": false), a stress flight
  * (MeasureOptions.stress) or a journey stopped at its fastest (MeasureOptions.stop) that fails is
  * always a breach when they ran: none failing is the gate for a change to the autopilot, the
  * approach, Stop, the guard or the snapshot, and nothing here loosens that.
@@ -74,16 +76,24 @@ function some<T>(items: readonly T[], describe: (item: T) => string, count = 3):
 
 const failedJourney = (row: JourneyResult): string => `${row.failure}: ${describeRow(row)}`;
 
-/** Every way `report` misses `gate`, in words; empty when it passes. */
+/**
+ * Every way `report` misses `gate`, in words; empty when it passes. With the gate off, pass `{}`:
+ * no limits, and stress flights and Stop are still held to 0 failures.
+ */
 export function breachesOf(
   report: Pick<GalaxyReport, 'error' | 'rows' | 'stops' | 'stress'>,
   gate: GalaxyGate,
 ): string[] {
-  // A galaxy that cannot be built was never flown, so nothing about it is known to pass.
+  // A galaxy that was never flown (it cannot be built, or its sample is empty) has shown nothing,
+  // so no limit on it is known to be met.
+  const limited = LIMITS.some((limit) => gate[limit] !== undefined);
   if (report.error !== null)
-    return [`could not be built, so no journey was flown: ${report.error}`];
+    return limited ? [`could not be built, so no journey was flown: ${report.error}`] : [];
 
   const breaches: string[] = [];
+  if (limited && report.rows.length === 0) {
+    breaches.push('no journey was flown (the sample is empty), so no limit is known to be met');
+  }
   const all = statsOf(report.rows);
   const failed = report.rows.filter((row) => row.failure !== null);
   if (gate.failures !== undefined && failed.length > gate.failures) {
@@ -140,9 +150,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * The gate from JOURNEYS: false (or null) to measure without one, or limits per galaxy, which
- * REPLACE the default gate whole (a galaxy with no entry and no "*" is held to nothing but the
- * stress and Stop rule). Keys are checked, as everywhere in JOURNEYS: a typo must not pass.
+ * The gate from JOURNEYS: false (or null) to switch it off, which leaves only the stress and Stop
+ * rule, or limits per galaxy, which REPLACE the default gate whole (a galaxy with no entry and no
+ * "*" is held to nothing but that rule). Keys are checked, as everywhere in JOURNEYS: a typo must
+ * not pass.
  */
 export function parseGate(raw: unknown): Gate | null {
   if (raw === false || raw === null) return null;
