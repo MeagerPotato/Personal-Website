@@ -26,6 +26,15 @@ export interface PickerOptions {
  * A mouse over something that can be picked is shown as `data-pick` on the canvas; what that
  * looks like (the cursor) is CSS. A finger has no hover and gets no hint here: the labels are
  * buttons, and they are the ones that say "this can be pressed".
+ *
+ * The canvas answers clicks, as far as the browser can tell (a listener that does nothing: the
+ * picking is done above). A browser moves a finger that lands near something it thinks can be
+ * pressed onto that thing (touch adjustment, in Chromium and WebKit), and a canvas with only
+ * pointer listeners does not count. A name hangs just below its body, so a finger on a body
+ * would press the name instead: harmless for a planet, whose name flies there too, but a
+ * relay's name is a link, and pointing at a relay must never leave the site (ui/Labels.ts,
+ * `beckon`). Answering clicks, the canvas is a candidate too, and it wins wherever the finger
+ * lands on it rather than on a name's 44 px box. tests/e2e/links.spec.ts taps with a finger.
  */
 export class Picker implements System {
   private readonly presses = new Map<number, { x: number; y: number; at: number }>();
@@ -45,6 +54,7 @@ export class Picker implements System {
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerenter', this.measure);
     canvas.addEventListener('pointerleave', this.onLeave);
+    canvas.addEventListener('click', this.answer);
   }
 
   frameUpdate(): void {
@@ -70,6 +80,7 @@ export class Picker implements System {
     canvas.removeEventListener('pointermove', this.onMove);
     canvas.removeEventListener('pointerenter', this.measure);
     canvas.removeEventListener('pointerleave', this.onLeave);
+    canvas.removeEventListener('click', this.answer);
     this.presses.clear();
     delete canvas.dataset.pick;
   }
@@ -119,4 +130,7 @@ export class Picker implements System {
   private readonly onLeave = (): void => {
     this.hovering = false;
   };
+
+  /** Nothing to do: it is there so that the browser sees a canvas that answers clicks (above). */
+  private readonly answer = (): void => {};
 }

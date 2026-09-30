@@ -4,14 +4,14 @@
  * go; there is no Save button.
  */
 import { RichTextEditor, type Doc } from '@allenkh/editor';
-import { ChevronLeft, ChevronRight, Music, Star } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Music, Star } from 'lucide-react';
 import { useState } from 'react';
 import { useJournal } from '../app/context';
 import { follow, navigate, paths } from '../app/router';
 import { BUILT_IN_TEMPLATES } from '../model/defaults';
 import { addDays, longDate, relativeDay, shortDate, today } from '../model/dates';
 import { blankDay, blankPerson, blankPlace } from '../model/records';
-import { hasEntry, onThisDay, plainText } from '../model/stats';
+import { hasEntry, onThisDay, plainText, usualActivities } from '../model/stats';
 import type { Day, RichText, Song } from '../model/types';
 import { Bean } from '../ui/Bean';
 import { Photos } from '../ui/Photos';
@@ -40,6 +40,13 @@ export function DayScreen({ date }: { date: string }) {
     ...journal.templates().map(([id, template]) => ({ key: id, ...template })),
   ];
   const moodFamily = settings.moods.find((mood) => mood.value === day.mood)?.family;
+  const activities = journal.activities();
+  const usual = usualActivities(journal.days(), activities, date);
+  // Folded to the day's own and the usual ones, once there are usual ones to show: until then (a
+  // new journal) every activity shows, so there is something to pick.
+  const [allActivities, setAllActivities] = useState(
+    () => usual.length === 0 && day.activities.length === 0,
+  );
   // The templates go the moment the first word is typed, not when it is saved: a row vanishing
   // on blur would move the buttons below while they are being clicked.
   const [editorBlank, setEditorBlank] = useState(true);
@@ -99,10 +106,26 @@ export function DayScreen({ date }: { date: string }) {
       </section>
 
       <section className="section">
-        <h2 className="section__title">What did you do?</h2>
+        <div className="section__head">
+          <h2 className="section__title">What did you do?</h2>
+          <button
+            type="button"
+            className="button button--quiet disclosure"
+            aria-expanded={allActivities}
+            aria-controls="day-activities"
+            onClick={() => setAllActivities((open) => !open)}
+          >
+            All activities
+            <ChevronDown aria-hidden="true" />
+          </button>
+        </div>
         <ActivityPicker
-          activities={journal.activities()}
+          key={date}
+          id="day-activities"
+          activities={activities}
           selected={day.activities}
+          usual={usual}
+          folded={!allActivities}
           onToggle={(id) =>
             update((d) => ({
               ...d,

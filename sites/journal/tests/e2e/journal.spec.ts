@@ -11,7 +11,10 @@ import {
   type Browser,
   type BrowserContextOptions,
   type Page,
+  type Request,
+  type Route,
 } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
@@ -208,6 +211,27 @@ test('a reload locks the journal, and the passkey opens it again', async () => {
   await expect(title(page)).toBeFocused();
 });
 
+test('the day’s activities fold to its own and the usual ones, the rest a click away', async () => {
+  const { page } = laptop;
+  const all = page.getByRole('button', { name: 'All activities' });
+  const chip = (name: string) => page.getByRole('button', { name, exact: true });
+  // A new journal showed every activity; now the day has one, the rest are folded away.
+  await expect(all).toHaveAttribute('aria-expanded', 'false');
+  await expect(chip('coding')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip('rocketry')).toHaveCount(0);
+
+  // Unfolded, every group; picked there, it stays when folded.
+  await all.click();
+  await expect(all).toHaveAttribute('aria-expanded', 'true');
+  await chip('rocketry').click();
+  await all.click();
+  await expect(chip('rocketry')).toHaveAttribute('aria-pressed', 'true');
+  // Taken back while folded, it stays in place for the moment: a slip is one tap to undo.
+  await chip('rocketry').click();
+  await expect(chip('rocketry')).toHaveAttribute('aria-pressed', 'false');
+  await expect(chip('coding')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('with no connection, the app still opens and unlocks this device’s copy', async () => {
   const { page } = laptop;
   const context = page.context();
@@ -263,13 +287,103 @@ test('an edit on the phone reaches the laptop', async () => {
   await expect(entry(page)).toContainText(SECRET);
 });
 
+test('a device tells when the server keeps a change from it', async () => {
+  const { page } = laptop;
+  const words = page.locator('.sidebar .sync__words');
+  // A server that leaves the records in here out of the laptop's pulls.
+  const kept = new Set<string>();
+  const withhold = async (route: Route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { changes: { id: string }[] };
+    const changes = body.changes.filter((change) => !kept.has(change.id));
+    await route.fulfill({ response, json: { ...body, changes } });
+  };
+  await page.route('**/api/sync?since=*', withhold);
+
+  // The phone changes the day (and learns its id from what it sends)...
+  const isPush = (request: Request) =>
+    request.method() === 'POST' && new URL(request.url()).pathname === '/api/sync';
+  const pushed = phone.page.waitForRequest(isPush);
+  await moods(phone.page).getByRole('radio', { name: 'Good' }).click();
+  const push = await pushed;
+  const day = (push.postDataJSON() as { changes: { id: string }[] }).changes[0]?.id ?? '';
+  expect(day).toMatch(/^k_/);
+  kept.add(day);
+  await push.response();
+  // ...and its next session publishes its manifest, which lists that version.
+  await phone.page.reload();
+  await expect(phone.page.getByRole('button', { name: /^Unlock with/ })).toBeEnabled();
+  await phone.page.getByRole('button', { name: /^Unlock with/ }).click();
+  await expect(phone.page.locator('#more .sync__words')).toHaveText('Synced');
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(words).toHaveText('Server missing changes');
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
+  await page.locator('.sidebar').getByRole('link', { name: 'Details' }).click();
+  await expect(page).toHaveURL(/\/settings\/data$/);
+  const notice = page.locator('#data .callout');
+  await expect(notice).toContainText(
+    'Another of your devices has had 1 change that the server hasn’t given this one.',
+  );
+  await expect(notice).toBeInViewport();
+  expect.soft(await seriousIssues(page, 'settings, server missing changes')).toEqual([]);
+  // At a phone's width the status is in the More sheet, whose link closes it on the way.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'More' }).click();
+  const sheet = page.locator('#more');
+  await expect(sheet.locator('.sync__words')).toHaveText('Server missing changes');
+  expect.soft(await seriousIssues(page, 'phone more, server missing changes')).toEqual([]);
+  await sheet.getByRole('link', { name: 'Details' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(notice).toBeInViewport();
+  await page.setViewportSize({ width: 1280, height: 860 });
+
+  // An honest server again: the day's next version comes through, and the warning goes.
+  await page.unroute('**/api/sync?since=*', withhold);
+  const again = phone.page.waitForRequest(isPush);
+  await moods(phone.page).getByRole('radio', { name: 'Great' }).click();
+  await (await again).response();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(words).toHaveText('Synced');
+  await expect(notice).toHaveCount(0);
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
+});
+
 test('the month review draws its snapshot', async () => {
   const { page } = laptop;
   await page.getByRole('link', { name: 'Calendar' }).click();
   await page.getByRole('link', { name: 'Month review' }).click();
   const picture = page.locator('.share__preview img');
   await expect(picture).toBeVisible();
-  expect(await picture.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1080);
+  // Each shape at its own size (and, for a look, saved beside the screenshots).
+  const shapes = page.getByRole('radiogroup', { name: 'Shape' });
+  for (const [shape, height] of [
+    ['Story', 1920],
+    ['Square', 1080],
+    ['Post', 1350],
+  ] as const) {
+    await shapes.getByRole('radio', { name: shape }).click();
+    await expect
+      .poll(() =>
+        picture.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+      )
+      .toEqual([1080, height]);
+    if (SHOTS) {
+      // Through a canvas: the page's policy lets nothing fetch the picture's blob: address.
+      const png = await picture.evaluate((image: HTMLImageElement) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        canvas.getContext('2d')?.drawImage(image, 0, 0);
+        return canvas.toDataURL('image/png').split(',')[1] ?? '';
+      });
+      writeFileSync(join(SHOTS, `journal-snapshot-${shape.toLowerCase()}.png`), png, 'base64');
+    }
+  }
 });
 
 test('the year in pixels is one tab stop, walked with the keyboard', async () => {
@@ -356,6 +470,10 @@ test('no screen has a serious accessibility issue', async () => {
     await page.getByRole('link', { name, exact: true }).click();
     await check(name, url);
   }
+  // The day with every activity unfolded.
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await page.getByRole('button', { name: 'All activities' }).click();
+  await check('Today, all activities', /\/$/);
   // And the screens one level down: the month review, a person, a new event.
   await page.getByRole('link', { name: 'Calendar', exact: true }).click();
   await page.getByRole('link', { name: 'Month review' }).click();

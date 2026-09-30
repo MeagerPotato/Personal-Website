@@ -4,7 +4,7 @@ import { FAMILY_KEYS, type FamilyKey } from '@allenkh/design/tokens';
 import { Plus, X } from 'lucide-react';
 import { useId, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { Activities, MoodDef } from '../model/types';
+import type { Activities, Activity, MoodDef } from '../model/types';
 import { Bean } from './Bean';
 
 export function MoodPicker(props: {
@@ -48,34 +48,61 @@ export function MoodPicker(props: {
 export const groupFamily = (index: number): FamilyKey =>
   FAMILY_KEYS[index % FAMILY_KEYS.length] as FamilyKey;
 
+/**
+ * The day's activities, as toggles. Folded, only the day's own and the usual ones show, each in
+ * its group's colour and all in their own order; one unpicked there stays until the day is left,
+ * so nothing moves while picking. Unfolded, every group. `id` is for the button that folds it
+ * (aria-controls). Keyed by the day, so each day starts afresh.
+ */
 export function ActivityPicker(props: {
+  id: string;
   activities: Activities;
   selected: readonly string[];
+  /** The ones used most lately (usualActivities in model/stats.ts). */
+  usual: readonly string[];
+  folded: boolean;
   onToggle: (id: string) => void;
 }) {
   const selected = new Set(props.selected);
+  const usual = new Set(props.usual);
+  const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string) => {
+    if (props.folded) setKept((ids) => new Set(ids).add(id));
+    props.onToggle(id);
+  };
+  const chip = (item: Activity, family?: FamilyKey) => (
+    <button
+      key={item.id}
+      type="button"
+      className="chip"
+      data-family={family}
+      aria-pressed={selected.has(item.id)}
+      onClick={() => toggle(item.id)}
+    >
+      <span aria-hidden="true">{item.icon}</span>
+      {item.name}
+    </button>
+  );
+  if (props.folded) {
+    return (
+      <div id={props.id} className="chips">
+        {props.activities.groups.flatMap((group, index) =>
+          group.items
+            .filter((item) => selected.has(item.id) || usual.has(item.id) || kept.has(item.id))
+            .map((item) => chip(item, groupFamily(index))),
+        )}
+      </div>
+    );
+  }
   return (
-    <div className="activities">
+    <div id={props.id} className="activities">
       {props.activities.groups.map((group, index) => {
         const items = group.items.filter((item) => !item.archived || selected.has(item.id));
         if (items.length === 0) return null;
         return (
           <section className="activity-group" key={group.id} data-family={groupFamily(index)}>
             <h3 className="activity-group__name">{group.name}</h3>
-            <div className="chips">
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="chip"
-                  aria-pressed={selected.has(item.id)}
-                  onClick={() => props.onToggle(item.id)}
-                >
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.name}
-                </button>
-              ))}
-            </div>
+            <div className="chips">{items.map((item) => chip(item))}</div>
           </section>
         );
       })}

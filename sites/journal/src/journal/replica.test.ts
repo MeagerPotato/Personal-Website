@@ -3,6 +3,7 @@ import type { Change, PushResult, RemoteRecord } from '../api/client';
 import type { PendingChange, StoredRecord } from '../store/db';
 import { openJson, sealJson } from '../vault/envelope';
 import { accountKeysFromRaw, newAccountKey, type AccountKeys } from '../vault/keys';
+import { manifestDoc, missingFrom, readManifest } from './manifest';
 import { merge3, type Doc } from './merge';
 import { Replica, type Codec, type ReplicaRemote, type ReplicaStore } from './replica';
 
@@ -13,11 +14,13 @@ class FakeServer implements ReplicaRemote {
   offline = false;
   pushes = 0;
   pageSize = 500;
+  /** Records a dishonest server leaves out of every pull. */
+  withhold = new Set<string>();
 
   async pull(since: number) {
     if (this.offline) throw new Error('offline');
     const all = [...this.records.values()]
-      .filter((r) => r.seq > since)
+      .filter((r) => r.seq > since && !this.withhold.has(r.id))
       .sort((a, b) => a.seq - b.seq);
     const changes = all.slice(0, this.pageSize).map((r) => ({ ...r }));
     return { changes, cursor: changes.at(-1)?.seq ?? since, more: all.length > this.pageSize };
@@ -32,7 +35,8 @@ class FakeServer implements ReplicaRemote {
         return { id: change.id, ok: false, current: current ? { ...current } : null };
       }
       this.seq += 1;
-      const next = { id: change.id, rev: change.baseRev + 1, seq: this.seq, sealed: change.sealed };
+      const rev = change.rev ?? change.baseRev + 1;
+      const next = { id: change.id, rev, seq: this.seq, sealed: change.sealed };
       this.records.set(change.id, next);
       return { id: change.id, ok: true, rev: next.rev, seq: next.seq };
     });
@@ -83,8 +87,8 @@ async function device(store = new MemoryStore()) {
   return { replica, store };
 }
 
-const DAY = 'k_day000000000000000000';
-const EVENT = 'r_event0000000000000000';
+const DAY = 'k_day0000000000000000000';
+const EVENT = 'r_event00000000000000000';
 const note = (text: string) => ({
   type: 'doc',
   content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
@@ -268,6 +272,7 @@ describe('a device on its own', () => {
     server.records.set(DAY, { ...old, seq: server.seq }); // rev 1 again, as if new
     await phone.replica.sync();
     expect(phone.replica.get(DAY)).toEqual({ kind: 'day', mood: 5, updatedAt: 2 });
+    expect(phone.replica.status.behind).toBe(1);
   });
 
   it('keeps, and never overwrites, a record it cannot read', async () => {
@@ -306,6 +311,270 @@ describe('a device on its own', () => {
     phone.replica.write(DAY, { kind: 'day', updatedAt: 1 });
     phone.replica.write(DAY, { kind: 'day', updatedAt: 1 }); // no change, no news
     expect(heard).toEqual([[DAY]]);
+  });
+});
+
+describe('a server that goes back', () => {
+  it('answering a write with an older version: the device keeps its own', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    const backup = { ...(server.records.get(DAY) as RemoteRecord) };
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    await phone.replica.sync();
+    server.records.set(DAY, backup); // restored from a backup: rev 1 again
+
+    phone.replica.write(DAY, { kind: 'day', mood: 4, activities: ['gym'], updatedAt: 3 });
+    await phone.replica.sync();
+    // Merged with rev 1, the gym would have gone: rev 1 never had it.
+    expect(phone.replica.get(DAY)).toEqual({
+      kind: 'day',
+      mood: 4,
+      activities: ['gym'],
+      updatedAt: 3,
+    });
+    expect(phone.replica.status).toMatchObject({ behind: 1, pending: 1 });
+    expect(server.records.get(DAY)).toEqual(backup); // and nothing was written over it
+    // The change waits here: not sent again this session.
+    const pushes = server.pushes;
+    await phone.replica.sync();
+    expect(server.pushes).toBe(pushes);
+  });
+
+  it('with another version under the same number: noticed, until a newer one comes', async () => {
+    const phone = await device();
+    const laptop = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    // The server loses the day, and a new device writes it afresh: rev 1 again, another one.
+    server.records.delete(DAY);
+    const tablet = await device();
+    tablet.replica.write(DAY, { kind: 'day', mood: 5, updatedAt: 2 });
+    await tablet.replica.sync();
+
+    await laptop.replica.sync();
+    expect(laptop.replica.get(DAY)).toEqual({ kind: 'day', mood: 1, updatedAt: 1 });
+    expect(laptop.replica.status.behind).toBe(1);
+
+    tablet.replica.write(DAY, { kind: 'day', mood: 3, updatedAt: 3 });
+    await tablet.replica.sync();
+    await laptop.replica.sync();
+    expect(laptop.replica.get(DAY)).toEqual({ kind: 'day', mood: 3, updatedAt: 3 });
+    expect(laptop.replica.status.behind).toBe(0);
+  });
+
+  it('with nothing where it had a record: noticed, and not written again as new', async () => {
+    const phone = await device();
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch', updatedAt: 1 });
+    await phone.replica.sync();
+    server.records.delete(EVENT);
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch day', updatedAt: 2 });
+    await phone.replica.sync();
+    expect(phone.replica.status).toMatchObject({ behind: 1, pending: 1 });
+    expect(server.records.has(EVENT)).toBe(false);
+    expect(phone.replica.get(EVENT)).toEqual({ kind: 'event', title: 'Launch day', updatedAt: 2 });
+  });
+});
+
+describe('putting back what the server lost', () => {
+  const PERSON = 'r_person0000000000000000';
+  // A backup of the server's records, and restoring one: its numbering goes on (sync.ts).
+  const backUp = () => new Map([...server.records].map(([id, row]) => [id, { ...row }]));
+  const restore = (backup: Map<string, RemoteRecord>) => {
+    server.records = new Map([...backup].map(([id, row]) => [id, { ...row }]));
+  };
+
+  it('sends this device’s versions back past every other, and every device takes them', async () => {
+    const phone = await device();
+    const laptop = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch', updatedAt: 1 });
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    phone.replica.write(PERSON, { kind: 'person', name: 'Maya', updatedAt: 2 });
+    phone.replica.write(EVENT, null);
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    restore(backup); // the day and the event as they were, and no person
+
+    laptop.replica.write(DAY, { kind: 'day', mood: 2, activities: ['gym'], updatedAt: 3 });
+    await laptop.replica.sync();
+    expect(laptop.replica.status.behind).toBe(1);
+    // Changed again since, and not saved yet: what goes up is the latest, and nothing is left over.
+    laptop.replica.write(DAY, { kind: 'day', mood: 4, activities: ['gym'], updatedAt: 3 });
+    // The day with the change held here, the person, and the event's deletion.
+    expect(await laptop.replica.repair()).toBe(3);
+    expect(laptop.replica.status).toMatchObject({ behind: 0, pending: 0 });
+    expect(laptop.store.pending.size).toBe(0);
+
+    const day = { kind: 'day', mood: 4, activities: ['gym'], updatedAt: 3 };
+    const person = { kind: 'person', name: 'Maya', updatedAt: 2 };
+    await phone.replica.sync();
+    const tablet = await device();
+    await tablet.replica.sync();
+    for (const other of [phone, tablet]) {
+      expect(other.replica.get(DAY)).toEqual(day);
+      expect(other.replica.get(PERSON)).toEqual(person);
+      expect(other.replica.get(EVENT)).toBeNull();
+      expect(other.replica.status.behind).toBe(0);
+    }
+    // Nothing is left to put back.
+    const pushes = server.pushes;
+    expect(await laptop.replica.repair()).toBe(0);
+    expect(server.pushes).toBe(pushes);
+  });
+
+  it('merges with what another device wrote after the server went back', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    await phone.replica.sync();
+    restore(backup);
+    // A device new since then writes the day on the older version: another one under rev 2.
+    const tablet = await device();
+    await tablet.replica.sync();
+    tablet.replica.write(DAY, {
+      kind: 'day',
+      mood: 1,
+      note: note('from the tablet'),
+      updatedAt: 3,
+    });
+    await tablet.replica.sync();
+
+    await phone.replica.sync();
+    expect(phone.replica.status.behind).toBe(1);
+    expect(await phone.replica.repair()).toBe(1);
+    const both = {
+      kind: 'day',
+      mood: 1,
+      activities: ['gym'],
+      note: note('from the tablet'),
+      updatedAt: 3,
+    };
+    expect(phone.replica.get(DAY)).toEqual(both);
+    await tablet.replica.sync();
+    expect(tablet.replica.get(DAY)).toEqual(both);
+  });
+
+  it('puts nothing back when the log, read whole, has it all', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    // One wrong answer: no such record.
+    const push = server.push.bind(server);
+    server.push = async (changes) => {
+      server.push = push;
+      return { results: changes.map(({ id }) => ({ id, ok: false as const, current: null })) };
+    };
+    phone.replica.write(DAY, { kind: 'day', mood: 3, updatedAt: 2 });
+    await phone.replica.sync();
+    expect(phone.replica.status.behind).toBe(1);
+
+    expect(await phone.replica.repair()).toBe(0);
+    expect(phone.replica.status.behind).toBe(0);
+    await phone.replica.sync(); // and the change goes up as any other
+    expect(server.records.get(DAY)?.rev).toBe(2);
+    expect(phone.replica.status.pending).toBe(0);
+  });
+
+  it('keeps what was written here while a version went back up', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, updatedAt: 1 });
+    await phone.replica.sync();
+    const backup = backUp();
+    phone.replica.write(DAY, { kind: 'day', mood: 1, activities: ['gym'], updatedAt: 2 });
+    await phone.replica.sync();
+    restore(backup);
+    const tablet = await device();
+    await tablet.replica.sync();
+    tablet.replica.write(DAY, {
+      kind: 'day',
+      mood: 1,
+      note: note('from the tablet'),
+      updatedAt: 3,
+    });
+    await tablet.replica.sync();
+    await phone.replica.sync();
+
+    const push = server.push.bind(server);
+    server.push = async (changes) => {
+      // Typed on the phone mid-flight, on the day as it showed it then.
+      phone.replica.write(DAY, { kind: 'day', mood: 5, activities: ['gym'], updatedAt: 4 });
+      server.push = push;
+      return push(changes);
+    };
+    await phone.replica.repair();
+    await phone.replica.sync();
+    await tablet.replica.sync();
+    const all = {
+      kind: 'day',
+      mood: 5,
+      activities: ['gym'],
+      note: note('from the tablet'),
+      updatedAt: 4,
+    };
+    expect(phone.replica.get(DAY)).toEqual(all);
+    expect(tablet.replica.get(DAY)).toEqual(all);
+  });
+});
+
+describe('what a device publishes about itself', () => {
+  const MANIFEST = 'r_manifest00000000000000';
+
+  it('goes up at once over whatever is there, and never waits as a change', async () => {
+    const phone = await device();
+    expect(await phone.replica.publish(MANIFEST, { kind: 'manifest', n: 1 })).toBe('published');
+    expect(phone.replica.status.pending).toBe(0);
+    expect(phone.store.pending.size).toBe(0);
+    expect(server.records.get(MANIFEST)?.rev).toBe(1);
+    // A tab of the same browser that has not seen that version says it again, on top.
+    const tab = await device();
+    expect(await tab.replica.publish(MANIFEST, { kind: 'manifest', n: 2 })).toBe('published');
+    expect(server.records.get(MANIFEST)?.rev).toBe(2);
+    const laptop = await device();
+    await laptop.replica.sync();
+    expect(laptop.replica.get(MANIFEST)).toEqual({ kind: 'manifest', n: 2 });
+  });
+
+  it('is given up when the server has gone back on it', async () => {
+    const phone = await device();
+    await phone.replica.publish(MANIFEST, { kind: 'manifest', n: 1 });
+    const backup = { ...(server.records.get(MANIFEST) as RemoteRecord) };
+    await phone.replica.publish(MANIFEST, { kind: 'manifest', n: 2 });
+    server.records.set(MANIFEST, backup);
+    expect(await phone.replica.publish(MANIFEST, { kind: 'manifest', n: 3 })).toBe('behind');
+    expect(phone.replica.status.behind).toBe(1);
+    expect(server.records.get(MANIFEST)).toEqual(backup);
+  });
+
+  it('lets another device tell what the server kept from it', async () => {
+    const phone = await device();
+    phone.replica.write(DAY, { kind: 'day', mood: 4, updatedAt: 1 });
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch', updatedAt: 1 });
+    await phone.replica.sync();
+    const records = new Map(phone.replica.versions());
+    await phone.replica.publish(MANIFEST, manifestDoc(records, 1));
+
+    server.withhold.add(EVENT);
+    const laptop = await device();
+    await laptop.replica.sync();
+    const manifest = readManifest(laptop.replica.get(MANIFEST) as Doc);
+    if (!manifest) throw new Error('The laptop has no manifest');
+    expect(manifest.records).toEqual(records);
+    const has = (id: string) => laptop.replica.revision(id);
+    expect(missingFrom(manifest, has)).toEqual([EVENT]);
+
+    // Held back no more, the event reaches the laptop with its next version.
+    server.withhold.clear();
+    phone.replica.write(EVENT, { kind: 'event', title: 'Launch day', updatedAt: 2 });
+    await phone.replica.sync();
+    await laptop.replica.sync();
+    expect(missingFrom(manifest, has)).toEqual([]);
   });
 });
 

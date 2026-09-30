@@ -948,6 +948,31 @@ function ReminderSection() {
   );
 }
 
+const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What the rollback check found (journal.ts, docs/journal-crypto.md "Sync"): the server short of
+ * versions this device has had, or of ones another device has.
+ */
+function MissingNotice({ behind, withheld }: { behind: number; withheld: number }) {
+  if (behind === 0 && withheld === 0) return null;
+  return (
+    <p className="callout" data-family="coral">
+      <span aria-hidden="true">⚠️</span>
+      <span>
+        <strong>The server is missing changes.</strong>{' '}
+        {behind > 0
+          ? `It has an older version of ${count(behind, 'record', 'records')} than this device has had, or none at all: it may have been restored from a backup. This device keeps its own, and puts it back as soon as the server takes it. `
+          : ''}
+        {withheld > 0
+          ? `Another of your devices has had ${count(withheld, 'change', 'changes')} that the server hasn’t given this one. `
+          : ''}
+        Nothing on this device is lost; to keep a readable copy, export everything below.
+      </span>
+    </p>
+  );
+}
+
 function DataSection() {
   const journal = useJournal();
   const status = journal.status;
@@ -975,6 +1000,7 @@ function DataSection() {
 
   return (
     <Section id="data" title="Your data">
+      <MissingNotice behind={status.behind} withheld={status.withheld} />
       <p className="muted">
         {status.lastSyncedAt
           ? `Last synced ${new Date(status.lastSyncedAt).toLocaleString()}`
