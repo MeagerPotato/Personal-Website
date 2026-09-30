@@ -16,9 +16,10 @@ import { Galaxy } from '../src/universe/world/Galaxy';
 // shipLightTiebreak). On 2026-09-30 (the Projects binary, tiebreak 0.2), the worst lean anywhere
 // on a ring, over a whole turn of the binary: Robotics 57 degrees (Hardware's outermost planet,
 // facing a family more than twice as wide), Days2Meet 20, Model Rocketry 11, Fish Online 1, and
-// every other ring none. Robotics' is the one left to judge in flight (docs/PLAN.md §5.4, "the
-// ship's light across the gap"): a change that moves any of these fails here, so that whoever
-// makes it looks again before updating the list.
+// every other ring none (Research's and Hackathons' included: a system of one sun, in a slot of
+// its own, is too far from any other sun to feel its pull). Robotics' is the one left to judge in
+// flight (docs/PLAN.md §5.4, "the ship's light across the gap"): a change that moves any of these
+// fails here, so that whoever makes it looks again before updating the list.
 
 const LOOK_AGAIN =
   "the ship's light on these rings now leans differently: judge it in flight (docs/PLAN.md §5.4) " +

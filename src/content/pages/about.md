@@ -13,8 +13,8 @@ they are, and software that people actually use.
 I'm on Cal Aero SAE's avionics team, where I built a motor test jig that measures thrust to choose
 the motors for our competition RC plane, and I'm designing an ESP32 telemetry and black-box system
 that corrects for turbulence through the propellers' power. I'm also logistics director at
-Hackathons @ Berkeley: catering, hacker buses, and merchandise for Cal Hacks 13.0, with more than
-3,000 attendees.
+[Hackathons @ Berkeley](/projects/hackathons-at-berkeley/): catering, hacker buses, and
+merchandise for [Cal Hacks 13.0](/projects/cal-hacks-13/), with more than 3,000 attendees.
 
 ## Rockets
 
@@ -44,9 +44,9 @@ Most of my software orbits [Software](/systems/software/), one of the two suns o
 [Projects](/projects/): [FishAI](/projects/fishai/), bots for
 [Canadian Fish](/projects/canadian-fish-demo/) (a six-player card game) and the lab that measures
 them, and [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are
-meaningless. At the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack
-in twelve hours, a tool that turns a single photo into an interactive 3D environment for dementia
-reminiscence therapy, and placed 5th of more than 1,000 competitors.
+meaningless. At the [Corgi Hackathon](/projects/corgi/) during Y Combinator's Startup School in
+2026 I built RunItBack in twelve hours, a tool that turns a single photo into an interactive 3D
+environment for dementia reminiscence therapy, and placed 5th of more than 1,000 competitors.
 
 ## Work
 

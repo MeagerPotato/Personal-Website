@@ -85,7 +85,9 @@ export interface MeasureOptions {
 }
 
 export const DEFAULTS: MeasureOptions = {
-  galaxies: ['real', 4, 6, 8],
+  // The real galaxy has four systems since 2026-09-30 (Allen's tree), so a grown galaxy of 4
+  // would only fly it twice: the grown ones start at 6.
+  galaxies: ['real', 6, 8],
   variants: [{ name: 'baseline' }],
   // The real galaxy has few pairs, so each is flown from 6 different moments; bigger ones once.
   sample: { between: 'all', within: 'all', spawn: true, starts: { real: 6, grown: 1 } },
