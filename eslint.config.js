@@ -56,6 +56,8 @@ export default defineConfig(
     // Other agents' checkouts of this repository (the Claude app keeps its worktrees here, and
     // .gitignore leaves them out): each is linted in its own checkout, never from this one.
     '.claude/worktrees/',
+    // blog.allenkh.com and journal.allenkh.com: their own workspace, lint config and CI job.
+    'sites/',
   ]),
 
   js.configs.recommended,

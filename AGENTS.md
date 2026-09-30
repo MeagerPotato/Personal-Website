@@ -148,11 +148,14 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 | `src/content/**`, `src/content.config.ts` | Markdown copy with images beside it; the thin collections wrapper | Claude drafts, Allen edits |
 | `src/universe/data/**` | pure build-time logic: validates content, lays out the galaxy | Claude |
 | `scripts/**`, `config/**`, `tests/**`, `.github/**` | build, CSP template, dist contract tests, CI | Claude |
+| `sites/**` | the subdomain sites (journal.allenkh.com, blog.allenkh.com) and their shared packages: **its own npm workspace with its own rules**, [sites/AGENTS.md](sites/AGENTS.md) | Claude |
 | Cloudflare dashboard, DNS | | **Allen only** |
 | GitHub repo settings, branch protection | set once by Claude in Phase 0 (docs/PLAN.md §6, step 7) | **Allen** from then on |
 
 In the design surface, **values are free to change; keys are API.** Renaming or removing a key is
-a logic change: ask for it instead.
+a logic change: ask for it instead. The subdomain sites read `tokens.ts` and `src/site/contrast.ts`
+too (`sites/packages/design`), so their keys and exports are API there as well; `sites/`'s own
+verify (CI's Sites workflow) runs whenever either changes.
 
 ## Never
 
@@ -306,7 +309,8 @@ catches what a schema cannot: a missing `system`/`parent`/`related` target, a mo
 published moon under a draft planet, two systems claiming one `order`, a system grown too large.
 It lists every problem at once, and its output is the static `/universe.json` the engine reads.
 
-**Add a log post.** The blog will be its own site at `blog.allenkh.com` (Phase 5, docs/PLAN.md §9);
+**Add a log post.** The blog is its own site at `blog.allenkh.com` (`sites/blog`, planned in
+sites/docs/PLAN.md), and posts are written in its studio in the browser, not in this repository;
 nothing on this site hosts posts.
 
 ## Working together

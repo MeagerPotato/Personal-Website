@@ -1,0 +1,342 @@
+// The journal's promise, end to end: set up with a passkey and a recovery phrase, write a day,
+// lock and unlock, join from a second device with the phrase, and see each other's edits, while
+// the server receives nothing but ciphertext. One journal for the whole file, so the tests run
+// in order and each builds on the last.
+
+import { AxeBuilder } from '@axe-core/playwright';
+import {
+  devices,
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
+import { join } from 'node:path';
+import sharp from 'sharp';
+
+test.describe.configure({ mode: 'serial' });
+
+/** Words that appear nowhere but in what these tests write: the server must never see them. */
+const SECRET = 'Quillwort Marmalade';
+const TODO = 'Water the sundews';
+const PERSON = 'Maya Quillwort';
+
+interface Device {
+  page: Page;
+  /** Errors, uncaught exceptions and CSP violations, as the page reported them. */
+  problems: string[];
+  /** Every request body sent to /api: everything the server was ever given. */
+  sent: Buffer[];
+}
+
+/** A browser with its own storage and its own passkey authenticator: one of Allen's devices. */
+async function device(browser: Browser, options: BrowserContextOptions = {}): Promise<Device> {
+  const context = await browser.newContext(options);
+  await context.addInitScript(() => {
+    document.addEventListener('securitypolicyviolation', (event) => {
+      console.error(`CSP violation: ${event.violatedDirective} ${event.blockedURI}`);
+    });
+  });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('WebAuthn.enable', { enableUI: false });
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      ctap2Version: 'ctap2_1',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      hasPrf: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  const problems: string[] = [];
+  const sent: Buffer[] = [];
+  page.on('console', (message) => {
+    // Chrome logs every request that fails for want of a network; the offline test makes some.
+    const offline = message.text() === 'Failed to load resource: net::ERR_INTERNET_DISCONNECTED';
+    if (message.type() === 'error' && !offline) problems.push(message.text());
+  });
+  page.on('pageerror', (error) => problems.push(error.message));
+  page.on('request', (request) => {
+    const body = request.postDataBuffer();
+    if (body && new URL(request.url()).pathname.startsWith('/api/')) sent.push(body);
+  });
+  return { page, problems, sent };
+}
+
+/** A folder for a picture of every screen the sweep checks, light and dark (unset: none). */
+const SHOTS = process.env.E2E_SHOTS;
+
+/**
+ * Serious or critical axe findings (WCAG 2.2 AA), one line each, in light mode and in dark (the
+ * journal is written at night). Motion reduced, so no colour is caught halfway through a fade.
+ */
+async function seriousIssues(page: Page, screen: string): Promise<string[]> {
+  const found: string[] = [];
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+    if (SHOTS) {
+      const name = `${screen}-${colorScheme}.png`.replaceAll(/[^\w.-]+/g, '-');
+      await page.screenshot({ path: join(SHOTS, name), fullPage: true });
+    }
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    for (const { id, help, impact, nodes } of violations) {
+      if (impact !== 'serious' && impact !== 'critical') continue;
+      const where = nodes.map(({ target }) => target.join(' ')).join('; ');
+      found.push(`${colorScheme}: ${id}: ${help} (${where})`);
+    }
+  }
+  await page.emulateMedia({ colorScheme: null, reducedMotion: null });
+  return found;
+}
+
+const entry = (page: Page) => page.getByRole('textbox', { name: /^Journal entry/ });
+const moods = (page: Page) => page.getByRole('radiogroup', { name: /mood/i });
+
+let phrase = '';
+let laptop: Device;
+let phone: Device;
+
+test.beforeAll(async ({ browser }) => {
+  laptop = await device(browser, { viewport: { width: 1280, height: 860 } });
+});
+
+test.afterAll(async () => {
+  await laptop?.page.context().close();
+  await phone?.page.context().close();
+});
+
+test('sets up the journal with a recovery phrase and a passkey', async () => {
+  const { page } = laptop;
+  await page.goto('/');
+  await page.getByLabel('Setup code').fill('e2e-setup-code');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await expect(page.locator('.phrase__word')).toHaveCount(24);
+  const words = await page.locator('.phrase__word').allTextContents();
+  phrase = words.join(' ');
+  await page.getByLabel('I’ve written down all 24 words').check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  // Three words, chosen at random, typed back.
+  await expect(page.locator('label.field > span')).toHaveCount(3);
+  const asked = await page.locator('label.field > span').allTextContents();
+  for (const label of asked) {
+    const position = Number(label.replace('Word ', ''));
+    await page.getByLabel(label, { exact: true }).fill(words[position - 1] ?? '');
+  }
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await page.getByRole('button', { name: 'Make a passkey' }).click();
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await expect(moods(page)).toBeVisible();
+});
+
+test('writes a day, and the server receives only ciphertext', async () => {
+  const { page } = laptop;
+  let uploads = 0;
+  page.on('response', (response) => {
+    const request = response.request();
+    if (request.method() === 'PUT' && request.url().includes('/api/blobs/') && response.ok()) {
+      uploads += 1;
+    }
+  });
+
+  await moods(page).getByRole('radio', { name: 'Good' }).click();
+  await page.getByRole('button', { name: 'coding', exact: true }).click();
+
+  await entry(page).click();
+  await page.keyboard.type(`A day with ${SECRET} in it.`);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/to-do');
+  await expect(page.getByRole('option', { name: /To-do list/ })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type(TODO);
+  await expect(entry(page).getByRole('checkbox')).toHaveCount(1);
+
+  const photo = await sharp({
+    create: { width: 1600, height: 1200, channels: 3, background: { r: 120, g: 180, b: 220 } },
+  })
+    .jpeg()
+    .toBuffer();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add photos' }).click();
+  await (await chooser).setFiles({ name: 'sky.jpg', mimeType: 'image/jpeg', buffer: photo });
+  await expect(page.locator('.photo img')).toBeVisible();
+
+  // A person, then the same name again: still one person.
+  for (const typed of [PERSON, PERSON.toLowerCase()]) {
+    await page.getByRole('button', { name: 'Person' }).click();
+    await page.keyboard.type(typed);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+  }
+  await expect(page.locator('.link-chip')).toHaveCount(1);
+
+  // Saved, sent, and the photo's two sealed files (picture and thumbnail) uploaded.
+  await expect(page.locator('.sidebar .sync__words')).toHaveText('Synced');
+  await expect.poll(() => uploads, { timeout: 30_000 }).toBe(2);
+
+  const everything = Buffer.concat(laptop.sent);
+  for (const words of [SECRET, TODO, PERSON]) expect(everything.includes(words)).toBe(false);
+  // No photo left the device as a photo (a JPEG starts FF D8 FF and names itself JFIF).
+  expect(
+    laptop.sent.some((body) => body.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))),
+  ).toBe(false);
+  expect(everything.includes('JFIF')).toBe(false);
+});
+
+test('a reload locks the journal, and the passkey opens it again', async () => {
+  const { page } = laptop;
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Unlock with/ })).toBeEnabled();
+  await page.getByRole('button', { name: /^Unlock with/ }).click();
+  await expect(entry(page)).toContainText(SECRET);
+  await expect(moods(page).getByRole('radio', { name: 'Good' })).toBeChecked();
+});
+
+test('with no connection, the app still opens and unlocks this device’s copy', async () => {
+  const { page } = laptop;
+  const context = page.context();
+  const words = page.locator('.sidebar .sync__words');
+  // The service worker has kept this build and answers for the page.
+  await expect
+    .poll(() => page.evaluate(() => navigator.serviceWorker.controller?.state ?? 'none'))
+    .toBe('activated');
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByText('Offline: unlocking this device’s own copy.')).toBeVisible();
+  await page.getByRole('button', { name: /^Unlock with/ }).click();
+  await expect(entry(page)).toContainText(SECRET);
+  await expect(words).toHaveText(/^Offline/);
+
+  // Back online, it syncs by itself. Not on the 'online' event: the authenticator's DevTools
+  // session makes a page reloaded offline believe it is online, so none ever fires. Which is the
+  // case of a captive portal, where only the journal's own retries bring it back.
+  await context.setOffline(false);
+  await expect(words).toHaveText('Synced');
+});
+
+test('a phone joins with the recovery phrase and sees the same day', async ({ browser }) => {
+  phone = await device(browser, devices['Pixel 7']);
+  const { page } = phone;
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Use recovery phrase' }).click();
+  await page.getByRole('textbox').fill(phrase);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Make a passkey' }).click();
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+
+  await expect(entry(page)).toContainText(SECRET);
+  await expect(entry(page)).toContainText(TODO);
+  await expect(moods(page).getByRole('radio', { name: 'Good' })).toBeChecked();
+  await expect(page.locator('.link-chip')).toHaveText(PERSON);
+  // The photo came down sealed and opened here.
+  const photo = page.locator('.photo img');
+  await expect(photo).toBeVisible();
+  expect(await photo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+});
+
+test('an edit on the phone reaches the laptop', async () => {
+  await moods(phone.page).getByRole('radio', { name: 'Great' }).click();
+  await expect(phone.page.locator('#more .sync__words')).toHaveText('Synced');
+
+  const { page } = laptop;
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
+  await expect(entry(page)).toContainText(SECRET);
+});
+
+test('the month review draws its snapshot', async () => {
+  const { page } = laptop;
+  await page.getByRole('link', { name: 'Calendar' }).click();
+  await page.getByRole('link', { name: 'Month review' }).click();
+  const picture = page.locator('.share__preview img');
+  await expect(picture).toBeVisible();
+  expect(await picture.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1080);
+});
+
+test('the year in pixels is one tab stop, walked with the keyboard', async () => {
+  const { page } = laptop;
+  await page.getByRole('link', { name: 'Stats', exact: true }).click();
+  const grid = page.getByRole('grid', { name: /in pixels$/ });
+  const stop = grid.locator('button[tabindex="0"]');
+  const focused = grid.locator('button:focus');
+  const today = await page.evaluate(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  });
+  await expect(stop).toHaveCount(1);
+  await expect(stop).toHaveAttribute('data-date', today);
+
+  // Dates that exist whatever today is: January 1st, and the 1st of this month.
+  const first = `${today.slice(0, 7)}-01`;
+  await stop.focus();
+  await page.keyboard.press('Control+Home');
+  await expect(focused).toHaveAttribute('data-date', `${today.slice(0, 4)}-01-01`);
+  await page.keyboard.press('End');
+  await expect(focused).toHaveAttribute('data-date', first);
+  await expect(stop).toHaveAttribute('data-date', first);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/day/${first}$`));
+});
+
+test('no screen has a serious accessibility issue', async () => {
+  const { page } = laptop;
+  // Arrived: the address, and the new screen's one heading (a screen still loading has none).
+  const check = async (screen: string, url: RegExp) => {
+    await expect(page).toHaveURL(url);
+    await expect(page.locator('main h1')).toHaveCount(1);
+    expect.soft(await seriousIssues(page, screen), screen).toEqual([]);
+  };
+  const screens: [string, RegExp][] = [
+    ['Today', /\/$/],
+    ['Calendar', /\/calendar$/],
+    ['Timeline', /\/timeline$/],
+    ['Stats', /\/stats$/],
+    ['People', /\/people$/],
+    ['Search', /\/search$/],
+    ['Settings', /\/settings$/],
+  ];
+  for (const [name, url] of screens) {
+    await page.getByRole('link', { name, exact: true }).click();
+    await check(name, url);
+  }
+  // And the screens one level down: the month review, a person, a new event.
+  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await page.getByRole('link', { name: 'Month review' }).click();
+  await check('month review', /\/month\/\d{4}-\d{2}$/);
+  await page.getByRole('link', { name: 'People', exact: true }).click();
+  await page.getByRole('link', { name: PERSON }).click();
+  await check('person', /\/person\/[\w-]+$/);
+  await page.getByRole('link', { name: 'Timeline', exact: true }).click();
+  await page.getByRole('link', { name: 'New event' }).click();
+  await check('new event', /\/event\/new$/);
+  // The phone's layout: the tab bar, and the More sheet open.
+  await expect(phone.page.locator('main h1')).toBeVisible();
+  expect.soft(await seriousIssues(phone.page, 'phone'), 'phone').toEqual([]);
+  await phone.page.getByRole('button', { name: 'More' }).click();
+  await expect(phone.page.locator('#more')).toBeVisible();
+  expect.soft(await seriousIssues(phone.page, 'phone more'), 'phone, More open').toEqual([]);
+  await phone.page.keyboard.press('Escape');
+
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await page.getByRole('button', { name: 'Lock' }).first().click();
+  await expect(page.getByRole('button', { name: /^Unlock with/ })).toBeVisible();
+  expect.soft(await seriousIssues(page, 'lock screen'), 'lock screen').toEqual([]);
+});
+
+test('neither device logged an error or a CSP violation', () => {
+  expect(laptop.problems).toEqual([]);
+  expect(phone.problems).toEqual([]);
+});

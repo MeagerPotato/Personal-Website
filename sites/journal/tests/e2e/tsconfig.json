@@ -1,0 +1,8 @@
+{
+  // The end-to-end tests and their Playwright config: Node, not the browser.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [".", "../../playwright.config.ts"]
+}
