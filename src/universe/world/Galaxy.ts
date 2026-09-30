@@ -110,12 +110,6 @@ interface SunLight {
 
 /** How far out the ship's light is put, in the direction it falls from (u): far enough to be parallel. */
 const LIGHT_DISTANCE = 10000;
-/**
- * Between two suns of about equal pull, their directions can all but cancel. The key light, which
- * comes from above the plane where the suns lie, then takes up to this share, so that the light
- * swings over the top from one to the other instead of flipping round (see lightAt).
- */
-const KEY_TIEBREAK = 0.05;
 
 /**
  * THE WORLD, built from /universe.json: every system, sun, planet, moon, station and satellite,
@@ -261,8 +255,8 @@ export class Galaxy implements System {
    * It blends DIRECTIONS, never places. Each sun pulls toward itself with weight `w (R/d)²`: `w`
    * is 1 inside `shipLightFullRadii` of its family's reach R and fades to 0 by
    * `shipLightFadeRadii`, and `(R/d)²` lets the nearer sun lead where two families meet. The key
-   * light takes whatever share the suns leave (`1 - w` of the strongest), and up to `KEY_TIEBREAK`
-   * more, as a second sun's pull comes up to the first one's. So:
+   * light takes whatever share the suns leave (`1 - w` of the strongest), and up to
+   * `shipLightTiebreak` more, as a second sun's pull comes up to the first one's. So:
    * - inside one family, the light falls from its sun and nowhere else;
    * - between two suns that pull equally from opposite sides, their directions cancel and the key
    *   light, from above the plane, is what is left: the light swings over the top from one to the
@@ -272,7 +266,11 @@ export class Galaxy implements System {
    * The answer is a point far out in that direction (LIGHT_DISTANCE): the shader aims at a point.
    */
   lightAt(position: Readonly<Vector3>, out: Vector3): Vector3 {
-    const { shipLightFullRadii: full, shipLightFadeRadii: fade } = tuning.world;
+    const {
+      shipLightFullRadii: full,
+      shipLightFadeRadii: fade,
+      shipLightTiebreak: tiebreak,
+    } = tuning.world;
     const { toward, sum } = this;
     sum.set(0, 0, 0);
     let strongest = 0;
@@ -293,7 +291,7 @@ export class Galaxy implements System {
         second = pull;
       }
     }
-    const key = 1 - strongest + (first > 0 ? KEY_TIEBREAK * Math.min(1, second / first) : 0);
+    const key = 1 - strongest + (first > 0 ? tiebreak * Math.min(1, second / first) : 0);
     if (key > 0) {
       toward.subVectors(KEY_LIGHT_POSITION, position);
       sum.addScaledVector(toward, key / toward.length());

@@ -629,6 +629,15 @@ export const tuning = {
      */
     shipLightFullRadii: 1.2,
     shipLightFadeRadii: 2,
+    /**
+     * Between two suns of about equal pull (a binary's gap), their directions all but cancel, and
+     * the key light, from above the plane, takes up to this share more (0 to 1): the ship's light
+     * swings over the top from one sun to the other instead of flipping round. Larger is a wider,
+     * slower swing. At 0.05 the light is more than 30 degrees off both suns for only about 5 u of
+     * the gap, so a ship crossing it at 300 u/s turns its light by some 120 degrees in one frame:
+     * judge it in flight, where a binary's suns face each other.
+     */
+    shipLightTiebreak: 0.05,
   },
 
   /** The three bands of the toon shader (shaders/toonFlat.ts). */
