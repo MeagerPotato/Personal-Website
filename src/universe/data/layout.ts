@@ -119,8 +119,8 @@ const TIE = 1e-3;
  *
  * So the galaxy grows round the hub in mirror pairs, and with an even number of systems it is
  * symmetric about the axis: on the diagonal of the map, that frames as a square, which suits a
- * wide screen and a tall one alike. Farthest pair of centres today: 610 u with 2 systems, 1,057
- * with 4, 1,814 with 6, 1,965 with 8.
+ * wide screen and a tall one alike. Farthest pair of centres today: 690 u with 2 systems, 1,195
+ * with 4, 2,137 with 6, 2,265 with 8 (with room for a binary star in every slot: 2026-09-30).
  *
  * Slot k is computed from slots 0 to k - 1 alone: adding systems never moves one already placed.
  */

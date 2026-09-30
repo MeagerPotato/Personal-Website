@@ -2,9 +2,10 @@
 // snapshot in sessionStorage, and the next page carries on from it, so a reload in open sky
 // resumes where the ship was. But only in the galaxy the snapshot was taken in: the engine stamps
 // each one with the manifest's galaxyKey (src/universe/main.ts), and one stamped with another
-// galaxy (a deploy moved things while the tab was open) is dropped whole (core/snapshot.ts,
-// startingFrom). These tests plant a snapshot before a page load, the way a tab that outlived a
-// deploy would hold one, and ask the next page what it made of it.
+// galaxy (a deploy moved things while the tab was open), or with none (written before stamps, in
+// an older galaxy), is dropped whole (core/snapshot.ts, startingFrom). These tests plant a
+// snapshot before a page load, the way a tab that outlived a deploy would hold one, and ask the
+// next page what it made of it.
 
 import type { Page } from '@playwright/test';
 import {
@@ -76,11 +77,11 @@ test('a snapshot from another galaxy is forgotten: the visit starts at the spawn
   expect(now.galaxy).toBe(spawn.galaxy);
 });
 
-test('a snapshot from before galaxies were told apart is forgotten too: the galaxy has changed since', async ({
+test('a snapshot from before galaxies were told apart is forgotten: it is from an older one', async ({
   page,
 }) => {
-  // No engine since stamps writes one without, so it is from a galaxy older than the first whose
-  // key changed (the relays round home: core/snapshot.ts, startingFrom).
+  // Every engine since stamps were added writes one, and the galaxy has moved since (the slots
+  // made room for a binary star): a snapshot without one was taken in the galaxy before that.
   const { spawn, moved } = await elsewhere(page);
   const unstamped: Partial<Kept> = { ...moved };
   delete unstamped.galaxy;

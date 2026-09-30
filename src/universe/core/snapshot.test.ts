@@ -217,21 +217,20 @@ describe('where a visit starts', () => {
     }
   });
 
-  it('forgets a snapshot from before galaxies were told apart: the galaxy has changed since', () => {
-    // Written by a deploy before stamps existed, and no engine since writes one without: so it
-    // is from a galaxy older than the first whose key changed (the relays round home), however
-    // it came back. Here it is as good as one from another galaxy.
+  it('forgets a snapshot from before galaxies were told apart: that was an older galaxy', () => {
+    // Written by an engine from before stamps existed, and so from before the galaxy first moved
+    // (the slots made room for a binary star, 2026-09-30): every engine since stamps what it
+    // writes. Its ship is where it was in THAT galaxy, as surely as one stamped ELSEWHERE.
     for (const saved of [FLYING, STOPPING, GUARDED, DOCKED, HEADED]) {
-      expect(startingFrom({ snapshot: unstamped(saved) }, HERE)).toEqual({
-        snapshot: null,
-        at: null,
-      });
+      const before = unstamped(saved);
+      // It still reads as a snapshot (parseSnapshot): it is only not believed here.
+      expect(parseSnapshot(before)).not.toBeNull();
+      expect(startingFrom({ snapshot: before }, HERE)).toEqual({ snapshot: null, at: null });
       for (const at of ['page/resume', 'project/fishai']) {
-        expect(startingFrom({ at, snapshot: unstamped(saved) }, HERE)).toEqual({
-          snapshot: null,
-          at,
-        });
+        expect(startingFrom({ at, snapshot: before }, HERE)).toEqual({ snapshot: null, at });
       }
     }
+    // While one stamped with this galaxy is believed, as ever.
+    expect(startingFrom({ snapshot: stored(FLYING) }, HERE).snapshot).toEqual(FLYING);
   });
 });

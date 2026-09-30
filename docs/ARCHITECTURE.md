@@ -396,9 +396,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   And a snapshot is only believed in the galaxy it was taken in: the engine stamps each one with
   `galaxyKey` (`manifest.ts`: where every system and body is and how big, never a title or an
   href), and one taken before a deploy moved things (a new system, a family grown) is dropped
-  whole, so the visit starts as if nothing were remembered. One from before the stamp existed is
-  dropped the same way: no engine writes an unstamped snapshot any more, so since the key first
-  changed (the relays round home joined the galaxy) one can only come from an older galaxy.
+  whole, so the visit starts as if nothing were remembered. So is one with no stamp at all: no
+  engine has written one since stamps arrived, and the galaxy has moved since (the slots made
+  room for a binary star, 2026-09-30), so an unstamped snapshot can only come from an older
+  galaxy.
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild

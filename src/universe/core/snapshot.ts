@@ -49,7 +49,7 @@ export interface Snapshot {
   /**
    * Which galaxy this was taken in: the manifest's `galaxyKey` (manifest.ts). A snapshot is only
    * believed in the galaxy it was taken in (`startingFrom`). A snapshot written before this field
-   * existed has none, and is believed nowhere now; the engine always writes one
+   * existed has none, and is from an older galaxy; the engine always writes one
    * (`StampedSnapshot`).
    */
   readonly galaxy?: string;
@@ -58,8 +58,8 @@ export interface Snapshot {
 /**
  * A snapshot as the engine writes it (main.ts): always stamped with its galaxy. Only one that has
  * been away, and was written before stamps existed, may lack the stamp; an engine that stopped
- * writing it would lose every visitor's place on every page load without a word, so the type says
- * so.
+ * writing it would have every visitor's place forgotten on the next page load without a word
+ * (`startingFrom` drops an unstamped snapshot), so the type says so.
  */
 export type StampedSnapshot = Snapshot & { readonly galaxy: string };
 
@@ -149,10 +149,10 @@ export interface StartOptions {
  * manifest's (manifest.ts, galaxyKey), it was taken before a deploy moved the systems or resized
  * a family, and its ship is where it was in THAT galaxy, which here may be inside a planet, with
  * a dock on a ring that has gone elsewhere. The visit starts as if nothing were remembered: in
- * orbit round `at`, or at the spawn point. A snapshot with no stamp is dropped the same way: it
- * was written before stamps existed, and no engine since writes one without, so it can only come
- * from a galaxy older than the first one whose key changed (the relays round home, added after
- * stamps, were that change). Until then it was taken as it always was.
+ * orbit round `at`, or at the spawn point. So is a snapshot with NO stamp: it was written before
+ * stamps existed, by an engine of the galaxy before the slots made room for a binary star
+ * (2026-09-30), the deploy that first changed the key. Every engine since stamps what it writes
+ * (`StampedSnapshot`), so an unstamped snapshot can only come from that older galaxy.
  */
 export function startingFrom(
   start: StartOptions | undefined,

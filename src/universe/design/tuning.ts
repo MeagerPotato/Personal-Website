@@ -729,12 +729,15 @@ export const tuning = {
      * systems frames as a square on the star map. CHANGING ANY OF THE THREE MOVES EVERY SYSTEM
      * (a test pins where they are; galaxy.lock.json will). The build checks that they leave room
      * for the tripwires below: slotRoom for two full-size systems (2 x maxSystemRadius +
-     * minSystemGap + 1), homeRoom for one beside the home system as it really is (its reach,
-     * 66.2 u today, + maxSystemRadius + minSystemGap + 1): the home system may grow to 79 u.
+     * minSystemGap + 1 = 1071), homeRoom for one beside the home system as it really is (its
+     * reach, 66.2 u today, + maxSystemRadius + minSystemGap + 1 = 677.2): 690 lets the home
+     * system grow to 79 u (690 - 460 - 151), so a design edit that makes it bigger (dockMin 7,
+     * a home planet of 16 and a station of 3 reach 75.6 u) still moves nothing. Moved once, on
+     * 2026-09-30, from 610 and 911, to make room for the Projects binary (maxSystemRadius).
      */
     clusterAxisDeg: 135,
-    homeRoom: 610,
-    slotRoom: 911,
+    homeRoom: 690,
+    slotRoom: 1071,
 
     sunRadius: 20,
     /** Nothing orbits closer to a sun's surface than this (the autopilot's keep-out, plus headroom). */
@@ -754,8 +757,13 @@ export const tuning = {
     /**
      * Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the
      * build. They move nothing: a slot's room (homeRoom, slotRoom above) must be enough for them.
+     * 460 is the Projects binary of Allen's tree (Software and Hardware, 401.6 u from their
+     * centre) and room for one more planet or moon of any size under either sun: a moon adds
+     * 36.8 to 42 u, a planet 30 to 53.6 (size l). Any second addition trips it, and the build says
+     * which families to move (data/build.test.ts holds both). (It was 380, which the binary alone
+     * outgrows.)
      */
-    maxSystemRadius: 380,
+    maxSystemRadius: 460,
     minSystemGap: 150,
     /**
      * A binary star (two suns sharing one slot, systems/<id>.md with `suns`): each sun's family is

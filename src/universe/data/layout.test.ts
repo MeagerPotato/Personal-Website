@@ -187,12 +187,13 @@ describe('slotPosition', () => {
     expect(farthest(4)).toBeCloseTo(Math.sqrt(3) * room, 6);
   });
 
-  it('grows slowly: the farthest two systems stay within 2,000 u up to 8 systems', () => {
-    // The sunflower spiral this replaced had 2,935 u at 4 systems and 4,749 u at 8.
-    expect(farthest(2)).toBeLessThan(611);
-    expect(farthest(4)).toBeLessThan(1060);
-    expect(farthest(6)).toBeLessThan(1820);
-    expect(farthest(8)).toBeLessThan(1970);
+  it('grows slowly: the farthest two systems stay within 2,300 u up to 8 systems', () => {
+    // The sunflower spiral this replaced had 2,935 u at 4 systems and 4,749 u at 8. (Before the
+    // room for a binary star, 2026-09-30: 610, 1,057, 1,814 and 1,965 u.)
+    expect(farthest(2)).toBeLessThan(691);
+    expect(farthest(4)).toBeLessThan(1196);
+    expect(farthest(6)).toBeLessThan(2138);
+    expect(farthest(8)).toBeLessThan(2266);
   });
 
   it('stays where it is: the galaxy is pinned', () => {
@@ -200,16 +201,21 @@ describe('slotPosition', () => {
     // their place for ever (docs/PLAN.md §5.4): a visitor learns where Code is. If this fails,
     // an edit has just moved every system in the galaxy. Meant? Then it is time for Phase 3's
     // galaxy.lock.json, which pins each system where it is, so that the next edit cannot.
+    //
+    // Moved ONCE, on purpose, on 2026-09-30 (homeRoom 610 -> 690, slotRoom 911 -> 1071), to make
+    // room for the Projects binary of Allen's tree of solar systems before any system but Code
+    // lived here: slot 1 went from (-431.34, 431.34) to (-487.9, 487.9). Returning visitors lose
+    // nothing but their remembered pose (the galaxy fingerprint, manifest.ts galaxyKey).
     const PINNED: Array<[number, number]> = [
       [0, 0],
-      [-431.34, 431.34],
-      [-157.88, -589.21],
-      [589.21, 157.88],
-      [-1011.51, -271.03],
-      [271.03, 1011.51],
-      [-1329.69, 582.6],
-      [-582.6, 1329.69],
-      [-1480.95, 1480.95],
+      [-487.9, 487.9],
+      [-178.59, -666.49],
+      [666.49, 178.59],
+      [-1191.76, -319.33],
+      [319.33, 1191.76],
+      [-1538.92, 693.84],
+      [-693.84, 1538.92],
+      [-1744.86, 1744.86],
     ];
     const now = PINNED.map((_, order) => slotPosition(order).map((value) => round(value)));
     expect(
@@ -243,12 +249,13 @@ describe('slotPosition', () => {
     withLayout({ home: { planetRadius: 40 } }, () => {
       const problems = slotRoomProblems();
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toMatch(/homeRoom is 610 u, but the home system reaches/);
+      expect(problems[0]).toMatch(/homeRoom is 690 u, but the home system reaches/);
       expect(problems[0]).toMatch(/galaxy\.lock\.json/);
     });
-    withLayout({ maxSystemRadius: 400 }, () => {
+    // (Two systems of 500 u, 150 u apart, need 1,151 u; 400 u ones would fit today's 1,071.)
+    withLayout({ maxSystemRadius: 500 }, () => {
       const problems = slotRoomProblems();
-      expect(problems.some((problem) => /slotRoom is 911 u/.test(problem))).toBe(true);
+      expect(problems.some((problem) => /slotRoom is 1071 u/.test(problem))).toBe(true);
     });
   });
 
