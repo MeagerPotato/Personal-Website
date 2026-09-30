@@ -180,7 +180,9 @@ export class Navigator implements System {
    * approach with no hold, since theirs is no journey). A ship braking after a STOP (`halting`,
    * with no dock) goes on braking, and one taken back at speed by its pilot (`guarding`) keeps its
    * reflex. A journey to a body this world does not have (a snapshot from another deploy) cannot
-   * be taken up: it is a STOP, as a journey let go of anywhere else is (`release`).
+   * be taken up: it is a STOP, as a journey let go of anywhere else is (`release`). So is an orbit
+   * round such a body: the ship was carried round it, and let go of there it would drift on at
+   * whatever speed the ring gave it.
    */
   restore(from: Snapshot['dock'], cut = false, after: HandBack = NOT_HANDED_BACK): void {
     if (!from) {
@@ -193,7 +195,7 @@ export class Navigator implements System {
       return;
     }
     if (from.docked) {
-      this.place(from.id, from.angle, from.spin);
+      if (!this.place(from.id, from.angle, from.spin)) this.stop();
       return;
     }
     const going = cut

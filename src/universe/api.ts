@@ -13,6 +13,7 @@ import { EventBus } from './core/events';
 import { isTier, lowerTier, startingTier, type QualityTier } from './core/quality/tiers';
 import { RebuildBudget, startingFrom, type Snapshot, type StartOptions } from './core/snapshot';
 import { boot, type Booted, type ViewInset } from './main';
+import { galaxyKey, readManifest } from './manifest';
 import { FLIGHT, type AppState } from './state/appMachine';
 import type { NavigatorEvents } from './state/Navigator';
 
@@ -322,7 +323,10 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     document.addEventListener('visibilitychange', onChange);
   }
 
-  const start = startingFrom(options.start);
+  // A remembered snapshot is only believed in the galaxy it was taken in (the engine stamps each
+  // one with this key: main.ts). A rebuild within the tab reads the same manifest, so it never
+  // asks: `rebuild` hands its snapshot straight back.
+  const start = startingFrom(options.start, galaxyKey(readManifest(options.manifest)));
   current = boot(options, hooks, { tier, forced }, start.snapshot, start.at);
 
   return {
