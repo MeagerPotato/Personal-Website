@@ -15,13 +15,28 @@ const PORT = 8799;
 const ORIGIN = `https://127.0.0.1:${PORT}`;
 const CI = Boolean(process.env.CI);
 
+// Where the machine has a GPU, Chromium draws WebGL on it. Headless Chromium otherwise draws on
+// the CPU (SwiftShader): one page of the universe kept about 7 cores busy at 14 frames a second,
+// against a tenth of a core at 60 frames on the GPU (Windows, D3D11, measured 2026-09-30), and a
+// local run starts a browser per worker. WebKit draws on the GPU already. CI has no GPU and keeps
+// the software renderer, so every change is tested both ways; E2E_SOFTWARE_GL=1 does the same
+// locally, to see what CI sees. Other platforms keep it too until someone measures them.
+const GPU = !CI && !process.env.E2E_SOFTWARE_GL && process.platform === 'win32';
+const chromiumOnGpu = GPU
+  ? { launchOptions: { args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] } }
+  : {};
+
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: true,
   forbidOnly: CI,
   retries: CI ? 2 : 0,
   // A CI runner has no GPU: every page renders WebGL on the CPU, and two at once is plenty.
-  ...(CI ? { workers: 2 } : {}),
+  // Locally a quarter of the cores: on a 24-core machine drawing on the GPU, 6 workers ran the
+  // whole suite in 76 s at 43% of the machine on average (peak 61%), where Playwright's default of
+  // half the cores took 62 s at 70% (peak 97%) and more CPU time in all. The machine is also
+  // someone's computer while it runs.
+  workers: CI ? 2 : '25%',
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
   timeout: 90_000,
   expect: { timeout: 15_000 },
@@ -33,14 +48,18 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        ...chromiumOnGpu,
+      },
     },
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'], viewport: { width: 1280, height: 800 } },
     },
     // A phone: narrow, touch, coarse pointer. The bottom sheet instead of the side panel.
-    { name: 'phone', use: { ...devices['Pixel 7'] } },
+    { name: 'phone', use: { ...devices['Pixel 7'], ...chromiumOnGpu } },
   ],
   webServer: {
     // A server of its own, on a port of its own, started fresh: wrangler reads the asset manifest
