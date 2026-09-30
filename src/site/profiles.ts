@@ -25,8 +25,6 @@ export interface Profile {
   label: string;
   note: string;
   href: string;
-  /** The site it is on, as people say it: "github.com". */
-  host: string;
   slot: number;
 }
 
@@ -50,7 +48,7 @@ export function profiles(socials: Readonly<Partial<Record<ProfileKey, string>>>)
       throw new Error(`site.socials.${key}: "${href}" must be an https URL`);
     }
     const { label, note, slot } = PROFILE[key];
-    out.push({ key, label, note, href, host: url.hostname.replace(/^www\./, ''), slot });
+    out.push({ key, label, note, href, slot });
   }
   return out.sort((a, b) => a.slot - b.slot);
 }

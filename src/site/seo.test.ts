@@ -36,7 +36,8 @@ describe('structured data', () => {
       '@type': 'Person',
       '@id': 'https://allenkh.com/#allen',
       name: site.name,
-      sameAs: [site.socials.github, site.socials.linkedin],
+      // (Every profile the site lists, in its order: the next test.)
+      sameAs: expect.arrayContaining([site.socials.github, site.socials.linkedin]),
     });
     expect(websiteLd()).toMatchObject({ '@type': 'WebSite', author: { '@id': person['@id'] } });
     expect(profilePageLd()).toMatchObject({ '@type': 'ProfilePage', mainEntity: person });

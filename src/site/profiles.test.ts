@@ -14,7 +14,6 @@ describe('profiles', () => {
         label: 'GitHub',
         note: 'where the projects live',
         href: 'https://github.com/someone',
-        host: 'github.com',
         slot: 2,
       },
       {
@@ -22,25 +21,33 @@ describe('profiles', () => {
         label: 'LinkedIn',
         note: 'the formal version',
         href: 'https://www.linkedin.com/in/someone',
-        host: 'linkedin.com',
         slot: 4,
       },
     ]);
   });
 
   it('shows nothing of Devpost until it has a URL, and then only that line changes', () => {
-    expect(profiles(site.socials).map(({ key }) => key)).not.toContain('devpost');
-    const before = profiles(site.socials);
-    const after = profiles({ ...site.socials, devpost: 'https://devpost.com/someone' });
+    // (Not the site's own config: its Devpost line is on its way, and must pass as it is.)
+    const socials = {
+      github: 'https://github.com/someone',
+      linkedin: 'https://www.linkedin.com/in/someone',
+    };
+    const before = profiles(socials);
+    expect(before.map(({ key }) => key)).toEqual(['github', 'linkedin']);
+    const after = profiles({ ...socials, devpost: 'https://devpost.com/someone' });
     expect(after.map(({ key }) => key)).toEqual(['github', 'linkedin', 'devpost']);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
-  it("knows the site's own networks: GitHub and LinkedIn", () => {
-    expect(profiles(site.socials).map(({ label, href }) => [label, href])).toEqual([
-      ['GitHub', site.socials.github],
-      ['LinkedIn', site.socials.linkedin],
-    ]);
+  it('lists every network the site gives a URL, GitHub and LinkedIn among them, and no other', () => {
+    const listed = profiles(site.socials);
+    const configured = Object.entries(site.socials) as [ProfileKey, string][];
+    expect(listed.map(({ key, href }) => [key, href])).toEqual(
+      configured.sort(([a], [b]) => PROFILE[a].slot - PROFILE[b].slot),
+    );
+    expect(listed.map(({ label }) => label)).toEqual(
+      expect.arrayContaining(['GitHub', 'LinkedIn']),
+    );
   });
 
   it('gives every network its own slot on the ring, never the satellite', () => {
