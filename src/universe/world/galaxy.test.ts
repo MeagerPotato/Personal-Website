@@ -1,4 +1,4 @@
-import { Vector3, type LineLoop, type Mesh, type Object3D } from 'three';
+import { Vector3, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
@@ -154,14 +154,32 @@ describe('where a visitor starts', () => {
 });
 
 describe('Galaxy', () => {
-  it('makes a view for every body, and an orbit line for every body that orbits', () => {
-    const { galaxy } = setup();
+  it('makes a view for every body, and draws the path of every body that orbits, once', () => {
+    const { galaxy, node } = setup();
+    galaxy.frameUpdate(frame(10));
+    const lines = galaxy.object.children.filter((child) => child.name.endsWith(':orbit'));
+    const drawing = new Set<Object3D>();
     for (const body of manifest.bodies) {
       expect(galaxy.object.getObjectByName(body.id)).toBeDefined();
-      const line = galaxy.object.getObjectByName(`${body.id}:orbit`) as LineLoop | undefined;
-      expect(line !== undefined).toBe(body.orbit !== null);
-      if (line && body.orbit) expect(line.scale.x).toBe(body.orbit.radius);
+      const { orbit } = body;
+      if (!orbit) continue;
+      const system = manifest.systems.find((candidate) => candidate.id === body.system);
+      const around = body.parent
+        ? node(body.parent).position
+        : new Vector3(system?.position[0], 0, system?.position[1]);
+      // Exactly one line is this body's circle: its radius, round what it goes round.
+      const drawn = lines.filter(
+        (line) => line.scale.x === orbit.radius && line.position.distanceTo(around) < 1e-9,
+      );
+      expect(drawn).toHaveLength(1);
+      drawing.add(drawn[0] as Object3D);
     }
+    // And there is no line that draws nobody's path.
+    expect(drawing.size).toBe(lines.length);
+    // The relays ride the Contact satellite's ring, and it is drawn once: a see-through line drawn
+    // over itself would be the darkest path in the sky.
+    expect(galaxy.object.getObjectByName('page/contact:orbit')).toBeDefined();
+    expect(galaxy.object.getObjectByName('link/github:orbit')).toBeUndefined();
   });
 
   it('puts everything where the orbits say, at the time of the frame', () => {
@@ -385,6 +403,42 @@ describe('Galaxy', () => {
     const home = node('page/about').position;
     const satellite = node('page/contact').position;
     expect(relay.position.distanceTo(home)).toBeCloseTo(satellite.distanceTo(home), 6);
+    galaxy.dispose();
+  });
+
+  it('shows a path on the star map while any body on it shows', () => {
+    const viewer = { position: new Vector3(0, 0, -120) };
+    const satellite = manifest.bodies.find((body) => body.id === 'page/contact');
+    const home = manifest.bodies.find((body) => body.id === 'page/about');
+    if (!satellite?.orbit || !home) throw new Error('fixture');
+    // Zoomed out so far that the satellite's disc touches home's, and the relay's, a little
+    // smaller on the map, does not yet (sim/mapView.ts, displayScales).
+    const px = tuning.map.minRadiusPx;
+    const ringRadius = satellite.orbit.radius;
+    const touches = (own: number): number => ringRadius / (px.home + own);
+    const map = { weight: 1, unitsPerPx: (touches(px.satellite) + touches(px.link)) / 2 };
+    expect(home.radius).toBeLessThan(px.home * map.unitsPerPx);
+    const galaxy = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer,
+      reducedMotion: false,
+      map,
+    });
+    const row = (id: string): number => galaxy.orbits.indexOf(id);
+    const ring = galaxy.object.getObjectByName('page/contact:orbit');
+
+    galaxy.frameUpdate(frame(1));
+    expect(galaxy.displayScale[row('page/contact')]).toBe(0);
+    expect(galaxy.displayScale[row('link/github')]).toBeGreaterThan(0);
+    expect(ring?.visible).toBe(true);
+
+    // Further out, neither shows, and neither does their ring.
+    map.unitsPerPx = touches(px.link) * 1.1;
+    galaxy.frameUpdate(frame(2));
+    expect(galaxy.displayScale[row('link/github')]).toBe(0);
+    expect(ring?.visible).toBe(false);
     galaxy.dispose();
   });
 
