@@ -196,6 +196,9 @@ describe("the ship's light near a body (the lean pin)", () => {
     // degrees off it where Robotics lets go (above), 23 degrees in a frame at worst for a pilot
     // leaving at boost (the blend alone turned about 19 there). Blending the two directions as
     // vectors would make it 34. Rings whose light turns by less than 2 degrees are left out.
+    // (Hackathons @ Berkeley's and Kalshi's are no claim's doing: in a system of one sun a body's
+    // light and the blend are that one sun, whose direction turns as a ship boosts past close to
+    // it, 2 or 3 degrees a frame by these two, as it did before the claim.)
     const exits = exitTurns(buildUniverse(readRealInput()));
     expect(Object.keys(exits).length).toBeGreaterThanOrEqual(13);
     const turning = Object.fromEntries(
@@ -204,6 +207,8 @@ describe("the ship's light near a body (the lean pin)", () => {
     expect(turning, LOOK_AGAIN).toEqual({
       'project/cyberpatriot': 3,
       'project/days2meet': 13,
+      'project/hackathons-at-berkeley': 3,
+      'project/kalshi': 2,
       'project/model-rocketry': 3,
       'project/robotics': 23,
       'system/hardware': 8,
