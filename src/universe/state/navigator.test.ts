@@ -549,6 +549,33 @@ describe('Navigator, travelling', () => {
     }
   });
 
+  it('stops an orbit it cannot put back after a rebuild: round a body this world does not have', () => {
+    const h = harness(0, 0, 0, WIDE_GALAXY);
+    syncSurroundings(h.surroundings, 0);
+    h.navigator.place('project/fishai');
+    h.run(2);
+    const docked = h.navigator.snapshot();
+    expect(docked?.docked).toBe(true);
+    // The ship is carried round its ring: let go of, it would drift off at the ring's speed.
+    expect(Math.hypot(h.state.vx, h.state.vz)).toBeGreaterThan(5);
+
+    // The next deploy has no FishAI: the snapshot is docked at a body this world does not have.
+    const gone: SurroundingsInput = {
+      ...WIDE_GALAXY,
+      bodies: WIDE_GALAXY.bodies.filter(({ id }) => id !== 'project/fishai'),
+    };
+    const again = harness(0, 0, 0, gone);
+    copyShipState(h.state, again.state);
+    syncSurroundings(again.surroundings, h.time());
+    again.navigator.restore(docked);
+    expect(again.navigator.state).toEqual({ mode: 'flight', target: null });
+    expect(again.navigator.halting).toBe(true);
+    again.run(4);
+    expect(Math.hypot(again.state.vx, again.state.vz)).toBeLessThan(1);
+    // Nothing to announce: it never was docked anywhere in this world.
+    expect(again.names().filter((name) => name !== 'soi')).toEqual([]);
+  });
+
   it('keeps the reflex on after a rebuild, if the pilot took the ship back at speed a moment before', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
     h.run(0.2);

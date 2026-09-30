@@ -46,7 +46,20 @@ export interface Snapshot {
    * `halting`. A snapshot written before this field existed reads as false.
    */
   readonly guarding: boolean;
+  /**
+   * Which galaxy this was taken in: the manifest's `galaxyKey` (manifest.ts). A snapshot is only
+   * believed in the galaxy it was taken in (`startingFrom`). A snapshot written before this field
+   * existed has none; the engine always writes one (`StampedSnapshot`).
+   */
+  readonly galaxy?: string;
 }
+
+/**
+ * A snapshot as the engine writes it (main.ts): always stamped with its galaxy. Only one that has
+ * been away, and was written before stamps existed, may lack the stamp; an engine that stopped
+ * writing it would switch `startingFrom`'s protection off without a word, so the type says so.
+ */
+export type StampedSnapshot = Snapshot & { readonly galaxy: string };
 
 const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;
 /** Nothing in any galaxy we build is this far out, or this fast, or this old (about 190 days). */
@@ -65,7 +78,14 @@ const isNumber = (value: unknown): value is number =>
  */
 export function parseSnapshot(data: unknown): Snapshot | null {
   if (typeof data !== 'object' || data === null) return null;
-  const { steps, ship, dock, halting = false, guarding = false } = data as Record<string, unknown>;
+  const {
+    steps,
+    ship,
+    dock,
+    halting = false,
+    guarding = false,
+    galaxy,
+  } = data as Record<string, unknown>;
   if (!isNumber(steps) || !Number.isInteger(steps) || steps < 0 || steps > MAX_STEPS) return null;
   if (typeof ship !== 'object' || ship === null) return null;
 
@@ -76,10 +96,12 @@ export function parseSnapshot(data: unknown): Snapshot | null {
     state[field] = value;
   }
 
+  if (galaxy !== undefined && typeof galaxy !== 'string') return null;
+  const stamp = galaxy === undefined ? {} : { galaxy };
   if (typeof halting !== 'boolean' || typeof guarding !== 'boolean') return null;
   if (halting && guarding) return null;
   if (dock === null || dock === undefined) {
-    return { steps, ship: state, dock: null, halting, guarding };
+    return { steps, ship: state, dock: null, halting, guarding, ...stamp };
   }
   if (typeof dock !== 'object') return null;
   const { id, docked, angle, spin, holdSec = 0 } = dock as Record<string, unknown>;
@@ -93,6 +115,7 @@ export function parseSnapshot(data: unknown): Snapshot | null {
     dock: { id, docked, angle, spin, holdSec },
     halting: false,
     guarding: false,
+    ...stamp,
   };
 }
 
@@ -119,14 +142,29 @@ export interface StartOptions {
  * orbit let go of in its first half second, while the springs still carry the ship round faster
  * than the cushions can stop (GUARD_SPEED, as sim/docking.ts onJourney decides for a key or a
  * link): it brakes too. A settled orbit goes round far slower than that, and is simply let go.
+ *
+ * A SNAPSHOT FROM ANOTHER GALAXY is not believed at all: stamped with another `galaxy` than this
+ * manifest's (manifest.ts, galaxyKey), it was taken before a deploy moved the systems or resized
+ * a family, and its ship is where it was in THAT galaxy, which here may be inside a planet, with
+ * a dock on a ring that has gone elsewhere. The visit starts as if nothing were remembered: in
+ * orbit round `at`, or at the spawn point. A snapshot with no stamp was written before stamps
+ * existed, and is taken as it always was: in the galaxy that stood when stamps arrived it is as
+ * good as ever. That is only for now. No engine since writes one without a stamp, so once a
+ * deploy CHANGES the key (the first move of the galaxy, for the tree of solar systems), a
+ * snapshot with no stamp can only come from an older galaxy: that deploy drops those too
+ * (`saved.galaxy !== galaxy`), with a test.
  */
-export function startingFrom(start: StartOptions | undefined): {
+export function startingFrom(
+  start: StartOptions | undefined,
+  galaxy: string,
+): {
   snapshot: Snapshot | null;
   at: string | null;
 } {
   const at = start?.at ?? null;
   const saved = parseSnapshot(start?.snapshot);
   if (!saved) return { snapshot: null, at };
+  if (saved.galaxy !== undefined && saved.galaxy !== galaxy) return { snapshot: null, at };
   if (saved.dock === null || saved.dock.id === at) return { snapshot: saved, at };
   // (A snapshot with a dock is neither halting nor guarding: parseSnapshot.)
   const fast = Math.hypot(saved.ship.vx, saved.ship.vz) > GUARD_SPEED;

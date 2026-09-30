@@ -385,7 +385,14 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   time with the ship where it was. When the two disagree the URL wins, and a journey it does not
   take up is a Stop: one pointed at in the world flies with the URL on the sky, and reloaded
   there the ship would otherwise coast on at the pilot's top speed. A journey to a body the
-  manifest no longer has is a Stop as well (`Navigator.restore`).
+  manifest no longer has is a Stop as well (`Navigator.restore`), and so is an orbit round one.
+  And a snapshot is only believed in the galaxy it was taken in: the engine stamps each one with
+  `galaxyKey` (`manifest.ts`: where every system and body is and how big, never a title or an
+  href), and one taken before a deploy moved things (a new system, a family grown) is dropped
+  whole, so the visit starts as if nothing were remembered. One from before the stamp existed is
+  taken as it always was, but only until the key first changes: no engine writes an unstamped
+  snapshot any more, so after that deploy (the galaxy's first move, for the tree of solar
+  systems) one can only come from an older galaxy, and that deploy drops those too.
 - **What survives a rebuild** is exactly two things: the simulation step count (from which the
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild

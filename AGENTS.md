@@ -230,7 +230,9 @@ the browser takes the WebGL context (a phone tab in the background), `api.ts` ta
 (`core/snapshot.ts`), disposes the engine, canvas and all, and boots a new one from it. So state
 lives in exactly one of two places: it follows from the simulation step count (where every planet
 is), or it is a field of the snapshot (the ship, and the dock it is headed for or carried by).
-Anything new that a visitor would miss after a rebuild becomes a snapshot field.
+Anything new that a visitor would miss after a rebuild becomes a snapshot field. A snapshot is
+only believed in the galaxy it was taken in (`galaxyKey` in `manifest.ts`), so a new manifest
+field that moves or sizes a body goes into that key too.
 
 **Where the visitor is headed** has one owner, `state/Navigator.ts`: it turns requests
 (`approach`, `place`, `release`) into simulation state (`sim/docking.ts`), keeps the app state
