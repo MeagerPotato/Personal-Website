@@ -91,6 +91,13 @@ describe('structured data', () => {
     expect(plain).not.toHaveProperty('keywords');
   });
 
+  it('leaves out the picture and the date that planned work does not have yet', () => {
+    const node = projectLd({ ...base, date: undefined, imagePath: undefined });
+    expect(node).not.toHaveProperty('image');
+    expect(node).not.toHaveProperty('dateCreated');
+    expect(node).toMatchObject({ name: 'FishAI', url: 'https://allenkh.com/projects/fishai/' });
+  });
+
   it('hangs a moon on its planet', () => {
     const moon = projectLd({ ...base, id: 'canadian-fish-demo', parentId: 'fishai' });
     expect(moon.isPartOf).toEqual({ '@id': 'https://allenkh.com/projects/fishai/#project' });
