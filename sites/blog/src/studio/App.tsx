@@ -6,7 +6,10 @@
  *   signed-out   sign in with a passkey
  *   signed-in    the studio (Shell). If the session ends while it is open (a 401 anywhere), the
  *                passkey is asked for again over it, so nothing on screen is lost.
+ *
+ * Going in or out, the next screen's title takes the focus (@allenkh/design/focus).
  */
+import { focusNextTitle } from '@allenkh/design/focus';
 import { useEffect, useRef, useState } from 'react';
 import { api, onSignedOut, signedInAgain } from './api';
 import { signIn, signInVerb } from './passkeys';
@@ -44,13 +47,18 @@ export function App() {
 
   useEffect(() => onSignedOut(() => setExpired(true)), []);
 
+  const enter = (next: GateState) => {
+    focusNextTitle();
+    setGate(next);
+  };
+
   switch (gate.state) {
     case 'loading':
       return <main className="gate" aria-busy="true" />;
     case 'setup':
-      return <SetUp onDone={() => setGate({ state: 'signed-in' })} />;
+      return <SetUp onDone={() => enter({ state: 'signed-in' })} />;
     case 'signed-out':
-      return <SignIn onDone={() => setGate({ state: 'signed-in' })} />;
+      return <SignIn onDone={() => enter({ state: 'signed-in' })} />;
     case 'unavailable':
       return (
         <Gate title="Studio" lede={`The blog’s server isn’t answering (${gate.message}).`}>
@@ -66,7 +74,7 @@ export function App() {
     case 'signed-in':
       return (
         <>
-          <Shell onSignOut={() => setGate({ state: 'signed-out' })} />
+          <Shell onSignOut={() => enter({ state: 'signed-out' })} />
           {expired ? (
             <SignInAgain
               onDone={() => {

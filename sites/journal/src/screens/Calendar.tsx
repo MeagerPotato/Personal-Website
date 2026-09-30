@@ -10,6 +10,7 @@ import { hasEntry, monthSummary } from '../model/stats';
 import type { Activities, MoodDef } from '../model/types';
 import { Bean } from '../ui/Bean';
 import { MoodBar } from '../ui/charts';
+import { Title } from '../ui/common';
 
 export function activityById(activities: Activities) {
   const map = new Map<string, { name: string; icon: string }>();
@@ -34,7 +35,7 @@ export function CalendarScreen({ month: given }: { month: string | null }) {
   return (
     <article className="page page--wide calendar">
       <header className="page__head calendar__head">
-        <h1 className="page__title">{monthName(month)}</h1>
+        <Title className="page__title">{monthName(month)}</Title>
         <div className="calendar__nav">
           <a
             className="icon-button"

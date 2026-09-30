@@ -23,6 +23,7 @@ import {
 } from '../share/snapshot';
 import { Bean } from '../ui/Bean';
 import { MoodBar } from '../ui/charts';
+import { Title } from '../ui/common';
 import { Segmented } from '../ui/fields';
 import { SealedImage } from '../ui/Photo';
 import { openFile } from '../journal/files';
@@ -67,9 +68,9 @@ export function MonthScreen({ month }: { month: string }) {
         <a className="back-link" href={paths.calendar(month)} onClick={follow}>
           <ArrowLeft aria-hidden="true" /> {monthName(month)}
         </a>
-        <h1 className="page__overline">
+        <Title className="page__overline">
           Month review<span className="visually-hidden">, {monthName(month)}</span>
-        </h1>
+        </Title>
         <input
           key={review.title}
           className="bare-input page__title"

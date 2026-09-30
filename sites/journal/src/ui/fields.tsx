@@ -1,4 +1,5 @@
 /** Fields shared by the record pages: an emoji icon, a colour family, a set of choices. */
+import { onRadioKeyDown, radioTabIndex } from '@allenkh/design/radiogroup';
 import { FAMILY_KEYS, type FamilyKey } from '@allenkh/design/tokens';
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -71,19 +72,22 @@ export function FamilyPicker(props: {
   label?: string;
   onChange: (family: FamilyKey) => void;
 }) {
+  const picked = FAMILY_KEYS.indexOf(props.value);
   return (
     <div className="swatches" role="radiogroup" aria-label={props.label ?? 'Colour'}>
-      {FAMILY_KEYS.map((family) => (
+      {FAMILY_KEYS.map((family, index) => (
         <button
           key={family}
           type="button"
           role="radio"
-          aria-checked={props.value === family}
+          aria-checked={index === picked}
+          tabIndex={radioTabIndex(index, picked)}
           aria-label={FAMILY_NAMES[family]}
           title={FAMILY_NAMES[family]}
           className="swatch"
           data-family={family}
           onClick={() => props.onChange(family)}
+          onKeyDown={onRadioKeyDown}
         />
       ))}
     </div>
@@ -96,15 +100,18 @@ export function Segmented<T extends string | number>(props: {
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
 }) {
+  const picked = props.options.findIndex((option) => option.value === props.value);
   return (
     <div className="segmented" role="radiogroup" aria-label={props.label}>
-      {props.options.map((option) => (
+      {props.options.map((option, index) => (
         <button
           key={String(option.value)}
           type="button"
           role="radio"
-          aria-checked={props.value === option.value}
+          aria-checked={index === picked}
+          tabIndex={radioTabIndex(index, picked)}
           onClick={() => props.onChange(option.value)}
+          onKeyDown={onRadioKeyDown}
         >
           {option.label}
         </button>

@@ -9,6 +9,7 @@ import { follow, paths } from '../app/router';
 import { shortDate, today } from '../model/dates';
 import { Bean } from '../ui/Bean';
 import { familyOf } from './Calendar';
+import { Title } from '../ui/common';
 
 interface Hit {
   key: string;
@@ -142,7 +143,7 @@ export function SearchScreen() {
   return (
     <article className="page search">
       <header className="page__head">
-        <h1 className="page__title">Search</h1>
+        <Title className="page__title">Search</Title>
         <input
           ref={field}
           className="input search__input"

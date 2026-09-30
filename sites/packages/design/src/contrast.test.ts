@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // The main site's WCAG helper: one implementation of the maths for every site.
 import { contrast } from '../../../../src/site/contrast';
@@ -59,5 +60,32 @@ describe.each(Object.entries(themes))('the %s theme', (_name, theme) => {
 
   it('selected text stays readable', () => {
     expect(contrast(theme.ink.high, theme.selection)).toBeGreaterThanOrEqual(TEXT);
+  });
+});
+
+// The measurements above hold only if the stylesheets keep to them. The faint ink is never text
+// (tokens.ts): a placeholder, a hint or an empty caption is read too, in the low ink.
+describe('the stylesheets', () => {
+  const sites = new URL('../../../', import.meta.url);
+  const sheets = [
+    'packages/design/styles',
+    'packages/editor/styles',
+    'journal/src/styles',
+    'blog/src/styles',
+  ].flatMap((folder) =>
+    readdirSync(new URL(`${folder}/`, sites))
+      .filter((name) => name.endsWith('.css'))
+      .map((name) => `${folder}/${name}`),
+  );
+
+  it('are found', () => {
+    expect(sheets).toEqual(
+      expect.arrayContaining(['packages/design/styles/base.css', 'blog/src/styles/studio.css']),
+    );
+  });
+
+  it.each(sheets)('%s writes no text in the faint ink', (sheet) => {
+    const css = readFileSync(new URL(sheet, sites), 'utf8');
+    expect(css).not.toMatch(/(?<![\w-])color:\s*var\(--ink-faint\)/);
   });
 });

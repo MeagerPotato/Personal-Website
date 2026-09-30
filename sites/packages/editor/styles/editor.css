@@ -89,7 +89,7 @@ img.ProseMirror-separator {
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  color: var(--ink-faint);
+  color: var(--ink-low);
   pointer-events: none;
 }
 

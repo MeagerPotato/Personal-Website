@@ -8,7 +8,15 @@ import { api, type Passkey } from '../api';
 import { useOverview } from '../data';
 import { addPasskey, deviceLabel } from '../passkeys';
 import { useTitle } from '../router';
-import { busyLabel, describe, ErrorText, shortDate, useConfirm, whenAgo } from '../ui/common';
+import {
+  busyLabel,
+  describe,
+  ErrorText,
+  shortDate,
+  Title,
+  useConfirm,
+  whenAgo,
+} from '../ui/common';
 
 type Ask = ReturnType<typeof useConfirm>[1];
 
@@ -118,7 +126,7 @@ export function Settings() {
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Settings</h1>
+        <Title className="page__title">Settings</Title>
       </header>
 
       <section className="settings__section" aria-labelledby="passkeys-title">

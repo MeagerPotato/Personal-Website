@@ -7,7 +7,7 @@ import type { Subscriber } from '../../server/subscribers';
 import { api } from '../api';
 import { useOverview } from '../data';
 import { useTitle } from '../router';
-import { describe, ErrorText, plural, shortDate, useConfirm } from '../ui/common';
+import { describe, ErrorText, plural, shortDate, Title, useConfirm } from '../ui/common';
 
 const STATUS: Record<Subscriber['status'], string> = {
   active: 'Subscribed',
@@ -56,7 +56,7 @@ export function Subscribers() {
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Subscribers</h1>
+        <Title className="page__title">Subscribers</Title>
         {list ? <p className="hint">{plural(active, 'confirmed subscriber')}</p> : null}
       </header>
 

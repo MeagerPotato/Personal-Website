@@ -5,8 +5,10 @@
  *   locked     the lock screen (screens/Unlock), online or from this device's copy
  *   unlocked   the journal (Shell), until it is locked by hand or by time
  *
- * Locking drops the Journal object, and with it the keys and every decrypted record.
+ * Locking drops the Journal object, and with it the keys and every decrypted record. Either way
+ * round, the next screen's title takes the focus (@allenkh/design/focus).
  */
+import { focusNextTitle } from '@allenkh/design/focus';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OfflineError, api } from '../api/client';
 import type { Unlocked } from '../account/account';
@@ -59,6 +61,7 @@ export function App() {
     const journal = await Journal.open(unlocked.keys, unlocked.online);
     unlockedAt.current = Date.now();
     void persist();
+    focusNextTitle();
     setGate({ state: 'unlocked', journal });
   }, []);
 
@@ -66,6 +69,7 @@ export function App() {
 
   const lock = useCallback(() => {
     if (!journal) return;
+    focusNextTitle();
     setGate({ state: 'locked' });
     void journal.close();
   }, [journal]);

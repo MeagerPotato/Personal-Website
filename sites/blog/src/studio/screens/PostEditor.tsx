@@ -16,7 +16,7 @@ import { useOverview } from '../data';
 import { StudioEditor } from '../editor/StudioEditor';
 import { uploadImage } from '../editor/uploads';
 import { follow, hrefFor, navigate, useTitle } from '../router';
-import { busyLabel, describe, ErrorText, plural, useConfirm, whenAgo } from '../ui/common';
+import { busyLabel, describe, ErrorText, plural, Title, useConfirm, whenAgo } from '../ui/common';
 import { Properties } from './post/Properties';
 import { DraftSession, type SaveState } from './post/session';
 import { PublishState, standing } from './post/status';
@@ -55,7 +55,7 @@ export function PostEditor({ id }: { id: string }) {
             <ChevronLeft aria-hidden />
             Posts
           </a>
-          <h1 className="page__title">This post can’t be opened</h1>
+          <Title className="page__title">This post can’t be opened</Title>
         </header>
         <ErrorText error={error} />
       </div>
@@ -64,7 +64,7 @@ export function PostEditor({ id }: { id: string }) {
   if (!session) {
     return (
       <div className="page" aria-busy="true">
-        <h1 className="visually-hidden">Opening the post</h1>
+        <Title className="visually-hidden">Opening the post</Title>
         <p className="hint">Opening…</p>
       </div>
     );
@@ -416,7 +416,7 @@ function Writing({ session }: { session: DraftSession }) {
           </figure>
         ) : null}
 
-        <h1 className="visually-hidden">{name}</h1>
+        <Title className="visually-hidden">{name}</Title>
         <textarea
           ref={title}
           className="bare-input page__title post-title"
@@ -425,6 +425,8 @@ function Writing({ session }: { session: DraftSession }) {
           value={draft.title}
           placeholder="Untitled"
           aria-label="Title"
+          // A new post starts at its title (as a new event does in the journal).
+          autoFocus={!draft.title}
           onChange={(event) =>
             change((current) => ({ ...current, title: event.target.value.replace(/\n/g, ' ') }))
           }

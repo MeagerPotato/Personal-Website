@@ -1,11 +1,12 @@
 import { follow, hrefFor, useTitle } from '../router';
+import { Title } from '../ui/common';
 
 export function Missing() {
   useTitle('Not found');
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Nothing here</h1>
+        <Title className="page__title">Nothing here</Title>
       </header>
       <p>
         The studio has no page at this address.{' '}

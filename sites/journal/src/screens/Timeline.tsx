@@ -7,6 +7,7 @@ import { useJournal } from '../app/context';
 import { follow, paths } from '../app/router';
 import { shortDate, today } from '../model/dates';
 import { plainText } from '../model/stats';
+import { Title } from '../ui/common';
 
 export function TimelineScreen() {
   const journal = useJournal();
@@ -25,7 +26,7 @@ export function TimelineScreen() {
       <header className="page__head page__head--row">
         <div>
           <p className="page__overline">Life events</p>
-          <h1 className="page__title">Timeline</h1>
+          <Title className="page__title">Timeline</Title>
         </div>
         <a className="button button--primary" href={paths.event(null)} onClick={follow}>
           <Plus aria-hidden="true" />

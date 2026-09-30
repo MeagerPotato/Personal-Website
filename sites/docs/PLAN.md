@@ -75,7 +75,11 @@ exactly one `<h1>`.
 **Shared app frame.** `packages/design/styles/app.css` is the frame both apps are built from (the
 sidebar, the phone tab bar, sheets and dialogs) and their common parts (chips, property lists,
 swatches, segmented controls, record lists, settings sections, the sign-in gate). Each app's own
-sheet adds only what is its alone.
+sheet adds only what is its alone. Two behaviours go with it, framework-free, so both apps work
+alike: when the screen changes (a link, Back, a gate's next step), the new screen's title takes
+the focus (`focus.ts`, through each app's `<Title>`), so a screen reader says where it now is;
+and a radio group drawn as buttons (the moods, swatches, segmented controls) is one stop in the
+tab order, walked with the arrow keys (`radiogroup.ts`), as the browser's own radios are.
 
 **The journal** (built). A local-first app: records are sealed and kept in IndexedDB, synced
 with compare-and-set writes and merged on the device (the server cannot read what it would
@@ -120,12 +124,9 @@ outbox in D1 that a cron drains and retries.
 
 **Known details for D** (noticed while building; none blocks a launch):
 
-- The editor's placeholder text is faint; check it against the contrast bar in daylight.
 - On the day page, the activity chips take more room than the writing; try them folded.
 - The story-sized snapshot leaves room at the bottom; give it to the photos.
 - Passkeys are labelled by device type ("iPhone"); let Allen rename them.
-- The mood picker is a radio group: arrow keys should move between moods.
-- After a route change, focus should move to the new screen's heading.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
 - The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
   that the server is hiding recent changes) is designed but not built (journal-crypto.md,
