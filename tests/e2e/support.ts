@@ -87,7 +87,7 @@ export const plannedName = (title: string): string => `${title}, Planned`;
 /**
  * Click or tap where the thing IS, the way a hand does. A name follows a body that is moving, so
  * it never holds still for Playwright's own click, which waits for that; and a real pointer also
- * proves that nothing lies on top of it.
+ * proves that nothing lies on top of it. A tap in Chromium is a finger (`fingerTap`).
  */
 export async function pointAt(page: Page, target: Locator, touch: boolean, dy = 0): Promise<void> {
   await expect(target).toBeVisible();
@@ -95,8 +95,62 @@ export async function pointAt(page: Page, target: Locator, touch: boolean, dy = 
   if (!box) throw new Error('nothing to point at');
   const x = box.x + box.width / 2;
   const y = dy === 0 ? box.y + box.height / 2 : box.y + dy;
-  if (touch) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  if (!touch) await page.mouse.click(x, y);
+  else if (page.context().browser()?.browserType().name() === 'chromium')
+    await fingerTap(page, x, y);
+  else await page.touchscreen.tap(x, y);
+}
+
+/**
+ * A tap by a finger as a phone reports one: a touch with an area (a fingertip is some 8 mm
+ * across, about 40 CSS px on a phone), through the browser's own input pipeline. Playwright's
+ * own tap is a point, and the browser moves only a touch with an area onto a link or a button
+ * nearby (touch adjustment), as it does a real finger. Chromium only.
+ *
+ * Down and up carry the times a finger would have (80 ms apart), as a phone's touch screen
+ * stamps them: the lift is sent only once a busy page has taken the touch, and stamped when it
+ * was sent it would make a slow page's every tap a long press (ui/Picker.ts, `tapMaxSec`).
+ */
+export async function fingerTap(page: Page, x: number, y: number, radius = 20): Promise<void> {
+  const session = await page.context().newCDPSession(page);
+  const finger = { x, y, radiusX: radius, radiusY: radius, force: 1, id: 1 };
+  // Seconds since 1970, as the protocol has it.
+  const down = Date.now() / 1000;
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [finger],
+    timestamp: down,
+  });
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+    timestamp: down + 0.08,
+  });
+  await session.detach();
+}
+
+/**
+ * From now on, make every frame of the page that is showing at least `ms` slower, as a slow phone
+ * draws them, or CI (which draws in software, ten frames a second at best). Some things happen
+ * only there: what a fast machine does between two frames, a slow one does after one. 0 undoes
+ * it. (The engine asks for each frame afresh, so this reaches it: core/Engine.ts.)
+ */
+export async function slowFrames(page: Page, ms: number): Promise<void> {
+  await page.evaluate((delay) => {
+    const slow = window as unknown as { slowFramesMs?: number };
+    if (slow.slowFramesMs === undefined) {
+      const request = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (callback) =>
+        request((time) => {
+          const until = performance.now() + (slow.slowFramesMs ?? 0);
+          while (performance.now() < until) {
+            // The main thread is busy: nothing else runs, as on a slow device.
+          }
+          callback(time);
+        });
+    }
+    slow.slowFramesMs = delay;
+  }, ms);
 }
 
 /**

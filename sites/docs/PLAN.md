@@ -86,9 +86,13 @@ with compare-and-set writes and merged on the device (the server cannot read wha
 merge). Screens: today and any day, the calendar, the month review and its snapshot, the
 timeline of events, people and places, stats, search, settings, and the lock, setup and recovery
 screens. A day's activities fold to its own and the usual ones (the most used in the 60 days
-before it), every activity one click away, so the writing comes first. The Worker (`worker/`) does sign-in, sync, sealed files in R2, and the daily reminder
-(empty Web Push, from a cron every five minutes). Offline, the app opens and unlocks from the
-device's own copy, and its service worker keeps the code.
+before it), every activity one click away, so the writing comes first. Sync never goes back: a
+server restored to an earlier time gets back what the devices still have. And each device
+publishes a sealed manifest of the versions it has, so another device can tell when the server
+keeps a change from it (journal-crypto.md, "Sync"). The Worker (`worker/`) does
+sign-in, sync, sealed files in R2, and the daily reminder (empty Web Push, from a cron every five
+minutes). Offline, the app opens and unlocks from the device's own copy, and its service worker
+keeps the code.
 
 **The blog** (built). Pages rendered by the Worker from D1: the front page, a post, the tags and
 each tag, the series and each series, the RSS feed, the sitemap, and the subscription pages. A
@@ -133,9 +137,6 @@ cron drains and retries.
 - A story-sized snapshot gives its spare room to the photos, but three or four landscape photos
   in one row are already as tall as their shape allows: they could take two rows instead.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
-- The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
-  that the server is hiding recent changes) is designed but not built (journal-crypto.md,
-  "Limits").
 - The blog's name ("Captain's Log", the main site's working name) and its one-line description
   are placeholders for Allen's words.
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
