@@ -135,6 +135,35 @@
   gap: var(--space-4);
 }
 
+/* A section's title with a control at its end: the day's "All activities". The quiet button's
+   words line up with the column's edge. */
+.section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.section__head > .section__title {
+  margin-bottom: 0;
+}
+
+.section__head > .button--quiet {
+  margin-right: calc(-1 * var(--space-3));
+}
+
+/* A disclosure's chevron points down while what it shows is folded, up while it is open. */
+.disclosure svg {
+  width: 1rem;
+  height: 1rem;
+  transition: rotate var(--motion-fast) var(--motion-ease-out);
+}
+
+.disclosure[aria-expanded='true'] svg {
+  rotate: 180deg;
+}
+
 .activity-group__name {
   margin-bottom: var(--space-2);
   color: var(--ink-low);

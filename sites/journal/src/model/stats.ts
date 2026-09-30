@@ -181,6 +181,31 @@ export function activityImpact(days: readonly Day[], activities: Activities): Ac
   return out.sort((a, b) => b.count - a.count);
 }
 
+/**
+ * The activities used most in the `window` days before `date`, most used first, at most `count`
+ * of them, ties in their own order; archived ones, and ids no longer defined, are left out. With
+ * the day's own, they are what its folded activity picker offers. The day itself never counts,
+ * so picking on it leaves the list as it was.
+ */
+export function usualActivities(
+  days: readonly Day[],
+  activities: Activities,
+  date: string,
+  { window = 60, count = 8 } = {},
+): string[] {
+  const since = addDays(date, -window);
+  const uses = new Map<string, number>();
+  for (const day of days) {
+    if (day.date < since || day.date >= date) continue;
+    for (const id of day.activities) uses.set(id, (uses.get(id) ?? 0) + 1);
+  }
+  return activities.groups
+    .flatMap((group) => group.items.filter((item) => !item.archived && uses.has(item.id)))
+    .map((item) => item.id)
+    .sort((a, b) => (uses.get(b) ?? 0) - (uses.get(a) ?? 0))
+    .slice(0, count);
+}
+
 /** Days a person or place appears on, newest first. */
 export const daysWith = (days: readonly Day[], id: string, field: 'people' | 'places'): Day[] =>
   days.filter((day) => day[field].includes(id)).sort((a, b) => b.date.localeCompare(a.date));
