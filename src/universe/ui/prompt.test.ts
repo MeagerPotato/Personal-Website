@@ -105,6 +105,10 @@ describe('dock prompt', () => {
     const note = (): HTMLElement | null => button.querySelector('.dock-prompt__note');
     expect(button.textContent).toBe('EOrbit FishAI, Planned');
     expect(note()?.querySelector('.dock-prompt__sep')?.textContent).toBe(', ');
+    // In the line of the name (the words' own span), not a child of the flex button, which a
+    // browser would read with spaces round it (ui/planned.ts).
+    expect(note()?.parentElement?.parentElement).toBe(button);
+    expect(note()?.previousSibling?.textContent).toBe('Orbit FishAI');
     // On the way there, the same.
     navigator.state = { mode: 'autopilot', target: 'project/fishai' };
     navigator.candidate = null;

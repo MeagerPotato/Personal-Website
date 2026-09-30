@@ -10,7 +10,7 @@ import {
   type ScreenBox,
 } from '../sim/declutter';
 import type { ScreenMap } from '../sim/screen';
-import { plannedNote } from './planned';
+import { plannedName } from './planned';
 
 type BodyKind = ManifestBody['kind'];
 
@@ -146,10 +146,11 @@ export class Labels implements System {
       button.dataset.row = String(row);
       button.dataset.kind = body.kind;
       button.textContent = body.title;
-      // Planned work says so, seen and heard: "Sports Analysis, Planned" (ui/planned.ts).
+      // Planned work says so, seen and heard: "Sports Analysis, Planned" (ui/planned.ts). The
+      // button is a flex box: the name and its note share one inline wrapper.
       if (body.planned) {
         button.dataset.planned = '';
-        button.append(plannedNote('body-label'));
+        button.replaceChildren(plannedName('body-label', body.title));
       }
       this.buttons.push(button);
     });

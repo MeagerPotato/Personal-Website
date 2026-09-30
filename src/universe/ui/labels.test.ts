@@ -180,6 +180,11 @@ describe('Labels', () => {
     expect(note?.textContent).toBe(', Planned');
     expect(note?.querySelector('.body-label__sep')?.textContent).toBe(', ');
     expect(sun.querySelector('.body-label__note')).toBeNull();
+    // The button is a flex box, whose children a browser reads as blocks, with spaces round
+    // them ("Sports Analysis , Planned"): the name and its note are ONE child, inline together.
+    expect([...planet.childNodes]).toEqual([planet.querySelector('.body-label__name')]);
+    expect(note?.parentElement?.className).toBe('body-label__name');
+    expect(sun.textContent).toBe('Research');
     // Pressing the note is pressing the name.
     note?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(picked).toEqual([1]);
