@@ -178,6 +178,20 @@ describe('when anything looks wrong, the browser loads the page normally', () =>
   });
 });
 
+describe('another site', () => {
+  it('is where the browser goes: nothing fetched, nothing swapped, no entry of ours', async () => {
+    harness = start();
+    const before = history.length;
+    await harness.router.navigate('https://github.com/MeagerPotato');
+
+    expect(harness.fetched).toEqual([]);
+    expect(harness.hardLoads).toEqual(['/MeagerPotato']);
+    expect(harness.navigations).toEqual([]);
+    expect(history.length).toBe(before);
+    expect(heading()).toBe('Home');
+  });
+});
+
 describe('history', () => {
   it('pushes one entry per navigation and replaces for a link to the page itself', async () => {
     harness = start();
@@ -450,6 +464,13 @@ describe('prefetch', () => {
     expect(harness.fetched).toEqual(['/about/', '/about/']);
     expect(heading()).toBe('About');
     expect(harness.hardLoads).toEqual([]);
+  });
+
+  it('never fetches another site', async () => {
+    harness = start();
+    harness.router.prefetch('https://github.com/MeagerPotato');
+    await flush();
+    expect(harness.fetched).toEqual([]);
   });
 
   it('starts on keyboard focus of a link', async () => {
