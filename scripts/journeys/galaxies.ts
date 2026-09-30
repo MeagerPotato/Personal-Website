@@ -240,16 +240,22 @@ const slotsFilled = (systems: readonly SystemInput[]): number =>
 /**
  * The real content plus synthetic systems until there are `systemCount` systems, home included.
  * Each takes the lowest order no real system claims, so this keeps working as Allen adds systems.
+ *
+ * A synthetic system makes way only for a real SYSTEM of its id, and a synthetic project only for
+ * a real PROJECT of its id: the two are told apart everywhere (system/<id>, project/<id>, the
+ * build's own duplicate check), so a real Robotics planet must not silently drop the synthetic
+ * Robotics system and leave the grown galaxies no longer comparable with earlier runs.
  */
 export function grow(real: UniverseInput, systemCount: number): UniverseInput {
   const taken = new Set(real.systems.map((system) => system.order));
-  const ids = new Set([...real.systems, ...real.projects].map((entry) => entry.id));
+  const systemIds = new Set(real.systems.map((system) => system.id));
+  const projectIds = new Set(real.projects.map((entry) => entry.id));
   const systems: SystemInput[] = [...real.systems];
   const projects: ProjectInput[] = [...real.projects];
   let order = 1;
   for (const extra of SYNTHETIC) {
     if (slotsFilled(systems) + 1 >= systemCount) break;
-    if (ids.has(extra.id)) continue;
+    if (systemIds.has(extra.id)) continue;
     while (taken.has(order)) order += 1;
     taken.add(order);
     systems.push({
@@ -262,11 +268,13 @@ export function grow(real: UniverseInput, systemCount: number): UniverseInput {
     });
     for (const planet of extra.planets) {
       const id = `${extra.id}-${planet.id}`;
+      // Its moons go with it: under the real project of that id they would be someone else's.
+      if (projectIds.has(id)) continue;
       projects.push(project(id, { system: extra.id, size: planet.size, date: planet.date }));
       for (const moon of planet.moons ?? []) {
-        projects.push(
-          project(`${extra.id}-${moon.id}`, { parent: id, size: moon.size, date: planet.date }),
-        );
+        const moonId = `${extra.id}-${moon.id}`;
+        if (projectIds.has(moonId)) continue;
+        projects.push(project(moonId, { parent: id, size: moon.size, date: planet.date }));
       }
     }
   }
