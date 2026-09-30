@@ -34,17 +34,42 @@ export const STATUS_LABEL = {
   shipped: 'Shipped',
   'in-progress': 'In progress',
   archived: 'Archived',
+  planned: 'Planned',
 } as const;
 export type ProjectStatus = keyof typeof STATUS_LABEL;
 
-/** When a project happened. Work that is still going says so instead of showing a lone month. */
+/**
+ * When a project happened. Work that is still going says so instead of showing a lone month.
+ * Undefined for planned work without a date: there is nothing to say yet.
+ */
 export function projectWhen(data: {
-  date: string;
-  dateEnd?: string;
+  date?: string | undefined;
+  dateEnd?: string | undefined;
   status: ProjectStatus;
-}): string {
+}): string | undefined {
+  if (data.date === undefined) return undefined;
   const end = data.dateEnd ?? (data.status === 'in-progress' ? 'present' : undefined);
   return formatDateRange(data.date, end);
+}
+
+export interface Fact {
+  label: string;
+  value: string;
+}
+
+/** The facts under a project's heading, leaving out the ones planned work does not have yet. */
+export function projectFacts(data: {
+  date?: string | undefined;
+  dateEnd?: string | undefined;
+  status: ProjectStatus;
+  role?: string | undefined;
+}): Fact[] {
+  const when = projectWhen(data);
+  return [
+    { label: 'Status', value: STATUS_LABEL[data.status] },
+    ...(when === undefined ? [] : [{ label: 'When', value: when }]),
+    ...(data.role === undefined ? [] : [{ label: 'Role', value: data.role }]),
+  ];
 }
 
 export interface ProjectLink {
@@ -98,7 +123,7 @@ export interface ProjectLike {
     summary: string;
     system?: Ref | undefined;
     parent?: Ref | undefined;
-    date: string;
+    date?: string | undefined;
     status: ProjectStatus;
     planet: { biome: BiomeKey };
     flagship: boolean;
@@ -110,21 +135,27 @@ export interface ProjectLike {
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * The order of every list of projects: flagships first, then the newest work, then the id so that
- * a tie never depends on the file system. (Orbits are ordered differently, oldest innermost; a
- * page is read top-down, and the best work should be the first thing a visitor meets.)
+ * The order of every list of projects: built work before planned work, flagships first, then the
+ * newest work, then the id so that a tie never depends on the file system. (Orbits are ordered
+ * differently, oldest innermost; a page is read top-down, and the best work should be the first
+ * thing a visitor meets.)
  */
 const byShowcase = (a: ProjectCard, b: ProjectCard): number =>
-  Number(b.flagship) - Number(a.flagship) || compare(b.date, a.date) || compare(a.id, b.id);
+  Number(a.planned) - Number(b.planned) ||
+  Number(b.flagship) - Number(a.flagship) ||
+  compare(b.date, a.date) ||
+  compare(a.id, b.id);
 
 export interface ProjectCard {
   id: string;
   href: string;
   title: string;
   summary: string;
-  /** "2026-08": when the work started. Cards sort by it; they do not show it. */
+  /** "2026-08": when the work started ("" for planned work without a date). Cards sort by it; they do not show it. */
   date: string;
   status: string;
+  /** Planned, not built: listed after built work, never featured. */
+  planned: boolean;
   biome: BiomeKey;
   /**
    * The colour family the card wears: its system's, and for a moon its planet's system's. A list
@@ -153,8 +184,9 @@ export const toCard = <P extends ProjectLike>(project: P, theme?: ThemeKey): Pro
   href: routes.project(project.id),
   title: project.data.title,
   summary: project.data.summary,
-  date: project.data.date,
+  date: project.data.date ?? '',
   status: STATUS_LABEL[project.data.status],
+  planned: project.data.status === 'planned',
   biome: project.data.planet.biome,
   theme,
   flagship: project.data.flagship,
@@ -230,10 +262,11 @@ export function buildProjectTree(
     }));
 }
 
-/** Planets for the front page: the same showcase order, across the whole galaxy. */
+/** Planets for the front page: the same showcase order, across the whole galaxy. Built work only. */
 export function featuredPlanets(tree: readonly SystemNode[], limit: number): PlanetNode[] {
   return tree
     .flatMap((system) => system.planets)
+    .filter((planet) => !planet.planned)
     .sort(byShowcase)
     .slice(0, limit);
 }

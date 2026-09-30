@@ -192,6 +192,24 @@ describe('buildUniverse', () => {
     ]);
   });
 
+  it('puts planned work without a date outermost, and moves it in once it has one', () => {
+    const rings = (projects: ProjectInput[]): string[] =>
+      buildUniverse(v01({ projects }))
+        .bodies.filter((body) => body.kind === 'planet')
+        .sort((a, b) => (a.orbit?.radius ?? 0) - (b.orbit?.radius ?? 0))
+        .map((body) => body.id);
+    const built = [
+      project('newer', { system: 'code', date: '2026-09' }),
+      project('older', { system: 'code', date: '2024-03' }),
+    ];
+    expect(
+      rings([...built, project('a-someday', { system: 'code', date: undefined, planned: true })]),
+    ).toEqual(['project/older', 'project/newer', 'project/a-someday']);
+    expect(
+      rings([...built, project('a-someday', { system: 'code', date: '2025-01', planned: true })]),
+    ).toEqual(['project/older', 'project/a-someday', 'project/newer']);
+  });
+
   it('is deterministic, and does not care about the order of its input', () => {
     const input = v01();
     const shuffled: UniverseInput = {
@@ -335,11 +353,14 @@ describe('buildUniverse', () => {
             project('orphan', { parent: 'nobody' }),
             project('linker', { system: 'code', related: ['ghost', 'linker'] }),
             project('undated', { system: 'code', date: 'August 2026' }),
+            project('no-date', { system: 'code', date: undefined }),
+            project('planned-no-date', { system: 'code', date: undefined, planned: true }),
           ],
           pages: [page('resume', 'station'), page('cv', 'station')],
         }),
       ).join('\n');
 
+      expect(problems).not.toContain('project "planned-no-date"');
       for (const expected of [
         'systems "also-first" and "code" both claim order 1',
         'system id "home" is reserved',
@@ -353,6 +374,7 @@ describe('buildUniverse', () => {
         'project "linker": related "ghost" does not exist',
         'project "linker": lists itself in "related"',
         'project "undated": date must look like "2026-08"',
+        'project "no-date": a date is required unless it is planned',
         'exactly one page must have dock "home" (found 0)',
         'only one page may have dock "station" (found "resume", "cv")',
       ]) {

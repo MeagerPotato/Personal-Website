@@ -33,7 +33,8 @@ export type ProjectEntry = Entry<{
   title: string;
   system?: Ref | undefined;
   parent?: Ref | undefined;
-  date: string;
+  date?: string | undefined;
+  status: 'shipped' | 'in-progress' | 'archived' | 'planned';
   planet: {
     size: PlanetSize;
     biome: BiomeKey;
@@ -64,6 +65,7 @@ export const toProjectInput = ({ id, data }: ProjectEntry): ProjectInput => ({
   system: data.system?.id,
   parent: data.parent?.id,
   date: data.date,
+  planned: data.status === 'planned',
   size: data.planet.size,
   biome: data.planet.biome,
   rings: data.planet.rings,

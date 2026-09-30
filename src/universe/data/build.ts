@@ -47,9 +47,14 @@ export class UniverseDataError extends Error {
 /** Plain code-unit order: the same on every machine, unlike localeCompare. */
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Older projects orbit closer in. Ties break on id so the order never depends on input order. */
+/**
+ * Older projects orbit closer in, and planned work without a date outermost (it moves in the day
+ * it gets one). Ties break on id so the order never depends on input order.
+ */
 const byDateThenId = (a: ProjectInput, b: ProjectInput): number =>
-  compare(a.date, b.date) || compare(a.id, b.id);
+  Number(a.date === undefined) - Number(b.date === undefined) ||
+  compare(a.date ?? '', b.date ?? '') ||
+  compare(a.id, b.id);
 
 function findDuplicates(ids: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -88,7 +93,11 @@ function validate(input: UniverseInput): string[] {
   // Drafts are validated too: a draft is a finished entry that is not published yet.
   for (const project of [...input.projects].sort((a, b) => compare(a.id, b.id))) {
     const where = `project "${project.id}"`;
-    if (!YEAR_MONTH.test(project.date)) problems.push(`${where}: date must look like "2026-08"`);
+    if (project.date === undefined) {
+      if (!project.planned) problems.push(`${where}: a date is required unless it is planned`);
+    } else if (!YEAR_MONTH.test(project.date)) {
+      problems.push(`${where}: date must look like "2026-08"`);
+    }
 
     const hasSystem = project.system !== undefined;
     const hasParent = project.parent !== undefined;

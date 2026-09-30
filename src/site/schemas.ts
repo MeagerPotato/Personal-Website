@@ -32,52 +32,71 @@ export const systemSchema = () =>
     position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).default('auto'),
   });
 
-/** A planet (set `system`) or a moon (set `parent`). One schema, one URL shape. */
+/**
+ * A planet (set `system`) or a moon (set `parent`). One schema, one URL shape.
+ *
+ * `status: planned` is work that is not built yet: it is shown (as planned), so it may leave out
+ * what only built work has, a date and a role. Every project may leave out its cover: without
+ * one the page shows none and its link preview is the site's card.
+ */
 export const projectSchema = <Image extends z.ZodType, Reference extends z.ZodType>({
   image,
   reference,
 }: SchemaHelpers<Image, Reference>) =>
-  z.strictObject({
-    title: z.string().min(1).max(60),
-    /** One sentence. Also the meta description and the link-preview text. */
-    summary: z.string().min(1).max(160),
-    system: reference('systems').optional(),
-    parent: reference('projects').optional(),
-    date: yearMonth,
-    dateEnd: yearMonth.optional(),
-    status: z.enum(['shipped', 'in-progress', 'archived']),
-    role: z.string().min(1).max(80),
-    stack: z.array(z.string().min(1)).max(12).default([]),
-    links: z
-      .strictObject({
-        repo: httpsUrl.optional(),
-        demo: httpsUrl.optional(),
-        video: httpsUrl.optional(),
-      })
-      .default({}),
-    cover: z.strictObject({ src: image(), alt: z.string().min(1) }),
-    gallery: z
-      .array(
-        z.strictObject({
-          src: image(),
-          alt: z.string().min(1),
-          caption: z.string().min(1).optional(),
-        }),
-      )
-      .max(8)
-      .default([]),
-    planet: z.strictObject({
-      size: z.enum(['s', 'm', 'l']).default('m'),
-      biome: z.enum(BIOME_KEYS),
-      rings: z.boolean().default(false),
-      decorMoons: z.number().int().min(0).max(3).default(0),
-      /** Reseeds the procedural surface without renaming the project. Defaults to the id. */
-      seed: z.string().min(1).optional(),
-    }),
-    flagship: z.boolean().default(false),
-    related: z.array(reference('projects')).default([]),
-    draft: z.boolean().default(false),
-  });
+  z
+    .strictObject({
+      title: z.string().min(1).max(60),
+      /** One sentence. Also the meta description and the link-preview text. */
+      summary: z.string().min(1).max(160),
+      system: reference('systems').optional(),
+      parent: reference('projects').optional(),
+      date: yearMonth.optional(),
+      dateEnd: yearMonth.optional(),
+      status: z.enum(['shipped', 'in-progress', 'archived', 'planned']),
+      role: z.string().min(1).max(80).optional(),
+      stack: z.array(z.string().min(1)).max(12).default([]),
+      links: z
+        .strictObject({
+          repo: httpsUrl.optional(),
+          demo: httpsUrl.optional(),
+          video: httpsUrl.optional(),
+        })
+        .default({}),
+      cover: z.strictObject({ src: image(), alt: z.string().min(1) }).optional(),
+      gallery: z
+        .array(
+          z.strictObject({
+            src: image(),
+            alt: z.string().min(1),
+            caption: z.string().min(1).optional(),
+          }),
+        )
+        .max(8)
+        .default([]),
+      planet: z.strictObject({
+        size: z.enum(['s', 'm', 'l']).default('m'),
+        biome: z.enum(BIOME_KEYS),
+        rings: z.boolean().default(false),
+        decorMoons: z.number().int().min(0).max(3).default(0),
+        /** Reseeds the procedural surface without renaming the project. Defaults to the id. */
+        seed: z.string().min(1).optional(),
+      }),
+      flagship: z.boolean().default(false),
+      related: z.array(reference('projects')).default([]),
+      draft: z.boolean().default(false),
+    })
+    .superRefine((data, context) => {
+      if (data.status === 'planned') return;
+      for (const key of ['date', 'role'] as const) {
+        if (data[key] === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} is required unless the status is "planned"`,
+          });
+        }
+      }
+    });
 
 /** About, resume, contact: the bodies of the home system. */
 export const pageSchema = () =>

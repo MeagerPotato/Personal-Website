@@ -8,6 +8,7 @@ import {
   sharedTheme,
   formatYearMonth,
   projectContext,
+  projectFacts,
   projectLinks,
   projectTheme,
   projectWhen,
@@ -66,9 +67,23 @@ describe('dates', () => {
   it('says "present" for work that is still going, and only for that', () => {
     expect(projectWhen({ date: '2026-08', status: 'in-progress' })).toBe('Aug 2026 – present');
     expect(projectWhen({ date: '2026-08', status: 'shipped' })).toBe('Aug 2026');
+    expect(projectWhen({ status: 'planned' })).toBeUndefined();
+    expect(projectWhen({ date: '2026-11', status: 'planned' })).toBe('Nov 2026');
     expect(projectWhen({ date: '2026-08', dateEnd: '2026-09', status: 'in-progress' })).toBe(
       'Aug – Sep 2026',
     );
+  });
+});
+
+describe('projectFacts', () => {
+  it('lists status, when and role for built work', () => {
+    expect(
+      projectFacts({ date: '2026-08', status: 'shipped', role: 'Solo' }).map((f) => f.label),
+    ).toEqual(['Status', 'When', 'Role']);
+  });
+
+  it('leaves out what planned work does not have yet', () => {
+    expect(projectFacts({ status: 'planned' })).toEqual([{ label: 'Status', value: 'Planned' }]);
   });
 });
 
@@ -127,11 +142,26 @@ describe('buildProjectTree', () => {
       summary: 'Summary of moon-b',
       date: '2026-02',
       status: 'Shipped',
+      planned: false,
       biome: 'dune',
       theme: 'sky',
       flagship: false,
       kind: 'moon',
     });
+  });
+
+  it('lists planned work after built work, even a planned flagship, and gives it no date', () => {
+    const [code] = buildProjectTree(SYSTEMS, [
+      ...PROJECTS,
+      project('someday', {
+        system: { id: 'code' },
+        date: undefined,
+        status: 'planned',
+        flagship: true,
+      }),
+    ]);
+    expect(code?.planets.map((planet) => planet.id)).toEqual(['older', 'newer', 'someday']);
+    expect(code?.planets[2]).toMatchObject({ planned: true, status: 'Planned', date: '' });
   });
 
   it('paints every card in its own system, a moon in its planet’s', () => {
@@ -200,6 +230,14 @@ describe('featuredPlanets', () => {
       'rover',
     ]);
     expect(featuredPlanets(tree, 1).map((planet) => planet.id)).toEqual(['older']);
+  });
+
+  it('never features planned work, however few built planets there are', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('only', { system: { id: 'code' } }),
+      project('someday', { system: { id: 'code' }, status: 'planned', flagship: true }),
+    ]);
+    expect(featuredPlanets(tree, 3).map((planet) => planet.id)).toEqual(['only']);
   });
 });
 
