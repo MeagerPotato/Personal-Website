@@ -182,6 +182,9 @@ export function boot(
       bounds: boundsOf(manifest.systems),
       ship: () => ship.state,
       view: rig.shape,
+      // A body at the top or the bottom edge of the galaxy can be brought in until its name has
+      // room below it, or above it (ui/Labels.ts).
+      pastPx: () => labels?.roomPx ?? 0,
       params: tuning.map,
       reducedMotion,
       tapMaxPx: tuning.picking.tapMaxPx,
@@ -333,8 +336,8 @@ export function boot(
           shipBox.height = 2 * half;
           return shipBox;
         },
-        // The map holds still: there a name may go above its body, out of the ship's way.
-        eitherSide: () => starMap.isOpen,
+        // The map holds still: there a name has other places than under its body (ui/Labels.ts).
+        onMap: () => starMap.isOpen,
       }),
     );
   }

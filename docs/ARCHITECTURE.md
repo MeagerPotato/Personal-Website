@@ -314,16 +314,25 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   the obstacles, because it is most often right beside the very body whose name it is: a name it
   would lie under glides just past it, away from its body (`glidePast` in `sim/declutter.ts`), or
   goes ABOVE its body, with the same patience as declutter, so a name does not hop about while
-  the ship circles its body. Only on the map (`eitherSide`, which holds still) may a name sit
-  above its body, and there one with no room below (the sheet, an edge, a control) goes above
-  too. Any other name glides a few pixels at most and then makes way; the target's and the
-  focused one never do, so the ship alone never hides the name of where it is, or takes the
-  keyboard's focus away.
-  Either side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
+  the ship circles its body. Only on the map (`onMap`, which holds still) does a name have more
+  than one PLACE: below its body or above it (one with no room below, the sheet, an edge, a
+  control, goes above too), BESIDE it like a station's name on a transit map (the side towards
+  the middle of the view first), or slid along it, away from a screen edge it would cross, as
+  long as its body stays over its tag. Declutter tries a name's places in turn, keeps it where
+  it was while it may, brings it back to its first place once that has room to spare, and moves
+  ONE name already placed to another of its places if that alone makes room for one more; the
+  systems' names (and the target's, and the keyboard's) are placed TOGETHER, every way tried
+  before one of them is left out. Among names of one rank the map prefers the nearest the middle
+  of the view: every body is as far from a camera straight above. Any other name glides a few
+  pixels at most and then makes way; the target's and the focused one never do, so the ship
+  alone never hides the name of where it is, or takes the keyboard's focus away.
+  Whichever side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
   from the ship (its height, and how far the target's tag reaches left for its dot, are read
   from the stylesheet when the names are measured); the rest of the 44 px box, a clear touch
-  target, lies beyond the tag, away from the body (`data-side='above'` tells CSS to draw the tag
-  at the bottom of the box).
+  target, lies beyond the tag, away from the body (`data-side` tells CSS where the body is:
+  `above` draws the tag at the bottom of the box, `left` and `right` in its middle). Each name's
+  `transform` moves it to its body and from there to its place, so the page says where every
+  named body is (the end-to-end tests read it: `bodyOf`).
   The top bar is the web layer's, so the web layer measures it: `shell/panel-inset.ts` reports
   how far down its links reach as `top` of `setPanelInset`, which the names respect (the bar is
   two rows tall on a phone); the camera goes by `frameTop` instead (above). Per frame that is a
@@ -342,7 +351,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   (the galaxy, and the ship if it is out beyond it), snugly, with room in pixels for the names at
   the edge, zooms out no further than that, and never lets the galaxy be dragged off (zoomed in,
   the view stays on it; further out, all of it stays in view): past it there is only empty space,
-  and names too small to matter. While it is open the
+  and names too small to matter. Up and down it goes past the galaxy's edge by as much as a name
+  needs there (`pastPx`, which the names report: `Labels.roomPx`), so that a body at the very
+  top or bottom can be brought in until its name has room. While it is open the
   flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
   and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
   The names lie over the map and on a phone cover much of it, so to a finger they are the map

@@ -31,6 +31,7 @@ function setup({
   overlay = true,
   freeWidth = 1,
   ship = undefined as { x: number; z: number } | undefined,
+  pastPx = undefined as (() => number) | undefined,
 } = {}) {
   const canvas = document.createElement('canvas');
   const layer = document.createElement('div');
@@ -41,6 +42,7 @@ function setup({
     overlay: overlay ? layer : undefined,
     bounds: BOUNDS,
     ship: ship ? () => ship : undefined,
+    pastPx,
     view: { freeWidth, freeHeight: 1 },
     params: PARAMS,
     reducedMotion,
@@ -376,6 +378,25 @@ describe('StarMap, looking around', () => {
     const perPx = map.unitsPerPx;
     expect(map.x).toBeCloseTo(BOUNDS.maxX - 640 * perPx, 9);
     expect(map.z).toBeCloseTo(BOUNDS.minZ + 400 * perPx, 9);
+  });
+
+  it('goes past the top and the bottom of the galaxy as far as a name needs, when told', () => {
+    // The names say how much room one needs past its body (main.ts: Labels.roomPx), and may say
+    // more once they have been measured: the map asks every time.
+    let room = 0;
+    const { map, pointer, openCloser } = setup({ pastPx: () => room });
+    cleanup = () => map.dispose();
+    openCloser();
+    room = 60;
+    pointer('pointerdown', 1, 0, 0);
+    pointer('pointermove', 1, 50000, -50000);
+    const perPx = map.unitsPerPx;
+    // Across, the edge of the galaxy at the edge of the frame, as ever; up and down, 60 px past it.
+    expect(map.x).toBeCloseTo(BOUNDS.maxX - 640 * perPx, 9);
+    expect(map.z).toBeCloseTo(BOUNDS.minZ - 60 * perPx + 400 * perPx, 9);
+    pointer('pointermove', 1, -50000, 50000);
+    pointer('pointerup', 1, -50000, 50000);
+    expect(map.z).toBeCloseTo(BOUNDS.maxZ + 60 * perPx - 400 * perPx, 9);
   });
 
   it('zooms about the pointer with the wheel, easing, and keeps what is under it', () => {
