@@ -212,9 +212,13 @@ material, and releases the handle in its scope. Asset names and socket names are
 and its seed; one that should look like no other gets a recipe in `design/worlds.ts`, keyed by its
 manifest id (`project/<id>`, `system/<id>`, `page/<id>`): another biome, a changed `PlanetLook`, a
 ring or none, or a registered model instead of the globe. `world/looks.ts` (`lookOf`) is the one
-place that decides a look (recipe, then the planned maquette, then the generator), for the galaxy
-and the lab alike, and `tests/worlds.test.ts` fails on a key that names no body. A new kind of
-thing a recipe can say is a logic change.
+place that decides a look (recipe, then the body's emblem rows in `design/worlds/`, then the
+planned maquette, then the generator), for the galaxy and the lab alike, and `tests/worlds.test.ts`
+fails on a key that names no body. A new kind of thing a recipe can say is a logic change. A body
+with rows is drawn by `world/BodyMesh.ts`: the everyday build as a job, the close-up
+(`design/worlds/near.ts` and `motion.ts`, a chunk of their own through `closeup.ts`) within
+`nearEnterRadii`, and its movers driven by the frame's exact time, so nothing of them is a snapshot
+field.
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,

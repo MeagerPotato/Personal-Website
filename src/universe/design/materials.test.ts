@@ -1,13 +1,18 @@
+import { OneFactor, OneMinusSrcAlphaFactor, ZeroFactor } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   DECAL_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
+  createEdgeMaterial,
   createGlowMaterial,
   createToonMaterial,
   refreshToonLook,
 } from './materials';
+import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { toonFlat } from './shaders/toonFlat';
+import { hexToLinear } from '../sim/color';
+import { tokens } from './tokens';
 import { tuning } from './tuning';
 
 // The GLSL itself only runs on a GPU; what is checked here is its contract with logic: the names
@@ -64,5 +69,22 @@ describe('the toon material and its per-vertex flags', () => {
     }
     a.dispose();
     b.dispose();
+  });
+});
+
+describe('the blueprint edge material', () => {
+  it('draws opaque lines in the family colour that never bloom, pulled over their own fill', () => {
+    const material = createEdgeMaterial({ color: tokens.color.system.mint.base });
+    const { r, g, b } = material.uniforms.uColor.value;
+    const expected = hexToLinear(tokens.color.system.mint.base);
+    [r, g, b].forEach((value, k) => expect(value).toBeCloseTo(expected[k] ?? NaN, 6));
+    // Its colour replaces what is below; the bloom guest list is left as it was.
+    expect(edge.fragmentShader).toContain('gl_FragColor = vec4(uColor, 1.0);');
+    expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
+    expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+    // Twice a decal's pull, and the same one: a slider moves both.
+    expect(edge.vertexShader).toContain('1.0 - 2.0 * uDecalPull');
+    expect(material.uniforms.uDecalPull).toBe(createToonMaterial().uniforms.uDecalPull);
+    material.dispose();
   });
 });

@@ -688,6 +688,13 @@ export const tuning = {
      */
     detailMaquettePlanet: 6,
     detailMaquetteMoon: 3,
+    /**
+     * A planned world is drawn at this share of its finished size, rows and all: a maquette of
+     * primer clay inside the dashed ring its rows draw at the finished size (about 1 radius at
+     * this scale: vocabulary.md, section 6). Its declared reach (design/worlds/reach.ts) is
+     * measured at this scale, so tests/world-reach.test.ts follows a change here.
+     */
+    plannedScale: 0.7,
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,

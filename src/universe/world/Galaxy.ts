@@ -18,16 +18,23 @@ import {
   createToonMaterial,
   type ToonMaterial,
 } from '../design/materials';
-import { tokens } from '../design/tokens';
+import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import type { WorldRecipe } from '../design/worlds';
 import type { OrbitSubject } from '../camera/OrbitCam';
-import type { ManifestBody, ManifestSystem, UniverseManifest } from '../manifest';
+import {
+  familiesOf,
+  type ManifestBody,
+  type ManifestSystem,
+  type UniverseManifest,
+} from '../manifest';
 import { familyReaches } from '../sim/families';
 import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapView';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
 import { createRng } from '../sim/rng';
+import type { BodyRecipe } from '../sim/world/rows';
+import { BodyMesh, CloseUpLoader, type CloseUpRows } from './BodyMesh';
 import { lookOf } from './looks';
 import { PlanetMesh } from './PlanetMesh';
 
@@ -60,10 +67,16 @@ export interface GalaxyOptions {
   /** Whoever the level of detail follows: the ship. */
   viewer: { readonly position: Readonly<Vector3> };
   reducedMotion: boolean;
+  /** The low quality tier: an emblem world is one group that never turns, and nothing of it moves. */
+  low?: boolean;
   /** The star map, when there is one: on it, bodies are drawn big enough to see (sim/mapView.ts). */
   map?: MapState;
   /** Worlds of their own, by body id. design/worlds.ts when not given (a test gives its own). */
   worlds?: Readonly<Partial<Record<string, WorldRecipe>>>;
+  /** Emblem worlds, their rows by body id. design/worlds/bodies.ts when not given. */
+  bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
+  /** How the close-up rows and the motion table arrive: their chunk's import(), unless a test says. */
+  closeUp?: () => Promise<CloseUpRows>;
 }
 
 interface BodyView {
@@ -74,6 +87,10 @@ interface BodyView {
   /** The part that turns on its own axis, if any. */
   spinning: Object3D | null;
   planet: PlanetMesh | null;
+  /** An emblem world, drawn from its rows. */
+  world: BodyMesh | null;
+  /** Row of the body it keeps facing away from (a relay's arrow points away from home), or -1. */
+  outward: number;
 }
 
 interface OrbitLine {
@@ -90,9 +107,12 @@ interface OrbitLine {
   centerZ: number;
 }
 
-/** What is the same for everything in one system: its colour family's ring glow and orbit lines. */
-interface SystemLook {
-  system: ManifestSystem;
+/**
+ * What is the same for everything of one colour FAMILY (manifest.ts, `familiesOf`): the glow of a
+ * ringed planet's ring and the thin lines of the orbits. Keyed by family and not by system, so a
+ * binary whose suns wear two families draws each sun's planets in their own.
+ */
+interface FamilyLook {
   ring: Material;
   line: Material;
 }
@@ -145,7 +165,13 @@ export class Galaxy implements System {
   private readonly scope = new Scope();
   private readonly views: BodyView[] = [];
   private readonly lines: OrbitLine[] = [];
-  private readonly systems = new Map<string, SystemLook>();
+  private readonly systems = new Map<string, ManifestSystem>();
+  /** Every body's colour family, by id, and each family's look, made once a body wears it. */
+  private readonly families: ReadonlyMap<string, ThemeKey>;
+  private readonly looks = new Map<ThemeKey, FamilyLook>();
+  /** The close-up rows and the motion table of the emblem worlds: a chunk of their own. */
+  private readonly closeUp: CloseUpLoader;
+  private worldCount = 0;
   /** Every sun's light, and the key light for whatever has no sun. */
   private readonly suns: SunLight[] = [];
   private readonly sunById = new Map<string, SunLight>();
@@ -180,19 +206,10 @@ export class Galaxy implements System {
       createGlowMaterial({ intensity: 1, bloom: tuning.world.sunBloom }),
     );
     const circle = this.scope.track(unitCircle(tuning.world.orbitLineSegments));
-
-    for (const system of manifest.systems) {
-      const theme = tokens.color.system[system.theme];
-      this.systems.set(system.id, {
-        system,
-        ring: this.scope.track(
-          createGlowMaterial({ intensity: 1, bloom: tuning.world.ringBloom, tint: theme.light }),
-        ),
-        line: this.scope.track(
-          createLineMaterial({ color: theme.shade, opacity: tuning.world.orbitLineOpacity }),
-        ),
-      });
-    }
+    for (const system of manifest.systems) this.systems.set(system.id, system);
+    this.families = familiesOf(manifest);
+    this.closeUp = new CloseUpLoader(options.closeUp);
+    this.scope.onDispose(() => this.closeUp.dispose());
 
     // The lights. A sun's reach is its family's (sim/families.ts, the same reckoning the autopilot
     // goes round families by), without the autopilot's keep-out: where its planets end.
@@ -226,28 +243,31 @@ export class Galaxy implements System {
       (a, b) => this.distanceTo(a.id, viewer.position) - this.distanceTo(b.id, viewer.position),
     );
     for (const body of byDistance) {
-      const look = this.systems.get(body.system);
-      if (!look) continue;
-      this.views.push(this.createView(body, look, sunMaterial));
+      const family = this.families.get(body.id);
+      if (!this.systems.has(body.system) || family === undefined) continue;
+      this.views.push(this.createView(body, family, sunMaterial));
     }
     // One line for each path, named after the first body on it in the manifest. A path is its
-    // circle: the body it goes round (or its system's centre) and its radius.
+    // circle: the body it goes round (or its system's centre) and its radius. It wears the
+    // family of that first body (bodies that share a path are of one family: the relays and the
+    // Contact satellite are home's).
     const paths = new Map<string, OrbitLine>();
     for (const body of manifest.bodies) {
-      const look = this.systems.get(body.system);
-      if (!look || !body.orbit) continue;
+      const system = this.systems.get(body.system);
+      const family = this.families.get(body.id);
+      if (!system || family === undefined || !body.orbit) continue;
       const path = `${body.parent ?? `centre of ${body.system}`} at ${body.orbit.radius}`;
       const shared = paths.get(path);
       if (shared) {
         shared.of.push(this.orbits.indexOf(body.id));
         continue;
       }
-      const line = this.createLine(body, look, circle);
+      const line = this.createLine(body, system, this.lookOf(family), circle);
       paths.set(path, line);
       this.lines.push(line);
     }
     this.scope.onDispose(() => this.object.removeFromParent());
-    this.place(0, 0);
+    this.place(0, 0, 0);
   }
 
   frameUpdate(frame: Frame): void {
@@ -264,7 +284,11 @@ export class Galaxy implements System {
       displayScales(this.mapBodies, map.unitsPerPx, map.weight, tuning.map, this.displayScale);
     }
     this.placeLights();
-    this.place(frame.dt, this.options.reducedMotion ? 0 : tuning.world.spinRadPerSec * frame.dt);
+    const spin = this.options.reducedMotion ? 0 : tuning.world.spinRadPerSec * frame.dt;
+    this.place(frame.dt, spin, Math.max(0, t));
+    // The close-up rows load once every everyday build is done (the queue is idle), unless a
+    // world the ship came near asked for them first.
+    if (this.worldCount > 0 && this.options.jobs.pending === 0) this.closeUp.request();
   }
 
   /**
@@ -340,8 +364,29 @@ export class Galaxy implements System {
   }
 
   dispose(): void {
-    for (const view of this.views.splice(0)) view.planet?.dispose();
+    for (const view of this.views.splice(0)) {
+      view.planet?.dispose();
+      view.world?.dispose();
+    }
     this.scope.dispose();
+  }
+
+  /** The ring glow and orbit lines of a colour family, made the first time a body wears it. */
+  private lookOf(family: ThemeKey): FamilyLook {
+    let look = this.looks.get(family);
+    if (!look) {
+      const colors = tokens.color.system[family];
+      look = {
+        ring: this.scope.track(
+          createGlowMaterial({ intensity: 1, bloom: tuning.world.ringBloom, tint: colors.light }),
+        ),
+        line: this.scope.track(
+          createLineMaterial({ color: colors.shade, opacity: tuning.world.orbitLineOpacity }),
+        ),
+      };
+      this.looks.set(family, look);
+    }
+    return look;
   }
 
   /** What lights `body`: the first sun up its chain of parents, or, with none, the key light. */
@@ -368,9 +413,14 @@ export class Galaxy implements System {
     );
   }
 
-  private place(dt: number, spin: number): void {
+  /**
+   * Every view where its body is (and as big as the map draws it), turned `spin` further, and an
+   * emblem world as it is at `time`, the exact simulation time of this frame.
+   */
+  private place(dt: number, spin: number, time: number): void {
     const { positions, displayScale } = this;
     const viewer = this.options.viewer.position;
+    const onMap = (this.options.map?.weight ?? 0) >= 0.5;
     let reach = 0;
     for (const view of this.views) {
       const x = positions[view.index * 2] ?? 0;
@@ -380,9 +430,21 @@ export class Galaxy implements System {
       view.node.scale.setScalar(scale);
       // (A scale of nothing at all is a matrix that cannot be undone, which three complains of.)
       view.node.visible = scale > 1e-4;
-      reach = Math.max(reach, view.body.radius * scale);
+      // An emblem world is drawn out past its radius (its rings, its signs): so far it reaches.
+      reach = Math.max(reach, view.body.radius * (view.world?.reach ?? 1) * scale);
       if (view.spinning) view.spinning.rotation.y += spin;
-      view.planet?.update(Math.hypot(x - viewer.x, z - viewer.z) / view.body.radius, dt);
+      const distance = Math.hypot(x - viewer.x, z - viewer.z) / view.body.radius;
+      view.planet?.update(distance, dt);
+      if (view.world) {
+        // A relay keeps its arrow pointing away from what it circles: its yaw follows its bearing
+        // on the ring. The arrow points along its +x (design/worlds/home.ts).
+        if (view.outward >= 0) {
+          const dx = x - (positions[view.outward * 2] ?? 0);
+          const dz = z - (positions[view.outward * 2 + 1] ?? 0);
+          view.world.object.rotation.y = Math.atan2(-dz, dx);
+        }
+        view.world.update(distance, dt, time, onMap);
+      }
     }
     this.displayReach = reach;
     for (const orbit of this.lines) {
@@ -397,22 +459,61 @@ export class Galaxy implements System {
     }
   }
 
-  private createView(body: ManifestBody, look: SystemLook, sunMaterial: Material): BodyView {
-    const { assets, jobs } = this.options;
+  private createView(body: ManifestBody, family: ThemeKey, sunMaterial: Material): BodyView {
+    const { assets, jobs, reducedMotion } = this.options;
     const node = new Group();
     node.name = body.id;
     this.object.add(node);
+    const index = this.orbits.indexOf(body.id);
     const view: BodyView = {
       body,
-      index: this.orbits.indexOf(body.id),
+      index,
       node,
       spinning: null,
       planet: null,
+      world: null,
+      outward: -1,
     };
+
+    const shape = lookOf(body, family, this.options.worlds, this.options.bodies);
+    if (shape.world) {
+      // An emblem world. A SUN'S is drawn with the distant key light's toon material, not with
+      // the glow material of a generated sun: its ball is flagged to glow (sim/world/ground.ts)
+      // and its signs are flat, so neither takes any light, and the ball blooms as a sun always
+      // has (the toon shader's glow is the glow material's); and a part a sun's rows might one day
+      // leave lit is shaded by the far key light, as anything in space is, where the sun's own
+      // material would light it from the sun's centre, from inside. Everything else is lit by its
+      // own sun, or by the key light.
+      const world = new BodyMesh({
+        id: body.id,
+        kind: body.kind,
+        planned: body.planned === true,
+        radius: body.radius,
+        seed: body.seed,
+        recipe: shape.world,
+        material: body.kind === 'sun' ? this.key.surface : this.lightOf(body).surface,
+        jobs,
+        low: this.options.low ?? false,
+        reducedMotion,
+        closeUp: this.closeUp,
+      });
+      view.world = world;
+      this.worldCount += 1;
+      node.add(world.object);
+      // What turns is what the glue says turns (sim/world/glue.ts, `turnsOf`): the ground of a
+      // planet, a moon or home, and what stands on it. A sun's ball, the station, the satellite
+      // and a relay hold still (their signs read one way round), as does everything on the low
+      // tier. The held group (a Circle Line whose stops point at real bearings, a planned world's
+      // ring) never turns, and starts unturned.
+      view.spinning = world.turning;
+      if (world.turning) world.turning.rotation.y = createRng(`${body.seed}/turn`)() * TAU;
+      // A relay faces away from what it circles, whatever it is (home, today).
+      if (body.kind === 'link') view.outward = this.orbits.parent[index] ?? -1;
+      return view;
+    }
 
     // A sun is light itself; everything else is lit by its own sun, or by the key light.
     const material = body.kind === 'sun' ? sunMaterial : this.lightOf(body).surface;
-    const shape = lookOf(body, look.system.theme, this.options.worlds);
     let object: Object3D;
     if (shape.model !== null) {
       const handle = assets.acquire(shape.model, material);
@@ -441,7 +542,7 @@ export class Galaxy implements System {
     }
 
     if (shape.rings) {
-      const ring = assets.acquire('planetRing', look.ring);
+      const ring = assets.acquire('planetRing', this.lookOf(family).ring);
       this.scope.onDispose(() => ring.release());
       ring.object.scale.setScalar(body.radius * tuning.world.ringInnerRadii);
       const tilt = createRng(`${body.seed}/ring`);
@@ -452,7 +553,12 @@ export class Galaxy implements System {
     return view;
   }
 
-  private createLine(body: ManifestBody, look: SystemLook, circle: BufferGeometry): OrbitLine {
+  private createLine(
+    body: ManifestBody,
+    system: ManifestSystem,
+    look: FamilyLook,
+    circle: BufferGeometry,
+  ): OrbitLine {
     const line = new LineLoop(circle, look.line);
     line.scale.setScalar(body.orbit?.radius ?? 1);
     line.name = `${body.id}:orbit`;
@@ -461,8 +567,8 @@ export class Galaxy implements System {
       line,
       of: [this.orbits.indexOf(body.id)],
       around: body.parent === null ? -1 : this.orbits.indexOf(body.parent),
-      centerX: look.system.position[0],
-      centerZ: look.system.position[1],
+      centerX: system.position[0],
+      centerZ: system.position[1],
     };
   }
 }

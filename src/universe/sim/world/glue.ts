@@ -1,5 +1,6 @@
 import type { BodyKind } from '../../data/types';
 import type { Rgb } from '../meshBuilder';
+import { finish } from '../planet';
 import { normalOf, type Tri } from './kit';
 import { absentAtRest, type MotionRow } from './motion';
 import { colorOf } from './palette';
@@ -37,11 +38,12 @@ import { BODY_PIVOT, FLAG, toPivot, type Build, type Pivot } from './rows';
  */
 
 /**
- * The kinds of body whose ground turns with the planet's slow spin. A NEW policy: world/Galaxy.ts
- * today spins every body but the satellite; a world of its own turns only when it is a planet, a
- * moon or home. A sun's ball, the station, the satellite and a relay hold still (their props read
- * one way round: a relay's arrow points away from home), and so does a body whose recipe says
- * `still`. Galaxy follows this for a body with a recipe when the worlds are drawn (stage 2).
+ * The kinds of body whose ground turns with the planet's slow spin. A policy of the worlds:
+ * world/Galaxy.ts spins every generated body but the satellite; a world of its own turns only
+ * when it is a planet, a moon or home. A sun's ball, the station, the satellite and a relay hold
+ * still (their props read one way round: a relay's arrow points away from home, a sun's brackets
+ * and the Circle Line's stops at the bearings they name), and so does a body whose recipe says
+ * `still`. Galaxy spins what `turnsOf` says turns, and nothing else of a world.
  */
 const TURNS: ReadonlySet<BodyKind> = new Set<BodyKind>(['planet', 'moon', 'home']);
 
@@ -139,20 +141,39 @@ const put = (into: Sink, faces: readonly Face[], ghost: boolean): void => {
 };
 
 /**
+ * Does a body's ground turn with the planet's slow spin? Its kind must (TURNS), and it must not be
+ * still (BodyRecipe.still) or on the low tier, where nothing turns. world/BodyMesh.ts asks this
+ * too, before its body is built, to know whether it has a turning group to spin.
+ */
+export function turnsOf(
+  kind: BodyKind,
+  { still = false, low = false }: { readonly still?: boolean; readonly low?: boolean } = {},
+): boolean {
+  return TURNS.has(kind) && !still && !low;
+}
+
+/**
  * Split a build into its draw groups and pack each one. Everything is in the body's frame at
  * radius 1 (scale it by the body's radius), except each mover, which is in its pivot's frame.
  */
-export function assemble(
+export const assemble = (build: Build, options: AssembleOptions): Assembly =>
+  finish(assembling(build, options));
+
+/**
+ * `assemble`, as a generator that pauses after each group it packs, so that core/jobs.ts can
+ * spread a close-up body (thousands of triangles, a few milliseconds) over frames.
+ */
+export function* assembling(
   build: Build,
   { kind, still = false, near = false, moving = false, low = false, motion = [] }: AssembleOptions,
-): Assembly {
+): Generator<void, Assembly> {
   // The low tier draws the still, and nothing of it turns or moves.
   const live = moving && !low;
   const own = new Set(live ? motion.map((row) => row[0]) : []);
   // The whole body moves as one (the Kalshi coin rocks); a part with a row of its own (its crane)
   // still gets its own mesh, which the caller hangs inside the whole one.
   const whole = own.has('*');
-  const turns = TURNS.has(kind) && !still && !low;
+  const turns = turnsOf(kind, { still, low });
   // A whole body that also turned would carry its held parts round with it.
   if (whole && turns) throw new Error(`${build.id}: a body that moves as a whole must be still`);
   // Drawn still, a part whose still is empty (the flame, the confetti) is not drawn at all.
@@ -184,29 +205,30 @@ export function assemble(
       movers.set(part.name, { group: groupOf(whole ? 0 : part.flags), pivot: part.pivot, into });
     } else put(whole ? body : groups[groupOf(part.flags)], faces, ghost);
   }
+  yield;
+  const turn = pack(groups.turn.faces);
+  yield;
+  const hold = pack(groups.hold.faces);
+  yield;
+  const moved: Mover[] = [];
+  if (whole) {
+    moved.push({
+      name: '*',
+      group: groupOf(0),
+      pivot: BODY_PIVOT,
+      mesh: pack(body.faces),
+      edges: wire(body.ghosts),
+    });
+    yield;
+  }
+  for (const [name, { group, pivot, into }] of movers) {
+    moved.push({ name, group, pivot, mesh: pack(into.faces), edges: wire(into.ghosts) });
+    yield;
+  }
   return {
-    turn: pack(groups.turn.faces),
-    hold: pack(groups.hold.faces),
-    movers: [
-      ...(whole
-        ? [
-            {
-              name: '*',
-              group: groupOf(0),
-              pivot: BODY_PIVOT,
-              mesh: pack(body.faces),
-              edges: wire(body.ghosts),
-            },
-          ]
-        : []),
-      ...[...movers].map(([name, { group, pivot, into }]) => ({
-        name,
-        group,
-        pivot,
-        mesh: pack(into.faces),
-        edges: wire(into.ghosts),
-      })),
-    ],
+    turn,
+    hold,
+    movers: moved,
     edges: {
       turn: wire(groups.turn.ghosts),
       hold: wire(groups.hold.ghosts),

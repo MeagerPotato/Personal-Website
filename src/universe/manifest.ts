@@ -1,4 +1,5 @@
 import type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
+import type { ThemeKey } from './design/tokens';
 import { hashSeed } from './sim/rng';
 
 export type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
@@ -98,6 +99,21 @@ export function nearestNeighbourOf(
     }
   }
   return nearest;
+}
+
+/**
+ * The colour FAMILY every body wears, by id: its system's. What the galaxy draws in it: the glow
+ * of a planet's ring and the lines of the orbits (world/Galaxy.ts); its name tag's glyph
+ * (ui/Labels.ts). A body of a system the manifest does not list has none.
+ */
+export function familiesOf(manifest: UniverseManifest): ReadonlyMap<string, ThemeKey> {
+  const themes = new Map(manifest.systems.map((system) => [system.id, system.theme]));
+  const families = new Map<string, ThemeKey>();
+  for (const body of manifest.bodies) {
+    const theme = themes.get(body.system);
+    if (theme !== undefined) families.set(body.id, theme);
+  }
+  return families;
 }
 
 export function centerBodyOf(manifest: UniverseManifest, system: ManifestSystem): ManifestBody {

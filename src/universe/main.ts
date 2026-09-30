@@ -207,6 +207,8 @@ export function boot(
       jobs,
       viewer: ship,
       reducedMotion,
+      // The tier is fixed for the life of an engine: a demotion boots a new one (api.ts).
+      low: quality.tier === 'low',
       map: starMap,
     }),
   );

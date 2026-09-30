@@ -243,7 +243,11 @@ class Turntable implements System {
         ...(this.isPlanned() ? { planned: true as const } : {}),
       },
       state.theme,
+      undefined,
+      // A made-up body has no rows of its own.
+      {},
     );
+    if (shape.world) return;
     if (shape.model !== null) {
       const handle = assets.acquire(shape.model, surface);
       scope.onDispose(() => handle.release());

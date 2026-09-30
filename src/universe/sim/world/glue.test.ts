@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../../design/tuning';
-import { assemble, callsOf, groundDetail, pack, wire, type Packed } from './glue';
+import {
+  assemble,
+  assembling,
+  callsOf,
+  groundDetail,
+  pack,
+  turnsOf,
+  wire,
+  type Assembly,
+  type Packed,
+} from './glue';
 import type { GroundLooks } from './ground';
 import { box, centroidOf, dot, type Vec3 } from './kit';
 import type { MotionRow } from './motion';
@@ -277,6 +287,38 @@ describe('the glue', () => {
     expect(groundDetail('sun', false, true, world)).toBe(world.detailSun);
     for (const hull of ['station', 'satellite', 'link'] as const) {
       expect(groundDetail(hull, false, false, world)).toBe(0);
+    }
+  });
+
+  it('turns the ground of a planet, a moon and home, unless it is still or on the low tier', () => {
+    for (const kind of ['planet', 'moon', 'home'] as const) {
+      expect(turnsOf(kind), kind).toBe(true);
+      expect(turnsOf(kind, { still: true }), kind).toBe(false);
+      expect(turnsOf(kind, { low: true }), kind).toBe(false);
+    }
+    for (const kind of ['sun', 'station', 'satellite', 'link'] as const) {
+      expect(turnsOf(kind), kind).toBe(false);
+    }
+  });
+
+  it('assembles a slice at a time, into exactly what assemble makes at once', () => {
+    const motion: MotionRow[] = [['plan', 'rot', 'y', 'ramp', 1, 10]];
+    for (const options of [
+      { kind: 'planet' as const },
+      { kind: 'planet' as const, near: true, moving: true, motion },
+      { kind: 'sun' as const, low: true },
+    ]) {
+      const job = assembling(build, options);
+      let slices = 0;
+      let step = job.next();
+      while (!step.done) {
+        slices += 1;
+        step = job.next();
+      }
+      // It gives way between the groups and between the movers: never one long frame.
+      expect(slices).toBeGreaterThanOrEqual(3);
+      const whole: Assembly = assemble(build, options);
+      expect(step.value).toEqual(whole);
     }
   });
 });

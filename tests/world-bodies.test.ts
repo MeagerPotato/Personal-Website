@@ -322,6 +322,23 @@ describe('the emblem worlds', () => {
     }
   });
 
+  it('draws every body whole at rest far away without the motion table (it is in the close-up chunk)', () => {
+    // world/BodyMesh.ts builds the everyday world before design/worlds/motion.ts has arrived, so
+    // no part may be one that only exists while it plays (a scale row at 0 at rest): far away,
+    // such a part would be drawn, and up close it would not be.
+    for (const [id, recipe] of Object.entries(BODIES)) {
+      const { far, kind, still, motion } = built(id, recipe);
+      const absent = absentAtRest(motion);
+      expect(
+        far.parts.filter((part) => absent.has(part.name)).map((part) => part.name),
+        id,
+      ).toEqual([]);
+      expect(packedText(assemble(far, { kind, still })), id).toEqual(
+        packedText(assemble(far, { kind, still, motion })),
+      );
+    }
+  });
+
   it('gives close-up parts and motions only to bodies that have rows', () => {
     const bodies = new Set(Object.keys(BODIES));
     expect(Object.keys(NEAR).filter((id) => !bodies.has(id))).toEqual([]);

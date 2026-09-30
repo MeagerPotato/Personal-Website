@@ -60,6 +60,12 @@ const input: UniverseInput = {
   includeDrafts: false,
 };
 const manifest = buildUniverse(input);
+/**
+ * The fixture's ids are real bodies' (page/about, project/fishai...), which are drawn from rows
+ * now (design/worlds/): these tests are of the generated look, so they hand the galaxy no rows.
+ * tests/world-galaxy.test.ts draws the real galaxy's emblem worlds.
+ */
+const NO_ROWS = {};
 
 const frame = (simTime: number, dt = 1 / 60): Frame => ({
   elapsed: simTime,
@@ -85,7 +91,14 @@ function setup(viewerAt = new Vector3(0, 0, -120)) {
   const viewer = { position: viewerAt };
   const assets = new AssetStore();
   const jobs = new JobQueue(1000);
-  const galaxy = new Galaxy({ manifest, assets, jobs, viewer, reducedMotion: false });
+  const galaxy = new Galaxy({
+    manifest,
+    assets,
+    jobs,
+    viewer,
+    reducedMotion: false,
+    bodies: NO_ROWS,
+  });
   const node = (id: string): Object3D => {
     const found = galaxy.object.getObjectByName(id);
     if (!found) throw new Error(`no node '${id}'`);
@@ -218,6 +231,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
       map,
     });
     const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
@@ -358,6 +372,7 @@ describe('Galaxy', () => {
       jobs,
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const mesh = galaxy.object.getObjectByName('project/sports')?.children[0] as Mesh;
     const finishJobs = (): void => {
@@ -424,6 +439,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
       map,
     });
     const row = (id: string): number => galaxy.orbits.indexOf(id);
@@ -449,6 +465,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3() },
       reducedMotion: false,
+      bodies: NO_ROWS,
       worlds: {
         'project/days2meet': { model: 'station', rings: true },
         'project/fishai': { rings: false },
@@ -487,6 +504,7 @@ describe('Galaxy', () => {
       jobs: lazy,
       viewer: { position: new Vector3() },
       reducedMotion: true,
+      bodies: NO_ROWS,
     });
     expect(lazy.pending).toBeGreaterThan(0);
     waiting.dispose();
@@ -562,6 +580,7 @@ describe('Galaxy, where suns move', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3(-900, 0, 300) },
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
     const meshOf = (id: string): Mesh => node(id).children[0] as Mesh;
@@ -678,6 +697,7 @@ describe('Galaxy, where suns move', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3() },
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const node = (id: string): Object3D => {
       const found = galaxy.object.getObjectByName(id);

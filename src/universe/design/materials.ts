@@ -15,6 +15,7 @@ import {
   type Texture,
 } from 'three';
 import { dust } from './shaders/dust';
+import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
@@ -179,6 +180,29 @@ export function createLineMaterial(options: { color: string; opacity: number }):
     }),
     false,
   );
+}
+
+export type EdgeMaterial = ShaderMaterial & { uniforms: { uColor: IUniform<Color> } };
+
+/**
+ * The lines of a blueprint (shaders/edge.ts): the parts of a planned world still to come, drawn
+ * as their edges in `color` (a token hex: the base of the family the body will wear). Opaque
+ * colour that leaves the bloom guest list as it found it, so the lines never bloom; drawn after
+ * the solid world, over the navy fill they outline.
+ */
+export function createEdgeMaterial(options: { color: string }): EdgeMaterial {
+  const material = new ShaderMaterial({
+    name: 'edge',
+    vertexShader: edge.vertexShader,
+    fragmentShader: edge.fragmentShader,
+    uniforms: {
+      uColor: { value: new Color(options.color) },
+      uDecalPull: toonLook.uDecalPull,
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, false) as EdgeMaterial;
 }
 
 export function createBackdropMaterial(): ShaderMaterial {
