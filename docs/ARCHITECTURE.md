@@ -354,7 +354,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   `html[data-map]`, which is all the stylesheet needs.
 - **The route and the ship follow each other** (`shell/follow.ts`). A page that belongs to a
   body (`shell/destinations.ts` reads that from the manifest: every body carries its `href`, and
-  `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first sun)
+  `alsoAt` lists pages that are shown FROM a body, such as the projects index from the first
+  system's sun: for the Projects binary, its primary, Software)
   means the ship goes there: `goTo(id)`. Any other page means `undock()` (on the way somewhere,
   a Stop: the ship brakes to rest rather than coast on at speed). The other way round,
   `docked` opens that body's page unless it is showing already, and `undocked` with `by: 'pilot'`
@@ -459,7 +460,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
-  no `TODO(copy)` in `dist/`.
+  no `TODO(copy)` in `dist/`; and every old URL in `_redirects` (`/systems/code/`) is one exact
+  path, 301, to a page of the build that no page links past (`scripts/lib/redirects.mjs`).
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries
   still bite, the build scripts work, and no phone number or private address is in the repo.
 - **Real browsers, by machine** (`npm run e2e`, Playwright, `tests/e2e`): Chromium, WebKit and a
@@ -489,7 +491,7 @@ run there is a reason to look, not a locked door.
 
 | Tool | How | What for |
 | --- | --- | --- |
-| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/code`, with `(map)` while the map is open) |
+| Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
 | **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station or satellite on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |
