@@ -590,4 +590,80 @@ describe('Galaxy, where suns move', () => {
     }
     galaxy.dispose();
   });
+
+  it('is the binary the build makes: every body drawn, each lit by its own sun', () => {
+    // The shape of the tree's Projects, through the real build (the fixture above is by hand).
+    const built = buildUniverse({
+      ...input,
+      systems: [
+        ...input.systems,
+        {
+          id: 'pair',
+          name: 'Pair',
+          href: '/projects/',
+          theme: 'lilac',
+          order: 2,
+          position: 'auto',
+          suns: ['soft', 'hard'],
+        },
+        { id: 'soft', name: 'Soft', href: '/systems/soft/', position: 'auto' },
+        { id: 'hard', name: 'Hard', href: '/systems/hard/', position: 'auto' },
+      ],
+      projects: [
+        ...input.projects,
+        project('demo', { system: 'soft', size: 'l' }),
+        project('online', { parent: 'demo', size: 's' }),
+        project('meet', { system: 'soft' }),
+        project('rocket', { system: 'hard' }),
+        project('robot', { system: 'hard' }),
+      ],
+    });
+    const galaxy = new Galaxy({
+      manifest: built,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+    });
+    const node = (id: string): Object3D => {
+      const found = galaxy.object.getObjectByName(id);
+      if (!found) throw new Error(`no node '${id}'`);
+      return found;
+    };
+    const meshOf = (id: string): Mesh => node(id).children[0] as Mesh;
+    for (const body of built.bodies) node(body.id);
+
+    for (const t of [0, 1500]) {
+      galaxy.frameUpdate(frame(t));
+      for (const [id, sun] of [
+        ['project/demo', 'system/soft'],
+        ['project/online', 'system/soft'],
+        ['project/meet', 'system/soft'],
+        ['project/rocket', 'system/hard'],
+        ['project/robot', 'system/hard'],
+      ] as const) {
+        expect(sunOf(meshOf(id)).distanceTo(node(sun).position), `${id} at ${t}`).toBeLessThan(
+          1e-9,
+        );
+      }
+    }
+    // The suns move, and each family's light goes with its own sun.
+    expect(sunOf(meshOf('project/meet'))).not.toBe(sunOf(meshOf('project/rocket')));
+    // The ship: deep in a family, lit by that family's sun alone; out at its outermost planet,
+    // where the other family is only the gap away, the other sun leans in by under a degree
+    // (0.5 and 0.65 here), which is the blend doing its job and not a second light.
+    for (const [planet, sun, within] of [
+      ['project/demo', 'system/soft', 0],
+      ['project/rocket', 'system/hard', 0],
+      ['project/meet', 'system/soft', 1],
+      ['project/robot', 'system/hard', 1],
+    ] as const) {
+      const at = node(planet).position.clone();
+      const own = direction(at, node(sun).position);
+      if (within === 0) expectSameDirection(lightFrom(galaxy, at), own);
+      else
+        expect(lightFrom(galaxy, at).angleTo(own), planet).toBeLessThan((within * Math.PI) / 180);
+    }
+    galaxy.dispose();
+  });
 });

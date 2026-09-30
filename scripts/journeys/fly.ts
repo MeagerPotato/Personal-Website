@@ -1,7 +1,7 @@
 import { parseSnapshot, startingFrom } from '../../src/universe/core/snapshot';
 import type { UniverseManifest } from '../../src/universe/data/types';
 import { tuning } from '../../src/universe/design/tuning';
-import { homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
+import { galaxyKey, homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
 import { NO_INPUT, copyShipState, createShipState, speedOf } from '../../src/universe/sim/flight';
 import { createRng } from '../../src/universe/sim/rng';
 import { spawnPoint } from '../../src/universe/sim/spawn';
@@ -346,6 +346,8 @@ export function fly(
    * startingFrom with no `at` (api.ts, createUniverse), as the tab kept it (shell/pose-memory.ts).
    */
   const rebuild = (reload = false): void => {
+    // Stamped as main.ts stamps it, and checked as api.ts checks it: the same galaxy, so kept.
+    const key = galaxyKey(manifest);
     const kept: unknown = JSON.parse(
       JSON.stringify({
         steps,
@@ -353,10 +355,11 @@ export function fly(
         dock: navigator.snapshot(),
         halting: navigator.halting,
         guarding: navigator.guarding,
+        galaxy: key,
       }),
     );
     const saved = reload
-      ? startingFrom({ at: null, snapshot: kept }).snapshot
+      ? startingFrom({ at: null, snapshot: kept }, key).snapshot
       : parseSnapshot(kept);
     if (saved === null) throw new Error(`${galaxy.name}: a snapshot that does not parse`);
     world = surroundings();

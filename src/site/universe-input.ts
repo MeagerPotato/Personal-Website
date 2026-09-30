@@ -24,11 +24,13 @@ interface Ref {
   id: string;
 }
 
+/** A solar system, a binary star (it lists `suns`), or a sun of a binary (no order, no suns). */
 export type SystemEntry = Entry<{
   name: string;
-  theme: ThemeKey;
-  order: number;
-  position: 'auto' | [number, number];
+  theme?: ThemeKey | undefined;
+  order?: number | undefined;
+  position?: 'auto' | [number, number] | undefined;
+  suns?: readonly Ref[] | undefined;
 }>;
 
 export type ProjectEntry = Entry<{
@@ -51,13 +53,15 @@ export type ProjectEntry = Entry<{
 
 export type PageEntry = Entry<{ title: string; dock: DockKind }>;
 
+/** A binary star has no page of its own: the projects index is its page (it shows both suns). */
 export const toSystemInput = ({ id, data }: SystemEntry): SystemInput => ({
   id,
   name: data.name,
-  href: routes.system(id),
+  href: data.suns === undefined ? routes.system(id) : routes.projects(),
   theme: data.theme,
   order: data.order,
-  position: data.position,
+  ...(data.suns === undefined ? {} : { suns: data.suns.map((sun) => sun.id) }),
+  position: data.position ?? 'auto',
 });
 
 export const toProjectInput = ({ id, data }: ProjectEntry): ProjectInput => ({

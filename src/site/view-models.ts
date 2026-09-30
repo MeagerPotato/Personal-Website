@@ -81,6 +81,9 @@ export interface ProjectLink {
 
 const LINK_LABEL = { demo: 'Live site', repo: 'Source', video: 'Video' } as const;
 
+/** "https://www.example.com/x" -> "example.com": where a link goes, as people say it. */
+const hostOf = (href: string): string => new URL(href).host.replace(/^www\./, '');
+
 /** A project's outbound links, most useful first. */
 export function projectLinks(links: {
   demo?: string;
@@ -90,7 +93,7 @@ export function projectLinks(links: {
   return (['demo', 'repo', 'video'] as const).flatMap((key) => {
     const href = links[key];
     if (href === undefined) return [];
-    return [{ label: LINK_LABEL[key], href, host: new URL(href).host.replace(/^www\./, '') }];
+    return [{ label: LINK_LABEL[key], href, host: hostOf(href) }];
   });
 }
 
@@ -111,9 +114,21 @@ interface Ref {
   id: string;
 }
 
+/**
+ * An entry of the systems collection, in one of its three shapes (src/site/schemas.ts): a solar
+ * system (`order`, `theme`: its sun is itself), a binary star (`order`, `theme`, `suns`), or a
+ * sun of a binary (neither: its binary gives it a place and a colour family).
+ */
 export interface SystemLike {
   id: string;
-  data: { name: string; tagline: string; theme: ThemeKey; order: number };
+  data: {
+    name: string;
+    tagline?: string | undefined;
+    theme?: ThemeKey | undefined;
+    order?: number | undefined;
+    suns?: readonly Ref[] | undefined;
+    link?: string | undefined;
+  };
 }
 
 export interface ProjectLike {
@@ -171,7 +186,18 @@ export interface ProjectCard {
   kind: 'planet' | 'moon';
 }
 
-/** The system a project belongs to: its own, or, for a moon, its planet's. */
+/** The binary star that lists `sunId` among its two suns, if one does. */
+const binaryOf = (sunId: string, systems: readonly SystemLike[]): SystemLike | undefined =>
+  systems.find((system) => system.data.suns?.some((sun) => sun.id === sunId));
+
+/** The colour family a sun wears: its own system's, or its binary's (both suns share it). */
+const familyOf = (sun: SystemLike, systems: readonly SystemLike[]): ThemeKey | undefined =>
+  sun.data.theme ?? binaryOf(sun.id, systems)?.data.theme;
+
+/**
+ * The colour family of a project's system: its sun's, or, for a moon, its planet's sun's (a sun
+ * of a binary wears its binary's).
+ */
 export function projectTheme(
   project: ProjectLike,
   systems: readonly SystemLike[],
@@ -180,7 +206,8 @@ export function projectTheme(
   const parentId = project.data.parent?.id;
   const planet = parentId ? projects.find((entry) => entry.id === parentId) : project;
   const systemId = planet?.data.system?.id;
-  return systems.find((system) => system.id === systemId)?.data.theme;
+  const sun = systems.find((system) => system.id === systemId);
+  return sun && familyOf(sun, systems);
 }
 
 export const toCard = <P extends ProjectLike>(project: P, theme?: ThemeKey): ProjectCard => ({
@@ -223,13 +250,39 @@ export interface PlanetNode extends ProjectCard {
   moons: ProjectCard[];
 }
 
-export interface SystemNode {
+export interface Crumb {
+  label: string;
+  href: string;
+}
+
+/** A sun of a binary star: the binary, and the other sun, which it circles the centre opposite. */
+export interface Twin {
+  binary: Crumb;
+  other: Crumb;
+}
+
+/** A sun and its planets: what the projects index lists as one section, and a sun's page shows. */
+export interface SunNode {
   id: string;
   href: string;
   name: string;
   tagline: string;
-  theme: ThemeKey;
+  /**
+   * Its system's colour family (for a sun of a binary, the binary's). Missing only in content the
+   * build refuses.
+   */
+  theme: ThemeKey | undefined;
   planets: PlanetNode[];
+  /** Set for a sun of a binary star. */
+  twin: Twin | undefined;
+}
+
+/** A place in the galaxy: a solar system (its sun is itself), or a binary star (primary first). */
+export interface SystemNode {
+  id: string;
+  name: string;
+  theme: ThemeKey | undefined;
+  suns: SunNode[];
 }
 
 /** Drafts are visible in dev and absent from production, exactly as in buildUniverse(). */
@@ -238,33 +291,118 @@ export const visibleProjects = <P extends ProjectLike>(
   includeDrafts: boolean,
 ): P[] => projects.filter((project) => includeDrafts || !project.data.draft);
 
-/** Systems in galaxy order, each with its planets, each planet with its moons. */
+interface Carded {
+  project: ProjectLike;
+  card: ProjectCard;
+}
+
+/** Every project as a card, in showcase order: the order of every list the tree makes. */
+function cardsOf(systems: readonly SystemLike[], projects: readonly ProjectLike[]): Carded[] {
+  return projects
+    .map((project) => ({
+      project,
+      card: toCard(project, projectTheme(project, systems, projects)),
+    }))
+    .sort((a, b) => byShowcase(a.card, b.card));
+}
+
+/** A sun with its planets, each planet with its moons; and, for a sun of a binary, its twin. */
+function sunNode(
+  sun: SystemLike,
+  systems: readonly SystemLike[],
+  cards: readonly Carded[],
+): SunNode {
+  const binary = binaryOf(sun.id, systems);
+  const otherId = binary?.data.suns?.find((entry) => entry.id !== sun.id)?.id;
+  const other = systems.find((entry) => entry.id === otherId);
+  return {
+    id: sun.id,
+    href: routes.system(sun.id),
+    name: sun.data.name,
+    tagline: sun.data.tagline ?? '',
+    theme: familyOf(sun, systems),
+    planets: cards
+      .filter(({ project }) => project.data.system?.id === sun.id)
+      .map((planet) => ({
+        ...planet.card,
+        moons: cards
+          .filter(({ project }) => project.data.parent?.id === planet.project.id)
+          .map(({ card }) => card),
+      })),
+    twin:
+      binary && other
+        ? {
+            binary: { label: binary.data.name, href: routes.projects() },
+            other: { label: other.data.name, href: routes.system(other.id) },
+          }
+        : undefined,
+  };
+}
+
+/**
+ * Systems in galaxy order, each with its sun or suns (a binary's primary first), each sun with
+ * its planets, each planet with its moons. One exception to the galaxy's order: a system with no
+ * built work yet (every planet planned) goes last, so a visitor's first screen is finished work.
+ */
 export function buildProjectTree(
   systems: readonly SystemLike[],
   projects: readonly ProjectLike[],
 ): SystemNode[] {
-  const cards = projects.map((project) => ({
-    project,
-    card: toCard(project, projectTheme(project, systems, projects)),
-  }));
-  cards.sort((a, b) => byShowcase(a.card, b.card));
-  return [...systems]
-    .sort((a, b) => a.data.order - b.data.order)
-    .map((system) => ({
-      id: system.id,
-      href: routes.system(system.id),
-      name: system.data.name,
-      tagline: system.data.tagline,
-      theme: system.data.theme,
-      planets: cards
-        .filter(({ project }) => project.data.system?.id === system.id)
-        .map((planet) => ({
-          ...planet.card,
-          moons: cards
-            .filter(({ project }) => project.data.parent?.id === planet.project.id)
-            .map(({ card }) => card),
-        })),
-    }));
+  const cards = cardsOf(systems, projects);
+  const byId = new Map(systems.map((system) => [system.id, system]));
+  const built = (node: SystemNode): boolean =>
+    node.suns.some((sun) => sun.planets.some((planet) => !planet.planned));
+  return systems
+    .flatMap((system) => {
+      // A sun of a binary has no order of its own: it is listed under its binary.
+      const order = system.data.order;
+      if (order === undefined) return [];
+      const suns = system.data.suns?.map((sun) => byId.get(sun.id)) ?? [system];
+      const node: SystemNode = {
+        id: system.id,
+        name: system.data.name,
+        theme: system.data.theme,
+        suns: suns.flatMap((sun) => (sun ? [sunNode(sun, systems, cards)] : [])),
+      };
+      return [{ order, node }];
+    })
+    .sort((a, b) => Number(built(b.node)) - Number(built(a.node)) || a.order - b.order)
+    .map(({ node }) => node);
+}
+
+/** The entries that have a page of their own, /systems/<id>/: every sun. A binary has none. */
+export const sunPages = <S extends SystemLike>(systems: readonly S[]): S[] =>
+  systems.filter((system) => system.data.suns === undefined);
+
+/** What a sun's page shows, above and beside its planets. */
+export interface SunPage extends SunNode {
+  /** The route sign over the name: "Solar system", or "Sun of Projects". */
+  eyebrow: string;
+  /** For the tab and search results: "Code system", or "Software projects". */
+  title: string;
+  crumbs: Crumb[];
+  /** Where the system's work lives when that is a site of its own (the Blog): the first button. */
+  link: ProjectLink | undefined;
+}
+
+/** A sun's page: a solar system's, or one of the two suns of a binary star. */
+export function systemView(
+  entry: SystemLike,
+  systems: readonly SystemLike[],
+  projects: readonly ProjectLike[],
+): SunPage {
+  const sun = sunNode(entry, systems, cardsOf(systems, projects));
+  const binary = binaryOf(entry.id, systems);
+  const link = entry.data.link;
+  return {
+    ...sun,
+    eyebrow: binary ? `Sun of ${binary.data.name}` : 'Solar system',
+    // "Software projects" says in a tab or a search result what "Software" alone does not.
+    title: binary ? `${sun.name} ${binary.data.name.toLowerCase()}` : `${sun.name} system`,
+    crumbs: [{ label: 'Projects', href: routes.projects() }],
+    link:
+      link === undefined ? undefined : { label: 'Visit the site', href: link, host: hostOf(link) },
+  };
 }
 
 /**
@@ -277,7 +415,9 @@ export function featured(
   tree: readonly SystemNode[],
   limit: number,
 ): Array<PlanetNode | ProjectCard> {
-  const planets = tree.flatMap((system) => system.planets).filter((planet) => !planet.planned);
+  const planets = tree
+    .flatMap((system) => system.suns.flatMap((sun) => sun.planets))
+    .filter((planet) => !planet.planned);
   const moons = planets.flatMap((planet) => planet.moons).filter((moon) => !moon.planned);
   const others = planets.filter((planet) => !planet.flagship);
   const chosen = [
@@ -294,13 +434,8 @@ export function featured(
 /** A planet's card (it lists its moons), as opposed to a moon's. */
 export const isPlanet = (card: ProjectCard): card is PlanetNode => 'moons' in card;
 
-export interface Crumb {
-  label: string;
-  href: string;
-}
-
 export interface ProjectContext {
-  /** "Planet in the Code system" / "Moon of FishAI". */
+  /** "Planet in the Code system" / "Planet of Hardware" (a sun of a binary) / "Moon of FishAI". */
   placement: string;
   crumbs: Crumb[];
   theme: ThemeKey | undefined;
@@ -308,7 +443,10 @@ export interface ProjectContext {
   related: ProjectCard[];
 }
 
-/** Where a project sits: its system, its parent if it is a moon, its moons, its related work. */
+/**
+ * Where a project sits: its sun, its parent if it is a moon, its moons, its related work. The
+ * crumbs name the sun, never a binary: a binary's page is the projects index, the first crumb.
+ */
 export function projectContext(
   project: ProjectLike,
   systems: readonly SystemLike[],
@@ -316,26 +454,29 @@ export function projectContext(
 ): ProjectContext {
   const byId = new Map(projects.map((entry) => [entry.id, entry]));
   const parent = project.data.parent ? byId.get(project.data.parent.id) : undefined;
-  const systemId = (parent ?? project).data.system?.id;
-  const system = systems.find((entry) => entry.id === systemId);
+  const sunId = (parent ?? project).data.system?.id;
+  const sun = systems.find((entry) => entry.id === sunId);
+  const theme = sun && familyOf(sun, systems);
 
   const crumbs: Crumb[] = [{ label: 'Projects', href: routes.projects() }];
-  if (system) crumbs.push({ label: system.data.name, href: routes.system(system.id) });
+  if (sun) crumbs.push({ label: sun.data.name, href: routes.system(sun.id) });
   if (parent) crumbs.push({ label: parent.data.title, href: routes.project(parent.id) });
 
   const placement = parent
     ? `Moon of ${parent.data.title}`
-    : system
-      ? `Planet in the ${system.data.name} system`
-      : 'Project';
+    : !sun
+      ? 'Project'
+      : binaryOf(sun.id, systems)
+        ? `Planet of ${sun.data.name}`
+        : `Planet in the ${sun.data.name} system`;
 
   return {
     placement,
     crumbs,
-    theme: system?.data.theme,
+    theme,
     moons: projects
       .filter((entry) => entry.data.parent?.id === project.id)
-      .map((moon) => toCard(moon, system?.data.theme))
+      .map((moon) => toCard(moon, theme))
       .sort(byShowcase),
     related: project.data.related.flatMap((reference) => {
       const target = byId.get(reference.id);

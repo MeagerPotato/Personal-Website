@@ -1,4 +1,5 @@
 import type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
+import { hashSeed } from './sim/rng';
 
 export type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
 
@@ -27,6 +28,38 @@ export function readManifest(data: unknown): UniverseManifest {
     throw new Error('universe manifest: empty');
   }
   return manifest as UniverseManifest;
+}
+
+const byId = (a: { id: string }, b: { id: string }): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+/**
+ * A FINGERPRINT OF WHERE THINGS ARE, which the engine stamps on every snapshot it writes
+ * (core/snapshot.ts). A tab can outlive a deploy that moved the galaxy: a new system, more room
+ * between them, a planet added to a family, which moves its outer rings (docs/PLAN.md §5.4). A
+ * snapshot from before would put the ship where it was in the OLD galaxy, which here may be
+ * inside a planet, and dock it on a ring that has gone elsewhere; with this, it is not believed.
+ *
+ * Only what decides where a body is and how big it is goes in: every system's centre and reach,
+ * every body's place in the tree, size, docking ring and orbit, in order of id (the order a list
+ * is written in moves nothing). Titles, hrefs and looks stay out, so a copy edit, a new biome or
+ * a renamed page never costs a returning visitor their place. A new field that moves or sizes a
+ * body belongs here too. 32 bits (sim/rng.ts's string hash), as eight hex digits: it only has to
+ * tell one deploy's galaxy from another's.
+ */
+export function galaxyKey(manifest: UniverseManifest): string {
+  const lines: string[] = [];
+  for (const { id, position, radius } of [...manifest.systems].sort(byId)) {
+    lines.push(`system ${id} ${position[0]} ${position[1]} ${radius}`);
+  }
+  for (const body of [...manifest.bodies].sort(byId)) {
+    const { orbit } = body;
+    const around = orbit === null ? '-' : `${orbit.radius} ${orbit.phase} ${orbit.periodSec}`;
+    lines.push(
+      `body ${body.id} ${body.system} ${body.parent ?? '-'} ${body.radius} ${body.dockRadius} ${around}`,
+    );
+  }
+  return hashSeed(lines.join('\n')).toString(16).padStart(8, '0');
 }
 
 /** The system a visitor starts in: the one whose centre is the home planet. */

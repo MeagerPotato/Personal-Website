@@ -1,6 +1,8 @@
+import type { ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import {
   RELAY_SLOTS,
+  binaryOrbits,
   dockRadius,
   homeReach,
   homeRings,
@@ -22,6 +24,7 @@ import type {
   Orbit,
   PageInput,
   ProjectInput,
+  SystemInput,
   UniverseInput,
   UniverseManifest,
 } from './types';
@@ -67,9 +70,49 @@ function findDuplicates(ids: readonly string[]): string[] {
   return [...duplicates].sort(compare);
 }
 
+/** A system with a place in the galaxy: one sun, or a binary star. validate() has checked it. */
+type Slotted = SystemInput & { order: number; theme: ThemeKey };
+const isSlotted = (system: SystemInput): system is Slotted =>
+  system.order !== undefined && system.theme !== undefined;
+
+/**
+ * Which binary lists each sun of a binary (sun id -> binary id), and what is wrong with the
+ * lists: a sun that is missing, listed twice or by two binaries, the binary itself, or a binary.
+ */
+function sunsOfBinaries(systems: readonly SystemInput[], problems: string[]): Map<string, string> {
+  const byId = new Map(systems.map((system) => [system.id, system]));
+  const binaryOf = new Map<string, string>();
+  for (const binary of systems) {
+    if (binary.suns === undefined) continue;
+    const where = `binary "${binary.id}"`;
+    if (binary.suns.length !== 2) {
+      problems.push(
+        `${where}: needs exactly two suns, primary first (found ${binary.suns.length})`,
+      );
+    }
+    for (const [index, sun] of binary.suns.entries()) {
+      const entry = byId.get(sun);
+      if (sun === binary.id) problems.push(`${where}: lists itself`);
+      else if (binary.suns.indexOf(sun) !== index) problems.push(`${where}: lists "${sun}" twice`);
+      else if (entry === undefined) problems.push(`${where}: sun "${sun}" does not exist`);
+      else if (entry.suns !== undefined) problems.push(`${where}: sun "${sun}" is itself a binary`);
+      else {
+        const holder = binaryOf.get(sun);
+        if (holder === undefined) binaryOf.set(sun, binary.id);
+        else {
+          problems.push(
+            `system "${sun}" is listed as a sun by both "${holder}" and "${binary.id}"`,
+          );
+        }
+      }
+    }
+  }
+  return binaryOf;
+}
+
 function validate(input: UniverseInput): string[] {
   const problems: string[] = [];
-  const systemIds = new Set(input.systems.map((system) => system.id));
+  const systems = new Map(input.systems.map((system) => [system.id, system]));
   const projects = new Map(input.projects.map((project) => [project.id, project]));
 
   const links = input.links ?? [];
@@ -82,17 +125,48 @@ function validate(input: UniverseInput): string[] {
     for (const id of findDuplicates(ids)) problems.push(`${label} id "${id}" is used twice`);
   }
 
+  // The content schema says most of this already, file by file; it is said again here for input
+  // that does not come through it (tests, the journeys harness), and for what spans two files.
+  const bySystemId = [...input.systems].sort((a, b) => compare(a.id, b.id));
+  const binaryOf = sunsOfBinaries(bySystemId, problems);
   const orders = new Map<number, string>();
-  for (const system of [...input.systems].sort((a, b) => compare(a.id, b.id))) {
+  for (const system of bySystemId) {
     if (system.id === HOME) problems.push(`system id "${HOME}" is reserved for the home system`);
-    if (!Number.isInteger(system.order) || system.order < 1) {
-      problems.push(`system "${system.id}": order must be a whole number from 1 (0 is home)`);
+    const binary = binaryOf.get(system.id);
+    if (binary !== undefined) {
+      // A sun of a binary goes where its binary goes, in its binary's colours.
+      const own = { order: system.order, theme: system.theme, position: system.position };
+      for (const key of ['order', 'theme', 'position'] as const) {
+        if (own[key] === undefined || own[key] === 'auto') continue;
+        problems.push(
+          `system "${system.id}" is listed as a sun by "${binary}", so it goes where ` +
+            `"${binary}" goes: leave out its ${key}`,
+        );
+      }
+      continue;
     }
-    const holder = orders.get(system.order);
-    if (holder !== undefined) {
-      problems.push(`systems "${holder}" and "${system.id}" both claim order ${system.order}`);
+    const label = system.suns === undefined ? 'system' : 'binary';
+    if (system.order === undefined) {
+      problems.push(
+        system.suns === undefined
+          ? `system "${system.id}" has no order and no binary lists it: give it an order (its ` +
+              `place in the galaxy), or list it in a binary's suns`
+          : `binary "${system.id}": needs an order, its place in the galaxy`,
+      );
+    } else if (!Number.isInteger(system.order) || system.order < 1) {
+      problems.push(`${label} "${system.id}": order must be a whole number from 1 (0 is home)`);
     } else {
-      orders.set(system.order, system.id);
+      const holder = orders.get(system.order);
+      if (holder !== undefined) {
+        problems.push(`systems "${holder}" and "${system.id}" both claim order ${system.order}`);
+      } else {
+        orders.set(system.order, system.id);
+      }
+    }
+    // A stray (no order, and in no binary) has just been told to take an order or to join a
+    // binary; whether it needs a theme depends on which, so it is not asked for one yet.
+    if (system.theme === undefined && (system.order !== undefined || system.suns !== undefined)) {
+      problems.push(`${label} "${system.id}": needs a theme, its colour family`);
     }
   }
 
@@ -110,8 +184,15 @@ function validate(input: UniverseInput): string[] {
     if (hasSystem === hasParent) {
       problems.push(`${where}: set exactly one of "system" (a planet) or "parent" (a moon)`);
     }
-    if (project.system !== undefined && !systemIds.has(project.system)) {
+    const system = project.system === undefined ? undefined : systems.get(project.system);
+    if (project.system !== undefined && system === undefined) {
       problems.push(`${where}: system "${project.system}" does not exist`);
+    } else if (system?.suns !== undefined) {
+      const suns = system.suns.map((sun) => `"${sun}"`).join(' or ');
+      problems.push(
+        `${where}: "${system.id}" is a binary star; its planets orbit one of its suns: ` +
+          `set system to ${suns}`,
+      );
     }
     if (project.parent !== undefined) {
       const parent = projects.get(project.parent);
@@ -316,6 +397,130 @@ function buildLinks(links: readonly LinkInput[], pages: readonly PageInput[]): M
     });
 }
 
+interface Family {
+  /** The sun, still at the centre of its slot (`orbit: null`): a binary sets it circling. */
+  sun: ManifestBody;
+  /** Its planets, innermost first, each followed by its moons. */
+  bodies: ManifestBody[];
+  /** How far it reaches from the sun: its outermost docking ring, u. */
+  reach: number;
+}
+
+/**
+ * A sun and everything round it: its planets on rings by date (older closer in), each planet's
+ * moons stacked round it. A system with one sun is one family; a binary star is two, whose suns
+ * circle their common centre. Every body is filed under `system`, the one that owns the slot.
+ */
+function buildFamily(sun: SystemInput, system: string, projects: readonly ProjectInput[]): Family {
+  const sunId = bodyId.system(sun.id);
+  const sunDock = dockRadius(L.sunRadius);
+  const body: ManifestBody = {
+    id: sunId,
+    kind: 'sun',
+    title: sun.name,
+    href: sun.href,
+    system,
+    parent: null,
+    radius: L.sunRadius,
+    dockRadius: round(sunDock),
+    orbit: null,
+    seed: sun.id,
+  };
+
+  const planets = projects
+    .filter((project) => project.system === sun.id)
+    .map((project) => {
+      const radius = L.planetRadius[project.size];
+      const dock = dockRadius(radius);
+      const moons = projects
+        .filter((candidate) => candidate.parent === project.id)
+        .map((moon) => {
+          const moonRadius = L.moonRadius[moon.size];
+          return { project: moon, radius: moonRadius, footprint: dockRadius(moonRadius) };
+        });
+      const moonRings = stackRings(moons, dock + L.moonGap, L.moonGap);
+      return { project, radius, moonRings, footprint: reach(moonRings, dock) };
+    });
+
+  const rings = stackRings(planets, L.sunRadius + L.sunClearance, L.orbitGap, L.orbitStart);
+  const bodies: ManifestBody[] = [];
+  for (const { item: planet, radius: orbitRadius } of rings) {
+    const planetId = bodyId.project(planet.project.id);
+    bodies.push(projectBody(planet.project, 'planet', system, sunId, planet.radius, orbitRadius));
+    for (const { item: moon, radius: moonOrbit } of planet.moonRings) {
+      bodies.push(projectBody(moon.project, 'moon', system, planetId, moon.radius, moonOrbit));
+    }
+  }
+  return { sun: body, bodies, reach: reach(rings, sunDock) };
+}
+
+interface Built {
+  /** Every body of the slot, in manifest order. */
+  bodies: ManifestBody[];
+  /** How far it reaches from the slot's centre, u. */
+  reach: number;
+  /** The body the slot's system names as its centre. */
+  center: string;
+}
+
+/** A system with one sun: one family, the sun at the centre of the slot. */
+function buildSystem(
+  system: SystemInput,
+  projects: readonly ProjectInput[],
+  problems: string[],
+): Built {
+  const family = buildFamily(system, system.id, projects);
+  if (family.reach > L.maxSystemRadius) {
+    problems.push(
+      `system "${system.id}" reaches ${round(family.reach)} u, past the ${L.maxSystemRadius} u ` +
+        'limit: it would crowd its neighbours. Move projects to another system, turn some into ' +
+        'moons, or revisit tuning.layout.',
+    );
+  }
+  return { bodies: [family.sun, ...family.bodies], reach: family.reach, center: family.sun.id };
+}
+
+/**
+ * A binary star: two families, each laid out as a system's is, whose suns circle the binary's
+ * centre on opposite sides (layout.ts, binaryOrbits). The primary is the first of `suns`, as
+ * the content says: never worked out from sizes, which change.
+ */
+function buildBinary(
+  binary: SystemInput,
+  [primary, secondary]: readonly [SystemInput, SystemInput],
+  projects: readonly ProjectInput[],
+  problems: string[],
+): Built {
+  const a = buildFamily(primary, binary.id, projects);
+  const b = buildFamily(secondary, binary.id, projects);
+  const pair = binaryOrbits(a.reach, b.reach);
+  // The phase and the one period are rounded BEFORE the second sun's phase is taken from the
+  // first, so that the two stay opposite for ever, as the manifest says them.
+  const phase = round(orbitPhase(bodyId.system(binary.id)), 4);
+  const periodSec = round(pair.periodSec, 1);
+
+  if (pair.reach > L.maxSystemRadius) {
+    problems.push(
+      `binary "${binary.id}" reaches ${round(pair.reach)} u (${primary.name} ` +
+        `${round(a.reach)}, ${secondary.name} ${round(b.reach)}, ${L.binaryGap} apart), past ` +
+        `the ${L.maxSystemRadius} u limit: it would crowd its neighbours. Move a project to ` +
+        'another system, turn one into a moon, or revisit tuning.layout (a new limit moves ' +
+        'every system: docs/PLAN.md §5.4).',
+    );
+  }
+
+  return {
+    bodies: [
+      { ...a.sun, orbit: { radius: round(pair.a), phase, periodSec } },
+      ...a.bodies,
+      { ...b.sun, orbit: { radius: round(pair.b), phase: round(phase + Math.PI, 4), periodSec } },
+      ...b.bodies,
+    ],
+    reach: pair.reach,
+    center: a.sun.id,
+  };
+}
+
 export function buildUniverse(input: UniverseInput): UniverseManifest {
   const problems = validate(input);
   if (problems.length > 0) throw new UniverseDataError(problems);
@@ -328,61 +533,22 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   const home = buildHomeSystem(input.pages);
   const systems: ManifestSystem[] = [home.system];
   const bodies: ManifestBody[] = [...home.bodies, ...buildLinks(input.links ?? [], input.pages)];
+  // Systems and binaries, in the order of their slots. Suns of a binary go where it goes.
+  const slotted = input.systems.filter(isSlotted).sort((a, b) => a.order - b.order);
+  const byId = new Map(input.systems.map((system) => [system.id, system]));
   // A slot too small for what the build accepts is refused, not moved (data/layout.ts).
-  if (input.systems.some((system) => system.position === 'auto')) {
+  if (slotted.some((system) => system.position === 'auto')) {
     problems.push(...slotRoomProblems());
   }
 
-  const sunDock = dockRadius(L.sunRadius);
-  for (const system of [...input.systems].sort((a, b) => a.order - b.order)) {
-    const sunId = bodyId.system(system.id);
-    bodies.push({
-      id: sunId,
-      kind: 'sun',
-      title: system.name,
-      href: system.href,
-      system: system.id,
-      parent: null,
-      radius: L.sunRadius,
-      dockRadius: round(sunDock),
-      orbit: null,
-      seed: system.id,
-    });
-
-    const planets = projects
-      .filter((project) => project.system === system.id)
-      .map((project) => {
-        const radius = L.planetRadius[project.size];
-        const dock = dockRadius(radius);
-        const moons = projects
-          .filter((candidate) => candidate.parent === project.id)
-          .map((moon) => {
-            const moonRadius = L.moonRadius[moon.size];
-            return { project: moon, radius: moonRadius, footprint: dockRadius(moonRadius) };
-          });
-        const moonRings = stackRings(moons, dock + L.moonGap, L.moonGap);
-        return { project, radius, moonRings, footprint: reach(moonRings, dock) };
-      });
-
-    const rings = stackRings(planets, L.sunRadius + L.sunClearance, L.orbitGap, L.orbitStart);
-    for (const { item: planet, radius: orbitRadius } of rings) {
-      const planetId = bodyId.project(planet.project.id);
-      bodies.push(
-        projectBody(planet.project, 'planet', system.id, sunId, planet.radius, orbitRadius),
-      );
-      for (const { item: moon, radius: moonOrbit } of planet.moonRings) {
-        bodies.push(projectBody(moon.project, 'moon', system.id, planetId, moon.radius, moonOrbit));
-      }
-    }
-
-    const radius = reach(rings, sunDock);
-    if (radius > L.maxSystemRadius) {
-      problems.push(
-        `system "${system.id}" reaches ${round(radius)} u, past the ${L.maxSystemRadius} u limit: ` +
-          'it would crowd its neighbours. Move projects to another system, turn some into moons, ' +
-          'or revisit tuning.layout.',
-      );
-    }
+  for (const system of slotted) {
+    // A binary's two suns exist: validate() has seen to it.
+    const [primary, secondary] = (system.suns ?? []).flatMap((id) => byId.get(id) ?? []);
+    const built =
+      primary !== undefined && secondary !== undefined
+        ? buildBinary(system, [primary, secondary], projects, problems)
+        : buildSystem(system, projects, problems);
+    bodies.push(...built.bodies);
 
     const [x, z] = system.position === 'auto' ? slotPosition(system.order) : system.position;
     systems.push({
@@ -390,8 +556,8 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
       name: system.name,
       theme: system.theme,
       position: [round(x), round(z)],
-      radius: round(radius),
-      center: sunId,
+      radius: round(built.reach),
+      center: built.center,
     });
   }
 
