@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// One test run for the whole workspace. Pure logic (crypto, sync, rendering, tokens) runs in
-// Node; a test that needs a DOM opts in per file with `// @vitest-environment happy-dom`.
+// One test run for the whole workspace, in Node: crypto, sync, rendering, tokens, and the Workers'
+// APIs against a local D1 and R2. What needs a real browser is in each app's Playwright tests.
 export default defineConfig({
   test: {
     environment: 'node',
