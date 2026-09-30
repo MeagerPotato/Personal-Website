@@ -17,7 +17,7 @@ import type { Snapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
-import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
+import { galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
@@ -101,6 +101,8 @@ export function boot(
 ): Booted {
   // Before anything is created: a manifest we cannot read must not leave a canvas behind.
   const manifest = readManifest(options.manifest);
+  // Every snapshot says which galaxy it was taken in (core/snapshot.ts, startingFrom).
+  const stamp = galaxyKey(manifest);
   const reducedMotion = options.reducedMotion ?? false;
 
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -406,6 +408,7 @@ export function boot(
       dock: navigator.snapshot(),
       halting: navigator.halting,
       guarding: navigator.guarding,
+      galaxy: stamp,
     }),
   };
 }
