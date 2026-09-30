@@ -16,13 +16,22 @@ follows. Dashboard labels drift; if something has moved, the dashboard's search 
 
 1. Snapshot the existing subdomains exactly as in the main runbook's §0 (`nslookup` and
    `curl.exe -sI` for days2meet and fishai), and keep the output.
-2. Check that nothing answers on `journal` yet. This should end with "Non-existent domain":
+2. Check that nothing answers on `journal` yet (asking Cloudflare's public resolver, 1.1.1.1):
 
    ```bash
-   nslookup journal.allenkh.com
+   nslookup journal.allenkh.com 1.1.1.1
    ```
 
-   If it finds something, stop and tell Claude: some record already uses the name.
+   Expect a `Name:` line with nothing under it: no `Addresses`, no `Aliases` (the `Address`
+   near the top is the resolver's own). Cloudflare answers a name that does not exist this way,
+   without the words "Non-existent domain"; a made-up name looks the same:
+
+   ```bash
+   nslookup no-such-name.allenkh.com 1.1.1.1
+   ```
+
+   If an address or an alias shows under the name, stop and tell Claude: some record already uses
+   it.
 
 **Plan.** The Workers Free plan is enough to start: D1, R2, the cron and the rate limit all work
 on it. The one thing to watch is Free's CPU limit per request (10 ms). The journal's heaviest
