@@ -32,11 +32,11 @@ orbit. Bodies carry **names** (real buttons), and pointing at a planet or its na
 first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
-"cluster"), the autopilot docks any journey in today's galaxy within 5.0 s (median 2.5), and
-every way a journey is handed back at speed (Stop, a key, the web layer letting go, a reload)
-brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
-visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
-direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
+"cluster"), the autopilot docks every journey in today's galaxy (median 2.5 s, p90 3.3 s, the
+slowest 5.02 s), and every way a journey is handed back at speed (Stop, a key, the web layer
+letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
+journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
+request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
 are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
 some of it on 2026-09-28 and accepted it ("everything is okay for now"); the feel gets its polish
@@ -325,7 +325,9 @@ sun is a file of its own with `name` and `tagline` and its text: no `order`, `th
 if one does. A binary is the one exception to "adding a project moves nothing": a planet under
 one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
 And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a
-content change flips one, run `npm run journeys` before updating its list.
+content change flips one, run `npm run journeys` before updating its list. `tests/ship-light.test.ts`
+pins how far a ship on each ring near the gap is lit off its own sun (the other sun pulls there
+too): if one moves, look at it in flight before updating that list.
 
 **Retire a URL** (a renamed system, a moved page). One line in `public/_redirects`,
 `/old/ /new/ 301`, and the same without the slash: exact paths only, never a wildcard. The

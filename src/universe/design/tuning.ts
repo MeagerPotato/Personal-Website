@@ -638,6 +638,7 @@ export const tuning = {
      * every journey into, out of and across it (320, at up to 430 u/s): at 0.05 the light turned
      * up to 97 degrees in one frame (8 frames over 60); at 0.2, 54 at most and none over 60; 0.5
      * would bring it to 41 but light a ship on Robotics' ring from beyond its own sun's side.
+     * What 0.2 costs on each ring is pinned by tests/ship-light.test.ts.
      */
     shipLightTiebreak: 0.2,
   },
