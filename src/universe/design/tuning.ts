@@ -623,12 +623,24 @@ export const tuning = {
     orbitLineOpacity: 0.2,
     orbitLineSegments: 128,
     /**
-     * The ship is lit by the sun whose family it is in: fully inside `shipLightFullRadii` of that
-     * family's reach (a sun, its planets and their moons: for a system with one sun, the system's
-     * radius), fading to the distant key light by `shipLightFadeRadii` (world/Galaxy.ts, lightAt).
+     * Away from every body, the ship is lit by the sun whose family it is in: fully inside
+     * `shipLightFullRadii` of that family's reach (a sun, its planets and their moons: for a
+     * system with one sun, the system's radius), fading to the distant key light by
+     * `shipLightFadeRadii` (world/Galaxy.ts, lightAt).
      */
     shipLightFullRadii: 1.2,
     shipLightFadeRadii: 2,
+    /**
+     * Near a body, the ship is lit by that body's own light: fully from its docking ring inward,
+     * letting go by this many ring radii (sim/shipLight.ts), a little past the orbit assist's
+     * sphere (assist.soiRadii). Judged in the Projects binary (2026-09-30): from the ring out to
+     * 2 rings the light turned least of the reaches tried (1.8, 2, 2.2 and 2.4; from 1.1 and 1.2
+     * rings too) for a ship leaving or diving at a planet by the gap (Robotics, straight out on
+     * the gap side at a boosting pilot's 81 u/s: 24 degrees in a frame at worst, 27 at 1.8), and
+     * added no frame over 30 to any journey; wider, the spheres reach so far into the gap that
+     * crossing it turns sharper.
+     */
+    shipLightClaimRadii: 2,
     /**
      * Between two suns of about equal pull (a binary's gap), their directions all but cancel, and
      * the key light, from above the plane, takes up to this share more (0 to 1): the ship's light
@@ -637,8 +649,12 @@ export const tuning = {
      * the gap, every sun's outermost planets. Judged in the Projects binary (2026-09-30), over
      * every journey into, out of and across it (320, at up to 430 u/s): at 0.05 the light turned
      * up to 97 degrees in one frame (8 frames over 60); at 0.2, 54 at most and none over 60; 0.5
-     * would bring it to 41 but light a ship on Robotics' ring from beyond its own sun's side.
-     * What 0.2 costs on each ring is pinned by tests/ship-light.test.ts.
+     * would bring it to 41. Since the ship takes the light of the body it is near, the lean costs
+     * nothing on a ring, and the swing is all that is left to judge: the gap lies outside every
+     * body's sphere, so the turns there are what they were (0.05 still 97 degrees, 0.2 54, 0.5
+     * 41), and 0.5 would light a ship flying free among Hardware's outer planets from beyond its
+     * own sun's side (up to 104 degrees off it, where 0.2 leans up to 57). What the blend leans
+     * where each body lets go is pinned by tests/ship-light.test.ts.
      */
     shipLightTiebreak: 0.2,
   },

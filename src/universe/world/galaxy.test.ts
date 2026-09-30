@@ -323,6 +323,29 @@ describe('Galaxy', () => {
     expectSameDirection(lightFrom(galaxy, out), direction(out, KEY_LIGHT_POSITION));
   });
 
+  it('lights a ship on any ring by that body’s own light: its sun, or the key light round home', () => {
+    const { galaxy } = setup();
+    const code = manifest.systems.find((system) => system.id === 'code');
+    if (!code) throw new Error('fixture');
+    const sun = new Vector3(code.position[0], 0, code.position[1]);
+    for (const t of [0, 400, 1234.5]) {
+      galaxy.frameUpdate(frame(t));
+      for (const body of manifest.bodies) {
+        const subject = galaxy.subject(body.id);
+        if (!subject || body.docks === false) continue;
+        const own = body.system === 'code' ? sun : KEY_LIGHT_POSITION;
+        for (let k = 0; k < 12; k += 1) {
+          const angle = (k / 12) * Math.PI * 2;
+          const at = subject.position
+            .clone()
+            .add(new Vector3(Math.sin(angle), 0, Math.cos(angle)).multiplyScalar(body.dockRadius));
+          expectSameDirection(lightFrom(galaxy, at), direction(at, own));
+        }
+      }
+    }
+    galaxy.dispose();
+  });
+
   it('lights a planet by its sun, a moon by its planet’s sun, and home by the key light', () => {
     const { galaxy, meshOf } = setup();
     galaxy.frameUpdate(frame(10));
@@ -554,6 +577,21 @@ function binary(): UniverseManifest {
   };
 }
 
+/** When, in one turn of b2, b's outermost planet is nearest the other sun: facing the gap. */
+function facingTheGap(galaxy: Galaxy, node: (id: string) => Object3D): number {
+  let best = 0;
+  let nearest = Infinity;
+  for (let t = 0; t < 300; t += 1) {
+    galaxy.frameUpdate(frame(t));
+    const d = node('project/b2').position.distanceTo(node('system/a').position);
+    if (d < nearest) {
+      nearest = d;
+      best = t;
+    }
+  }
+  return best;
+}
+
 describe('Galaxy, where suns move', () => {
   function setupBinary() {
     const galaxy = new Galaxy({
@@ -645,6 +683,93 @@ describe('Galaxy, where suns move', () => {
     galaxy.dispose();
   });
 
+  it('lights a ship near a body by that body’s own light, and lets it go a little further out', () => {
+    const { galaxy, node } = setupBinary();
+    // On every ring, all round, whatever the other sun does: that body's own light, the very
+    // light its surface is lit by.
+    for (const t of [0, 1000, 2345.6]) {
+      galaxy.frameUpdate(frame(t));
+      for (const [id, sun] of [
+        ['system/a', 'system/a'],
+        ['system/b', 'system/b'],
+        ['project/a1', 'system/a'],
+        ['project/b1', 'system/b'],
+        ['project/b2', 'system/b'],
+      ] as const) {
+        const ring = galaxy.subject(id)?.ringRadius ?? 0;
+        for (let k = 0; k < 16; k += 1) {
+          const angle = (k / 16) * Math.PI * 2;
+          const at = node(id)
+            .position.clone()
+            .add(new Vector3(Math.sin(angle), 0, Math.cos(angle)).multiplyScalar(ring));
+          expectSameDirection(lightFrom(galaxy, at), direction(at, node(sun).position));
+        }
+      }
+    }
+    // Straight out from b2's ring on the gap side (b's outermost planet, when it faces the other
+    // sun): the light lets go of b's sun a little at a time, and where b2 lets go it is the
+    // blend's, which leans off b's sun there (the other sun pulls across the gap).
+    galaxy.frameUpdate(frame(facingTheGap(galaxy, node)));
+    const b2 = node('project/b2').position.clone();
+    const b = node('system/b').position.clone();
+    const out = b2.clone().sub(b).normalize();
+    const ring = galaxy.subject('project/b2')?.ringRadius ?? 0;
+    const edge = ring * tuning.world.shipLightClaimRadii;
+    const leanAt = (r: number): number => {
+      const at = b2.clone().addScaledVector(out, r);
+      return lightFrom(galaxy, at).angleTo(direction(at, b));
+    };
+    let last: Vector3 | null = null;
+    let largest = 0;
+    for (let r = ring; r <= edge + 5; r += 0.05) {
+      const at = b2.clone().addScaledVector(out, r);
+      const light = lightFrom(galaxy, at);
+      if (last) largest = Math.max(largest, light.angleTo(last));
+      last = light;
+    }
+    expect(leanAt(ring)).toBeLessThan(1e-6);
+    expect(leanAt((ring + edge) / 2)).toBeGreaterThan(leanAt(ring + 1));
+    expect(leanAt(edge)).toBeGreaterThan((10 * Math.PI) / 180);
+    // A twentieth of a unit never turns it by more than a degree: nothing pops.
+    expect(largest).toBeLessThan(Math.PI / 180);
+    galaxy.dispose();
+  });
+
+  it('never lights a ship by a body nothing docks at', () => {
+    // b2 made a link, facing the gap: on its ring, the light is the blend's, 5 degrees off b's sun.
+    const manifest = binary();
+    const docking = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+    });
+    const link = new Galaxy({
+      manifest: {
+        ...manifest,
+        bodies: manifest.bodies.map((body) =>
+          body.id === 'project/b2' ? { ...body, docks: false as const } : body,
+        ),
+      },
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+    });
+    const node = (galaxy: Galaxy, id: string): Object3D =>
+      galaxy.object.getObjectByName(id) as Object3D;
+    const t = facingTheGap(docking, (id) => node(docking, id));
+    for (const galaxy of [docking, link]) galaxy.frameUpdate(frame(t));
+    const b2 = node(docking, 'project/b2').position.clone();
+    const b = node(docking, 'system/b').position.clone();
+    const at = b2.clone().addScaledVector(b2.clone().sub(b).normalize(), 15.2);
+    expectSameDirection(lightFrom(docking, at), direction(at, b));
+    expect(lightFrom(link, at).angleTo(direction(at, b))).toBeGreaterThan((3 * Math.PI) / 180);
+    docking.dispose();
+    link.dispose();
+  });
+
   it('is the binary the build makes: every body drawn, each lit by its own sun', () => {
     // The shape of the tree's Projects, through the real build (the fixture above is by hand).
     const built = buildUniverse({
@@ -703,21 +828,23 @@ describe('Galaxy, where suns move', () => {
     }
     // The suns move, and each family's light goes with its own sun.
     expect(sunOf(meshOf('project/meet'))).not.toBe(sunOf(meshOf('project/rocket')));
-    // The ship: deep in a family, lit by that family's sun alone; out at its outermost planet,
-    // where the other family is only the gap away, the light leans a little toward the other sun
-    // and the key light (2.4 and 0.7 degrees here, with tuning.world.shipLightTiebreak at 0.2),
-    // which is the blend doing its job and not a second light.
-    for (const [planet, sun, within] of [
-      ['project/demo', 'system/soft', 0],
-      ['project/rocket', 'system/hard', 0],
-      ['project/meet', 'system/soft', 3],
-      ['project/robot', 'system/hard', 3],
+    // The ship, on any planet's ring, is lit by that planet's own sun, the outermost ones by the
+    // gap included (where the blend alone leant toward the other sun and the key light).
+    for (const [planet, sun] of [
+      ['project/demo', 'system/soft'],
+      ['project/online', 'system/soft'],
+      ['project/rocket', 'system/hard'],
+      ['project/meet', 'system/soft'],
+      ['project/robot', 'system/hard'],
     ] as const) {
-      const at = node(planet).position.clone();
-      const own = direction(at, node(sun).position);
-      if (within === 0) expectSameDirection(lightFrom(galaxy, at), own);
-      else
-        expect(lightFrom(galaxy, at).angleTo(own), planet).toBeLessThan((within * Math.PI) / 180);
+      const ring = galaxy.subject(planet)?.ringRadius ?? 0;
+      for (let k = 0; k < 8; k += 1) {
+        const angle = (k / 8) * Math.PI * 2;
+        const at = node(planet)
+          .position.clone()
+          .add(new Vector3(Math.sin(angle), 0, Math.cos(angle)).multiplyScalar(ring));
+        expectSameDirection(lightFrom(galaxy, at), direction(at, node(sun).position));
+      }
     }
     galaxy.dispose();
   });
