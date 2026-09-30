@@ -261,7 +261,10 @@ never an error. Interactive DOM made by the engine (the prompt, later the labels
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
 attributes on `<html>`, wait for outcomes and never for a number of seconds, and point at moving
-things with `pointAt` (a planet's name never holds still for Playwright's own click).
+things with `pointAt` (a planet's name never holds still for Playwright's own click). On the
+phone a tap is a finger (`fingerTap`: a touch with an area, which the browser may move onto a
+link or a button nearby, as it does a real one), and `slowFrames` makes a page as slow as a slow
+phone, or CI, where some things happen after a frame that happen before one on a fast machine.
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for
