@@ -17,6 +17,7 @@ import { Bean } from '../ui/Bean';
 import { Photos } from '../ui/Photos';
 import { ActivityPicker, LinkPicker, MoodPicker } from '../ui/pickers';
 import { ConflictNotice } from '../ui/ConflictNotice';
+import { Title } from '../ui/common';
 
 /** The day's prompt: picked by the date, so it stays put all day and changes tomorrow. */
 function promptFor(date: string, prompts: readonly string[]): string {
@@ -68,7 +69,7 @@ export function DayScreen({ date }: { date: string }) {
           </a>
         </div>
         <div className="day__title-row">
-          <h1 className="page__title">{longDate(date, current)}</h1>
+          <Title className="page__title">{longDate(date, current)}</Title>
           <button
             type="button"
             className="icon-button star"

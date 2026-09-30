@@ -16,6 +16,7 @@ import {
 } from '../model/stats';
 import { ImpactList, MoodBar, MoodLine, YearPixels } from '../ui/charts';
 import { Segmented } from '../ui/fields';
+import { Title } from '../ui/common';
 
 type Range = 30 | 90 | 365;
 
@@ -61,7 +62,7 @@ export function StatsScreen() {
   return (
     <article className="page page--wide stats">
       <header className="page__head page__head--row">
-        <h1 className="page__title">Stats</h1>
+        <Title className="page__title">Stats</Title>
         <Segmented
           label="Range"
           value={range}

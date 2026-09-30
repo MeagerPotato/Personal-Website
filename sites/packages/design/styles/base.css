@@ -333,8 +333,9 @@ textarea.input {
   outline: none;
 }
 
+/* Placeholders are read too: the low ink, which is AA on every surface (never --ink-faint). */
 .bare-input::placeholder {
-  color: var(--ink-faint);
+  color: var(--ink-low);
 }
 
 /* 4. Surfaces ---------------------------------------------------------------------------------- */

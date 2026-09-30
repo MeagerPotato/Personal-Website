@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { api, type ListedPost } from '../api';
 import { useOverview } from '../data';
 import { follow, hrefFor, navigate, useTitle } from '../router';
-import { busyLabel, describe, ErrorText, plural, shortDate, whenAgo } from '../ui/common';
+import { busyLabel, describe, ErrorText, plural, shortDate, Title, whenAgo } from '../ui/common';
 import { PublishState } from './post/status';
 
 function PostRow({ post }: { post: ListedPost }) {
@@ -61,7 +61,7 @@ export function Posts() {
   return (
     <div className="page">
       <header className="page__head page__head--row">
-        <h1 className="page__title">Posts</h1>
+        <Title className="page__title">Posts</Title>
         <button type="button" className="button button--primary" disabled={busy} onClick={create}>
           <Plus aria-hidden />
           {busyLabel(busy, 'New post', 'Starting…')}

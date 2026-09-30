@@ -8,7 +8,7 @@ import type { CommentStatus, StudioComment } from '../../server/comments';
 import { api } from '../api';
 import { useOverview } from '../data';
 import { useTitle } from '../router';
-import { busyLabel, describe, ErrorText, useConfirm, whenAgo } from '../ui/common';
+import { busyLabel, describe, ErrorText, Title, useConfirm, whenAgo } from '../ui/common';
 
 const TABS: { status: CommentStatus; label: string }[] = [
   { status: 'pending', label: 'Waiting' },
@@ -210,7 +210,7 @@ export function Comments() {
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Comments</h1>
+        <Title className="page__title">Comments</Title>
       </header>
       <div className="segmented" role="group" aria-label="Show">
         {TABS.map((tab) => (

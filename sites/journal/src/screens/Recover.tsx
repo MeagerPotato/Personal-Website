@@ -15,12 +15,12 @@ import {
   type UnlockTicket,
 } from '../account/account';
 import { isRecoveryPhrase, isRecoveryWord, normalizePhrase } from '../vault/recovery';
-import { ErrorText, Gate, busyLabel, describe, deviceName } from '../ui/common';
+import { ErrorText, Gate, busyLabel, describe, deviceName, useStep } from '../ui/common';
 
 export function Recover(props: { onUnlocked: (unlocked: Unlocked) => void; onCancel: () => void }) {
   const [phrase, setPhrase] = useState('');
   const [ticket, setTicket] = useState<RecoveryTicket | null>(null);
-  const [step, setStep] = useState<'phrase' | 'passkey' | 'finish'>('phrase');
+  const [step, setStep] = useStep<'phrase' | 'passkey' | 'finish'>('phrase');
   const [unlockTicket, setUnlockTicket] = useState<Extract<
     UnlockTicket,
     { mode: 'online' }

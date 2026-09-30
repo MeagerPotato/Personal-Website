@@ -32,7 +32,7 @@ import {
 import { newRecoveryPhrase } from '../vault/recovery';
 import { randomId } from '../vault/ids';
 import { Bean } from '../ui/Bean';
-import { ErrorText, busyLabel, describe } from '../ui/common';
+import { ErrorText, Title, busyLabel, describe } from '../ui/common';
 import { FamilyPicker, IconField, Segmented } from '../ui/fields';
 import { groupFamily } from '../ui/pickers';
 import { applyTheme, readTheme, type ThemeChoice } from '../app/theme';
@@ -57,7 +57,7 @@ export function SettingsScreen({ section }: { section: string | null }) {
   return (
     <article className="page settings">
       <header className="page__head">
-        <h1 className="page__title">Settings</h1>
+        <Title className="page__title">Settings</Title>
       </header>
       <SecuritySection />
       <MoodsSection />

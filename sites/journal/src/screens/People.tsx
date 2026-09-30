@@ -17,6 +17,7 @@ import { ConflictNotice } from '../ui/ConflictNotice';
 import { FamilyPicker, IconField } from '../ui/fields';
 import { familyOf } from './Calendar';
 import { Missing } from './Missing';
+import { Title } from '../ui/common';
 
 type Kind = 'person' | 'place';
 
@@ -56,7 +57,7 @@ function ListScreen({ kind }: { kind: Kind }) {
   return (
     <article className="page">
       <header className="page__head page__head--row">
-        <h1 className="page__title">{w.plural}</h1>
+        <Title className="page__title">{w.plural}</Title>
         <a className="button button--primary" href={w.page(null)} onClick={follow}>
           <Plus aria-hidden="true" /> New {w.one}
         </a>
@@ -134,7 +135,7 @@ function RecordScreen({ kind, id }: { kind: Kind; id: string | null }) {
         <a className="back-link" href={w.list()} onClick={follow}>
           <ArrowLeft aria-hidden="true" /> {w.plural}
         </a>
-        <h1 className="visually-hidden">{record.name.trim() || `New ${w.one}`}</h1>
+        <Title className="visually-hidden">{record.name.trim() || `New ${w.one}`}</Title>
         <div className="record__title-row">
           <IconField
             value={record.icon}

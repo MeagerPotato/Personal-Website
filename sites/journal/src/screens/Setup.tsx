@@ -16,7 +16,7 @@ import {
 } from '../account/account';
 import { passkeySupport } from '../auth/webauthn';
 import { normalizePhrase } from '../vault/recovery';
-import { ErrorText, Gate, busyLabel, describe, deviceName } from '../ui/common';
+import { ErrorText, Gate, busyLabel, describe, deviceName, useStep } from '../ui/common';
 
 type Step = 'code' | 'phrase' | 'confirm' | 'passkey' | 'finish';
 
@@ -34,7 +34,7 @@ function pickPositions(): number[] {
 }
 
 export function Setup({ onUnlocked }: { onUnlocked: (unlocked: Unlocked) => void }) {
-  const [step, setStep] = useState<Step>('code');
+  const [step, setStep] = useStep<Step>('code');
   const [ticket, setTicket] = useState<SetupTicket | null>(null);
   const [unlockTicket, setUnlockTicket] = useState<Extract<
     UnlockTicket,

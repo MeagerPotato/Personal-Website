@@ -12,6 +12,7 @@ import { FamilyPicker, IconField, Segmented } from '../ui/fields';
 import { Photos } from '../ui/Photos';
 import { LinkPicker } from '../ui/pickers';
 import { Missing } from './Missing';
+import { Title } from '../ui/common';
 
 export function EventScreen({ id }: { id: string | null }) {
   const journal = useJournal();
@@ -31,7 +32,7 @@ export function EventScreen({ id }: { id: string | null }) {
         <a className="back-link" href={paths.timeline()} onClick={follow}>
           <ArrowLeft aria-hidden="true" /> Timeline
         </a>
-        <h1 className="visually-hidden">{event.title.trim() || 'New event'}</h1>
+        <Title className="visually-hidden">{event.title.trim() || 'New event'}</Title>
         <div className="record__title-row">
           <IconField
             value={event.icon}

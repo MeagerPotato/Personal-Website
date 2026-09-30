@@ -1,8 +1,10 @@
 /**
  * A small router over the History API: the app has a dozen screens and needs nothing more than
  * "which path is showing" and "go to that one". Real URLs, so Back works and a screen can be
- * bookmarked; the Worker serves index.html for all of them (wrangler.jsonc, SPA fallback).
+ * bookmarked; the Worker serves index.html for all of them (wrangler.jsonc, SPA fallback). A new
+ * screen's title takes the focus (@allenkh/design/focus).
  */
+import { focusNextTitle } from '@allenkh/design/focus';
 import { useSyncExternalStore, type MouseEvent } from 'react';
 
 const listeners = new Set<() => void>();
@@ -11,7 +13,10 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-addEventListener('popstate', notify);
+addEventListener('popstate', () => {
+  focusNextTitle();
+  notify();
+});
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -49,7 +54,10 @@ export function navigate(
   const state = options.keepScreen ? { screen: currentScreen() } : null;
   if (options.replace) history.replaceState(state, '', path);
   else history.pushState(state, '', path);
-  if (!options.keepScreen) scrollTo({ top: 0 });
+  if (!options.keepScreen) {
+    scrollTo({ top: 0 });
+    focusNextTitle();
+  }
   notify();
 }
 

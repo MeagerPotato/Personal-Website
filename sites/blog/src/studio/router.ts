@@ -1,7 +1,9 @@
 /**
  * The studio's addresses, all under /studio/ (one Astro page serves them; this reads the rest).
- * History belongs to the studio alone: the reader's pages have no script at all.
+ * History belongs to the studio alone: the reader's pages have no script at all. A new screen's
+ * title takes the focus (@allenkh/design/focus).
  */
+import { focusNextTitle } from '@allenkh/design/focus';
 import { useEffect, useSyncExternalStore, type MouseEvent } from 'react';
 
 export type Route =
@@ -47,6 +49,8 @@ export function hrefFor(route: Route): string {
 }
 
 const listeners = new Set<() => void>();
+// Registered before any screen listens, so it runs before the screen changes.
+addEventListener('popstate', focusNextTitle);
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   window.addEventListener('popstate', listener);
@@ -61,6 +65,7 @@ export function navigate(to: string, { replace = false } = {}): void {
   if (to === location.pathname + location.search) return;
   if (replace) history.replaceState(null, '', to);
   else history.pushState(null, '', to);
+  focusNextTitle();
   for (const listener of listeners) listener();
   window.scrollTo(0, 0);
 }

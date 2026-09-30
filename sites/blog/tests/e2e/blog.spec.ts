@@ -131,6 +131,7 @@ test('sets up the studio with a passkey, and only with the setup code', async ()
   await page.getByLabel('Setup code').fill('e2e-setup-code');
   await page.getByRole('button', { name: 'Create a passkey' }).click();
   await expect(heading(page, 'Posts')).toBeVisible();
+  await expect(heading(page, 'Posts')).toBeFocused();
 });
 
 test('writes a post with every kind of block, and publishes it', async () => {
@@ -139,7 +140,9 @@ test('writes a post with every kind of block, and publishes it', async () => {
   await expect(page).toHaveURL(/\/studio\/posts\/p_[\w-]+\/$/);
   studioPost = new URL(page.url()).pathname;
 
+  // A new post starts at its title.
   const title = page.getByRole('textbox', { name: 'Title' });
+  await expect(title).toBeFocused();
   await title.fill('First flight');
   await title.press('Enter');
   await expect(editor(page)).toBeFocused();
@@ -319,7 +322,27 @@ test('two tabs on one post: the later save asks which version to keep', async ()
 
 test('a series, made in Organize, strings the post into it', async () => {
   const { page } = allen;
+  // Each screen shown, by a link or by Back, gives its title the focus.
   await sidebar(page, 'Organize').click();
+  await expect(heading(page, 'Organize')).toBeFocused();
+  await sidebar(page, 'Settings').click();
+  await expect(heading(page, 'Settings')).toBeFocused();
+  await page.goBack();
+  await expect(heading(page, 'Organize')).toBeFocused();
+
+  // A tag's colours are one stop in the tab order, walked with the arrow keys.
+  await page.locator('.organize-item__summary', { hasText: 'Rockets' }).click();
+  const colours = page.getByRole('radiogroup', { name: 'Colour of Rockets' });
+  const checked = colours.getByRole('radio', { checked: true });
+  await expect(colours.locator('[tabindex="0"]')).toHaveCount(1);
+  const first = await checked.getAttribute('data-family');
+  await colours.locator('[tabindex="0"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(checked).not.toHaveAttribute('data-family', first ?? '');
+  await expect(checked).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(checked).toHaveAttribute('data-family', first ?? '');
+
   await page.getByRole('button', { name: 'New series' }).click();
   await page.getByLabel('Title', { exact: true }).fill('Rocket build');
   await page.getByRole('button', { name: 'Make the series' }).click();
@@ -345,11 +368,20 @@ test('signing out, and in again with the passkey; a second passkey here is refus
   await page.getByRole('button', { name: 'Add a passkey on this device' }).click();
   await expect(page.getByRole('alert')).toHaveText(/already has a passkey/);
 
+  // Out from Settings (the page loads again), in with the passkey; the studio's first screen
+  // takes the focus.
   await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
   const signIn = page.getByRole('button', { name: /^Sign in with/ });
   await expect(signIn).toBeVisible();
   await signIn.click();
   await expect(heading(page, 'Posts')).toBeVisible();
+  await expect(heading(page, 'Posts')).toBeFocused();
+
+  // Out from the sidebar, where the page stays: the sign-in's own title takes the focus.
+  await page.locator('.sidebar').getByRole('button', { name: 'Sign out' }).click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  await signIn.click();
+  await expect(heading(page, 'Posts')).toBeFocused();
 });
 
 test('no page has a serious accessibility issue', async ({ browser }) => {
