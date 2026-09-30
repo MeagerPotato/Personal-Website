@@ -134,8 +134,6 @@ cron drains and retries.
 
 **Known details for D** (noticed while building; none blocks a launch):
 
-- A story-sized snapshot gives its spare room to the photos, but three or four landscape photos
-  in one row are already as tall as their shape allows: they could take two rows instead.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
 - The blog's name ("Captain's Log", the main site's working name) and its one-line description
   are placeholders for Allen's words.
