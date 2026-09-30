@@ -2528,11 +2528,19 @@ main > .resume-name + .resume-contact {
   }
 
   /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,
-     like the tag's border. */
+     like the tag's border. And they would paint a link's arrow in the colour of the tag it sits
+     on, when it is the one sign that the name leaves the site: it takes the colour forced colours
+     give the name, the system's link colour. (Not currentColor: an element they leave alone
+     inherits the page's own ink, the cream, which may be the very colour of a light tag.) */
   @media (forced-colors: active) {
     .body-label[data-state='target']::before {
       forced-color-adjust: none;
       background: CanvasText;
+    }
+
+    .body-label[data-kind='link']::before {
+      forced-color-adjust: none;
+      background: LinkText;
     }
   }
 

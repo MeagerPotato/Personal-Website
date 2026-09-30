@@ -176,3 +176,24 @@ test('pointing at a relay brings its link forward, and leaving is a second press
   await page.keyboard.press('Enter');
   await expect.poll(() => page.url()).toBe(relay.href);
 });
+
+test('in forced colours a link still shows its arrow, in the ink of its name', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'forced colours are emulated in Chromium only');
+  await page.emulateMedia({ forcedColors: 'active' });
+  await openUniverse(page, '/');
+  // (Whether or not its name shows: forced or not, a colour is worked out all the same.)
+  const github = linkOf(page, 'GitHub');
+  await expect(github).toHaveCount(1);
+  const [ink, arrow, tag] = await github.evaluate((anchor) => [
+    getComputedStyle(anchor).color,
+    getComputedStyle(anchor, '::before').backgroundColor,
+    getComputedStyle(anchor, '::after').backgroundColor,
+  ]);
+  // Forced colours paint every fill the page's background, the tag's too: left to them, the arrow
+  // would be drawn in the colour of what it sits on, and the one sign that the name leaves gone.
+  expect(arrow).toBe(ink);
+  expect(arrow).not.toBe(tag);
+});
