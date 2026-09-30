@@ -95,7 +95,7 @@ function readEntries<T>(folder: string, pattern: 'file' | 'folder', parse: (data
 /** The content the build reads, as the plain input of buildUniverse(). Production drafts rule by default. */
 export function readRealInput(includeDrafts = false): UniverseInput {
   const systems: SystemEntry[] = readEntries('systems', 'file', (data) =>
-    systemSchema().parse(data),
+    systemSchema(helpers).parse(data),
   );
   const projects: ProjectEntry[] = readEntries('projects', 'folder', (data) =>
     projectSchema(helpers).parse(data),

@@ -1117,6 +1117,14 @@ main > .resume-section {
   padding-left: calc(var(--stop) + var(--space-4));
 }
 
+/*
+ * A sun of a binary star says so, under its tagline here and after its prose on its own page:
+ * which binary it belongs to, and the twin it circles opposite. A quieter voice than the tagline.
+ */
+.twin {
+  color: var(--color-ink-mid);
+}
+
 .system > .cards {
   margin-top: var(--space-4);
 }
