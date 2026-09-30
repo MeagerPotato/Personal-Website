@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readDestinations } from './destinations';
 
 const MANIFEST = {
-  version: 1,
+  version: 2,
   bodies: [
     { id: 'page/about', href: '/about/', kind: 'home' },
     { id: 'system/code', href: '/systems/code/', kind: 'sun' },

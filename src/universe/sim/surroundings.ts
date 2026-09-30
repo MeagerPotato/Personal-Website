@@ -68,6 +68,8 @@ export interface SurroundingsParams {
 export interface SolidBody extends OrbitingBody {
   readonly radius: number;
   readonly dockRadius: number;
+  /** `false`: nothing may dock at it (a link). Solid all the same. */
+  readonly docks?: boolean;
 }
 
 export interface SurroundingsInput {
@@ -89,11 +91,13 @@ export function createSurroundings(input: SurroundingsInput, edgeMargin: number)
     velocities: new Float64Array(orbits.count * 2),
     radius: new Float64Array(orbits.count),
     ringRadius: new Float64Array(orbits.count),
+    docks: new Uint8Array(orbits.count),
   };
   for (const body of input.bodies) {
     const i = orbits.indexOf(body.id);
     field.radius[i] = body.radius;
     field.ringRadius[i] = body.dockRadius;
+    field.docks[i] = body.docks === false ? 0 : 1;
   }
   bodyPositions(orbits, 0, field.positions, field.velocities);
   return {

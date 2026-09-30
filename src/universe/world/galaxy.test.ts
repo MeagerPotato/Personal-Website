@@ -1,4 +1,4 @@
-import { Vector3, type LineLoop, type Mesh, type Object3D } from 'three';
+import { Vector3, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
@@ -56,6 +56,7 @@ const input: UniverseInput = {
     { id: 'resume', title: 'Resume', href: '/resume/', dock: 'station' },
     { id: 'contact', title: 'Contact', href: '/contact/', dock: 'satellite' },
   ],
+  links: [{ id: 'github', title: 'GitHub', href: 'https://github.com/someone', slot: 2 }],
   includeDrafts: false,
 };
 const manifest = buildUniverse(input);
@@ -107,12 +108,17 @@ describe('reading the manifest', () => {
     expect(nearestNeighbourOf({ ...read, systems: [home] }, home)).toBeNull();
   });
 
-  it('refuses what is not a manifest, or one from a newer build', () => {
+  it('refuses what is not a manifest, or one from another build', () => {
     expect(() => readManifest(null)).toThrow(/not an object/);
     expect(() => readManifest('<!doctype html>')).toThrow(/not an object/);
-    expect(() => readManifest({ ...manifest, version: 2 })).toThrow(/version 2/);
-    expect(() => readManifest({ version: 1 })).toThrow(/missing/);
-    expect(() => readManifest({ version: 1, systems: [], bodies: [] })).toThrow(/empty/);
+    expect(() => readManifest({ ...manifest, version: 3 })).toThrow(/version 3/);
+    // One version, the engine's own: 1 is from the deploy before links (an engine that reads it
+    // would dock at one), so across that deploy each side refuses the other.
+    expect(() => readManifest({ ...manifest, version: 1 })).toThrow(
+      /version 1, this engine reads 2/,
+    );
+    expect(() => readManifest({ version: 2 })).toThrow(/missing/);
+    expect(() => readManifest({ version: 2, systems: [], bodies: [] })).toThrow(/empty/);
   });
 });
 
@@ -148,14 +154,32 @@ describe('where a visitor starts', () => {
 });
 
 describe('Galaxy', () => {
-  it('makes a view for every body, and an orbit line for every body that orbits', () => {
-    const { galaxy } = setup();
+  it('makes a view for every body, and draws the path of every body that orbits, once', () => {
+    const { galaxy, node } = setup();
+    galaxy.frameUpdate(frame(10));
+    const lines = galaxy.object.children.filter((child) => child.name.endsWith(':orbit'));
+    const drawing = new Set<Object3D>();
     for (const body of manifest.bodies) {
       expect(galaxy.object.getObjectByName(body.id)).toBeDefined();
-      const line = galaxy.object.getObjectByName(`${body.id}:orbit`) as LineLoop | undefined;
-      expect(line !== undefined).toBe(body.orbit !== null);
-      if (line && body.orbit) expect(line.scale.x).toBe(body.orbit.radius);
+      const { orbit } = body;
+      if (!orbit) continue;
+      const system = manifest.systems.find((candidate) => candidate.id === body.system);
+      const around = body.parent
+        ? node(body.parent).position
+        : new Vector3(system?.position[0], 0, system?.position[1]);
+      // Exactly one line is this body's circle: its radius, round what it goes round.
+      const drawn = lines.filter(
+        (line) => line.scale.x === orbit.radius && line.position.distanceTo(around) < 1e-9,
+      );
+      expect(drawn).toHaveLength(1);
+      drawing.add(drawn[0] as Object3D);
     }
+    // And there is no line that draws nobody's path.
+    expect(drawing.size).toBe(lines.length);
+    // The relays ride the Contact satellite's ring, and it is drawn once: a see-through line drawn
+    // over itself would be the darkest path in the sky.
+    expect(galaxy.object.getObjectByName('page/contact:orbit')).toBeDefined();
+    expect(galaxy.object.getObjectByName('link/github:orbit')).toBeUndefined();
   });
 
   it('puts everything where the orbits say, at the time of the frame', () => {
@@ -309,7 +333,7 @@ describe('Galaxy', () => {
       expect([light.x, light.y, light.z]).toEqual([code.position[0], 0, code.position[1]]);
       expect(galaxy.subject(id)?.light).toBe(light);
     }
-    for (const id of ['page/about', 'page/resume', 'page/contact']) {
+    for (const id of ['page/about', 'page/resume', 'page/contact', 'link/github']) {
       const mesh = galaxy.object.getObjectByName(id)?.getObjectByProperty('type', 'Mesh') as Mesh;
       expect(sunOf(mesh).equals(KEY_LIGHT_POSITION)).toBe(true);
       expect(galaxy.subject(id)?.light?.equals(KEY_LIGHT_POSITION)).toBe(true);
@@ -363,6 +387,58 @@ describe('Galaxy', () => {
     galaxy.frameUpdate(frame(1));
     finishJobs();
     expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+    galaxy.dispose();
+  });
+
+  it('draws a link as a relay: a model of its own, not the satellite beside it', () => {
+    const { galaxy, node } = setup();
+    const relay = node('link/github');
+    expect(relay.getObjectByName('relay')).toBeDefined();
+    expect(relay.getObjectByName('satellite')).toBeUndefined();
+    expect(node('page/contact').getObjectByName('satellite')).toBeDefined();
+    // At its size, and on the satellite's ring.
+    const model = relay.getObjectByName('relay');
+    expect(model?.scale.x).toBe(tuning.layout.home.relayRadius);
+    galaxy.frameUpdate(frame(10));
+    const home = node('page/about').position;
+    const satellite = node('page/contact').position;
+    expect(relay.position.distanceTo(home)).toBeCloseTo(satellite.distanceTo(home), 6);
+    galaxy.dispose();
+  });
+
+  it('shows a path on the star map while any body on it shows', () => {
+    const viewer = { position: new Vector3(0, 0, -120) };
+    const satellite = manifest.bodies.find((body) => body.id === 'page/contact');
+    const home = manifest.bodies.find((body) => body.id === 'page/about');
+    if (!satellite?.orbit || !home) throw new Error('fixture');
+    // Zoomed out so far that the satellite's disc touches home's, and the relay's, a little
+    // smaller on the map, does not yet (sim/mapView.ts, displayScales).
+    const px = tuning.map.minRadiusPx;
+    const ringRadius = satellite.orbit.radius;
+    const touches = (own: number): number => ringRadius / (px.home + own);
+    const map = { weight: 1, unitsPerPx: (touches(px.satellite) + touches(px.link)) / 2 };
+    expect(home.radius).toBeLessThan(px.home * map.unitsPerPx);
+    const galaxy = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer,
+      reducedMotion: false,
+      map,
+    });
+    const row = (id: string): number => galaxy.orbits.indexOf(id);
+    const ring = galaxy.object.getObjectByName('page/contact:orbit');
+
+    galaxy.frameUpdate(frame(1));
+    expect(galaxy.displayScale[row('page/contact')]).toBe(0);
+    expect(galaxy.displayScale[row('link/github')]).toBeGreaterThan(0);
+    expect(ring?.visible).toBe(true);
+
+    // Further out, neither shows, and neither does their ring.
+    map.unitsPerPx = touches(px.link) * 1.1;
+    galaxy.frameUpdate(frame(2));
+    expect(galaxy.displayScale[row('link/github')]).toBe(0);
+    expect(ring?.visible).toBe(false);
     galaxy.dispose();
   });
 
@@ -456,7 +532,7 @@ function binary(): UniverseManifest {
   // Reaches: a 70 + 15.2 = 85.2, b 110 + 15.2 = 125.2. Each sun sits the OTHER family's reach
   // and half the gap from the centre, so both families reach equally far: 145.2 and 105.2.
   return {
-    version: 1,
+    version: 2,
     systems: [
       {
         id: 'pair',

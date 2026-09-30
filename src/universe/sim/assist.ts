@@ -45,6 +45,13 @@ export interface BodyField {
   readonly radius: Float64Array;
   /** The ring a ship circles each body on, measured from its centre (the manifest's dockRadius). */
   readonly ringRadius: Float64Array;
+  /**
+   * 1 for a body a ship may circle and dock at, 0 for one it never may (a link: the manifest's
+   * `docks: false`). Such a body pulls nobody onto its ring, so it is never offered and never
+   * approached; its ring still keeps everything clear of it (the autopilot's keep-outs, the
+   * cushions), and a ship diving at it is still swept round it (`deflectOf`).
+   */
+  readonly docks: Uint8Array;
 }
 
 export interface AssistParams {
@@ -96,7 +103,10 @@ export function createAssistState(): AssistState {
   return { body: -1, spin: 0, weight: 0 };
 }
 
-/** How strongly body `i` claims a ship at (x, z): 1 near its ring, 0 outside its sphere of influence. */
+/**
+ * How strongly body `i` claims a ship at (x, z): 1 near its ring, 0 outside its sphere of
+ * influence, and 0 everywhere for a body nothing may dock at.
+ */
 export function pullOf(
   field: BodyField,
   i: number,
@@ -105,7 +115,7 @@ export function pullOf(
   params: AssistParams,
 ): number {
   const ring = field.ringRadius[i] ?? 0;
-  if (!(ring > 0)) return 0;
+  if (!(ring > 0) || field.docks[i] === 0) return 0;
   const d = Math.hypot(x - (field.positions[i * 2] ?? 0), z - (field.positions[i * 2 + 1] ?? 0));
   return 1 - smoothstep(params.fullRadii * ring, params.soiRadii * ring, d);
 }

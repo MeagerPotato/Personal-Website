@@ -48,6 +48,11 @@ describe('lookOf', () => {
       model: 'satellite',
       rings: false,
     });
+    // A link (a profile elsewhere) is a relay: built, not grown.
+    expect(lookOf(body({ kind: 'link', id: 'link/github' }), 'butter')).toEqual({
+      model: 'relay',
+      rings: false,
+    });
   });
 
   it('draws planned work as a maquette in its family’s colours, with no close-up', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import {
+  RELAY_SLOTS,
   binaryOrbits,
   dockRadius,
   homeReach,
@@ -9,6 +10,7 @@ import {
   orbitPeriod,
   orbitPhase,
   reach,
+  relayPhase,
   round,
   slotLimits,
   slotPosition,
@@ -75,6 +77,33 @@ describe('homeRings', () => {
     expect(station?.radius).toBeGreaterThan(dockRadius(L.home.planetRadius));
     expect(satellite?.radius).toBeGreaterThan(station?.radius ?? Infinity);
     expect(homeReach()).toBeCloseTo((satellite?.radius ?? 0) + (satellite?.item.footprint ?? 0));
+  });
+
+  it("has room for a relay on the satellite's ring: its footprint is no bigger than the satellite's", () => {
+    // Then a relay reaches no further than the satellite, and the home system no further than
+    // homeReach says (data/build.ts refuses a relayRadius that breaks this).
+    expect(dockRadius(L.home.relayRadius)).toBeLessThanOrEqual(dockRadius(L.home.satelliteRadius));
+    // Two neighbouring slots, 45 degrees apart on that ring, keep their footprints well apart.
+    const ring = homeRings()[1]?.radius ?? 0;
+    const apart = 2 * ring * Math.sin(Math.PI / RELAY_SLOTS);
+    expect(apart).toBeGreaterThan(
+      dockRadius(L.home.satelliteRadius) + dockRadius(L.home.relayRadius) + L.moonGap,
+    );
+  });
+});
+
+describe('relayPhase', () => {
+  it('puts slot k k eighths of a turn ahead of the satellite, within one turn', () => {
+    const TAU = Math.PI * 2;
+    expect(relayPhase(1, 0)).toBeCloseTo(1, 12);
+    expect(relayPhase(1, 2)).toBeCloseTo(1 + TAU / 4, 12);
+    // Past a whole turn it comes round again, and is never negative.
+    expect(relayPhase(6, 4)).toBeCloseTo(6 + Math.PI - TAU, 12);
+    for (let slot = 0; slot < RELAY_SLOTS; slot += 1) {
+      const phase = relayPhase(orbitPhase('page/contact'), slot);
+      expect(phase).toBeGreaterThanOrEqual(0);
+      expect(phase).toBeLessThan(TAU);
+    }
   });
 });
 

@@ -4,6 +4,7 @@ import { bodyPositions, createOrbitTable } from '../sim/orbits';
 import { buildUniverse, UniverseDataError } from './build';
 import { binaryOrbits, orbitPhase, round, slotPosition } from './layout';
 import type {
+  LinkInput,
   ManifestBody,
   PageInput,
   ProjectInput,
@@ -57,6 +58,14 @@ const v01 = (over: Partial<UniverseInput> = {}): UniverseInput => ({
   ],
   pages: [page('about', 'home'), page('resume', 'station'), page('contact', 'satellite')],
   includeDrafts: false,
+  ...over,
+});
+
+const link = (id: string, slot: number, over: Partial<LinkInput> = {}): LinkInput => ({
+  id,
+  title: id,
+  href: `https://${id}.example/someone`,
+  slot,
   ...over,
 });
 
@@ -137,7 +146,7 @@ describe('buildUniverse', () => {
   it('builds the v0.1 galaxy: home at the origin, one system, planets and moons in place', () => {
     const manifest = buildUniverse(v01());
 
-    expect(manifest.version).toBe(1);
+    expect(manifest.version).toBe(2);
     expect(manifest.systems.map((entry) => entry.id)).toEqual(['home', 'code']);
     expect(manifest.systems[0]).toMatchObject({ position: [0, 0], center: 'page/about' });
 
@@ -299,7 +308,9 @@ describe('buildUniverse', () => {
     // (docs/PLAN.md §5.4), as layout.test's PINNED. One value differs from the file as served
     // before 2026-09-30, and on purpose: Code's position, from (-431.34, 431.34) to
     // (-487.9, 487.9), when the slots made room for a binary star (tuning.layout, homeRoom and
-    // slotRoom). Everything else, down to the last ring, is as it was.
+    // slotRoom). Everything else, down to the last ring, is as it was. Since then the relays have
+    // joined it (GitHub and LinkedIn on the satellite's ring, in manifest version 2), and moved
+    // nothing.
     const today: UniverseInput = {
       systems: [system('code', 1, { name: 'Code' })],
       projects: [
@@ -322,11 +333,20 @@ describe('buildUniverse', () => {
         { id: 'contact', title: 'Contact', href: '/contact/', dock: 'satellite' },
         { id: 'resume', title: 'Resume', href: '/resume/', dock: 'station' },
       ],
+      links: [
+        { id: 'github', title: 'GitHub', href: 'https://github.com/MeagerPotato', slot: 2 },
+        {
+          id: 'linkedin',
+          title: 'LinkedIn',
+          href: 'https://www.linkedin.com/in/allenkhsieh',
+          slot: 4,
+        },
+      ],
       projectsHref: '/projects/',
       includeDrafts: false,
     };
     const served = {
-      version: 1,
+      version: 2,
       systems: [
         {
           id: 'home',
@@ -382,6 +402,32 @@ describe('buildUniverse', () => {
           dockRadius: 7.6,
           orbit: { radius: 58.6, phase: 3.18, periodSec: 231.6 },
           seed: 'contact',
+        },
+        {
+          id: 'link/github',
+          kind: 'link',
+          title: 'GitHub',
+          href: 'https://github.com/MeagerPotato',
+          system: 'home',
+          parent: 'page/about',
+          radius: 1.4,
+          dockRadius: 7.4,
+          orbit: { radius: 58.6, phase: 4.7508, periodSec: 231.6 },
+          seed: 'link/github',
+          docks: false,
+        },
+        {
+          id: 'link/linkedin',
+          kind: 'link',
+          title: 'LinkedIn',
+          href: 'https://www.linkedin.com/in/allenkhsieh',
+          system: 'home',
+          parent: 'page/about',
+          radius: 1.4,
+          dockRadius: 7.4,
+          orbit: { radius: 58.6, phase: 0.0384, periodSec: 231.6 },
+          seed: 'link/linkedin',
+          docks: false,
         },
         {
           id: 'system/code',
@@ -522,6 +568,112 @@ describe('buildUniverse', () => {
     );
     const withStation = buildUniverse(v01());
     expect(byId(withStation).get('page/contact')).toEqual(byId(without).get('page/contact'));
+  });
+
+  describe("links: profiles elsewhere, as relays on the satellite's ring", () => {
+    const LINKS = [link('github', 2), link('linkedin', 4)];
+
+    it("puts each on its slot: the satellite's radius and period, k eighths of a turn ahead", () => {
+      const bodies = byId(buildUniverse(v01({ links: LINKS })));
+      const satellite = bodies.get('page/contact');
+      if (!satellite?.orbit) throw new Error('fixture');
+      for (const { id, slot } of LINKS) {
+        const relay = bodies.get(`link/${id}`);
+        expect(relay).toMatchObject({
+          kind: 'link',
+          title: id,
+          href: `https://${id}.example/someone`,
+          system: 'home',
+          parent: 'page/about',
+          radius: L.home.relayRadius,
+          docks: false,
+          seed: `link/${id}`,
+        });
+        expect(relay?.orbit?.radius).toBe(satellite.orbit.radius);
+        expect(relay?.orbit?.periodSec).toBe(satellite.orbit.periodSec);
+        const ahead = (relay?.orbit?.phase ?? 0) - satellite.orbit.phase;
+        const turns = ahead / (2 * Math.PI) - slot / 8;
+        expect(Math.abs(turns - Math.round(turns))).toBeLessThan(1e-4);
+      }
+      // Every other body can be docked at, and says nothing about it.
+      for (const body of bodies.values()) {
+        if (body.kind !== 'link') expect(body).not.toHaveProperty('docks');
+      }
+    });
+
+    it('never reaches past the satellite, so the home system is exactly as big as it was', () => {
+      const without = buildUniverse(v01());
+      const withLinks = buildUniverse(
+        v01({ links: [1, 2, 3, 4, 5, 6, 7].map((slot) => link(`net${slot}`, slot)) }),
+      );
+      expect(withLinks.systems).toEqual(without.systems);
+      const satellite = byId(withLinks).get('page/contact');
+      for (const relay of withLinks.bodies.filter((body) => body.kind === 'link')) {
+        expect(relay.dockRadius).toBeLessThanOrEqual(satellite?.dockRadius ?? 0);
+      }
+    });
+
+    it('adding one (Devpost, one day) moves nothing that is already there', () => {
+      const before = buildUniverse(v01({ links: LINKS }));
+      const after = buildUniverse(v01({ links: [...LINKS, link('devpost', 6)] }));
+      const was = byId(before);
+      const is = byId(after);
+      for (const [id, body] of was) expect(is.get(id), id).toEqual(body);
+      expect([...is.keys()].filter((id) => !was.has(id))).toEqual(['link/devpost']);
+      expect(after.systems).toEqual(before.systems);
+    });
+
+    it('keeps its place whether or not the Contact page exists yet', () => {
+      const without = buildUniverse(
+        v01({ pages: [page('about', 'home'), page('resume', 'station')], links: LINKS }),
+      );
+      expect(byId(without).get('link/github')).toEqual(
+        byId(buildUniverse(v01({ links: LINKS }))).get('link/github'),
+      );
+    });
+
+    it("refuses a slot that is taken, off the ring, or the satellite's, and a link that is not https", () => {
+      const problems = problemsOf(
+        v01({
+          links: [
+            link('github', 2),
+            link('gitlab', 2),
+            link('zero', 0),
+            link('eight', 8),
+            link('half', 2.5),
+            link('plain', 3, { href: 'http://plain.example/' }),
+            link('local', 5, { href: '/about/' }),
+            link('github', 7),
+          ],
+        }),
+      );
+      for (const expected of [
+        'link id "github" is used twice',
+        'link "gitlab": slot 2 is taken by "github"',
+        'link "zero": slot must be 1 to 7 (0 is the Contact satellite)',
+        'link "eight": slot must be 1 to 7 (0 is the Contact satellite)',
+        'link "half": slot must be 1 to 7 (0 is the Contact satellite)',
+        'link "plain": href must be an https URL on another site',
+        'link "local": href must be an https URL on another site',
+      ]) {
+        expect(problems).toContain(expected);
+      }
+    });
+
+    it('refuses a relay made bigger than the satellite, whose ring it shares', () => {
+      const home = L.home as { relayRadius: number };
+      const was = home.relayRadius;
+      try {
+        home.relayRadius = L.home.satelliteRadius + 0.5;
+        const problems = problemsOf(v01({ links: LINKS })).join('\n');
+        expect(problems).toContain('tuning.layout.home.relayRadius is 2.1 u');
+        expect(problems).toContain("must fit within the satellite's (7.6 u)");
+        // Without a link there is nothing to refuse.
+        expect(problemsOf(v01())).toEqual([]);
+      } finally {
+        home.relayRadius = was;
+      }
+    });
   });
 
   it('draws one undirected lane per related pair, however many times it is declared', () => {

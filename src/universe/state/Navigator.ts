@@ -97,8 +97,9 @@ export class Navigator implements System {
 
   /**
    * Fly onto the ring of `id`, which must be within reach. False when it is not, or is unknown:
-   * then `travel` brings the ship there first. `by` says whose idea it was, for whatever the
-   * ship leaves behind (see `undocked`): a visitor pointing at a planet is the PILOT.
+   * then `travel` brings the ship there first. False too for a body nothing may dock at (a link),
+   * wherever the ship is. `by` says whose idea it was, for whatever the ship leaves behind (see
+   * `undocked`): a visitor pointing at a planet is the PILOT.
    */
   approach(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
     return this.approachWith(id, by, 0);
@@ -107,7 +108,7 @@ export class Navigator implements System {
   /** `approach`, not captured before `holdSec` (a whole journey: see `travel`). */
   private approachWith(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
-    const i = surroundings.orbits.indexOf(id);
+    const i = this.dockable(id);
     if (i < 0 || !this.withinReach(id)) return false;
     if (this.current.target === id && this.current.mode !== 'autopilot') return true;
     this.leave(by);
@@ -121,7 +122,8 @@ export class Navigator implements System {
   /**
    * Set out for `id` from wherever the ship is: the autopilot flies it there (sim/autopilot.ts)
    * and takes it into orbit beside the ring; from within reach, the approach flies it. Either
-   * way it takes at least cruise.minJourneySec. False for an unknown body.
+   * way it takes at least cruise.minJourneySec. False for an unknown body, and for one nothing
+   * may dock at (a link): nothing flies there.
    */
   travel(id: string, by: 'pilot' | 'asked' = 'asked'): boolean {
     return this.setOut(id, by, this.options.params.cruise.minJourneySec);
@@ -130,7 +132,7 @@ export class Navigator implements System {
   /** `travel`, not taken into orbit before `holdSec` (a journey picked up after a rebuild). */
   private setOut(id: string, by: 'pilot' | 'asked', holdSec: number): boolean {
     const { surroundings, pilot } = this.options;
-    const i = surroundings.orbits.indexOf(id);
+    const i = this.dockable(id);
     if (i < 0) return false;
     if (this.current.target === id) return true;
     // Within reach, the ring's own pilot flies it; still a journey, and no quicker than one.
@@ -143,10 +145,13 @@ export class Navigator implements System {
     return true;
   }
 
-  /** Be in orbit round `id` at once, at `angle` on its ring. False for an unknown body. */
+  /**
+   * Be in orbit round `id` at once, at `angle` on its ring. False for an unknown body, and for one
+   * nothing may dock at (a link).
+   */
   place(id: string, angle = 0, spin = 1, by: 'pilot' | 'asked' = 'asked'): boolean {
     const { surroundings, ship, params } = this.options;
-    const i = surroundings.orbits.indexOf(id);
+    const i = this.dockable(id);
     if (i < 0) return false;
     if (this.current.mode === 'docked' && this.current.target === id) return true;
     this.leave(by);
@@ -287,6 +292,17 @@ export class Navigator implements System {
 
   dispose(): void {
     this.queue.length = 0;
+  }
+
+  /**
+   * Row of `id` in the orbit table when a ship may dock there; -1 for a body this world does not
+   * have, and for one nothing may dock at (a link, `docks: false`), which is never a destination:
+   * whoever asks for one (a snapshot from another deploy, a bug) is refused, as for an unknown id.
+   */
+  private dockable(id: string): number {
+    const { orbits, field } = this.options.surroundings;
+    const i = orbits.indexOf(id);
+    return i >= 0 && field.docks[i] !== 0 ? i : -1;
   }
 
   /** End whatever approach or dock is going on, and say so (`halting`: a Stop follows). */

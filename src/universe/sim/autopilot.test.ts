@@ -975,6 +975,48 @@ describe('the autopilot', () => {
   });
 });
 
+describe('relays: bodies nothing docks at, only in the way', () => {
+  // Every place on the satellite's ring taken (data/build.ts, links): the home system as crowded
+  // as it can ever be, with seven bodies no journey may end at.
+  const LINKED = buildUniverse({
+    ...INPUT,
+    links: [1, 2, 3, 4, 5, 6, 7].map((slot) => ({
+      id: `net-${slot}`,
+      title: `Net ${slot}`,
+      href: `https://net-${slot}.example/`,
+      slot,
+    })),
+  });
+  const ENDS = LINKED.bodies.filter((body) => body.docks !== false);
+  const HOMES = ENDS.filter((body) => body.system === 'home').map((body) => body.id);
+
+  it('are gone round on every way into, out of and across the home system, and never touched', () => {
+    const rng = createRng('relays');
+    let closest = Infinity;
+    let where = '';
+    for (let run = 0; run < 80; run += 1) {
+      const t0 = rng() * 900;
+      // One end at home, among the relays; the other anywhere, home included.
+      const near = HOMES[Math.floor(rng() * HOMES.length)] ?? '';
+      let far = ENDS[Math.floor(rng() * ENDS.length)]?.id ?? '';
+      if (far === near) far = 'project/research';
+      const [from, to] = rng() < 0.5 ? [near, far] : [far, near];
+      const journey = dockedAt(from, t0, rng() * Math.PI * 2, rng() < 0.5 ? 1 : -1, LINKED);
+      const report = travel(journey, to, journey.world.orbits.indexOf(from));
+      const label = `run ${run}: ${from} -> ${to} at ${t0.toFixed(0)} s`;
+      expect(report.docked, label).toBe(true);
+      expect(report.touched, label).toBe(false);
+      if (report.leastGap < closest) {
+        closest = report.leastGap;
+        where = label;
+      }
+    }
+    // As wide a berth as anything else is given (the 200 journeys above): never in a cushion.
+    // Measured: 6.4 u from the nearest surface passed, of anything, relays included.
+    expect(closest, where).toBeGreaterThan(tuning.cushion.depth * 0.5);
+  });
+});
+
 describe('planning a journey', () => {
   /** A plan for the journey from where `journey` is to `target`, and the world it was made in. */
   function plan(journey: Journey, target: string): Surroundings['cruise'] {

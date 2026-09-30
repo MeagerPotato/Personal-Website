@@ -78,8 +78,12 @@ interface BodyView {
 
 interface OrbitLine {
   line: LineLoop;
-  /** Row of the body whose path it is. */
-  of: number;
+  /**
+   * Rows of the bodies whose path it is. Bodies that share a path share its line (the relays ride
+   * the Contact satellite's ring): a see-through line drawn over itself comes out darker than every
+   * other path in the sky.
+   */
+  of: number[];
   /** Row of the body it circles, or -1 for a circle around its system's centre. */
   around: number;
   centerX: number;
@@ -225,7 +229,22 @@ export class Galaxy implements System {
       const look = this.systems.get(body.system);
       if (!look) continue;
       this.views.push(this.createView(body, look, sunMaterial));
-      if (body.orbit) this.lines.push(this.createLine(body, look, circle));
+    }
+    // One line for each path, named after the first body on it in the manifest. A path is its
+    // circle: the body it goes round (or its system's centre) and its radius.
+    const paths = new Map<string, OrbitLine>();
+    for (const body of manifest.bodies) {
+      const look = this.systems.get(body.system);
+      if (!look || !body.orbit) continue;
+      const path = `${body.parent ?? `centre of ${body.system}`} at ${body.orbit.radius}`;
+      const shared = paths.get(path);
+      if (shared) {
+        shared.of.push(this.orbits.indexOf(body.id));
+        continue;
+      }
+      const line = this.createLine(body, look, circle);
+      paths.set(path, line);
+      this.lines.push(line);
     }
     this.scope.onDispose(() => this.object.removeFromParent());
     this.place(0, 0);
@@ -366,8 +385,11 @@ export class Galaxy implements System {
       const x = orbit.around < 0 ? orbit.centerX : (positions[orbit.around * 2] ?? 0);
       const z = orbit.around < 0 ? orbit.centerZ : (positions[orbit.around * 2 + 1] ?? 0);
       orbit.line.position.set(x, 0, z);
-      // The path of a body that the map has no room for would only be a smudge round its parent.
-      orbit.line.visible = (displayScale[orbit.of] ?? 1) > 1e-4;
+      // The path of a body that the map has no room for would only be a smudge round its parent:
+      // it shows while any body on it does.
+      let shown = false;
+      for (const row of orbit.of) shown ||= (displayScale[row] ?? 1) > 1e-4;
+      orbit.line.visible = shown;
     }
   }
 
@@ -433,7 +455,7 @@ export class Galaxy implements System {
     this.object.add(line);
     return {
       line,
-      of: this.orbits.indexOf(body.id),
+      of: [this.orbits.indexOf(body.id)],
       around: body.parent === null ? -1 : this.orbits.indexOf(body.parent),
       centerX: look.system.position[0],
       centerZ: look.system.position[1],

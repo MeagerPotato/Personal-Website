@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
-import { pullOf } from './assist';
+import { deflectOf, pullOf } from './assist';
 import { pastEdge } from './collide';
 import { NO_INPUT, copyShipState, createShipState, speedOf, stepFlight } from './flight';
 import { angleDelta, angleOf } from './math';
@@ -236,6 +236,103 @@ describe('orbit assist', () => {
     fly(surroundings, flight, handsOff, 300, () => {
       expect(surroundings.assist.body).toBe(home);
     });
+  });
+});
+
+/** The same, with a relay beside the station: a body nothing docks at (a link: GitHub). */
+const LINKED: SurroundingsInput = {
+  ...GALAXY,
+  bodies: [
+    ...GALAXY.bodies,
+    {
+      id: 'relay',
+      system: 'home',
+      parent: 'home',
+      orbit: { radius: 58.6, phase: 0, periodSec: 231.6 },
+      radius: 1.4,
+      dockRadius: 7.4,
+      docks: false,
+    },
+  ],
+};
+
+describe('a body nothing docks at (a link)', () => {
+  const linked = (): Surroundings => createSurroundings(LINKED, tuning.edge.margin);
+  /** Where the relay is at the start: 58.6 u out along +Z from home. */
+  const RELAY = { x: 0, z: 58.6 };
+
+  it('pulls nobody onto its ring, even right on it, but still turns a ship diving at it', () => {
+    const surroundings = linked();
+    const i = surroundings.orbits.indexOf('relay');
+    expect(surroundings.field.docks[i]).toBe(0);
+    expect(surroundings.field.docks[surroundings.orbits.indexOf('home')]).toBe(1);
+    for (const off of [0, 3, 7.4, 10]) {
+      expect(pullOf(surroundings.field, i, RELAY.x + off, RELAY.z, tuning.assist)).toBe(0);
+    }
+    // Headed straight at it, fast: the surface is still something to be swept round.
+    const diving = createShipState(RELAY.x, RELAY.z - 12, 0);
+    diving.vz = 40;
+    expect(deflectOf(surroundings.field, i, diving, tuning.assist)).toBeGreaterThan(0.5);
+  });
+
+  it('changes nothing far from everything: exactly the plain flight model', () => {
+    const surroundings = linked();
+    const assisted = { state: createShipState(300, -300, 0.7), t: 0 };
+    const plain = copyShipState(assisted.state, createShipState());
+    const rng = createRng('far away');
+    const input = { thrust: 0, turn: 0, brake: 0, boost: false };
+    const pilot: Pilot = () => input;
+    for (let step = 0; step < 600; step += 1) {
+      input.thrust = rng() < 0.7 ? 1 : 0;
+      input.turn = rng() * 2 - 1;
+      input.boost = rng() < 0.2;
+      fly(surroundings, assisted, pilot, STEP);
+      stepFlight(plain, input, tuning.flight, STEP);
+    }
+    expect(assisted.state).toEqual(plain);
+    expect(surroundings.assist.body).toBe(-1);
+  });
+
+  it('lets a ship that lets go beside it drift to rest: never onto its ring, nor under its shell', () => {
+    const settle = (docks: boolean) => {
+      const surroundings = createSurroundings(
+        {
+          ...LINKED,
+          bodies: LINKED.bodies.map((body) => (body.id === 'relay' ? { ...body, docks } : body)),
+        },
+        tuning.edge.margin,
+      );
+      const i = surroundings.orbits.indexOf('relay');
+      // 9 u from its centre, going 10 u/s along where its ring would be, and letting go: where the
+      // assist takes a ship onto the ring of any body that can be docked at.
+      const flight = { state: createShipState(RELAY.x + 9, RELAY.z, 0), t: 0 };
+      flight.state.vz = 10;
+      let closest = Infinity;
+      let claimed = false;
+      fly(surroundings, flight, handsOff, 20, (state) => {
+        closest = Math.min(closest, distanceTo(surroundings, 'relay', state));
+        claimed ||= surroundings.assist.body === i && surroundings.assist.weight > 0;
+      });
+      const { field } = surroundings;
+      const pace = Math.hypot(
+        flight.state.vx - (field.velocities[i * 2] ?? 0),
+        flight.state.vz - (field.velocities[i * 2 + 1] ?? 0),
+      );
+      const distance = distanceTo(surroundings, 'relay', flight.state);
+      return { closest, claimed, pace, distance, speed: speedOf(flight.state) };
+    };
+
+    // A body that can be docked at takes the ship onto its ring and keeps it circling there...
+    const dockable = settle(true);
+    expect(dockable.claimed).toBe(true);
+    expect(Math.abs(dockable.distance - 7.4)).toBeLessThan(0.5);
+    expect(dockable.pace).toBeGreaterThan(2);
+    // ...and a relay never: the ship coasts on and comes to rest where the drag leaves it.
+    const relay = settle(false);
+    expect(relay.claimed).toBe(false);
+    expect(relay.distance).toBeGreaterThan(10);
+    expect(relay.speed).toBeLessThan(0.5);
+    expect(relay.closest).toBeGreaterThanOrEqual(1.4 + tuning.cushion.shellGap);
   });
 });
 

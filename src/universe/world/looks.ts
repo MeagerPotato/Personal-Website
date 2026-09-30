@@ -61,6 +61,13 @@ export type BodyLook =
       readonly rings: boolean;
     };
 
+/** The bodies that are built, not grown: each is drawn as its model (design/assets.ts). */
+const BUILT: Partial<Record<LookedAt['kind'], AssetId>> = {
+  station: 'station',
+  satellite: 'satellite',
+  link: 'relay',
+};
+
 /** What of a body its look depends on. (The lab makes up one of its own.) */
 export type LookedAt = Pick<ManifestBody, 'id' | 'kind' | 'biome' | 'rings' | 'planned'>;
 
@@ -70,8 +77,8 @@ export type LookedAt = Pick<ManifestBody, 'id' | 'kind' | 'biome' | 'rings' | 'p
  * 1. A world of its own (design/worlds.ts, by its id): a model, or the generator with what the
  *    recipe says. A recipe is a design, so it wins over the planned placeholder too.
  * 2. Planned work: the placeholder (`plannedBands`, no relief, `detailPlanned`, no close-up).
- * 3. Everything else, as it has always been: the station and the satellite are their models,
- *    a sun is lit from inside in its family's colours, and the rest is its biome.
+ * 3. Everything else, as it has always been: the station, the satellite and a link's relay are
+ *    their models, a sun is lit from inside in its family's colours, and the rest is its biome.
  * `theme` is the colour family of the body's system.
  */
 export function lookOf(
@@ -82,7 +89,7 @@ export function lookOf(
   const recipe = worlds[body.id];
   const rings = recipe?.rings ?? body.rings === true;
   const { kind } = body;
-  const model = recipe?.model ?? (kind === 'station' || kind === 'satellite' ? kind : null);
+  const model = recipe?.model ?? BUILT[kind] ?? null;
   if (model !== null) return { model, rings };
 
   const { detailSun, detailMoon, detailPlanet, detailNear, detailPlanned } = tuning.world;
