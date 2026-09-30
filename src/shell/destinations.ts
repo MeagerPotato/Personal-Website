@@ -12,6 +12,13 @@ export interface Destinations {
   titleOf(id: string): string | null;
 }
 
+/**
+ * Only a page of this site is a destination: a path from the root, never another site (a body
+ * that stands for a profile elsewhere) and never a protocol-relative `//host`. Docking follows a
+ * destination with the router, so an outbound href here would carry the visitor off the site.
+ */
+const isSitePath = (href: string): boolean => href.startsWith('/') && !href.startsWith('//');
+
 /** Pages end with a slash (astro.config.ts); a path typed without one is the same page. */
 const withSlash = (pathname: string): string =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
@@ -26,13 +33,15 @@ export function readDestinations(manifest: unknown): Destinations {
   };
 
   for (const body of Array.isArray(data.bodies) ? (data.bodies as unknown[]) : []) {
-    const { id, href, title } = (typeof body === 'object' && body !== null ? body : {}) as {
+    const { id, href, title, docks } = (typeof body === 'object' && body !== null ? body : {}) as {
       id?: unknown;
       href?: unknown;
       title?: unknown;
+      docks?: unknown;
     };
-    if (typeof id !== 'string' || typeof href !== 'string') continue;
+    if (typeof id !== 'string') continue;
     if (typeof title === 'string') titleById.set(id, title);
+    if (typeof href !== 'string' || !isSitePath(href) || docks === false) continue;
     hrefById.set(id, href);
     idByPath.set(withSlash(href), id);
   }

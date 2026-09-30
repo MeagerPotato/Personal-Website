@@ -109,8 +109,14 @@ describe('interceptableUrl', () => {
 });
 
 describe('isSwappableResponse', () => {
-  const response = (ok: boolean, type: string | null, url = `${ORIGIN}/about/`) => ({
+  const response = (
+    ok: boolean,
+    type: string | null,
+    url = `${ORIGIN}/about/`,
+    redirected = false,
+  ) => ({
     ok,
+    redirected,
     url,
     headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? type : null) },
   });
@@ -128,7 +134,15 @@ describe('isSwappableResponse', () => {
 
   it('rejects an answer that was redirected off the site', () => {
     expect(
-      isSwappableResponse(response(true, 'text/html', 'https://elsewhere.example/'), ORIGIN),
+      isSwappableResponse(response(true, 'text/html', 'https://elsewhere.example/', true), ORIGIN),
+    ).toBe(false);
+  });
+
+  it('rejects an answer that was redirected to another page of this site', () => {
+    // A swap would show /projects/ under the URL that was asked for; a page load shows it under
+    // its own, which is what the visitor must end up with (invariant 7).
+    expect(
+      isSwappableResponse(response(true, 'text/html', `${ORIGIN}/projects/`, true), ORIGIN),
     ).toBe(false);
   });
 });

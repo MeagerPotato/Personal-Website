@@ -199,8 +199,22 @@ export function startRouter(options: RouterOptions): Router {
     return { id: (navigationId += 1), signal: inFlight.signal };
   }
 
+  function cancel(): void {
+    // Whatever was waiting for the network is now an OLDER navigation: its answer is dropped.
+    inFlight?.abort();
+    inFlight = undefined;
+    navigationId += 1;
+    waiting = false;
+  }
+
   async function navigate(href: string, { replace = false } = {}): Promise<void> {
     const url = new URL(href, location.href);
+    // Another site is never fetched (the CSP forbids it anyway) and never swapped in: it is
+    // simply where the browser goes.
+    if (url.origin !== location.origin) {
+      cancel();
+      return hardLoad(url.href);
+    }
     const { id, signal } = begin();
 
     let next: Document | null;
@@ -264,6 +278,7 @@ export function startRouter(options: RouterOptions): Router {
     };
     if (!mayPrefetch(connection)) return;
     const url = new URL(href, location.href);
+    if (url.origin !== location.origin) return;
     if (pageKey(url) !== showing) void load(url).catch(() => undefined);
   }
 
@@ -346,13 +361,7 @@ export function startRouter(options: RouterOptions): Router {
       if (currentDepth() > 0 && cameFrom() === home.pathname) history.back();
       else void navigate(homeHref);
     },
-    cancel() {
-      // Whatever was waiting for the network is now an OLDER navigation: its answer is dropped.
-      inFlight?.abort();
-      inFlight = undefined;
-      navigationId += 1;
-      waiting = false;
-    },
+    cancel,
     dispose() {
       listeners.abort();
       inFlight?.abort();
