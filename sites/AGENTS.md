@@ -13,14 +13,16 @@ engine, the router and "thin Astro" do not.
 
 | Path | What |
 | --- | --- |
-| `packages/design` | `@allenkh/design`: tokens (the main site's palette plus paper), base and prose styles, icons, PWA helpers |
+| `packages/design` | `@allenkh/design`: tokens (the main site's palette plus paper), base and prose styles, the app frame both apps share (`styles/app.css`), icons, PWA helpers |
 | `packages/editor` | `@allenkh/editor`: the Notion-style editor (Tiptap 3), its schema, and an HTML renderer that needs no browser |
+| `packages/testing` | `@allenkh/testing`: test helpers both apps share (a software passkey that signs real WebAuthn responses) |
 | `journal/` | journal.allenkh.com: an end-to-end encrypted journal. Vite + React app (`src/`), Hono Worker (`worker/`), service worker (`sw/`) |
-| `blog/` | blog.allenkh.com: planned (docs/PLAN.md, step B1) |
+| `blog/` | blog.allenkh.com: Astro 7 on a Cloudflare Worker. Reader pages (`src/pages`), the studio where posts are written (`src/studio`, React), the API and everything else on the server (`src/server`, Hono) |
 | `docs/` | the plan, the journal's crypto design, runbooks |
 
-Status: the journal is built and waiting for its Cloudflare setup
-([runbook](docs/runbooks/cloudflare-setup.md)); the blog is next.
+Status: both sites are built and wait for their Cloudflare setup: the journal's
+[runbook](docs/runbooks/cloudflare-setup.md), then the blog's
+[runbook](docs/runbooks/blog-setup.md).
 
 ## Invariants
 
@@ -42,15 +44,24 @@ Status: the journal is built and waiting for its Cloudflare setup
 5. **Records are read defensively.** A decrypted document goes through `model/normalize.ts`
    (every field checked, unknown fields kept) and conflicting edits through `journal/merge.ts`
    (no writing is ever lost). A new field gets both.
-6. **D1 migrations are append-only** (`journal/worker/db/migrations.ts`, applied by the Worker
-   itself). A shipped migration is never edited: add the next one.
+6. **D1 migrations are append-only** (`journal/worker/db/migrations.ts`,
+   `blog/src/server/db/migrations.ts`, each applied by its Worker itself). A shipped migration is
+   never edited: add the next one.
 7. **The journal talks to no one else.** No analytics, fonts, CDNs or third-party scripts; the
    Content-Security-Policy in `journal/public/_headers` is the contract (no inline script, no
    `unsafe-inline`, `connect-src 'self'`). Logs never contain journal content.
 8. **The editor's schema is shared and stored.** Both sites keep editor documents, so a node or
-   mark that changes must still read every document written before; add, never rename.
+   mark that changes must still read every document written before; add, never rename. Headings
+   are stored as levels 1 to 3 and drawn one level down (`<h2>` to `<h4>`), in the editor and on
+   the page: the page's own title is its only `<h1>`.
 9. **Accessible in both themes.** Every screen passes axe in day and night (the e2e sweep checks
    each one), has exactly one `<h1>`, and keeps targets at 24 px or more.
+10. **The blog reads without JavaScript.** Reader pages carry no script of the blog's own:
+    comments and subscriptions are plain HTML forms, the studio is the only page with a script,
+    and Turnstile's widget (when it is on) the only third party. Every page's
+    Content-Security-Policy comes from `blog/src/server/headers.ts`: no inline script, ever, and
+    style attributes only by hash (a post's math). The studio sets Temml's styles through CSSOM
+    (`studio/math.ts`), which the policy allows.
 
 ## Commands
 
@@ -62,6 +73,9 @@ Run from `sites/`.
 | `npm run dev --workspace=journal` | The journal on `http://localhost:5173`, its Worker in workerd with a local D1 and R2. Copy `journal/.dev.vars.example` to `.dev.vars` first. |
 | `npm run e2e --workspace=journal` | build → Playwright: Chromium against `wrangler dev` over HTTPS, virtual passkeys with PRF, a fresh database each run. Needs `npx playwright install chromium` once. With the environment variable `E2E_SHOTS` set to a folder, it also saves a screenshot of every screen in both themes there. |
 | `npm run cf-typegen --workspace=journal` | Regenerates `worker/worker-configuration.d.ts` after a change to `wrangler.jsonc`. |
+| `npm run dev --workspace=blog` | The blog on `http://localhost:4322`, its Worker in workerd with a local D1 and R2. Copy `blog/.dev.vars.example` to `.dev.vars` first. The dev server drops the CSP (Astro's own dev scripts are inline); the e2e tests run the build, policy included. |
+| `npm run e2e --workspace=blog` | build → Playwright: Chromium against `wrangler dev` over HTTPS, virtual passkeys, a fresh database each run; a post written, published, read, commented on, answered. `E2E_SHOTS` works as for the journal. |
+| `npm run cf-typegen --workspace=blog` | Regenerates `src/worker-configuration.d.ts` after a change to `wrangler.jsonc`. |
 | `npm run format` | Prettier (Markdown is left alone). |
 
 Node 24 (`.node-version`), npm 11. Also run the root `npm run verify` before a commit: its privacy
@@ -79,15 +93,23 @@ Vitest 5, Zod 4, wrangler 4, npm 11 running no dependency install scripts), and:
   through `.wrangler/deploy/config.json`.
 - **Hono 4.13**, **@simplewebauthn/server 14**, **idb 8**, **hash-wasm 4** (Argon2id),
   **@scure/bip39 2**.
+- **Astro 7.3** with **@astrojs/cloudflare 14**: the blog's Worker entry (`blog/src/worker.ts`)
+  serves the API and the images, and hands pages to `handle()` from
+  `@astrojs/cloudflare/handler`. `astro build` writes `dist/` and `.wrangler/deploy/config.json`,
+  which points `wrangler deploy` and `wrangler dev` at `dist/server/wrangler.json`. With
+  `trailingSlash: 'always'`, the dev server answers 404 to a path with neither an extension nor
+  a trailing slash before the Worker runs: the studio's API calls end in "/", and the API accepts
+  both.
+- **Temml 0.13** (LaTeX to MathML) and **lowlight 3** (highlight.js) on the blog.
 - Worker tests get a real local D1 and R2 from `getPlatformProxy()` (wrangler), in memory.
 
 ## Never
 
 - Deploy from a laptop (`wrangler deploy`, `wrangler versions upload`), or turn on preview
-  builds for the journal. Deploys happen from `main` through Workers Builds.
+  builds for either site. Deploys happen from `main` through Workers Builds.
 - Touch the Cloudflare dashboard or DNS: those are Allen's, through the runbooks.
-- Put a secret in the repository. The journal's one secret, `SETUP_TOKEN`, is set in the
-  dashboard; `.dev.vars` is ignored by git.
+- Put a secret in the repository. Each site's `SETUP_TOKEN` (and the blog's `MAIL_FROM` and
+  Turnstile keys) is set in the dashboard; `.dev.vars` is ignored by git.
 - Store or send anything from the journal unsealed, or log what a device decrypted.
 - Weaken the journal's CSP, add a third party to it, or add an inline script.
 
@@ -111,9 +133,24 @@ server knows" in journal-crypto.md.
 and `src/app/Screen.tsx`, and the screen in the e2e accessibility sweep
 (`tests/e2e/journal.spec.ts`).
 
+**Add a screen to the studio.** A component in `blog/src/studio/screens/`, its route in
+`studio/router.ts`, its link in `studio/Shell.tsx` (the sidebar and the phone's tab bar), and the
+screen in the e2e sweep (`blog/tests/e2e/blog.spec.ts`).
+
+**Add a reader page to the blog.** An Astro page in `blog/src/pages/` on `layouts/Base.astro`,
+reading D1 through `src/server/`. No `<script>`: a form posts to its own page, which answers it
+on the server (`src/server/forms.ts` checks it). Add the page to the sitemap
+(`pages/sitemap.xml.ts`) and to the e2e sweep.
+
+**Change the blog's schema.** Append a migration to `blog/src/server/db/migrations.ts`, as for
+the journal.
+
 **Add a block to the editor.** The node goes in `packages/editor/src/schema.ts` (so the renderer
 knows it too), its menu entry in `blocks.ts`, its styles in `styles/editor.css` and
-`packages/design/styles/prose.css`, and a round-trip test through `render.ts`.
+`packages/design/styles/prose.css`, and a round-trip test through `render.ts`. A block only the
+blog has (images, math) goes in `blog/src/editor/nodes.ts` instead: the server renders it in
+`blog/src/server/render.ts`, the studio draws it with a node view (`studio/editor/views.tsx`),
+and its menu entry is in `studio/editor/blocks.ts`.
 
 **Add a colour.** A key in `packages/design/src/tokens.ts` (in both themes), used as its custom
 property, with its pairings in `contrast.test.ts`.

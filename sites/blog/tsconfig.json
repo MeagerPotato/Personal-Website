@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Pages, the studio (browser) and the Worker (workerd) in one program: the Worker's globals
+    // come from `npm run cf-typegen`, the DOM from the base config.
+    "types": ["./src/worker-configuration.d.ts"]
+  },
+  "include": [".astro/types.d.ts", "src"],
+  "exclude": ["dist"]
+}

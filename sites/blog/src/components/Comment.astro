@@ -1,0 +1,26 @@
+---
+/** One approved comment: the name (Allen's replies marked), the date, the words, "Reply". */
+import { commentHtml, type PublicComment } from '../server/comments';
+import { isoDate, shortDate } from '../site/format';
+
+interface Props {
+  comment: PublicComment;
+  /** Where "Reply" points: the post's own address, with ?reply=. */
+  replyHref: string;
+}
+const { comment, replyHref } = Astro.props;
+---
+
+<article class="comment" id={`comment-${comment.id}`}>
+  <header class="comment__head">
+    <span class="comment__name">{comment.name}</span>
+    {comment.author && <span class="tag">Author</span>}
+    <time class="comment__date" datetime={isoDate(comment.createdAt)}>
+      {shortDate(comment.createdAt)}
+    </time>
+  </header>
+  <div class="comment__body" set:html={commentHtml(comment.body)} />
+  <a class="comment__reply" href={replyHref} aria-label={`Reply to ${comment.name}`}>
+    Reply
+  </a>
+</article>

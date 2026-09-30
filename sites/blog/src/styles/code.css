@@ -1,0 +1,71 @@
+/*
+ * CODE: highlighted code, the same in a post and in the studio's editor (both get highlight.js's
+ * class names from lowlight). Five families, five jobs, all measured on the code block's own
+ * background (packages/design/src/contrast.test.ts): the words of the language in lilac, strings
+ * in mint, numbers and literals in coral, names being defined in sky, types and attributes in
+ * butter, comments quiet. Everything else is the ink.
+ */
+
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: var(--ink-low);
+}
+
+.hljs-comment,
+.hljs-quote {
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-doctag,
+.hljs-section,
+.hljs-name {
+  color: var(--lilac-ink);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-char.escape_,
+.hljs-addition,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--mint-ink);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-deletion,
+.hljs-link {
+  color: var(--coral-ink);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--sky-ink);
+}
+
+.hljs-type,
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params,
+.hljs-property,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--butter-ink);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}

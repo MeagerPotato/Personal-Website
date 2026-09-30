@@ -1,0 +1,37 @@
+---
+/** One series: its parts, in order. */
+import NotFound from '../../components/NotFound.astro';
+import PostList from '../../components/PostList.astro';
+import Base from '../../layouts/Base.astro';
+import { seriesPage } from '../../server/pages';
+import { blogEnv } from '../../site/env';
+
+const slug = Astro.params.slug ?? '';
+const page = await seriesPage(blogEnv(), slug);
+if (page.kind === 'missing') Astro.response.status = 404;
+---
+
+{page.kind === 'series' ? (
+  <Base
+    title={page.series.title}
+    path={`/series/${page.series.slug}/`}
+    current="series"
+    description={
+      page.series.description || `A series on Allen’s blog, in ${page.series.count} parts.`
+    }
+  >
+    <header class="page-header">
+      <p class="page-kicker">
+        <a href="/series/">Series</a> · {page.series.count}{' '}
+        {page.series.count === 1 ? 'part' : 'parts'}
+      </p>
+      <h1 class="page-title">{page.series.title}</h1>
+      {page.series.description && <p class="page-lede">{page.series.description}</p>}
+    </header>
+    <PostList posts={page.posts} parts />
+  </Base>
+) : (
+  <Base title="Not found" path={`/series/${slug}/`} noindex>
+    <NotFound />
+  </Base>
+)}

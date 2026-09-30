@@ -1,0 +1,47 @@
+---
+/**
+ * The confirmation email's link. A GET only shows the button (mail scanners follow links, and
+ * must not subscribe anyone); the button's POST confirms.
+ */
+import Base from '../../../layouts/Base.astro';
+import { confirmPage } from '../../../server/pages';
+import { blogEnv } from '../../../site/env';
+
+const page = await confirmPage(blogEnv(), Astro.request);
+if (page.state === 'invalid') Astro.response.status = 400;
+---
+
+<Base title="Confirm your subscription" path="/subscribe/confirm/" noindex>
+  {page.state === 'ask' && (
+    <>
+      <header class="page-header">
+        <h1 class="page-title">One click to subscribe</h1>
+        <p class="page-lede">Confirm, and each new post will arrive by email.</p>
+      </header>
+      <form method="post" action="/subscribe/confirm/">
+        <input type="hidden" name="token" value={page.token} />
+        <button class="button button--primary button--large" type="submit">
+          Confirm my subscription
+        </button>
+      </form>
+    </>
+  )}
+  {page.state === 'done' && (
+    <header class="page-header">
+      <h1 class="page-title">You’re subscribed</h1>
+      <p class="page-lede">
+        Each new post will arrive by email. Every one has a link to unsubscribe.{' '}
+        <a href="/">Read the posts</a>
+      </p>
+    </header>
+  )}
+  {page.state === 'invalid' && (
+    <header class="page-header">
+      <h1 class="page-title">That link doesn’t work</h1>
+      <p class="page-lede">
+        It may be more than a week old, or used already. <a href="/subscribe/">Subscribe again</a>,
+        and a new one will come.
+      </p>
+    </header>
+  )}
+</Base>

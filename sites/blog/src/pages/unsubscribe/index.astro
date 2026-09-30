@@ -1,0 +1,46 @@
+---
+/** Every email's "Unsubscribe" link: a button (a GET changes nothing), then done. */
+import { site } from '../../config';
+import Base from '../../layouts/Base.astro';
+import { unsubscribePage } from '../../server/pages';
+import { blogEnv } from '../../site/env';
+
+const page = await unsubscribePage(blogEnv(), Astro.request);
+if (page.state === 'invalid') Astro.response.status = 400;
+---
+
+<Base title="Unsubscribe" path="/unsubscribe/" noindex>
+  {page.state === 'ask' && (
+    <>
+      <header class="page-header">
+        <h1 class="page-title">Unsubscribe?</h1>
+        <p class="page-lede">
+          No more emails about new posts. The posts stay here, and so does the RSS feed.
+        </p>
+      </header>
+      <form method="post" action="/unsubscribe/">
+        <input type="hidden" name="token" value={page.token} />
+        <button class="button button--danger button--large" type="submit">
+          Unsubscribe
+        </button>
+      </form>
+    </>
+  )}
+  {page.state === 'done' && (
+    <header class="page-header">
+      <h1 class="page-title">You’re unsubscribed</h1>
+      <p class="page-lede">
+        No more emails. Changed your mind? <a href="/subscribe/">Subscribe again</a>.
+      </p>
+    </header>
+  )}
+  {page.state === 'invalid' && (
+    <header class="page-header">
+      <h1 class="page-title">That link doesn’t work</h1>
+      <p class="page-lede">
+        Try the link in the most recent email, or write to{' '}
+        <a href={`mailto:${site.contact}`}>{site.contact}</a> and Allen will take you off the list.
+      </p>
+    </header>
+  )}
+</Base>

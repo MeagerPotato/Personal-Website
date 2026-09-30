@@ -1,0 +1,790 @@
+/*
+ * BLOG: the readers' pages (the studio adds studio.css). base.css gives the text and the
+ * controls, prose.css a post's words; this is the page around them, in Notion's manner: a quiet
+ * top bar, one column, big titles, lists that read like a table of pages. Colours only through
+ * tokens. Butter means "here" (the current page, the current part of a series), nothing else.
+ *
+ * Sections:  1. frame  2. page headers  3. lists of posts  4. a post  5. comments and forms
+ *            6. small screens  7. print
+ */
+
+/* 1. Frame -------------------------------------------------------------------------------------- */
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-4);
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--ink-high);
+  color: var(--bg);
+  font-size: var(--ui-sm);
+  text-decoration: none;
+  translate: 0 -200%;
+}
+
+.skip-link:focus {
+  translate: 0 0;
+}
+
+.topbar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  max-width: calc(var(--measure-wide) + 2 * var(--space-4));
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-4);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  margin-inline-start: calc(-1 * var(--space-2));
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-high);
+  font-size: var(--ui-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.brand img {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.topnav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topnav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.topnav a[aria-current='page'] {
+  color: var(--ink-high);
+  box-shadow: inset 0 -2px 0 var(--focus);
+}
+
+@media (hover: hover) {
+  .brand:hover,
+  .topnav a:hover {
+    background: var(--hover);
+    color: var(--ink-high);
+  }
+}
+
+.column {
+  max-width: calc(var(--measure-page) + 2 * var(--space-4));
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-16);
+}
+
+.column--wide {
+  max-width: calc(var(--measure-wide) + 2 * var(--space-4));
+}
+
+main:focus {
+  outline: none;
+}
+
+.footer {
+  border-top: 1px solid var(--line);
+}
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  max-width: calc(var(--measure-page) + 2 * var(--space-4));
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.footer a {
+  color: var(--ink-mid);
+}
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+
+/* 2. Page headers ----------------------------------------------------------------------------- */
+
+.page-header {
+  padding-top: var(--space-16);
+  margin-bottom: var(--space-8);
+}
+
+.page-kicker {
+  margin-bottom: var(--space-2);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  font-weight: 500;
+}
+
+.page-kicker a {
+  color: inherit;
+}
+
+.page-title {
+  font-size: var(--ui-title);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.page-lede {
+  margin-top: var(--space-3);
+  color: var(--ink-mid);
+  font-size: var(--ui-lg);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.title-dot {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-inline-end: 0.25em;
+  border-radius: 50%;
+  background: var(--family-base);
+  vertical-align: 0.15em;
+}
+
+.empty {
+  padding: var(--space-8) 0;
+  color: var(--ink-mid);
+}
+
+.aside-line {
+  margin-top: var(--space-8);
+  color: var(--ink-mid);
+}
+
+/* 3. Lists of posts ---------------------------------------------------------------------------- */
+
+.post-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.post-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-inline: calc(-1 * var(--space-2));
+  padding: var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+@media (hover: hover) {
+  .post-row:hover {
+    background: var(--hover);
+  }
+}
+
+.post-row__text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.post-row__title {
+  font-size: var(--ui-lg);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.post-row__title a {
+  color: var(--ink-high);
+  text-decoration: none;
+}
+
+/* The whole row opens the post; its own links (tags, the series) stay above that. */
+.post-row__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.post-row .tag-list,
+.post-row__meta a {
+  position: relative;
+  z-index: 1;
+}
+
+.post-row__part {
+  margin-inline-end: 0.4em;
+  color: var(--ink-mid);
+  font-weight: 500;
+}
+
+.post-row__summary {
+  color: var(--ink-mid);
+  text-wrap: pretty;
+}
+
+.post-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.4em;
+  color: var(--ink-low);
+  font-size: var(--ui-sm);
+}
+
+.post-row__meta a {
+  color: inherit;
+}
+
+.post-row__cover {
+  flex: none;
+  width: 7.5rem;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+a.tag {
+  min-height: 1.5rem;
+}
+
+@media (hover: hover) {
+  a.tag:hover {
+    box-shadow: inset 0 0 0 1px var(--family-ink, var(--ink-mid));
+  }
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag--large {
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  font-size: var(--ui-base);
+}
+
+.tag__count {
+  margin-inline-start: 0.35em;
+  font-weight: 400;
+}
+
+.series-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.series-card {
+  position: relative;
+  padding: var(--space-4) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+@media (hover: hover) {
+  .series-card:hover {
+    background: var(--hover);
+  }
+}
+
+.series-card__title {
+  font-size: var(--ui-lg);
+}
+
+.series-card__title a {
+  color: var(--ink-high);
+  text-decoration: none;
+}
+
+.series-card__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.series-card__description {
+  margin-top: var(--space-1);
+  color: var(--ink-mid);
+}
+
+.series-card__count {
+  margin-top: var(--space-2);
+  color: var(--ink-low);
+  font-size: var(--ui-sm);
+}
+
+/* 4. A post ----------------------------------------------------------------------------------- */
+
+.post-cover {
+  margin-top: var(--space-6);
+}
+
+.post-cover img {
+  width: 100%;
+  max-height: 24rem;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.post-cover + .post-header {
+  padding-top: var(--space-8);
+}
+
+.post-header {
+  padding-top: var(--space-16);
+  margin-bottom: var(--space-8);
+}
+
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.45em;
+  margin-top: var(--space-4);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.post-meta a {
+  color: inherit;
+}
+
+/* A heading "On this page" links to stops short of the window's top edge. */
+.post-body :where(h2, h3, h4) {
+  scroll-margin-top: var(--space-6);
+}
+
+.post-body figure {
+  margin: 1.5em 0;
+}
+
+.post-body figure img {
+  width: 100%;
+}
+
+/* "On this page": beside the column where the window is wide, folded above the post elsewhere. */
+.toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc li[data-level='2'] {
+  padding-inline-start: var(--space-3);
+}
+
+.toc li[data-level='3'] {
+  padding-inline-start: var(--space-6);
+}
+
+.toc a {
+  display: block;
+  min-height: 1.5rem;
+  padding: 0.2rem 0;
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .toc a:hover {
+    color: var(--ink-high);
+    text-decoration: underline;
+  }
+}
+
+.toc__title {
+  margin-bottom: var(--space-2);
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+  font-weight: 600;
+}
+
+.toc--side {
+  display: none;
+}
+
+.toc--inline {
+  margin-bottom: var(--space-8);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+}
+
+.toc--inline > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toc--inline[open] > summary {
+  margin-bottom: var(--space-1);
+}
+
+@media (min-width: 80rem) {
+  .toc--side {
+    display: block;
+    position: fixed;
+    top: 6rem;
+    left: calc(50% + var(--measure-page) / 2 + var(--space-12));
+    width: 13rem;
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+  }
+
+  .toc--inline {
+    display: none;
+  }
+}
+
+.series-box {
+  margin-top: var(--space-12);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--sunken);
+}
+
+.series-box__kicker {
+  color: var(--ink-mid);
+  font-size: var(--ui-xs);
+  font-weight: 600;
+}
+
+.series-box__title {
+  font-size: var(--ui-lg);
+}
+
+.series-box__title a {
+  color: var(--ink-high);
+  text-decoration: none;
+}
+
+.series-box__parts {
+  margin: var(--space-3) 0 0;
+  padding-inline-start: 1.5em;
+}
+
+.series-box__parts li + li {
+  margin-top: var(--space-1);
+}
+
+.series-box__parts li::marker {
+  color: var(--ink-mid);
+}
+
+.series-box__parts [aria-current='page'] {
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--focus);
+}
+
+.post-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-12);
+}
+
+.post-nav__link {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink-high);
+  text-decoration: none;
+}
+
+.post-nav__link--newer {
+  grid-column: 2;
+  text-align: end;
+}
+
+@media (hover: hover) {
+  .post-nav__link:hover {
+    background: var(--hover);
+  }
+}
+
+.post-nav__label {
+  color: var(--ink-low);
+  font-size: var(--ui-xs);
+  font-weight: 600;
+}
+
+.post-nav__title {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.preview-banner {
+  margin-top: var(--space-6);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--sky-tint);
+  color: var(--ink-high);
+  font-size: var(--ui-sm);
+}
+
+/* 5. Comments and forms --------------------------------------------------------------------- */
+
+.comments {
+  margin-top: var(--space-16);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--line);
+}
+
+.comments > * + * {
+  margin-top: var(--space-4);
+}
+
+.comments__title {
+  font-size: var(--ui-xl);
+}
+
+.comments__count {
+  color: var(--ink-low);
+  font-weight: 500;
+}
+
+/* No margin of their own: the list keeps the section's rhythm, the replies set theirs below. */
+.comment-list,
+.comment-replies {
+  padding: 0;
+  list-style: none;
+}
+
+.comment-list {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.comment-replies {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-inline-start: var(--space-6);
+  border-inline-start: 2px solid var(--line);
+}
+
+.comment__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--ui-sm);
+}
+
+.comment__name {
+  font-weight: 600;
+}
+
+.comment__date {
+  color: var(--ink-low);
+}
+
+.comment__body {
+  margin-top: var(--space-1);
+  overflow-wrap: break-word;
+}
+
+.comment__body p + p {
+  margin-top: 0.6em;
+}
+
+.comment__reply {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  margin-top: var(--space-1);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.comment-form,
+.subscribe-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.comment-form {
+  margin-top: var(--space-8);
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.subscribe-form {
+  max-width: 28rem;
+}
+
+.comment-form__title {
+  font-size: var(--ui-lg);
+}
+
+.comment-form__replying {
+  margin-top: calc(-1 * var(--space-3));
+  font-size: var(--ui-sm);
+}
+
+.comment-form .button,
+.subscribe-form .button {
+  justify-self: start;
+}
+
+.form-note {
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+.form-error {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--coral-tint);
+  color: var(--coral-ink);
+  font-weight: 500;
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--mint-tint);
+  color: var(--ink-high);
+}
+
+/* The field people never see (server/forms.ts): a bot that fills it is thanked, and ignored. */
+.hp {
+  display: none;
+}
+
+.cf-turnstile {
+  min-height: 65px;
+}
+
+.subscribe-note {
+  margin-top: var(--space-8);
+  color: var(--ink-mid);
+  font-size: var(--ui-sm);
+}
+
+/* 6. Small screens ---------------------------------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  .page-header,
+  .post-header {
+    padding-top: var(--space-8);
+  }
+
+  .page-title {
+    font-size: var(--ui-xxl);
+  }
+
+  .page-lede {
+    font-size: var(--ui-md);
+  }
+
+  .post-row__cover {
+    width: 4.5rem;
+  }
+
+  .post-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .post-nav__link--newer {
+    grid-column: auto;
+    grid-row: 1;
+  }
+
+  .comment-form {
+    padding: var(--space-4);
+  }
+
+  .comment-replies {
+    padding-inline-start: var(--space-4);
+  }
+}
+
+/* 7. Print ------------------------------------------------------------------------------------ */
+
+@media print {
+  .skip-link,
+  .topbar,
+  .footer,
+  .toc,
+  .post-nav,
+  .comment-form,
+  .comment__reply,
+  .subscribe-note {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  .page-header,
+  .post-header {
+    padding-top: 0;
+  }
+}

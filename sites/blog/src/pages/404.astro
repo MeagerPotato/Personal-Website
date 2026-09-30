@@ -1,0 +1,9 @@
+---
+/** Any address that is not a page. */
+import NotFound from '../components/NotFound.astro';
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Not found" path={Astro.url.pathname} noindex>
+  <NotFound />
+</Base>

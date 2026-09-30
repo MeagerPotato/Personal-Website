@@ -1,0 +1,138 @@
+---
+/**
+ * Every reader's page: the head (title, description, canonical address, link previews, feed,
+ * icons), the top bar, the column, the footer. No script at all.
+ */
+import 'virtual:allenkh/tokens.css';
+import '@allenkh/design/styles/base.css';
+import '@allenkh/design/styles/prose.css';
+import 'temml/dist/Temml-Local.css';
+import '../styles/code.css';
+import '../styles/blog.css';
+import { themes } from '@allenkh/design/tokens';
+import { site } from '../config';
+import { mailReady } from '../server/mail';
+import { blogEnv } from '../site/env';
+import { pageTitle } from '../site/format';
+
+interface Props {
+  /** The page's own name; the home page passes none. */
+  title?: string | null;
+  description?: string;
+  /** The canonical path, "/" or "/<slug>/". */
+  path: string;
+  type?: 'website' | 'article';
+  image?: { url: string; alt: string; width: number; height: number } | null;
+  publishedAt?: number | null;
+  noindex?: boolean;
+  /** The main nav item to mark as the current page. */
+  current?: 'posts' | 'tags' | 'series' | 'subscribe' | null;
+  /** The column's width: a post reads narrow, a list of series may use more. */
+  width?: 'page' | 'wide';
+}
+
+const {
+  title = null,
+  description = site.description,
+  path,
+  type = 'website',
+  image = null,
+  publishedAt = null,
+  noindex = false,
+  current = null,
+  width = 'page',
+} = Astro.props;
+
+const origin = (Astro.site ?? new URL(Astro.url.origin)).origin;
+const canonical = new URL(path, origin).href;
+const fullTitle = pageTitle(title, site.title);
+const mailOn = mailReady(blogEnv());
+const nav = [
+  { key: 'posts', href: '/', label: 'Posts' },
+  { key: 'tags', href: '/tags/', label: 'Tags' },
+  { key: 'series', href: '/series/', label: 'Series' },
+  ...(mailOn ? [{ key: 'subscribe', href: '/subscribe/', label: 'Subscribe' }] : []),
+];
+---
+
+<!doctype html>
+<html lang={site.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content={themes.day.bg} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content={themes.night.bg} media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="alternate" type="application/rss+xml" title={site.title} href="/rss.xml" />
+    <meta property="og:site_name" content={site.title} />
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={title ?? site.title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {image && (
+      <>
+        <meta property="og:image" content={new URL(image.url, origin).href} />
+        <meta property="og:image:alt" content={image.alt} />
+        <meta property="og:image:width" content={String(image.width)} />
+        <meta property="og:image:height" content={String(image.height)} />
+      </>
+    )}
+    <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+    {publishedAt && (
+      <meta property="article:published_time" content={new Date(publishedAt).toISOString()} />
+    )}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
+    <header class="topbar">
+      <div class="topbar__inner">
+        <a class="brand" href="/" aria-current={path === '/' ? 'page' : undefined}>
+          <img src="/icon.svg" alt="" width="20" height="20" />
+          <span>{site.title}</span>
+        </a>
+        <nav class="topnav" aria-label="Main">
+          <ul>
+            {nav.map((item) => (
+              <li>
+                <a href={item.href} aria-current={current === item.key ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </header>
+    <main id="main" class:list={['column', `column--${width}`]} tabindex="-1">
+      <slot />
+    </main>
+    <footer class="footer">
+      <div class="footer__inner">
+        <p>
+          Written by <a href={site.home}>{site.author}</a>.
+        </p>
+        <ul class="footer__links">
+          <li>
+            <a href="/rss.xml">RSS</a>
+          </li>
+          {mailOn && (
+            <li>
+              <a href="/subscribe/">Subscribe by email</a>
+            </li>
+          )}
+          <li>
+            <a href={site.home}>allenkh.com</a>
+          </li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "@allenkh/testing",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "Test helpers both sites share: a software passkey that signs real WebAuthn responses.",
+  "exports": {
+    "./passkey": "./src/passkey.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

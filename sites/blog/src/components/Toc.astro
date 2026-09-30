@@ -1,0 +1,35 @@
+---
+/**
+ * "On this page": a post's headings. Two copies of one list, and CSS shows one: in the margin
+ * beside a wide screen's column, folded above the post on a narrow one.
+ */
+import type { Heading } from '../server/render';
+
+interface Props {
+  headings: readonly Heading[];
+}
+const { headings } = Astro.props;
+---
+
+<nav class="toc toc--side" aria-label="On this page">
+  <p class="toc__title">On this page</p>
+  <ol>
+    {headings.map((heading) => (
+      <li data-level={heading.level}>
+        <a href={`#${heading.id}`}>{heading.text}</a>
+      </li>
+    ))}
+  </ol>
+</nav>
+<details class="toc toc--inline">
+  <summary>On this page</summary>
+  <nav aria-label="On this page">
+    <ol>
+      {headings.map((heading) => (
+        <li data-level={heading.level}>
+          <a href={`#${heading.id}`}>{heading.text}</a>
+        </li>
+      ))}
+    </ol>
+  </nav>
+</details>

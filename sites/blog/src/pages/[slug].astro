@@ -1,0 +1,195 @@
+---
+/** A post: the article, its series, its neighbours, then the comments and the comment form. */
+import Comment from '../components/Comment.astro';
+import NotFound from '../components/NotFound.astro';
+import PostArticle from '../components/PostArticle.astro';
+import { mediaUrl, pickWidth } from '../editor/nodes';
+import Base from '../layouts/Base.astro';
+import { COMMENT_MAX, NAME_MAX } from '../server/comments';
+import { HONEYPOT } from '../server/forms';
+import { postPage } from '../server/pages';
+import { blogEnv } from '../site/env';
+
+const slug = Astro.params.slug ?? '';
+const page = await postPage(blogEnv(), Astro.request, slug);
+if (page.kind === 'redirect') return Astro.redirect(page.location, page.status);
+if (page.kind === 'missing') Astro.response.status = 404;
+else Astro.response.headers.set('Content-Security-Policy', page.csp);
+
+const found = page.kind === 'post' ? page : null;
+const here = found ? `/${found.post.slug}/` : `/${slug}/`;
+const cover = found?.post.cover ?? null;
+---
+
+{!found ? (
+  <Base title="Not found" path={here} noindex>
+    <NotFound />
+  </Base>
+) : (
+  <Base
+    title={found.post.title}
+    description={found.post.summary || undefined}
+    path={here}
+    type="article"
+    publishedAt={found.post.publishedAt}
+    image={
+      cover
+        ? {
+            url: mediaUrl(cover.id, pickWidth(cover.widths, 1280), cover.ext),
+            alt: cover.alt,
+            width: cover.width,
+            height: cover.height,
+          }
+        : null
+    }
+  >
+    <PostArticle post={found.post} commentCount={found.commentCount}>
+      {found.series && found.series.parts.length > 1 && (
+        <aside class="series-box" aria-labelledby="series-title">
+          <p class="series-box__kicker">Series</p>
+          <h2 class="series-box__title" id="series-title">
+            <a href={`/series/${found.series.info.slug}/`}>{found.series.info.title}</a>
+          </h2>
+          <ol class="series-box__parts">
+            {found.series.parts.map((part) => (
+              <li>
+                {part.id === found.post.id ? (
+                  <span aria-current="page">{part.title}</span>
+                ) : (
+                  <a href={`/${part.slug}/`}>{part.title}</a>
+                )}
+              </li>
+            ))}
+          </ol>
+        </aside>
+      )}
+
+      {(found.newer || found.older) && (
+        <nav class="post-nav" aria-label="More posts">
+          {found.older && (
+            <a class="post-nav__link post-nav__link--older" href={`/${found.older.slug}/`}>
+              <span class="post-nav__label">Older</span>
+              <span class="post-nav__title">{found.older.title}</span>
+            </a>
+          )}
+          {found.newer && (
+            <a class="post-nav__link post-nav__link--newer" href={`/${found.newer.slug}/`}>
+              <span class="post-nav__label">Newer</span>
+              <span class="post-nav__title">{found.newer.title}</span>
+            </a>
+          )}
+        </nav>
+      )}
+    </PostArticle>
+
+    <section class="comments" id="comments" aria-labelledby="comments-title">
+      <h2 class="comments__title" id="comments-title">
+        Comments
+        {found.commentCount > 0 && <span class="comments__count"> {found.commentCount}</span>}
+      </h2>
+      {found.sent && (
+        <p class="notice" role="status">
+          Thank you! Your comment will appear here once Allen has read it.
+        </p>
+      )}
+      {found.threads.length === 0 && !found.sent && (
+        <p class="muted">No comments yet. Be the first.</p>
+      )}
+      {found.threads.length > 0 && (
+        <ol class="comment-list">
+          {found.threads.map((thread) => (
+            <li>
+              <Comment
+                comment={thread.comment}
+                replyHref={`${here}?reply=${thread.comment.id}#comment-form`}
+              />
+              {thread.replies.length > 0 && (
+                <ol class="comment-replies">
+                  {thread.replies.map((reply) => (
+                    <li>
+                      <Comment
+                        comment={reply}
+                        replyHref={`${here}?reply=${reply.id}#comment-form`}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <form class="comment-form" id="comment-form" method="post" action={`${here}#comment-form`}>
+        <h3 class="comment-form__title">
+          {found.replyingTo ? `Reply to ${found.replyingTo.name}` : 'Leave a comment'}
+        </h3>
+        {found.replyingTo && (
+          <p class="comment-form__replying">
+            <a href={`${here}#comment-form`}>Write a new comment instead</a>
+          </p>
+        )}
+        {found.form.error && (
+          <p class="form-error" role="alert">
+            {found.form.error}
+          </p>
+        )}
+        <input type="hidden" name="t" value={found.form.token} />
+        {found.form.parentId && <input type="hidden" name="parent" value={found.form.parentId} />}
+        <label class="field">
+          <span>Name</span>
+          <input
+            class="input"
+            name="name"
+            autocomplete="nickname"
+            maxlength={NAME_MAX}
+            required
+            value={found.form.name}
+          />
+        </label>
+        <label class="field">
+          <span>Comment</span>
+          <textarea
+            class="input"
+            name="body"
+            rows="5"
+            maxlength={COMMENT_MAX}
+            required
+          >{found.form.body}</textarea>
+        </label>
+        <div class="hp">
+          <label>
+            Leave this empty <input name={HONEYPOT} tabindex="-1" autocomplete="off" />
+          </label>
+        </div>
+        {found.turnstileSiteKey && (
+          <>
+            <div class="cf-turnstile" data-sitekey={found.turnstileSiteKey} />
+            <script
+              is:inline
+              src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+              async
+              defer
+            />
+          </>
+        )}
+        <p class="form-note">
+          Comments appear once Allen has read them. Only your name is shown with your words; nothing
+          else is kept.
+        </p>
+        <button class="button button--primary" type="submit">
+          {found.replyingTo ? 'Send reply' : 'Send comment'}
+        </button>
+      </form>
+    </section>
+
+    {found.mailOn && (
+      <aside class="subscribe-note">
+        <p>
+          New posts by email: <a href="/subscribe/">subscribe</a>. Or follow the{' '}
+          <a href="/rss.xml">RSS feed</a>.
+        </p>
+      </aside>
+    )}
+  </Base>
+)}
