@@ -56,6 +56,7 @@ const input: UniverseInput = {
     { id: 'resume', title: 'Resume', href: '/resume/', dock: 'station' },
     { id: 'contact', title: 'Contact', href: '/contact/', dock: 'satellite' },
   ],
+  links: [{ id: 'github', title: 'GitHub', href: 'https://github.com/someone', slot: 2 }],
   includeDrafts: false,
 };
 const manifest = buildUniverse(input);
@@ -107,12 +108,17 @@ describe('reading the manifest', () => {
     expect(nearestNeighbourOf({ ...read, systems: [home] }, home)).toBeNull();
   });
 
-  it('refuses what is not a manifest, or one from a newer build', () => {
+  it('refuses what is not a manifest, or one from another build', () => {
     expect(() => readManifest(null)).toThrow(/not an object/);
     expect(() => readManifest('<!doctype html>')).toThrow(/not an object/);
-    expect(() => readManifest({ ...manifest, version: 2 })).toThrow(/version 2/);
-    expect(() => readManifest({ version: 1 })).toThrow(/missing/);
-    expect(() => readManifest({ version: 1, systems: [], bodies: [] })).toThrow(/empty/);
+    expect(() => readManifest({ ...manifest, version: 3 })).toThrow(/version 3/);
+    // One version, the engine's own: 1 is from the deploy before links (an engine that reads it
+    // would dock at one), so across that deploy each side refuses the other.
+    expect(() => readManifest({ ...manifest, version: 1 })).toThrow(
+      /version 1, this engine reads 2/,
+    );
+    expect(() => readManifest({ version: 2 })).toThrow(/missing/);
+    expect(() => readManifest({ version: 2, systems: [], bodies: [] })).toThrow(/empty/);
   });
 });
 
@@ -309,7 +315,7 @@ describe('Galaxy', () => {
       expect([light.x, light.y, light.z]).toEqual([code.position[0], 0, code.position[1]]);
       expect(galaxy.subject(id)?.light).toBe(light);
     }
-    for (const id of ['page/about', 'page/resume', 'page/contact']) {
+    for (const id of ['page/about', 'page/resume', 'page/contact', 'link/github']) {
       const mesh = galaxy.object.getObjectByName(id)?.getObjectByProperty('type', 'Mesh') as Mesh;
       expect(sunOf(mesh).equals(KEY_LIGHT_POSITION)).toBe(true);
       expect(galaxy.subject(id)?.light?.equals(KEY_LIGHT_POSITION)).toBe(true);
@@ -363,6 +369,22 @@ describe('Galaxy', () => {
     galaxy.frameUpdate(frame(1));
     finishJobs();
     expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+    galaxy.dispose();
+  });
+
+  it('draws a link as a relay: a model of its own, not the satellite beside it', () => {
+    const { galaxy, node } = setup();
+    const relay = node('link/github');
+    expect(relay.getObjectByName('relay')).toBeDefined();
+    expect(relay.getObjectByName('satellite')).toBeUndefined();
+    expect(node('page/contact').getObjectByName('satellite')).toBeDefined();
+    // At its size, and on the satellite's ring.
+    const model = relay.getObjectByName('relay');
+    expect(model?.scale.x).toBe(tuning.layout.home.relayRadius);
+    galaxy.frameUpdate(frame(10));
+    const home = node('page/about').position;
+    const satellite = node('page/contact').position;
+    expect(relay.position.distanceTo(home)).toBeCloseTo(satellite.distanceTo(home), 6);
     galaxy.dispose();
   });
 
@@ -456,7 +478,7 @@ function binary(): UniverseManifest {
   // Reaches: a 70 + 15.2 = 85.2, b 110 + 15.2 = 125.2. Each sun sits the OTHER family's reach
   // and half the gap from the centre, so both families reach equally far: 145.2 and 105.2.
   return {
-    version: 1,
+    version: 2,
     systems: [
       {
         id: 'pair',

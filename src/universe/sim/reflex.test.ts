@@ -12,6 +12,7 @@ function field(x: number, z: number, radius: number): BodyField {
     velocities: new Float64Array(4),
     radius: new Float64Array([radius, 10]),
     ringRadius: new Float64Array([radius * 2, 20]),
+    docks: new Uint8Array([1, 1]),
   };
 }
 

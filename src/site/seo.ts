@@ -1,5 +1,6 @@
 import { site } from '../config/site';
 import { OG_SIZE } from './og';
+import { profiles } from './profiles';
 import { routes } from './routes';
 import type { Crumb } from './view-models';
 
@@ -43,7 +44,8 @@ export const personLd = (): JsonLd => ({
   name: site.name,
   url: absoluteUrl(routes.page('about')),
   description: site.description,
-  sameAs: Object.values(site.socials),
+  // The same profiles, in the same order, as the home page lists (src/site/profiles.ts).
+  sameAs: profiles(site.socials).map(({ href }) => href),
   affiliation: { '@type': 'CollegeOrUniversity', name: site.affiliation },
   knowsAbout: [...site.knowsAbout],
 });

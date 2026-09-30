@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { parseFrontmatter } from '@astrojs/internal-helpers/frontmatter';
 import { z } from 'astro/zod';
+import { site } from '../../src/config/site';
+import { profiles } from '../../src/site/profiles';
 import { entryIdFromPath } from '../../src/site/routes';
 import { pageSchema, projectSchema, systemSchema } from '../../src/site/schemas';
 import {
@@ -23,9 +25,9 @@ import { tuning } from '../../src/universe/design/tuning';
 import { createRng } from '../../src/universe/sim/rng';
 import { mergeInto, type DeepPartial } from './merge';
 
-// THE GALAXIES a journey is measured in: the real one, read from src/content exactly as the build
-// reads it (Astro's own frontmatter reader, the real schemas, the real toUniverseInput and
-// buildUniverse), and bigger ones made of the real one plus typical systems of the future, laid
+// THE GALAXIES a journey is measured in: the real one, read from src/content (and the profiles
+// from src/config/site.ts) exactly as the build reads it (Astro's own frontmatter reader, the real
+// schemas, the real toUniverseInput and buildUniverse), and bigger ones made of the real one plus typical systems of the future, laid
 // out by the real layout code in the free slots 2, 3, 4...
 //
 // Nothing here edits source. Layout changes are applied to tuning.layout IN PLACE for the length
@@ -101,7 +103,14 @@ export function readRealInput(includeDrafts = false): UniverseInput {
     projectSchema(helpers).parse(data),
   );
   const pages: PageEntry[] = readEntries('pages', 'file', (data) => pageSchema().parse(data));
-  return toUniverseInput({ systems, projects, pages, includeDrafts });
+  // Allen's profiles too, as the build reads them: relays in the home system, in the way.
+  return toUniverseInput({
+    systems,
+    projects,
+    pages,
+    profiles: profiles(site.socials),
+    includeDrafts,
+  });
 }
 
 // --- typical systems of the future ---------------------------------------------------------------

@@ -46,6 +46,23 @@ const WIDE_GALAXY: SurroundingsInput = {
   ],
 };
 
+/** The same, with a relay: a body nothing docks at (a link: GitHub), beside the station. */
+const LINKED_GALAXY: SurroundingsInput = {
+  ...WIDE_GALAXY,
+  bodies: [
+    ...WIDE_GALAXY.bodies,
+    {
+      id: 'link/github',
+      system: 'home',
+      parent: 'page/about',
+      orbit: { radius: 60, phase: Math.PI, periodSec: 125 },
+      radius: 1.4,
+      dockRadius: 7.4,
+      docks: false,
+    },
+  ],
+};
+
 type Heard = { [K in keyof NavigatorEvents]: [K, NavigatorEvents[K]] }[keyof NavigatorEvents];
 
 /** A little engine: the ship, the world, the navigator, in the order main.ts steps them. */
@@ -90,6 +107,85 @@ function harness(x: number, z: number, heading = 0, galaxy = GALAXY) {
     names: () => heard.map(([name]) => name),
   };
 }
+
+describe('Navigator and a body nothing docks at (a link)', () => {
+  /** Where the relay is at t = 0: 60 u out along -Z from home. */
+  const RELAY = { x: 0, z: -60 };
+
+  it('never sets out for it, approaches it or puts the ship round it, from anywhere', () => {
+    for (const [x, z] of [
+      [RELAY.x + 9, RELAY.z],
+      [0, -200],
+      [-700, 480],
+    ] as const) {
+      const h = harness(x, z, 0, LINKED_GALAXY);
+      h.run(0.1);
+      const before = { ...h.state };
+      expect(h.navigator.withinReach('link/github')).toBe(false);
+      expect(h.navigator.travel('link/github', 'pilot')).toBe(false);
+      expect(h.navigator.approach('link/github', 'pilot')).toBe(false);
+      expect(h.navigator.place('link/github')).toBe(false);
+      expect(h.surroundings.dock.phase).toBe('free');
+      expect(h.state).toEqual(before);
+      h.run(0.5);
+      expect(h.navigator.state).toEqual({ mode: 'flight', target: null });
+      expect(h.names()).not.toContain('statechange');
+    }
+  });
+
+  it('never offers it, however slowly the ship drifts round it', () => {
+    const h = harness(RELAY.x + 8, RELAY.z, Math.PI, LINKED_GALAXY);
+    h.state.vz = -3;
+    let offered = false;
+    for (let k = 0; k < 120; k += 1) {
+      h.run(1 / 30);
+      offered ||= h.navigator.candidate === 'link/github';
+    }
+    expect(offered).toBe(false);
+    expect(h.heard).not.toContainEqual(['soi', { id: 'link/github' }]);
+  });
+
+  it('keeps the ship headed where it was going when someone asks for it on the way', () => {
+    const h = harness(0, -200, 0, LINKED_GALAXY);
+    h.run(0.1);
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+    h.run(0.5);
+    expect(h.navigator.travel('link/github')).toBe(false);
+    expect(h.navigator.state).toEqual({ mode: 'autopilot', target: 'project/fishai' });
+  });
+
+  it('takes a snapshot that says the ship is headed for it, or docked at it, as a Stop', () => {
+    for (const dock of [
+      { id: 'link/github', docked: true, angle: 1, spin: 1, holdSec: 0 },
+      { id: 'link/github', docked: false, angle: 0, spin: 1, holdSec: 1 },
+    ]) {
+      for (const cut of [false, true]) {
+        const h = harness(RELAY.x + 30, RELAY.z, 0, LINKED_GALAXY);
+        h.state.vz = 200;
+        h.run(0.05);
+        h.navigator.restore(dock, cut);
+        h.run(0.05);
+        expect(
+          h.navigator.state,
+          `${dock.docked ? 'docked' : 'on the way'}${cut ? ', cut' : ''}`,
+        ).toEqual({ mode: 'flight', target: null });
+        // Braking to rest where it is, as after any Stop.
+        expect(h.navigator.halting).toBe(true);
+        expect(h.surroundings.dock.phase).toBe('free');
+      }
+    }
+  });
+
+  it('takes a docked snapshot of a body this world does not have as a Stop too', () => {
+    const h = harness(0, -200, 0, LINKED_GALAXY);
+    h.state.vz = 14;
+    h.run(0.05);
+    h.navigator.restore({ id: 'project/gone', docked: true, angle: 0, spin: 1, holdSec: 0 });
+    h.run(0.05);
+    expect(h.navigator.state).toEqual({ mode: 'flight', target: null });
+    expect(h.navigator.halting).toBe(true);
+  });
+});
 
 describe('Navigator', () => {
   it('offers the body the ship is within reach of, and takes the offer back', () => {

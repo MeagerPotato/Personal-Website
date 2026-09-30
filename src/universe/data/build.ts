@@ -1,11 +1,13 @@
 import { tuning } from '../design/tuning';
 import {
+  RELAY_SLOTS,
   dockRadius,
   homeReach,
   homeRings,
   orbitPeriod,
   orbitPhase,
   reach,
+  relayPhase,
   round,
   slotPosition,
   slotRoomProblems,
@@ -13,6 +15,7 @@ import {
 } from './layout';
 import type {
   BodyKind,
+  LinkInput,
   ManifestBody,
   ManifestLane,
   ManifestSystem,
@@ -35,6 +38,7 @@ export const bodyId = {
   system: (id: string): string => `system/${id}`,
   project: (id: string): string => `project/${id}`,
   page: (id: string): string => `page/${id}`,
+  link: (id: string): string => `link/${id}`,
 };
 
 export class UniverseDataError extends Error {
@@ -68,10 +72,12 @@ function validate(input: UniverseInput): string[] {
   const systemIds = new Set(input.systems.map((system) => system.id));
   const projects = new Map(input.projects.map((project) => [project.id, project]));
 
+  const links = input.links ?? [];
   for (const [label, ids] of [
     ['system', input.systems.map((entry) => entry.id)],
     ['project', input.projects.map((entry) => entry.id)],
     ['page', input.pages.map((entry) => entry.id)],
+    ['link', links.map((entry) => entry.id)],
   ] as const) {
     for (const id of findDuplicates(ids)) problems.push(`${label} id "${id}" is used twice`);
   }
@@ -141,6 +147,39 @@ function validate(input: UniverseInput): string[] {
     }
   }
 
+  problems.push(...linkProblems(links));
+  return problems;
+}
+
+/**
+ * Relays share the satellite's ring, each on a slot of its own, and each stands for a profile on
+ * another site: never a page of this one, which a body that cannot be docked at could not open.
+ */
+function linkProblems(links: readonly LinkInput[]): string[] {
+  const problems: string[] = [];
+  const holders = new Map<number, string>();
+  for (const link of [...links].sort((a, b) => compare(a.id, b.id))) {
+    const where = `link "${link.id}"`;
+    if (!Number.isInteger(link.slot) || link.slot < 1 || link.slot >= RELAY_SLOTS) {
+      problems.push(`${where}: slot must be 1 to ${RELAY_SLOTS - 1} (0 is the Contact satellite)`);
+    } else {
+      const holder = holders.get(link.slot);
+      if (holder === undefined) holders.set(link.slot, link.id);
+      else problems.push(`${where}: slot ${link.slot} is taken by "${holder}"`);
+    }
+    if (!/^https:\/\/[^/]/.test(link.href)) {
+      problems.push(`${where}: href must be an https URL on another site`);
+    }
+  }
+  const relay = dockRadius(L.home.relayRadius);
+  const satellite = dockRadius(L.home.satelliteRadius);
+  if (links.length > 0 && relay > satellite) {
+    problems.push(
+      `tuning.layout.home.relayRadius is ${L.home.relayRadius} u: a relay's docking ring ` +
+        `(${round(relay)} u) must fit within the satellite's (${round(satellite)} u), whose ring ` +
+        'it shares, or the home system would reach further than the layout allows for.',
+    );
+  }
   return problems;
 }
 
@@ -239,6 +278,44 @@ function buildHomeSystem(pages: readonly PageInput[]): {
   };
 }
 
+/**
+ * Allen's profiles elsewhere, as relays on the Contact satellite's ring: its radius and its
+ * period, each `slot` steps of 45 degrees ahead of it (data/layout.ts, relayPhase). The ring is
+ * reserved whether or not the Contact page exists, and so are the slots, so a relay is where it
+ * is whatever else is published. Nothing can dock at one (`docks: false`): it opens another site.
+ */
+function buildLinks(links: readonly LinkInput[], pages: readonly PageInput[]): ManifestBody[] {
+  const center = pages.find((page) => page.dock === 'home');
+  const ring = homeRings().find(({ item }) => item.kind === 'satellite');
+  if (center === undefined || ring === undefined) return [];
+  // The satellite's own angle, as its body has it (a Contact page by any other id is still it).
+  const satellite = pages.find((page) => page.dock === 'satellite')?.id ?? 'contact';
+  const satellitePhase = round(orbitPhase(bodyId.page(satellite)), 4);
+  const radius = L.home.relayRadius;
+  return [...links]
+    .sort((a, b) => a.slot - b.slot)
+    .map((link) => {
+      const id = bodyId.link(link.id);
+      return {
+        id,
+        kind: 'link' as const,
+        title: link.title,
+        href: link.href,
+        system: HOME,
+        parent: bodyId.page(center.id),
+        radius,
+        dockRadius: round(dockRadius(radius)),
+        orbit: {
+          radius: round(ring.radius),
+          phase: round(relayPhase(satellitePhase, link.slot), 4),
+          periodSec: round(orbitPeriod(ring.radius), 1),
+        },
+        seed: id,
+        docks: false as const,
+      };
+    });
+}
+
 export function buildUniverse(input: UniverseInput): UniverseManifest {
   const problems = validate(input);
   if (problems.length > 0) throw new UniverseDataError(problems);
@@ -250,7 +327,7 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
 
   const home = buildHomeSystem(input.pages);
   const systems: ManifestSystem[] = [home.system];
-  const bodies: ManifestBody[] = [...home.bodies];
+  const bodies: ManifestBody[] = [...home.bodies, ...buildLinks(input.links ?? [], input.pages)];
   // A slot too small for what the build accepts is refused, not moved (data/layout.ts).
   if (input.systems.some((system) => system.position === 'auto')) {
     problems.push(...slotRoomProblems());
@@ -349,7 +426,7 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   }
 
   return {
-    version: 1,
+    version: 2,
     systems,
     bodies,
     lanes: [...lanes.keys()].sort(compare).flatMap((key) => lanes.get(key) ?? []),

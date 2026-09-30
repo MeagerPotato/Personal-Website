@@ -266,13 +266,20 @@ export function boot(
     // The map was for choosing where to go. Now for going there.
     starMap.setOpen(false);
   };
+  // A body nothing docks at (a link: GitHub, circling home) is not somewhere to go, and a hand on
+  // the sky, busy steering, must never be carried off the site by one either: pointing at it
+  // brings its name forward instead (ui/Labels.ts, beckon), and the name is the link.
+  const pickRow = (row: number): void => {
+    if (surroundings.field.docks[row] === 0) labels?.beckon(row);
+    else flyToRow(row);
+  };
   engine.add(
     new Picker({
       canvas: engine.canvas,
       screen: onScreen.map,
       params: tuning.picking,
       ignore: targetRow,
-      onPick: flyToRow,
+      onPick: pickRow,
     }),
   );
   let labels: Labels | null = null;
@@ -285,7 +292,8 @@ export function boot(
   const shipAt = { x: 0, y: 0 };
   const shipBox = { left: 0, top: 0, width: 0, height: 0 };
   if (options.overlay) {
-    // A name under every body that has room for one: pressing it is pointing at the body.
+    // A name under every body that has room for one: pressing it is pointing at the body, and
+    // for a link (which nothing docks at) following the link.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
     labels = engine.add(
       new Labels({
@@ -297,6 +305,7 @@ export function boot(
             title: body?.title ?? id,
             kind: body?.kind ?? 'moon',
             planned: body?.planned === true,
+            href: body?.docks === false ? body.href : undefined,
           };
         }),
         params: tuning.labels,

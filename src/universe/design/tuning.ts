@@ -489,7 +489,7 @@ export const tuning = {
      * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
      * pixels per hundred units, and a planet at its true size would be a speck.
      */
-    minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4 },
+    minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4, link: 3.5 },
     /**
      * A body that circles another shows once their two discs are apart, and is full size once they
      * are this far apart (CSS px): from far out a system is its sun, and its moons come last.
@@ -768,6 +768,12 @@ export const tuning = {
       planetRadius: 14,
       stationRadius: 2.2,
       satelliteRadius: 1.6,
+      /**
+       * A relay (a profile elsewhere: GitHub, LinkedIn) shares the satellite's ring, so its
+       * docking footprint must stay within the satellite's (the build checks): then the home
+       * system reaches as far as it did, and a new profile moves nothing.
+       */
+      relayRadius: 1.4,
     },
   },
 } as const;

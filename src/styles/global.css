@@ -2271,6 +2271,8 @@ main > .resume-name + .resume-contact {
    * on a small navy tag (::after, the height of the name alone), like a label on a transit map.
    * The names are part of the world, as the canvas is: a finger on one never scrolls or zooms the
    * page, and on the map a finger that moves on a name drags the map (universe/ui/StarMap.ts).
+   * A link's name (Allen's profiles elsewhere, `data-kind='link'`) is a real link, in a group of its
+   * own, with an outward arrow; pointing at its body beckons it (`data-beckon`).
    */
   .body-labels {
     position: absolute;
@@ -2300,6 +2302,7 @@ main > .resume-name + .resume-contact {
     letter-spacing: 0.02em;
     line-height: 1.4;
     white-space: nowrap;
+    text-decoration: none;
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
@@ -2362,6 +2365,35 @@ main > .resume-name + .resume-contact {
     font-weight: 500;
   }
 
+  /* A link leaves the site (a profile elsewhere): an arrow pointing out, after the name, in the
+     name's own ink. In the flow, so that the engine measures the name with it; centred on the
+     line whichever side of its body the tag is on. Drawn by clip-path: no icon font, no image. A
+     link is never where the ship is headed, so its ::before is free (a target's holds its dot). */
+  .body-label[data-kind='link'] {
+    gap: 0.3em;
+  }
+
+  .body-label[data-kind='link']::before {
+    content: '';
+    order: 1;
+    flex: none;
+    width: 0.6em;
+    height: 0.6em;
+    margin-block: 0.4em;
+    background: currentColor;
+    clip-path: polygon(
+      0% 100%,
+      0% 85.9%,
+      60.5% 25.5%,
+      35% 0%,
+      100% 0%,
+      100% 65%,
+      74.5% 39.5%,
+      14.1% 100%
+    );
+    transition: translate var(--motion-fast) var(--motion-ease-out);
+  }
+
   /* Planned work (universe/ui/planned.ts): "Planned" after the name, set small in quieter ink, and
      the tag's rim dashed, as a station that is not built yet is drawn on a transit map. The comma
      before the note is heard ("Sports Analysis, Planned"), never seen: it is only transparent, and
@@ -2407,6 +2439,11 @@ main > .resume-name + .resume-contact {
       background: var(--color-surface-raised);
       box-shadow: inset 0 0 0 1px var(--color-ink-low);
     }
+
+    /* The arrow leans the way the link goes: out. */
+    .body-label[data-kind='link']:hover::before {
+      translate: 0.08em -0.08em;
+    }
   }
 
   /* The ring goes round the tag, not round the 44 px box. */
@@ -2421,10 +2458,24 @@ main > .resume-name + .resume-contact {
       0 0 0 0.3125rem var(--color-focus);
   }
 
+  /* A link whose body was pointed at (universe/ui/Labels.ts, beckon) has the keyboard's focus,
+     but a browser shows no ring for focus that follows a tap: it wears the ring anyway, butter
+     for "here", until the focus moves on. Pressing it again is what leaves. */
+  .body-label[data-beckon] {
+    color: var(--color-ink-high);
+  }
+
+  .body-label[data-beckon]::after {
+    box-shadow:
+      0 0 0 0.125rem var(--color-space-950),
+      0 0 0 0.3125rem var(--color-focus);
+  }
+
   /* Forced colours drop every shadow and every fill: the focused name keeps a real outline, and
      the one the ship is headed for a border. */
   @media (forced-colors: active) {
-    .body-label:focus-visible::after {
+    .body-label:focus-visible::after,
+    .body-label[data-beckon]::after {
       outline: 0.1875rem solid Highlight;
       outline-offset: 0.125rem;
     }
@@ -2473,6 +2524,7 @@ main > .resume-name + .resume-contact {
   }
 
   html[data-motion='reduced'] .body-label,
+  html[data-motion='reduced'] .body-label::before,
   html[data-motion='reduced'] .body-label::after {
     transition: none;
   }

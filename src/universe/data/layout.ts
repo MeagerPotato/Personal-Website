@@ -62,6 +62,21 @@ export function homeReach(): number {
   return reach(homeRings(), dockRadius(L.home.planetRadius));
 }
 
+/** Places on the satellite's ring, 45 degrees apart: slot 0 is the satellite, 1 to 7 are relays. */
+export const RELAY_SLOTS = 8;
+
+/**
+ * Where a relay (a profile elsewhere: data/build.ts) is at t = 0: on the satellite's ring, `slot`
+ * steps of 45 degrees ahead of the satellite, in [0, 2π). It shares the satellite's radius and
+ * period, so the two keep their distance for ever, and a new relay moves nothing: not the
+ * satellite, not another relay, and not how far the home system reaches (a relay's footprint is
+ * no bigger than the satellite's).
+ */
+export function relayPhase(satellitePhase: number, slot: number): number {
+  const angle = (satellitePhase + (slot * TAU) / RELAY_SLOTS) % TAU;
+  return angle < 0 ? angle + TAU : angle;
+}
+
 /**
  * u. The room between slots must be the build's tripwires (data/build.ts) plus this much, so that
  * rounding positions to 2 places can never close a gap the build then complains about.

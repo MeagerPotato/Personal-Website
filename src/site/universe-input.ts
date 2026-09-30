@@ -1,12 +1,14 @@
 import type { BiomeKey, ThemeKey } from '../universe/design/tokens';
 import type {
   DockKind,
+  LinkInput,
   PageInput,
   PlanetSize,
   ProjectInput,
   SystemInput,
   UniverseInput,
 } from '../universe/data/types';
+import type { Profile } from './profiles';
 import { routes } from './routes';
 
 // Content entries -> the plain input of buildUniverse(). Structural types only: this file knows
@@ -83,16 +85,27 @@ export const toPageInput = ({ id, data }: PageEntry): PageInput => ({
   dock: data.dock,
 });
 
+/** A profile elsewhere (src/site/profiles.ts) as a relay round the home planet. */
+export const toLinkInput = ({ key, label, href, slot }: Profile): LinkInput => ({
+  id: key,
+  title: label,
+  href,
+  slot,
+});
+
 export function toUniverseInput(content: {
   systems: readonly SystemEntry[];
   projects: readonly ProjectEntry[];
   pages: readonly PageEntry[];
+  /** `profiles(site.socials)`: what the home page lists, circling home. */
+  profiles: readonly Profile[];
   includeDrafts: boolean;
 }): UniverseInput {
   return {
     systems: content.systems.map(toSystemInput),
     projects: content.projects.map(toProjectInput),
     pages: content.pages.map(toPageInput),
+    links: content.profiles.map(toLinkInput),
     projectsHref: routes.projects(),
     includeDrafts: content.includeDrafts,
   };

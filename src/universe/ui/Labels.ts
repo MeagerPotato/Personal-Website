@@ -30,11 +30,16 @@ export interface LabelsOptions {
   overlay: HTMLElement;
   /** Where every body is on screen (ui/BodiesOnScreen.ts). */
   screen: Readonly<ScreenMap>;
-  /** By row of the orbit table. `planned`: work not built yet, and its name says so. */
+  /**
+   * By row of the orbit table. `planned`: work not built yet, and its name says so. `href`: a
+   * profile on another site (a link, which nothing docks at): its name is a real link to it, in a
+   * group of its own, and pressing it leaves the site the way any link does.
+   */
   bodies: ReadonlyArray<{
     readonly title: string;
     readonly kind: BodyKind;
     readonly planned?: boolean;
+    readonly href?: string | undefined;
   }>;
   params: LabelsParams;
   /** The part of the view that the info panel leaves free, as shares of its width and height. */
@@ -43,7 +48,7 @@ export interface LabelsOptions {
   target(): number;
   /** Is the ship docked (at `target`)? Then its page is open, and its name is on the page. */
   docked(): boolean;
-  /** The visitor pressed the name of the body in this row. */
+  /** The visitor pressed the name of the body in this row (never a link's: that is followed). */
   onPick(row: number): void;
   /**
    * Whatever else of the engine's lies over the sky and can be pressed (the dock prompt, the boost
@@ -67,13 +72,17 @@ export interface LabelsOptions {
   eitherSide?: () => boolean;
 }
 
-/** Suns and the home planet name a whole system; moons are the small print. */
+/**
+ * Suns and the home planet name a whole system; moons are the small print. A link ranks with the
+ * planets: Allen's profiles are what a recruiter looks for.
+ */
 const RANK: Record<BodyKind, number> = {
   sun: 1,
   home: 1,
   planet: 2,
   station: 2,
   satellite: 2,
+  link: 2,
   moon: 3,
 };
 /** Ranks are this far apart, so that distance (u) only ever decides WITHIN a rank. */
@@ -85,14 +94,22 @@ const RANK_STEP = 1e6;
  * engine decides where each one is and which may show (sim/declutter.ts: important first, never
  * touching, never flickering); how they LOOK is CSS (`.body-label` in src/styles/global.css).
  *
+ * A link's name (a profile elsewhere: GitHub) is a real <a> instead, in a group of its own,
+ * "Elsewhere": a link that leaves the site is not a way to fly. Pointing at its BODY never leaves
+ * the site either; it beckons the name (`beckon`), and leaving is a second, explicit press.
+ *
  * Add it AFTER ui/BodiesOnScreen.ts. It writes a transform per visible name per frame and nothing
  * else. The only layout it reads, once the names and their tags are measured (and the target's
  * tag, once one wears it), is where its few `obstacles` are, and it asks before it writes
  * anything, while layout is still clean from the frame before.
  */
 export class Labels implements System {
+  /** "Fly to": the names that fly the ship somewhere. */
   private readonly root = document.createElement('div');
-  private readonly buttons: HTMLButtonElement[] = [];
+  /** "Elsewhere": the names of links, which leave the site. Only made when there is one. */
+  private readonly elsewhere: HTMLDivElement | null = null;
+  /** By row: a <button>, or for a link an <a>. */
+  private readonly names: HTMLElement[] = [];
   private readonly boxes;
   private readonly taken;
   /** Each name's size as measured (its 44 px box), and how tall its visible tag is within it. */
@@ -113,6 +130,8 @@ export class Labels implements System {
   private height = 1;
   private measured = false;
   private focused = -1;
+  /** A link's row whose body was pointed at: its name takes the focus as soon as it shows. */
+  private beckoning = -1;
   private marked = -1;
   private barBottom = 0;
   private foot: { right: number; top: number } | null = null;
@@ -134,32 +153,29 @@ export class Labels implements System {
     this.lastX = new Float64Array(count).fill(Number.NaN);
     this.lastY = new Float64Array(count).fill(Number.NaN);
 
-    // A finger that moves on a name moves the map (ui/StarMap.ts), never the page: `touch-action`
-    // on `.body-labels` in src/styles/global.css.
-    this.root.className = 'body-labels';
-    this.root.setAttribute('role', 'group');
-    this.root.setAttribute('aria-label', 'Fly to');
+    group(this.root, 'Fly to');
     options.bodies.forEach((body, row) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'body-label';
-      button.dataset.row = String(row);
-      button.dataset.kind = body.kind;
-      button.textContent = body.title;
-      // Planned work says so, seen and heard: "Sports Analysis, Planned" (ui/planned.ts). The
-      // button is a flex box: the name and its note share one inline wrapper.
-      if (body.planned) {
-        button.dataset.planned = '';
-        button.replaceChildren(plannedName('body-label', body.title));
-      }
-      this.buttons.push(button);
+      const name = body.href === undefined ? flyTo(body) : elsewhere(body.title, body.href);
+      name.classList.add('body-label');
+      name.dataset.row = String(row);
+      name.dataset.kind = body.kind;
+      this.names.push(name);
     });
-    this.root.append(...this.buttons);
+    const links = this.names.filter((name) => name instanceof HTMLAnchorElement);
+    this.root.append(...this.names.filter((name) => !(name instanceof HTMLAnchorElement)));
     options.overlay.append(this.root);
+    if (links.length > 0) {
+      this.elsewhere = group(document.createElement('div'), 'Elsewhere');
+      this.elsewhere.append(...links);
+      options.overlay.append(this.elsewhere);
+    }
 
+    // (A link is followed by the browser, like any link: it is no click of ours.)
     this.root.addEventListener('click', this.onClick);
-    this.root.addEventListener('focusin', this.onFocusIn);
-    this.root.addEventListener('focusout', this.onFocusOut);
+    for (const root of this.roots()) {
+      root.addEventListener('focusin', this.onFocusIn);
+      root.addEventListener('focusout', this.onFocusOut);
+    }
     // Names are measured in the font they are drawn in: measure again once that has arrived.
     void document.fonts?.ready.then(() => {
       this.measured = false;
@@ -244,7 +260,7 @@ export class Labels implements System {
         : 0;
       let side = eitherSide ? this.sideOf(row, left, width, under, over, down, up, ship) : 0;
       let top = side ? over - up : under + down;
-      const kept = row === target || row === this.focused;
+      const kept = row === target || row === this.focused || row === this.beckoning;
       if (!this.fits(row, left, width, top)) {
         // No room past the ship. Where the ship is going, and whatever the keyboard is on, then
         // show where they would have been: on the ship is better than gone.
@@ -263,28 +279,30 @@ export class Labels implements System {
       boxes.height[row] = height;
 
       // Where the ship is going comes first, then whatever the keyboard is on (a name must not
-      // vanish from under someone who has tabbed to it), then systems, planets, moons.
+      // vanish from under someone who has tabbed to it, or who is about to be: `beckon`), then
+      // systems, planets, moons.
       const kind = bodies[row]?.kind ?? 'moon';
-      const rank = row === target ? 0 : row === this.focused ? 0.5 : RANK[kind];
+      const rank =
+        row === target ? 0 : row === this.focused || row === this.beckoning ? 0.5 : RANK[kind];
       boxes.priority[row] = rank * RANK_STEP + depth;
     }
     declutter(boxes, params, this.taken);
 
     for (let row = 0; row < boxes.count; row += 1) {
-      const button = this.buttons[row];
-      if (!button) continue;
+      const name = this.names[row];
+      if (!name) continue;
       const shows = boxes.shown[row] === 1;
       if (shows !== (this.wasShown[row] === 1)) {
         this.wasShown[row] = shows ? 1 : 0;
-        if (shows) button.dataset.shown = '';
-        else delete button.dataset.shown;
+        if (shows) name.dataset.shown = '';
+        else delete name.dataset.shown;
       }
       if (!shows) continue;
       const side = this.above[row] ?? 0;
       if (side !== this.drawnAbove[row]) {
         this.drawnAbove[row] = side;
-        if (side) button.dataset.side = 'above';
-        else delete button.dataset.side;
+        if (side) name.dataset.side = 'above';
+        else delete name.dataset.side;
       }
       // Tenths of a pixel: finer than anyone can see, coarse enough to skip most writes at rest.
       const lead = row === target ? this.lead : 0;
@@ -293,16 +311,38 @@ export class Labels implements System {
       if (x === this.lastX[row] && y === this.lastY[row]) continue;
       this.lastX[row] = x;
       this.lastY[row] = y;
-      button.style.transform = `translate(${x}px, ${y}px)`;
+      name.style.transform = `translate(${x}px, ${y}px)`;
     }
 
     if (target !== this.marked) {
-      const before = this.buttons[this.marked];
+      const before = this.names[this.marked];
       if (before) delete before.dataset.state;
-      const now = this.buttons[target];
+      const now = this.names[target];
       if (now) now.dataset.state = 'target';
       this.marked = target;
     }
+
+    // A beckoned name is focused once it shows (a hidden one cannot take the focus). One that
+    // cannot show this frame, with no room anywhere near its body, is not beckoned at all.
+    if (this.beckoning >= 0) {
+      const name = this.names[this.beckoning];
+      if (name && this.wasShown[this.beckoning] === 1) {
+        name.dataset.beckon = '';
+        name.focus({ preventScroll: true });
+      }
+      this.beckoning = -1;
+    }
+  }
+
+  /**
+   * The visitor pointed at the body of a link (a relay: main.ts): that never takes them off the
+   * site by itself, whatever a hand does while it steers. The link's name comes forward instead,
+   * with the next frame: it shows whatever else wants the room, takes the keyboard's focus and is
+   * lit (`data-beckon`, until the focus moves on), so that leaving is a second, explicit press of
+   * the link itself, or Enter. Nothing for a row that is not a link.
+   */
+  beckon(row: number): void {
+    if (this.names[row] instanceof HTMLAnchorElement) this.beckoning = row;
   }
 
   /**
@@ -426,9 +466,15 @@ export class Labels implements System {
 
   dispose(): void {
     this.root.removeEventListener('click', this.onClick);
-    this.root.removeEventListener('focusin', this.onFocusIn);
-    this.root.removeEventListener('focusout', this.onFocusOut);
-    this.root.remove();
+    for (const root of this.roots()) {
+      root.removeEventListener('focusin', this.onFocusIn);
+      root.removeEventListener('focusout', this.onFocusOut);
+      root.remove();
+    }
+  }
+
+  private roots(): HTMLDivElement[] {
+    return this.elsewhere ? [this.root, this.elsewhere] : [this.root];
   }
 
   /**
@@ -437,42 +483,94 @@ export class Labels implements System {
    */
   private measure(): void {
     this.measured = true;
-    this.buttons.forEach((button, row) => {
+    this.names.forEach((name, row) => {
       // No layout (a test, a detached overlay): a fair guess keeps everything else working, and
       // takes the whole box for the tag.
-      const height = button.offsetHeight || 44;
-      this.widths[row] = button.offsetWidth || (button.textContent?.length ?? 0) * 7 + 24;
+      const height = name.offsetHeight || 44;
+      this.widths[row] = name.offsetWidth || (name.textContent?.length ?? 0) * 7 + 24;
       this.heights[row] = height;
-      const tag = parseFloat(getComputedStyle(button, '::after').height);
+      const tag = parseFloat(getComputedStyle(name, '::after').height);
       this.tags[row] = tag > 0 ? Math.min(tag, height) : height;
     });
   }
 
   /** How far the target's tag reaches left of its box, measured on the name that wears it. */
   private measureLead(row: number): void {
-    const button = this.buttons[row];
-    if (!button) return;
+    const name = this.names[row];
+    if (!name) return;
     this.leadMeasured = true;
-    const left = parseFloat(getComputedStyle(button, '::after').left);
+    const left = parseFloat(getComputedStyle(name, '::after').left);
     this.lead = left < 0 ? -left : 0;
   }
 
+  /** The row of the name an event happened on (a button or a link, or a part of one), or -1. */
   private rowOf(event: Event): number {
-    const button = event.target instanceof Element ? event.target.closest('button') : null;
-    const row = Number(button?.dataset.row ?? Number.NaN);
+    const name = event.target instanceof Element ? event.target.closest('[data-row]') : null;
+    const row = Number(name instanceof HTMLElement ? name.dataset.row : Number.NaN);
     return Number.isInteger(row) ? row : -1;
   }
 
   private readonly onClick = (event: Event): void => {
     const row = this.rowOf(event);
-    if (row >= 0) this.options.onPick(row);
+    if (row >= 0 && !(this.names[row] instanceof HTMLAnchorElement)) this.options.onPick(row);
   };
 
   private readonly onFocusIn = (event: Event): void => {
     this.focused = this.rowOf(event);
   };
 
-  private readonly onFocusOut = (): void => {
+  private readonly onFocusOut = (event: Event): void => {
     this.focused = -1;
+    // A beckoned name is lit only while it has the focus.
+    if (event.target instanceof HTMLElement) delete event.target.dataset.beckon;
   };
+}
+
+function group(root: HTMLDivElement, label: string): HTMLDivElement {
+  // A finger that moves on a name moves the map (ui/StarMap.ts), never the page: `touch-action`
+  // on `.body-labels` in src/styles/global.css.
+  root.className = 'body-labels';
+  root.setAttribute('role', 'group');
+  root.setAttribute('aria-label', label);
+  return root;
+}
+
+/** The name of a body the ship can fly to: a button. */
+function flyTo(body: { readonly title: string; readonly planned?: boolean }): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = body.title;
+  // Planned work says so, seen and heard: "Sports Analysis, Planned" (ui/planned.ts). The
+  // button is a flex box: the name and its note share one inline wrapper.
+  if (body.planned) {
+    button.dataset.planned = '';
+    button.replaceChildren(plannedName('body-label', body.title));
+  }
+  return button;
+}
+
+/**
+ * The name of a link: a real link to the profile, in this tab like every link on the site (Back
+ * brings the visitor, and the ship, back: shell/pose-memory.ts), `rel="me"` as on the pages. It is
+ * heard with the site it goes to ("GitHub, on github.com"), which it does not show: the outward
+ * arrow after the name says that it leaves (global.css). It is never dragged as a link: on the
+ * star map a hand that moves on a name moves the map.
+ */
+function elsewhere(title: string, href: string): HTMLAnchorElement {
+  const link = document.createElement('a');
+  link.href = href;
+  link.rel = 'me noopener';
+  link.draggable = false;
+  link.textContent = title;
+  link.setAttribute('aria-label', `${title}, on ${hostOf(href)}`);
+  return link;
+}
+
+/** "https://www.linkedin.com/in/x" -> "linkedin.com". */
+function hostOf(href: string): string {
+  try {
+    return new URL(href).hostname.replace(/^www\./, '');
+  } catch {
+    return href;
+  }
 }

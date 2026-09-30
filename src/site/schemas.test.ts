@@ -1,6 +1,7 @@
 import { z } from 'astro/zod';
 import { describe, expect, it } from 'vitest';
 import { buildUniverse } from '../universe/data/build';
+import { profiles } from './profiles';
 import { entryIdFromPath, routes } from './routes';
 import { pageSchema, projectSchema, systemSchema } from './schemas';
 import { toUniverseInput } from './universe-input';
@@ -167,12 +168,14 @@ describe('toUniverseInput', () => {
         pages: [
           { id: 'about', data: pageSchema().parse({ title: 'About', summary: 'x', dock: 'home' }) },
         ],
+        profiles: profiles({ github: 'https://github.com/someone' }),
         includeDrafts: false,
       }),
     );
 
     expect(manifest.bodies.map((body) => [body.id, body.kind, body.href])).toEqual([
       ['page/about', 'home', '/about/'],
+      ['link/github', 'link', 'https://github.com/someone'],
       ['system/code', 'sun', '/systems/code/'],
       ['project/fishai', 'planet', '/projects/fishai/'],
       ['project/fish-onboarding', 'moon', '/projects/fish-onboarding/'],
