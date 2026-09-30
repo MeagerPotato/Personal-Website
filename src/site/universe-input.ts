@@ -36,7 +36,7 @@ export type ProjectEntry = Entry<{
   system?: Ref | undefined;
   parent?: Ref | undefined;
   date?: string | undefined;
-  status: 'shipped' | 'in-progress' | 'archived' | 'planned';
+  status: 'shipped' | 'completed' | 'in-progress' | 'archived' | 'planned';
   planet: {
     size: PlanetSize;
     biome: BiomeKey;

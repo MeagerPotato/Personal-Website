@@ -32,6 +32,7 @@ export function formatDateRange(start: string, end?: string): string {
 
 export const STATUS_LABEL = {
   shipped: 'Shipped',
+  completed: 'Completed',
   'in-progress': 'In progress',
   archived: 'Archived',
   planned: 'Planned',

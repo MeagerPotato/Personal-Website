@@ -130,6 +130,20 @@ describe('projectFacts', () => {
   it('leaves out what planned work does not have yet', () => {
     expect(projectFacts({ status: 'planned' })).toEqual([{ label: 'Status', value: 'Planned' }]);
   });
+
+  it('calls finished work that was never a product "Completed", with the years it ran', () => {
+    expect(
+      projectFacts({
+        date: '2022-09',
+        dateEnd: '2026-05',
+        status: 'completed',
+        role: 'Windows specialist, then team captain and instructor',
+      }).slice(0, 2),
+    ).toEqual([
+      { label: 'Status', value: 'Completed' },
+      { label: 'When', value: 'Sep 2022 – May 2026' },
+    ]);
+  });
 });
 
 describe('links', () => {
