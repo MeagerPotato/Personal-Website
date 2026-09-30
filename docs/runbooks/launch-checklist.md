@@ -49,6 +49,9 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
   hashes, other origins) are left to the browser.
 - The heading takes focus after a soft navigation, with reduced motion too.
 - The canvas and its WebGL context survive fifty soft navigations.
+- Back after leaving the site restores the page from the back/forward cache: the same
+  document and canvas, the same mode, the world still moving (Chromium and the phone; WebKit's
+  page cache does not restore under Playwright, so a real Safari stays in §3).
 - A deploy in the middle of a visit, or a dead network, means a normal page load.
 - A GPU that gives no context: the page turns plain, says so, and loses nothing. The 404 is a
   real 404.
@@ -122,9 +125,8 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       the same mode, and the world still moves (Chrome DevTools → Application → Back/forward
       cache → Test says "restored"). Claude's headless pass on 2026-09-30 (Edge 154, behind
       `npm run preview`, to another origin and Back): restored from the cache in both modes, in
-      the same mode, and in universe mode the world was still moving afterwards. Playwright
-      turns this cache off by default (`--disable-back-forward-cache`), so an e2e test would
-      need `ignoreDefaultArgs` to cover it.
+      the same mode, and in universe mode the world was still moving afterwards. Now held by
+      machines in Chromium (`tests/e2e/bfcache.spec.ts`, §1); a real Safari is still yours.
 - [ ] **Link previews.** LinkedIn's Post Inspector and opengraph.xyz for `/`,
       `/projects/fishai/`, `/projects/days2meet/` and `/resume/`: title, sentence, picture.
 - [ ] **Print the resume** (Ctrl+P on `/resume/`): two clean pages headed by the full name, and
