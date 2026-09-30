@@ -17,7 +17,7 @@ import { measure, optionsFromEnv } from './measure';
 // engine or this harness. Options come from
 // JOURNEYS, JSON or the path of a JSON file (see scripts/journeys/example.json):
 //
-//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",4],"layout":{"slotRoom":860,"maxSystemRadius":350}}'; npm run journeys
+//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",6],"layout":{"homeRoom":720,"slotRoom":1120}}'; npm run journeys
 //   bash        JOURNEYS=scripts/journeys/example.json npm run journeys
 //
 //   galaxies       ["real", 6, 8]: "real", or a number of systems, home included

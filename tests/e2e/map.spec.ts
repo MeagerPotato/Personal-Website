@@ -313,7 +313,8 @@ test.describe('on a phone', () => {
     // Closer in, there is room to move. One finger, from empty space in the lower half, to the
     // left: the map goes along, by as much. (Opened, it showed everything, and had nowhere to
     // go.) Only across: twice as close, four systems are much wider than a phone but still about
-    // as tall as its map, so up and down there is next to no room (measured: 5 px). Left,
+    // as tall as its map, so up and down there is next to no room (measured: 5 px; the next test
+    // goes closer, where there is). Left,
     // because Hardware sits right of the middle: moved right, its name would meet the edge of the
     // screen and step aside, and there be nothing to measure.
     const clearNow = await clearOfNames(page);
@@ -348,6 +349,82 @@ test.describe('on a phone', () => {
     await closeButton(page).tap();
     await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
     await expect(page.locator('.touch-boost')).toBeVisible();
+  });
+
+  test('closer still, one finger drags the map up and down as well as across', async ({ page }) => {
+    await openUniverse(page, '/');
+    await openButton(page).tap();
+    await mapOpen(page, 'About Me');
+    const home = await middleOf(nameOf(page, 'About Me'));
+    const session = await page.context().newCDPSession(page);
+    const touch = (
+      type: 'touchStart' | 'touchMove' | 'touchEnd',
+      points: { x: number; y: number; id: number }[],
+    ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+
+    // Two fingers spread from 40 px apart to 120, beside the home planet, wherever they come down
+    // clear of every name: three times as close, the galaxy is taller than a phone's map as well
+    // as wider, and the map can go up and down (measured: more than 60 px either way).
+    const clear = await clearOfNames(page);
+    const pinch = [
+      { x: 0, y: -40 },
+      { x: 0, y: 40 },
+      { x: -40, y: 0 },
+      { x: 40, y: 0 },
+      { x: 0, y: -70 },
+      { x: 0, y: 70 },
+    ]
+      .flatMap((offset) => [0, 90].map((degrees) => ({ offset, degrees })))
+      .map(({ offset, degrees }) => ({
+        centre: { x: home.x + offset.x, y: home.y + offset.y },
+        way: { x: Math.cos((degrees * Math.PI) / 180), y: Math.sin((degrees * Math.PI) / 180) },
+      }))
+      .find(
+        ({ centre, way }) =>
+          clear(centre.x - way.x * 20, centre.y - way.y * 20) &&
+          clear(centre.x + way.x * 20, centre.y + way.y * 20),
+      );
+    if (!pinch) throw new Error('names all round About Me: nowhere to put two fingers');
+    const fingers = (apart: number): { x: number; y: number; id: number }[] => [
+      { x: pinch.centre.x - pinch.way.x * apart, y: pinch.centre.y - pinch.way.y * apart, id: 1 },
+      { x: pinch.centre.x + pinch.way.x * apart, y: pinch.centre.y + pinch.way.y * apart, id: 2 },
+    ];
+    await touch('touchStart', fingers(20).slice(0, 1));
+    await touch('touchStart', fingers(20));
+    for (let step = 1; step <= 8; step += 1) await touch('touchMove', fingers(20 + step * 5));
+    await touch('touchEnd', []);
+    const zoomed = await middleOf(nameOf(page, 'About Me'));
+
+    // One finger, from empty space, down and to the left: the map goes along, by as much both
+    // ways, and the home planet's name with it. (The finger stops before it lifts, as above.)
+    const clearNow = await clearOfNames(page);
+    const start = [
+      { x: 300, y: 650 },
+      { x: 120, y: 650 },
+      { x: 300, y: 300 },
+      { x: 120, y: 300 },
+    ].find(({ x, y }) => clearNow(x, y));
+    if (!start) throw new Error('names everywhere: nowhere to put a finger');
+    await touch('touchStart', [{ ...start, id: 1 }]);
+    for (let step = 1; step <= 6; step += 1) {
+      await touch('touchMove', [{ x: start.x - step * 7, y: start.y + step * 7, id: 1 }]);
+    }
+    await page.waitForTimeout(200);
+    await touch('touchMove', [{ x: start.x - 42, y: start.y + 42, id: 1 }]);
+    await touch('touchEnd', []);
+    const dragged = await middleOf(nameOf(page, 'About Me'));
+    // The ship came along with the planet, so the name kept its side: every pixel it moved is
+    // the map's.
+    expect(dragged.side).toBe(zoomed.side);
+    expect(dragged.x - zoomed.x).toBeGreaterThan(-48);
+    expect(dragged.x - zoomed.x).toBeLessThan(-36);
+    expect(dragged.y - zoomed.y).toBeGreaterThan(36);
+    expect(dragged.y - zoomed.y).toBeLessThan(48);
+
+    // A drag, not a press: nothing set out, and the map is still open.
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+    await expect(prompt(page)).not.toContainText('Flying to');
+    expect(pathOf(page)).toBe('/');
   });
 
   test('a finger on a name that moves holds the map, and a tap on a name still flies there', async ({

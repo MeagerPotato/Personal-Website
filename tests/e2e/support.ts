@@ -19,6 +19,8 @@ export const PAGES = [
   '/projects/sports-analysis/',
   // A hackathon with a repository and a stack (and no cover).
   '/projects/hackgt-13/',
+  // An event with a lane to the team that runs it: its related card carries the longest title.
+  '/projects/cal-hacks-13/',
   // The two suns of the Projects binary: the binary's own page is /projects/.
   '/systems/software/',
   '/systems/hardware/',
@@ -107,7 +109,8 @@ export async function pointAt(page: Page, target: Locator, touch: boolean, dy = 
  * Only for a body that holds still once the view does: a sun, or the home planet at the heart of
  * its system. (The two suns of Projects circle their centre, but at 0.4 u/s at most: on a map
  * that fits the galaxy, a pixel every few seconds.) A planet is always on its way round its sun:
- * settle the view on the sun, then ask where the planet is (map.spec.ts, `shownAt`).
+ * settle the view on the sun, then ask where the planet is, once its name shows
+ * (world.spec.ts, the flight to planned work).
  */
 export async function settled(target: Locator): Promise<{ x: number; y: number }> {
   const page = target.page();
