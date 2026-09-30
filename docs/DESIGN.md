@@ -408,7 +408,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
-| The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems | `tuning.world` |
+| The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
 | The station, the satellite, a profile's relay, the planet ring | `design/models/docks.ts` |
 | Where a visitor starts, and what they see first | `tuning.ship.spawn` |
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |

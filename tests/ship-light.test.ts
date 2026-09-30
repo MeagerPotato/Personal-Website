@@ -7,6 +7,7 @@ import { buildUniverse } from '../src/universe/data/build';
 import type { UniverseManifest } from '../src/universe/data/types';
 import { KEY_LIGHT_POSITION } from '../src/universe/design/materials';
 import { tuning } from '../src/universe/design/tuning';
+import { topSpeed } from '../src/universe/sim/flight';
 import { Galaxy } from '../src/universe/world/Galaxy';
 
 // THE LEAN PIN. Every body is lit by its own light (its sun, or the key light round home), and so
@@ -17,20 +18,22 @@ import { Galaxy } from '../src/universe/world/Galaxy';
 // price is paid near the gap: a ship flying free by one sun's outer planets is lit from off its
 // own sun, toward the other one and the key light.
 //
-// So this pins two things over a whole turn of the binary. On every ring, the ship is lit as its
-// body is: 0 degrees apart (until 2026-09-30 the blend lit it on the rings too, and a ship on
+// So this pins three things over a whole turn of the binary. On every ring, the ship is lit as
+// its body is: 0 degrees apart (until 2026-09-30 the blend lit it on the rings too, and a ship on
 // Robotics' ring was lit up to 57 degrees off Robotics' own light, on Days2Meet's 20, on Model
-// Rocketry's 11). And where each body lets go, how far the blend leans off the body's own light:
-// what a ship passing a planet near the gap sees, and how far its light turns on the way in or
-// out. (A system of one sun, in a slot of its own, is too far from any other sun to feel its
-// pull: Research's and Hackathons' bodies lean none.) That is decided by content (how wide each
-// family is, and so how far its sun's pull reaches) and by tuning.world (shipLightFullRadii, shipLightFadeRadii, shipLightTiebreak and
-// shipLightClaimRadii): a change that moves any of these fails here, so that whoever makes it
-// looks again in flight (docs/PLAN.md §5.4, "the ship's light") before updating the list.
+// Rocketry's 11). Where each body lets go, how far the blend leans off the body's own light: what
+// a ship passing a planet near the gap sees, and how far its light turns on the way in or out.
+// And how fast it turns that way: the most in one frame for a pilot leaving a ring at boost.
+// (A system of one sun, in a slot of its own, is too far from any other sun to feel its pull:
+// Research's and Hackathons' bodies lean none.) That is decided by content (how wide each family
+// is, and so how far its sun's pull reaches), by tuning.world (shipLightFullRadii,
+// shipLightFadeRadii, shipLightTiebreak and shipLightClaimRadii) and by how the light turns
+// (sim/shipLight.ts): a change that moves any of these fails here, so that whoever makes it looks
+// again in flight (docs/PLAN.md §5.4, "the ship's light") before updating the list.
 
 const LOOK_AGAIN =
-  "the ship's light near these bodies now leans differently: judge it in flight (docs/PLAN.md §5.4) " +
-  'and update this list';
+  "the ship's light near these bodies now leans or turns differently: judge it in flight " +
+  '(docs/PLAN.md §5.4) and update this list';
 
 /** Every 5 s of a turn, 32 points round each ring: within 0.1 degree of sampling finer. */
 const STEP_SEC = 5;
@@ -101,6 +104,55 @@ function leans(manifest: UniverseManifest): Leans {
   return { ring: degrees(worst.ring), edge: degrees(worst.edge) };
 }
 
+/** Every 20 s of a turn, 48 ways out of each ring: within a degree of every 5 s and 96 ways. */
+const EXIT_STEP_SEC = 20;
+const EXITS = 48;
+
+/**
+ * The widest turn of the ship's light in one frame, in degrees, for a pilot leaving each ring
+ * straight out at a boosting pilot's top speed (sim/flight.ts, topSpeed), from the ring to 3 ring
+ * radii (past where the body lets go), in every direction and over a whole turn of the binary.
+ */
+function exitTurns(manifest: UniverseManifest): Record<string, number> {
+  const galaxy = new Galaxy({
+    manifest,
+    assets: new AssetStore(),
+    jobs: new JobQueue(1000),
+    viewer: { position: new Vector3() },
+    reducedMotion: false,
+  });
+  const bodies = manifest.bodies.filter((body) => body.docks !== false && body.dockRadius > 0);
+  const turnSec = Math.max(
+    EXIT_STEP_SEC,
+    ...manifest.bodies.map((body) => (body.kind === 'sun' ? (body.orbit?.periodSec ?? 0) : 0)),
+  );
+  const perFrame = topSpeed(tuning.flight, true) / tuning.loop.stepHz;
+  const worst = new Map<string, number>();
+  const at = new Vector3();
+  const light = new Vector3();
+  const last = new Vector3();
+  for (let t = 0; t < turnSec; t += EXIT_STEP_SEC) {
+    galaxy.frameUpdate({ elapsed: t, dt: 1 / 60, alpha: 1, simTime: t });
+    for (const body of bodies) {
+      const centre = galaxy.subject(body.id)?.position;
+      if (!centre) throw new Error(`no view of ${body.id}`);
+      for (let k = 0; k < EXITS; k += 1) {
+        const angle = (k / EXITS) * Math.PI * 2;
+        for (let r = body.dockRadius; r <= 3 * body.dockRadius; r += perFrame) {
+          at.set(centre.x + Math.cos(angle) * r, 0, centre.z + Math.sin(angle) * r);
+          galaxy.lightAt(at, light).sub(at).normalize();
+          if (r > body.dockRadius) {
+            worst.set(body.id, Math.max(worst.get(body.id) ?? 0, light.angleTo(last)));
+          }
+          last.copy(light);
+        }
+      }
+    }
+  }
+  galaxy.dispose();
+  return Object.fromEntries([...worst].map(([id, radians]) => [id, (radians * 180) / Math.PI]));
+}
+
 /** Rounded to whole degrees, and only those that lean by one or more. */
 const leaning = (seen: Record<string, number>): Record<string, number> =>
   Object.fromEntries(
@@ -134,6 +186,27 @@ describe("the ship's light near a body (the lean pin)", () => {
       'project/model-rocketry': 21,
       'project/robotics': 153,
       'system/hardware': 11,
+    });
+  });
+
+  it('turns by at most this many degrees in a frame for a boosting pilot leaving a ring', () => {
+    // Where a body lets go, the light turns from the body's own to the blend's, by ANGLE
+    // (sim/shipLight.ts, turnToward), so that the turn is spread over the whole way out. The
+    // widest is Robotics', on the gap side: from Hardware's light to the gap's key light, 153
+    // degrees off it where Robotics lets go (above), 23 degrees in a frame at worst for a pilot
+    // leaving at boost (the blend alone turned about 19 there). Blending the two directions as
+    // vectors would make it 34. Rings whose light turns by less than 2 degrees are left out.
+    const exits = exitTurns(buildUniverse(readRealInput()));
+    expect(Object.keys(exits).length).toBeGreaterThanOrEqual(13);
+    const turning = Object.fromEntries(
+      Object.entries(leaning(exits)).filter(([, degrees]) => degrees >= 2),
+    );
+    expect(turning, LOOK_AGAIN).toEqual({
+      'project/cyberpatriot': 3,
+      'project/days2meet': 13,
+      'project/model-rocketry': 3,
+      'project/robotics': 23,
+      'system/hardware': 8,
     });
   });
 

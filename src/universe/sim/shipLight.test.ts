@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lightClaims, type LitBodies } from './shipLight';
+import { lightClaims, turnToward, type Direction, type LitBodies } from './shipLight';
 
 // Four bodies by hand, lit by two lights: a sun (light 1) with its planet and the planet's moon,
 // all three lit by the sun, and a relay (light 0, the key light) that nothing docks at.
@@ -82,6 +82,65 @@ describe('lightClaims: the light of the body the ship is near', () => {
     // And the next call starts from nothing: a light claims only where it does now.
     lightClaims(pair, 500, 500, LET_GO, claims);
     expect([...claims]).toEqual([0, 0]);
+  });
+});
+
+describe('turnToward: from the light away from bodies to the claiming one, by angle', () => {
+  const DEG = Math.PI / 180;
+  const angle = (a: Direction, b: Direction): number =>
+    Math.acos(Math.min(1, Math.max(-1, a.x * b.x + a.y * b.y + a.z * b.z)));
+  // A sun low beside the ship and the key light high above it on the far side, 150 degrees
+  // apart: the widest kind of turn, the one by the Projects binary's gap.
+  const from: Direction = { x: 1, y: 0, z: 0 };
+  const to: Direction = {
+    x: Math.cos(150 * DEG),
+    y: Math.sin(150 * DEG) * 0.6,
+    z: Math.sin(150 * DEG) * 0.8,
+  };
+
+  it('turns by that share of the angle all the way, not by blending the two', () => {
+    expect(angle(from, to)).toBeCloseTo(150 * DEG, 12);
+    for (const t of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      const out = turnToward(from, to, t, { x: 0, y: 0, z: 0 });
+      expect(Math.hypot(out.x, out.y, out.z)).toBeCloseTo(1, 12);
+      // A quarter of the way is a quarter of the turn: 37.5 degrees, where a blend of the two
+      // vectors would have turned 13 of them, and 137 by three quarters.
+      expect(angle(from, out) / DEG, `t ${t}`).toBeCloseTo(t * 150, 9);
+      expect(angle(out, to) / DEG, `t ${t}`).toBeCloseTo((1 - t) * 150, 9);
+    }
+  });
+
+  it('is where it starts at 0 and where it is going at 1, and never turns past either', () => {
+    for (const [t, where] of [
+      [0, from],
+      [-0.5, from],
+      [1, to],
+      [1.5, to],
+    ] as const) {
+      const out = turnToward(from, to, t, { x: 0, y: 0, z: 0 });
+      for (const axis of ['x', 'y', 'z'] as const)
+        expect(out[axis], `t ${t}`).toBeCloseTo(where[axis], 15);
+    }
+  });
+
+  it('keeps a direction that already is the other one', () => {
+    expect(turnToward(from, { ...from }, 0.5, { x: 0, y: 0, z: 0 })).toEqual(from);
+  });
+
+  it('keeps the first of two opposite directions until the claim is whole, then takes the other', () => {
+    // No one short way from one to its opposite: rather than pick one, the light it had stands.
+    const back: Direction = { x: -1, y: 0, z: 0 };
+    for (const t of [0, 0.5, 0.999]) {
+      expect(turnToward(from, back, t, { x: 0, y: 0, z: 0 }), `t ${t}`).toEqual(from);
+    }
+    expect(turnToward(from, back, 1, { x: 0, y: 0, z: 0 })).toEqual(back);
+  });
+
+  it('may write over the direction it turns', () => {
+    const out = { ...from };
+    const apart = turnToward({ ...from }, to, 0.25, { x: 0, y: 0, z: 0 });
+    expect(turnToward(out, to, 0.25, out)).toBe(out);
+    expect(out).toEqual(apart);
   });
 });
 

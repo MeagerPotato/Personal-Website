@@ -9,9 +9,24 @@ import { smoothstep } from './math';
  * past the sphere in which the orbit assist holds a ship: sim/assist.ts, pullOf), and not at all
  * beyond. A body nothing docks at (a relay) claims nothing: no ship circles it.
  *
- * What the claims then do to the ship's light is world/Galaxy.ts's (lightAt). Pure and
- * allocation-free, like the rest of sim/.
+ * It lets go along a smoothstep, which starts flat. The orbit assist holds a ship about 0.15 u
+ * off the ring, and at Robotics, where the blend leans up to 57 degrees off the body's light on
+ * the ring, a straight let-go would leave that ship 0.6 degrees off and one along √u 6, where the
+ * smoothstep leaves 0.02. Shapes that start steeper turned the light at most 1.4 degrees a frame
+ * less for a pilot leaving at boost (docs/PLAN.md §5.4, the Projects binary), so the flat start
+ * won.
+ *
+ * What the claims then do to the ship's light is world/Galaxy.ts's (lightAt): it turns the light
+ * it would have had away from every body toward the claiming one, by the claim (turnToward).
+ * Pure and allocation-free, like the rest of sim/.
  */
+
+/** A direction in space, as a three.js Vector3 holds one (sim/ never imports three). */
+export interface Direction {
+  x: number;
+  y: number;
+  z: number;
+}
 
 /** The bodies as the ship's light sees them. Row i is body i of the orbit table. */
 export interface LitBodies {
@@ -55,4 +70,49 @@ export function lightClaims(
     if (claim > firmest) firmest = claim;
   }
   return firmest;
+}
+
+/**
+ * Turns the unit direction `from` toward the unit direction `to` by `t` (0 to 1) of the angle
+ * between them, the short way round (a slerp), into `out`, which may be either of them. By ANGLE:
+ * a quarter of the way is a quarter of the turn. Blending the two directions as vectors instead
+ * would crowd a wide turn into the middle of the way (of 150 degrees, 124 in the middle half),
+ * and the ship's light would turn that much faster for a ship crossing where a body lets go of it
+ * (leaving Robotics' ring by the Projects binary's gap at boost, 34 degrees in a frame at worst
+ * instead of 23: tests/ship-light.test.ts pins it). Two opposite directions have no one short way
+ * between them: there `from` stands until `t` is 1, and then it is `to`.
+ */
+export function turnToward(
+  from: Readonly<Direction>,
+  to: Readonly<Direction>,
+  t: number,
+  out: Direction,
+): Direction {
+  const share = t <= 0 ? 0 : t >= 1 ? 1 : t;
+  const { x: ax, y: ay, z: az } = from;
+  const { x: bx, y: by, z: bz } = to;
+  const cos = Math.min(1, Math.max(-1, ax * bx + ay * by + az * bz));
+  const angle = Math.acos(cos);
+  const sin = Math.sin(angle);
+  if (sin > 1e-9) {
+    const a = Math.sin((1 - share) * angle) / sin;
+    const b = Math.sin(share * angle) / sin;
+    const x = ax * a + bx * b;
+    const y = ay * a + by * b;
+    const z = az * a + bz * b;
+    // Unit to within rounding already; made unit again, as three.js's Vector3.normalize() would.
+    const scale = 1 / (Math.sqrt(x * x + y * y + z * z) || 1);
+    out.x = x * scale;
+    out.y = y * scale;
+    out.z = z * scale;
+  } else if (cos > 0 || share >= 1) {
+    out.x = bx;
+    out.y = by;
+    out.z = bz;
+  } else {
+    out.x = ax;
+    out.y = ay;
+    out.z = az;
+  }
+  return out;
 }

@@ -28,7 +28,7 @@ import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapVi
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
 import { createRng } from '../sim/rng';
-import { lightClaims, type LitBodies } from '../sim/shipLight';
+import { lightClaims, turnToward, type LitBodies } from '../sim/shipLight';
 import { lookOf } from './looks';
 import { PlanetMesh } from './PlanetMesh';
 
@@ -298,13 +298,14 @@ export class Galaxy implements System {
    * NEAR A BODY, its light claims the ship (sim/shipLight.ts): fully on its docking ring and
    * inside it, letting go by `shipLightClaimRadii` ring radii, a little past the orbit assist's
    * sphere. The light turns from the blend below toward the claiming one, by that claim and by
-   * ANGLE (a slerp: blending the two directions as vectors would crowd most of a wide turn into
-   * the middle of the way), so a ship arriving or leaving turns with its distance and never pops,
-   * and a docked ship, carried on the ring, is lit by its body's light alone. Were two bodies of
-   * two lights ever that close (none are: the nearest, Days2Meet and Robotics across the Projects
-   * binary's gap, keep 14 u between the circles where they let go), the two would share by how
-   * firmly each claims. A body nothing docks at (a relay) claims nothing. Inside a family with one
-   * sun this changes nothing at all: there the blend already is that sun's light.
+   * ANGLE (sim/shipLight.ts, turnToward: blending the two directions as vectors would crowd most
+   * of a wide turn into the middle of the way), so a ship arriving or leaving turns with its
+   * distance and never pops, and a docked ship, carried on the ring, is lit by its body's light
+   * alone. Were two bodies of two lights ever that close (none are: the nearest, Days2Meet and
+   * Robotics across the Projects binary's gap, keep at least 9.6 u between the circles where they
+   * let go, when both face the gap at once), the two would share by how firmly each claims. A
+   * body nothing docks at (a relay) claims nothing. Inside a family with one sun this changes
+   * nothing at all: there the blend already is that sun's light.
    *
    * AWAY FROM BODIES, the blend. It blends DIRECTIONS, never places. Each sun pulls toward itself
    * with weight `w (R/d)²`: `w` is 1 inside `shipLightFullRadii` of its family's reach R and fades
@@ -340,20 +341,7 @@ export class Galaxy implements System {
       }
       // ...and the blend turned toward it by `firmest` of the angle between them. (Two lights
       // claiming as firmly from opposite sides would cancel out: then the blend stands.)
-      if (near.lengthSq() > 1e-12) {
-        near.normalize();
-        const cos = Math.min(1, Math.max(-1, sum.dot(near)));
-        const angle = Math.acos(cos);
-        const sin = Math.sin(angle);
-        if (sin > 1e-9) {
-          sum
-            .multiplyScalar(Math.sin((1 - firmest) * angle) / sin)
-            .addScaledVector(near, Math.sin(firmest * angle) / sin)
-            .normalize();
-        } else if (cos > 0 || firmest >= 1) {
-          sum.copy(near);
-        }
-      }
+      if (near.lengthSq() > 1e-12) turnToward(sum, near.normalize(), firmest, sum);
     }
     return out.copy(position).addScaledVector(sum, LIGHT_DISTANCE);
   }
