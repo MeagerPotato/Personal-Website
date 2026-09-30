@@ -5,7 +5,8 @@
  *                      unwrapped; the server holds only copies sealed by an unlock method.
  *     ├─ recordWrap    AES-256-GCM, derived by HKDF: wraps each record's own random key
  *     ├─ ids           HMAC-SHA-256, derived: turns a date into a stable id the server can't read
- *     └─ manifest      HMAC-SHA-256, derived: signs what the device has seen (rollback check)
+ *     └─ manifest      HMAC-SHA-256, derived: reserved (the rollback check seals its manifests
+ *                      like any record instead: journal/manifest.ts)
  *
  *   unlock methods, each a key-encryption key (KEK) that seals a copy of the AK in a "slot":
  *     passkey          HKDF(the passkey's PRF output)       Face ID, Touch ID, Windows Hello

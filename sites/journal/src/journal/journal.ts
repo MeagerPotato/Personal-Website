@@ -22,13 +22,14 @@ import type {
   Settings,
   Template,
 } from '../model/types';
-import { db, getMeta } from '../store/db';
+import { db, getMeta, setMeta } from '../store/db';
 import { replicaStore } from '../store/replicaStore';
 import { openJson, sealJson } from '../vault/envelope';
 import { dayId, monthId, randomId, singletonId } from '../vault/ids';
 import type { AccountKeys } from '../vault/keys';
 import type { Doc } from './merge';
 import { uploadQueued } from './files';
+import { manifestDoc, missingFrom, readManifest, sameVersions, type Manifest } from './manifest';
 import { Replica, type Codec } from './replica';
 
 export type SyncState = 'idle' | 'syncing' | 'offline' | 'signed-out' | 'error';
@@ -40,6 +41,10 @@ export interface SyncStatus {
   pending: number;
   /** Records sealed with a key this device does not have (never overwritten). */
   unreadable: number;
+  /** Records the server has gone back on: this device keeps its own version (replica.ts). */
+  behind: number;
+  /** Records another device's manifest lists at a later version than this device has. */
+  withheld: number;
   message: string | null;
 }
 
@@ -69,6 +74,8 @@ const FLUSH_MS = 400;
 const SYNC_AFTER_WRITE_MS = 1500;
 const SYNC_EVERY_MS = 60_000;
 const RETRY_MS = [5_000, 15_000, 60_000, 300_000];
+/** At most one manifest this often, after the first of a session (publishManifest). */
+const MANIFEST_EVERY_MS = 10 * 60_000;
 
 export class Journal {
   private version = 0;
@@ -82,6 +89,10 @@ export class Journal {
   private readonly listeners = new Set<() => void>();
   /** Keyed ids already computed ('day:2026-09-29' → k_…): HMACs are cheap, not free. */
   private readonly ids = new Map<string, string>();
+  /** Every device's manifest this device can read, this one's included (manifest.ts). */
+  private readonly manifests = new Map<string, Manifest>();
+  /** Whether this session has published its manifest yet: the first is not paced. */
+  private manifestPaced = false;
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private syncTimer: ReturnType<typeof setTimeout> | undefined;
   private everyTimer: ReturnType<typeof setInterval> | undefined;
@@ -94,17 +105,20 @@ export class Journal {
     lastSyncedAt: null,
     pending: 0,
     unreadable: 0,
+    behind: 0,
+    withheld: 0,
     message: null,
   };
 
   private constructor(
     readonly keys: AccountKeys,
     private readonly replica: Replica,
+    /** This device's own manifest: a random id, one per device (and per account key). */
+    private manifestId: string,
   ) {
     this.reindex(null);
     replica.subscribe((ids) => {
-      this.reindex(ids);
-      this.recordsVersion += 1;
+      if (this.reindex(ids)) this.recordsVersion += 1;
       this.changed();
     });
   }
@@ -124,6 +138,7 @@ export class Journal {
         tx.objectStore('files').clear(),
         tx.objectStore('uploads').clear(),
         tx.objectStore('meta').delete('cursor'),
+        tx.objectStore('meta').delete('manifestId'),
         tx.objectStore('meta').put(keys.akId, 'akId'),
         tx.done,
       ]);
@@ -133,7 +148,12 @@ export class Journal {
       open: (id, rev, sealed) => openJson<Doc>(keys, { id, rev }, sealed),
     };
     const replica = await Replica.open(replicaStore, { pull: api.pull, push: api.push }, codec);
-    const journal = new Journal(keys, replica);
+    let manifestId = await getMeta<string>('manifestId');
+    if (!manifestId) {
+      manifestId = randomId();
+      await setMeta('manifestId', manifestId);
+    }
+    const journal = new Journal(keys, replica, manifestId);
     journal.start(online);
     return journal;
   }
@@ -150,28 +170,40 @@ export class Journal {
 
   private changed(): void {
     this.version += 1;
-    const { pending, unreadable } = this.replica.status;
-    this.syncStatus = { ...this.syncStatus, pending, unreadable };
+    const { pending, unreadable, behind } = this.replica.status;
+    this.syncStatus = { ...this.syncStatus, pending, unreadable, behind };
     for (const listener of this.listeners) listener();
   }
 
   // --- Reading ---------------------------------------------------------------------------------
 
-  /** Files the given records (or all of them) into the index by kind. */
-  private reindex(ids: readonly string[] | null): void {
+  /**
+   * Files the given records (or all of them) into the index by kind, and the manifests aside.
+   * Whether any of them was a journal record: a manifest alone changes nothing on a screen.
+   */
+  private reindex(ids: readonly string[] | null): boolean {
     const index = this.index;
     const todo = ids ?? [...this.replica.entries()].map(([id]) => id);
+    let records = false;
     for (const id of todo) {
       const was = this.placed.get(id);
       if (was) {
+        records = true;
         this.placed.delete(id);
         if (was.kind === 'settings') index.settings = readSettings(null);
         else if (was.kind === 'activities') index.activities = readActivities(null);
         else index[mapOf(was.kind)].delete(was.key);
       }
       const doc = this.replica.get(id);
+      const manifest = doc ? readManifest(doc) : null;
+      if (manifest) {
+        this.manifests.set(id, manifest);
+        continue;
+      }
+      this.manifests.delete(id);
       const record = doc ? readRecord(doc) : null;
       if (!record) continue;
+      records = true;
       let key = id;
       switch (record.kind) {
         case 'day':
@@ -205,6 +237,7 @@ export class Journal {
         this.ids.set(`${record.kind}:${key}`, id);
       this.placed.set(id, { kind: record.kind, key });
     }
+    return records;
   }
 
   /**
@@ -423,9 +456,18 @@ export class Journal {
     this.setStatus({ state: 'syncing' });
     try {
       await this.replica.sync();
+      const withheld = this.withheld();
+      // Not worth failing a sync over: the next one says it all again.
+      await this.publishManifest().catch(() => undefined);
       void uploadQueued();
       this.failures = 0;
-      this.setStatus({ state: 'idle', lastSyncedAt: Date.now(), message: null });
+      this.setStatus({
+        state: 'idle',
+        lastSyncedAt: Date.now(),
+        message: null,
+        behind: this.replica.status.behind,
+        withheld,
+      });
     } catch (error) {
       if (error instanceof OfflineError) {
         this.unreachable();
@@ -440,6 +482,43 @@ export class Journal {
         message: error instanceof Error ? error.message : 'Sync failed',
       });
       this.retrySoon();
+    }
+  }
+
+  /** How many records another device's manifest lists at a later version than this one has. */
+  private withheld(): number {
+    const missing = new Set<string>();
+    for (const [id, manifest] of this.manifests) {
+      if (id === this.manifestId) continue;
+      for (const record of missingFrom(manifest, (of) => this.replica.revision(of))) {
+        missing.add(record);
+      }
+    }
+    return missing.size;
+  }
+
+  /**
+   * Publishes this device's manifest (manifest.ts) when what the server has confirmed to it has
+   * changed: at the first sync of a session, then at most every ten minutes, so a day of writing
+   * makes a few manifests and not one per sync. Other devices' manifests are listed, but a change
+   * to one of them alone is no reason to publish: every device would answer every other, for ever.
+   */
+  private async publishManifest(): Promise<void> {
+    const own = this.manifests.get(this.manifestId);
+    const records = new Map(this.replica.versions());
+    records.delete(this.manifestId);
+    if (own) {
+      if (sameVersions(records, own.records, (id) => this.manifests.has(id))) return;
+      const since = Date.now() - own.updatedAt;
+      if (this.manifestPaced && since >= 0 && since < MANIFEST_EVERY_MS) return;
+    }
+    this.manifestPaced = true;
+    const doc = manifestDoc(records, Date.now());
+    if ((await this.replica.publish(this.manifestId, doc)) === 'behind') {
+      // The server has gone back on it: a new one, under an id it has never seen, goes on.
+      this.manifestId = randomId();
+      await setMeta('manifestId', this.manifestId);
+      await this.replica.publish(this.manifestId, doc);
     }
   }
 

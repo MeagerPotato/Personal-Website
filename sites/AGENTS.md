@@ -43,7 +43,9 @@ Status: both sites are built and wait for their Cloudflare setup: the journal's
    journals unreadable. A new format gets a new version, and readers keep the old one.
 5. **Records are read defensively.** A decrypted document goes through `model/normalize.ts`
    (every field checked, unknown fields kept) and conflicting edits through `journal/merge.ts`
-   (no writing is ever lost). A new field gets both.
+   (no writing is ever lost). A new field gets both. The one other kind, a device's manifest (the
+   rollback check), is read by `journal/manifest.ts` and never merged: each device writes only
+   its own.
 6. **D1 migrations are append-only** (`journal/worker/db/migrations.ts`,
    `blog/src/server/db/migrations.ts`, each applied by its Worker itself). A shipped migration is
    never edited: add the next one.

@@ -11,6 +11,8 @@ import {
   type Browser,
   type BrowserContextOptions,
   type Page,
+  type Request,
+  type Route,
 } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -283,6 +285,72 @@ test('an edit on the phone reaches the laptop', async () => {
   await page.getByRole('link', { name: 'Today' }).click();
   await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
   await expect(entry(page)).toContainText(SECRET);
+});
+
+test('a device tells when the server keeps a change from it', async () => {
+  const { page } = laptop;
+  const words = page.locator('.sidebar .sync__words');
+  // A server that leaves the records in here out of the laptop's pulls.
+  const kept = new Set<string>();
+  const withhold = async (route: Route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { changes: { id: string }[] };
+    const changes = body.changes.filter((change) => !kept.has(change.id));
+    await route.fulfill({ response, json: { ...body, changes } });
+  };
+  await page.route('**/api/sync?since=*', withhold);
+
+  // The phone changes the day (and learns its id from what it sends)...
+  const isPush = (request: Request) =>
+    request.method() === 'POST' && new URL(request.url()).pathname === '/api/sync';
+  const pushed = phone.page.waitForRequest(isPush);
+  await moods(phone.page).getByRole('radio', { name: 'Good' }).click();
+  const push = await pushed;
+  const day = (push.postDataJSON() as { changes: { id: string }[] }).changes[0]?.id ?? '';
+  expect(day).toMatch(/^k_/);
+  kept.add(day);
+  await push.response();
+  // ...and its next session publishes its manifest, which lists that version.
+  await phone.page.reload();
+  await expect(phone.page.getByRole('button', { name: /^Unlock with/ })).toBeEnabled();
+  await phone.page.getByRole('button', { name: /^Unlock with/ }).click();
+  await expect(phone.page.locator('#more .sync__words')).toHaveText('Synced');
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(words).toHaveText('Server missing changes');
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
+  await page.locator('.sidebar').getByRole('link', { name: 'Details' }).click();
+  await expect(page).toHaveURL(/\/settings\/data$/);
+  const notice = page.locator('#data .callout');
+  await expect(notice).toContainText(
+    'Another of your devices has had 1 change that the server hasn’t given this one.',
+  );
+  await expect(notice).toBeInViewport();
+  expect.soft(await seriousIssues(page, 'settings, server missing changes')).toEqual([]);
+  // At a phone's width the status is in the More sheet, whose link closes it on the way.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'More' }).click();
+  const sheet = page.locator('#more');
+  await expect(sheet.locator('.sync__words')).toHaveText('Server missing changes');
+  expect.soft(await seriousIssues(page, 'phone more, server missing changes')).toEqual([]);
+  await sheet.getByRole('link', { name: 'Details' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(notice).toBeInViewport();
+  await page.setViewportSize({ width: 1280, height: 860 });
+
+  // An honest server again: the day's next version comes through, and the warning goes.
+  await page.unroute('**/api/sync?since=*', withhold);
+  const again = phone.page.waitForRequest(isPush);
+  await moods(phone.page).getByRole('radio', { name: 'Great' }).click();
+  await (await again).response();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(words).toHaveText('Synced');
+  await expect(notice).toHaveCount(0);
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(moods(page).getByRole('radio', { name: 'Great' })).toBeChecked();
 });
 
 test('the month review draws its snapshot', async () => {

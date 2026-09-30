@@ -103,6 +103,10 @@ function NavLink({ item, route, onClick }: { item: NavItem; route: Route; onClic
   );
 }
 
+/** The rollback check found the server short of what this device knows is there (journal.ts). */
+const missing = (status: SyncStatus): boolean =>
+  status.state === 'idle' && (status.behind > 0 || status.withheld > 0);
+
 function syncWords(status: SyncStatus): string {
   const waiting = status.pending === 1 ? '1 change to sync' : `${status.pending} changes to sync`;
   switch (status.state) {
@@ -115,12 +119,14 @@ function syncWords(status: SyncStatus): string {
     case 'error':
       return status.pending > 0 ? `Sync failed · ${waiting}` : 'Sync failed · retrying';
     case 'idle':
+      if (missing(status)) return 'Server missing changes';
       if (status.pending > 0) return `Saved here · ${waiting}`;
       return status.lastSyncedAt ? 'Synced' : 'Not synced yet';
   }
 }
 
-function SyncStatusLine() {
+/** `onNavigate`: the phone's sheet closes when its link to the details is followed. */
+function SyncStatusLine({ onNavigate }: { onNavigate?: () => void }) {
   const journal = useJournal();
   const status = journal.status;
   const [busy, setBusy] = useState(false);
@@ -135,7 +141,7 @@ function SyncStatusLine() {
   }, [status.state]);
 
   return (
-    <div className="sync" data-state={status.state}>
+    <div className="sync" data-state={status.state} data-missing={missing(status) || undefined}>
       <span className="sync__dot" aria-hidden="true" />
       <span className="sync__words" role="status">
         {syncWords(status)}
@@ -157,6 +163,18 @@ function SyncStatusLine() {
         >
           Sign in
         </button>
+      ) : null}
+      {missing(status) ? (
+        <a
+          className="button button--quiet sync__action"
+          href={paths.settings('data')}
+          onClick={(event) => {
+            follow(event);
+            onNavigate?.();
+          }}
+        >
+          Details
+        </a>
       ) : null}
       {error ? <span className="visually-hidden">{error}</span> : null}
     </div>
@@ -229,7 +247,7 @@ function TabBar({ route }: { route: Route }) {
             <Lock aria-hidden />
             <span>Lock</span>
           </button>
-          <SyncStatusLine />
+          <SyncStatusLine onNavigate={close} />
         </div>
       </nav>
     </>
