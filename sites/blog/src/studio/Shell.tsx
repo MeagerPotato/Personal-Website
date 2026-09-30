@@ -15,7 +15,6 @@ import {
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { api, type Overview } from './api';
 import { OverviewContext } from './data';
-import { signOut } from './passkeys';
 import { follow, hrefFor, useRoute, type Route } from './router';
 import { Comments } from './screens/Comments';
 import { Missing } from './screens/Missing';
@@ -24,6 +23,7 @@ import { PostEditor } from './screens/PostEditor';
 import { Posts } from './screens/Posts';
 import { Settings } from './screens/Settings';
 import { Subscribers } from './screens/Subscribers';
+import { useSignOut } from './signOut';
 
 interface NavItem {
   label: string;
@@ -108,6 +108,7 @@ function Screen({ route }: { route: Route }) {
 export function Shell({ onSignOut }: { onSignOut: () => void }) {
   const route = useRoute();
   const [overview, setOverview] = useState<Overview | null>(null);
+  const signOut = useSignOut(onSignOut);
 
   // A failure to load it is shown by the screen that needs the data; the frame carries on.
   const refresh = useCallback(async () => {
@@ -158,11 +159,7 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
               <ExternalLink aria-hidden />
               <span>View the blog</span>
             </a>
-            <button
-              type="button"
-              className="nav-link"
-              onClick={() => void signOut().then(onSignOut)}
-            >
+            <button type="button" className="nav-link" onClick={signOut.start}>
               <LogOut aria-hidden />
               <span>Sign out</span>
             </button>
@@ -176,6 +173,7 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
             <NavLink key={item.label} item={item} route={route} count={counts(item)} />
           ))}
         </nav>
+        {signOut.dialog}
       </div>
     </OverviewContext>
   );

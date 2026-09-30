@@ -118,7 +118,9 @@ the device. Unlocking and signing in are one passkey prompt.
   SimpleWebAuthn against that origin and relying party.
 - **Sessions** are a random 256-bit token in a `__Host-` cookie (Secure, HttpOnly,
   SameSite=Strict, this host only). The database keeps only its SHA-256, so a copy of the
-  database signs nobody in. A session ends after an hour unused, or a day at most.
+  database signs nobody in. A session ends after an hour unused, or a day at most, and at once
+  when its passkey is removed: a lost device, its passkey removed from another, stops talking to
+  the server there and then.
 - **Writes** must come from the journal's own origin: the server checks the Origin header on
   every request that is not a GET, because SameSite does not separate subdomains of one site.
 - **Setup** needs a setup code (the `SETUP_TOKEN` secret), so nobody who finds the address before

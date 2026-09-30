@@ -6,8 +6,9 @@ import { KeyRound, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Passkey } from '../api';
 import { useOverview } from '../data';
-import { addPasskey, deviceLabel, signOut } from '../passkeys';
+import { addPasskey, deviceLabel } from '../passkeys';
 import { useTitle } from '../router';
+import { useSignOut } from '../signOut';
 import {
   busyLabel,
   describe,
@@ -92,6 +93,8 @@ export function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDialog, ask] = useConfirm();
+  // A full load after it, so nothing of the session is left in memory.
+  const signOut = useSignOut(() => location.assign('/studio/'));
 
   const load = useCallback(
     () =>
@@ -180,16 +183,13 @@ export function Settings() {
         </h2>
         <p className="hint">A session lasts a day without use, and a week at most.</p>
         <div className="settings__actions">
-          <button
-            type="button"
-            className="button"
-            onClick={() => void signOut().then(() => location.assign('/studio/'))}
-          >
+          <button type="button" className="button" onClick={signOut.start}>
             Sign out
           </button>
         </div>
       </section>
       {confirmDialog}
+      {signOut.dialog}
     </div>
   );
 }
