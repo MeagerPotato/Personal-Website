@@ -110,7 +110,7 @@ exact in open space and approximate near planets, which have moved on by then). 
 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
 planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
-station, the satellite, in front of the real sky and lit and post-processed as in the universe,
+station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as in the universe,
 with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the light's
 direction, and the tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is
@@ -309,6 +309,16 @@ Moons cannot have moons. Promoting a moon to a planet is swapping that one line;
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
 (a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
 `order`:** it is the system's place in the galaxy.
+
+**Add a profile (a network elsewhere: GitHub, LinkedIn, Devpost).** Give its https URL in
+`site.socials` (`src/config/site.ts`), the one place the URLs live: the home page's "Elsewhere",
+the contact page, the JSON-LD `sameAs` and a relay circling home (its name a real link) all
+follow, and nothing that exists moves. Devpost is that one line. A network the site does not
+know yet is an entry in `PROFILE` (`src/site/profiles.ts`): its label, its note for the home
+page, and the next free `slot` (1 to 7), its place on the Contact satellite's ring in steps of
+45 degrees. **Never renumber a slot:** it is where the relay flies. The resume keeps its own two
+links, so a new profile never changes its PDF. A relay is a body nothing docks at
+(`docks: false` in the manifest): the autopilot, the assist and the journeys harness go round it.
 
 **Unfinished copy.** Write `TODO(copy)` where words are missing and, on a project, set
 `draft: true`. Drafts show in `npm run dev` and are left out of production. Pages (about, resume,
