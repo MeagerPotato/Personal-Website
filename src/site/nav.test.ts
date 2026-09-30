@@ -16,7 +16,7 @@ describe('navCurrent', () => {
 
   it('marks the section for pages inside it: a project or a system lights up Projects', () => {
     expect(navCurrent(item('Projects'), '/projects/fishai/')).toBe('true');
-    expect(navCurrent(item('Projects'), '/systems/code/')).toBe('true');
+    expect(navCurrent(item('Projects'), '/systems/software/')).toBe('true');
   });
 
   it('marks nothing elsewhere, and nothing at all on the home page', () => {

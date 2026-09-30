@@ -87,8 +87,10 @@ export const systemSchema = <Reference extends z.ZodType>({
  * A planet (set `system`) or a moon (set `parent`). One schema, one URL shape.
  *
  * `status: planned` is work that is not built yet: it is shown (as planned), so it may leave out
- * what only built work has, a date and a role. Every project may leave out its cover: without
- * one the page shows none and its link preview is the site's card.
+ * what only built work has, a date and a role. `completed` is finished work that was never a
+ * product to ship (a competition team, a program run for years): "Shipped" reads oddly on it and
+ * "Archived" as if it were abandoned. Every project may leave out its cover: without one the page
+ * shows its planet instead and its link preview is the site's card.
  */
 export const projectSchema = <Image extends z.ZodType, Reference extends z.ZodType>({
   image,
@@ -103,7 +105,7 @@ export const projectSchema = <Image extends z.ZodType, Reference extends z.ZodTy
       parent: reference('projects').optional(),
       date: yearMonth.optional(),
       dateEnd: yearMonth.optional(),
-      status: z.enum(['shipped', 'in-progress', 'archived', 'planned']),
+      status: z.enum(['shipped', 'completed', 'in-progress', 'archived', 'planned']),
       role: z.string().min(1).max(80).optional(),
       stack: z.array(z.string().min(1)).max(12).default([]),
       links: z

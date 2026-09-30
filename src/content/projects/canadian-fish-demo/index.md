@@ -1,7 +1,7 @@
 ---
 title: Canadian Fish
 summary: Play the six-player card game Literature in the browser, with live rooms, bots that deduce instead of guess, and practice drills.
-parent: fishai
+system: software
 date: "2026-08"
 status: shipped
 role: "Solo: game engine, server, client"
@@ -13,12 +13,14 @@ cover:
   src: ./cover.webp
   alt: The Canadian Fish lobby, with one card to open a table, one to join with a six-letter room code, and the rules in four lines.
 planet:
-  size: s
-  biome: terra
+  size: m
+  biome: bloom
 ---
 
 The place to actually play. Someone opens a table, hands out a six-letter room code, and six people
-are playing Literature in their browsers. No accounts, and nothing persists past the room.
+are playing Literature in their browsers. No accounts, and nothing persists past the room. Its
+moons are the rest of the family: FishAI's bots and lab, the onboarding guide, and Fish Online,
+still to come: a home for the game beyond a single room code.
 
 - **The server is the referee.** The game logic that counts runs in serverless functions, and
   state reaches the six seats over Supabase Realtime.

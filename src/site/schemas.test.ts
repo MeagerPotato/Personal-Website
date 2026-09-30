@@ -109,7 +109,11 @@ describe('projectSchema', () => {
     expect(issuesOf(result)).toContain('role is required');
   });
 
-  it('accepts built work without a cover: the page shows none, the preview is the site card', () => {
+  it('accepts finished work that was never a product as "completed"', () => {
+    expect(project.parse({ ...validProject, status: 'completed' }).status).toBe('completed');
+  });
+
+  it('accepts built work without a cover: the page shows its planet, the preview is the site card', () => {
     expect(project.parse({ ...validProject, cover: undefined }).cover).toBeUndefined();
   });
 

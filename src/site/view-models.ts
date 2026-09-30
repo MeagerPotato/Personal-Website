@@ -32,6 +32,7 @@ export function formatDateRange(start: string, end?: string): string {
 
 export const STATUS_LABEL = {
   shipped: 'Shipped',
+  completed: 'Completed',
   'in-progress': 'In progress',
   archived: 'Archived',
   planned: 'Planned',
@@ -237,7 +238,8 @@ export const mixesSystems = (cards: ReadonlyArray<Pick<ProjectCard, 'theme'>>): 
 /**
  * The one colour family every card in a list shares, if there is one. The list wears it, so its
  * route line takes its stations' colour on any page (the home page's family is butter; a list of
- * Code planets there is still a sky line). None for an empty list, a mix, or cards with no family.
+ * Software's planets there is still a sky line). None for an empty list, a mix, or cards with no
+ * family.
  */
 export const sharedTheme = (
   cards: ReadonlyArray<Pick<ProjectCard, 'theme'>>,
@@ -378,7 +380,7 @@ export const sunPages = <S extends SystemLike>(systems: readonly S[]): S[] =>
 export interface SunPage extends SunNode {
   /** The route sign over the name: "Solar system", or "Sun of Projects". */
   eyebrow: string;
-  /** For the tab and search results: "Code system", or "Software projects". */
+  /** For the tab and search results: "Research system" (one sun), or "Software projects". */
   title: string;
   crumbs: Crumb[];
   /** Where the system's work lives when that is a site of its own (the Blog): the first button. */
@@ -435,7 +437,10 @@ export function featured(
 export const isPlanet = (card: ProjectCard): card is PlanetNode => 'moons' in card;
 
 export interface ProjectContext {
-  /** "Planet in the Code system" / "Planet of Hardware" (a sun of a binary) / "Moon of FishAI". */
+  /**
+   * "Planet of Hardware" (a sun of a binary), "Planet in the Research system" (one sun), or
+   * "Moon of Canadian Fish".
+   */
   placement: string;
   crumbs: Crumb[];
   theme: ThemeKey | undefined;

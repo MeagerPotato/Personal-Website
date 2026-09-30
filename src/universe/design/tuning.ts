@@ -633,11 +633,14 @@ export const tuning = {
      * Between two suns of about equal pull (a binary's gap), their directions all but cancel, and
      * the key light, from above the plane, takes up to this share more (0 to 1): the ship's light
      * swings over the top from one sun to the other instead of flipping round. Larger is a wider,
-     * slower swing. At 0.05 the light is more than 30 degrees off both suns for only about 5 u of
-     * the gap, so a ship crossing it at 300 u/s turns its light by some 120 degrees in one frame:
-     * judge it in flight, where a binary's suns face each other.
+     * slower swing, and a wider lean toward the key light where two families are close: near
+     * the gap, every sun's outermost planets. Judged in the Projects binary (2026-09-30), over
+     * every journey into, out of and across it (320, at up to 430 u/s): at 0.05 the light turned
+     * up to 97 degrees in one frame (8 frames over 60); at 0.2, 54 at most and none over 60; 0.5
+     * would bring it to 41 but light a ship on Robotics' ring from beyond its own sun's side.
+     * What 0.2 costs on each ring is pinned by tests/ship-light.test.ts.
      */
-    shipLightTiebreak: 0.05,
+    shipLightTiebreak: 0.2,
   },
 
   /** The three bands of the toon shader (shaders/toonFlat.ts). */

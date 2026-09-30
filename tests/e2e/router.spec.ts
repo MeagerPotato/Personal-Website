@@ -73,7 +73,7 @@ test('a link opens the page in the panel and hands the heading to the keyboard',
   await expect(page).toHaveURL(/\/about\/$/);
   await expect(page).toHaveTitle(/About/);
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
   await expect(heading(page)).toBeFocused();
   await expect(navLink(page, 'About')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
@@ -90,7 +90,7 @@ test.describe('with reduced motion', () => {
   test('the heading still takes focus, and the panel is simply there', async ({ page }) => {
     await openUniverse(page, '/');
     await navLink(page, 'About').click();
-    await expect(heading(page)).toHaveText('About');
+    await expect(heading(page)).toHaveText('About Me');
     await expect(heading(page)).toBeFocused();
     await expect(page.locator('.panel')).toBeInViewport();
 
@@ -105,18 +105,18 @@ test('Back and Forward walk the pages that were seen, in one document', async ({
   await openUniverse(page, '/');
   await markDocument(page);
   await navLink(page, 'About').click();
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
   await navLink(page, 'Projects').click();
   await expect(heading(page)).toHaveText('Projects');
 
   await page.goBack();
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
   expect(pathOf(page)).toBe('/about/');
   await page.goBack();
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');
   expect(pathOf(page)).toBe('/');
   await page.goForward();
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
   await page.goForward();
   await expect(heading(page)).toHaveText('Projects');
@@ -200,11 +200,17 @@ test('the canvas and its WebGL context survive fifty soft navigations', async ({
   await openUniverse(page, '/');
   await markDocument(page);
 
-  const stops = ['About', 'Projects', 'Resume', 'Contact'] as const;
+  // Each link, and the heading of the page it opens (the nav's "About" is "About Me" there).
+  const stops = [
+    ['About', 'About Me'],
+    ['Projects', 'Projects'],
+    ['Resume', 'Resume'],
+    ['Contact', 'Contact'],
+  ] as const;
   for (let visit = 0; visit < 50; visit += 1) {
-    const name = stops[visit % stops.length] ?? 'About';
+    const [name, title] = stops[visit % stops.length] ?? stops[0];
     await navLink(page, name).click();
-    await expect(heading(page)).toHaveText(name);
+    await expect(heading(page)).toHaveText(title);
     await expect(heading(page)).toBeFocused();
   }
 
@@ -232,7 +238,7 @@ test.describe('when a soft navigation cannot be trusted, the browser loads the p
     await openUniverse(page, '/');
     await markDocument(page);
     await navLink(page, 'About').click();
-    await expect(heading(page)).toHaveText('About');
+    await expect(heading(page)).toHaveText('About Me');
     expect(pathOf(page)).toBe('/about/');
     expect(await sameDocument(page)).toBe(false);
   });

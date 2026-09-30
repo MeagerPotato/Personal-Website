@@ -44,7 +44,7 @@ test('a lost WebGL context is rebuilt, docked where it was, with the page still 
   await expect(prompt(page)).toContainText('Leave orbit');
   expect(pathOf(page)).toBe('/about/');
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
-  await expect(page.locator('main h1')).toHaveText('About');
+  await expect(page.locator('main h1')).toHaveText('About Me');
 });
 
 test('the star map is still open after a rebuild', async ({ page }) => {

@@ -68,7 +68,7 @@ export const profilePageLd = (): JsonLd => ({
   mainEntity: personLd(),
 });
 
-/** "Projects > Code > FishAI", ending with the page itself. */
+/** "Projects > Software > Canadian Fish > FishAI", ending with the page itself. */
 export const breadcrumbLd = (crumbs: readonly Crumb[], current: Crumb): JsonLd => ({
   '@type': 'BreadcrumbList',
   itemListElement: [...crumbs, current].map((crumb, index) => ({

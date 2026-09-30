@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalUrl,
@@ -14,6 +15,7 @@ import {
   parseAttributes,
   toSitePath,
 } from '../scripts/lib/html.mjs';
+import { parseRedirects, redirectProblems } from '../scripts/lib/redirects.mjs';
 import {
   RESUME_PDF,
   printSection,
@@ -292,5 +294,97 @@ describe("the resume's PDF", () => {
     expect(resumePdfProblems({ lock: null, pdf: PDF, html: PAGE, css: CSS })[0]).toMatch(
       /resume-pdf\.json is missing/,
     );
+  });
+});
+
+describe('old URLs (_redirects)', () => {
+  /** The real file, as public/ holds it and the build copies it. */
+  const real = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8');
+  /** A build with these pages, as verify-dist asks: is there a path/index.html. */
+  const built =
+    (...pages: string[]) =>
+    (path: string) =>
+      pages.includes(path.endsWith('/') ? path : `${path}/`);
+  const context = (links: Array<{ page: string; target: string }> = []) => ({
+    isPage: built('/', '/projects/', '/systems/software/'),
+    links: [{ page: '/', target: '/projects/' }, ...links],
+  });
+
+  it('reads one rule a line, skipping comments and blank lines, and reports the rest', () => {
+    const { rules, unreadable } = parseRedirects(
+      '# old URLs\n\n/a/  /b/  301\r\n  /c /d/\n/lonely\n/e /f/ 301 extra\n',
+    );
+    expect(rules).toEqual([
+      { line: 3, from: '/a/', to: '/b/', status: 301 },
+      { line: 4, from: '/c', to: '/d/', status: null },
+    ]);
+    expect(unreadable).toEqual([
+      { line: 5, text: '/lonely' },
+      { line: 6, text: '/e /f/ 301 extra' },
+    ]);
+  });
+
+  it('sends both spellings of the Code system to Software, for good', () => {
+    const { rules, unreadable } = parseRedirects(real);
+    expect(unreadable).toEqual([]);
+    expect(rules.map(({ from, to, status }) => [from, to, status])).toEqual([
+      ['/systems/code/', '/systems/software/', 301],
+      ['/systems/code', '/systems/software/', 301],
+    ]);
+    expect(redirectProblems(real, context())).toEqual([]);
+  });
+
+  it('refuses a destination that is not a page of the build, or not written as one', () => {
+    const problems = (to: string) => redirectProblems(`/old/ ${to} 301`, context());
+    expect(problems('/systems/gone/')).toEqual([
+      expect.stringMatching(/"\/old\/" goes to "\/systems\/gone\/", which must be a page/),
+    ]);
+    expect(problems('/systems/software')).toHaveLength(1);
+    expect(problems('https://example.com/')).toHaveLength(1);
+    expect(problems('//example.com/')).toHaveLength(1);
+    expect(problems('/systems/software/')).toEqual([]);
+  });
+
+  it('refuses a source that is a page: the redirect would hide it', () => {
+    // (The home page's link to /projects/ now only redirects too, and is reported as such.)
+    expect(redirectProblems('/projects/ /systems/software/ 301', context())).toEqual([
+      expect.stringMatching(/"\/projects\/" is a page of this build/),
+      expect.stringMatching(/^\/: links to "\/projects\/", which only redirects/),
+    ]);
+    expect(redirectProblems('/projects /systems/software/ 301', context())).toEqual([
+      expect.stringMatching(/"\/projects" is a page of this build/),
+    ]);
+  });
+
+  it('asks for 301 on every line: a line without a code is a 302', () => {
+    expect(redirectProblems('/old/ /projects/ 302', context())).toEqual([
+      expect.stringMatching(/must say 301 \(moved for good\), not 302/),
+    ]);
+    expect(redirectProblems('/old/ /projects/', context())).toEqual([
+      expect.stringMatching(/not nothing \(302\)/),
+    ]);
+  });
+
+  it('allows one exact path each: no splats, no placeholders, no second rule for it', () => {
+    expect(redirectProblems('/old/* /projects/ 301', context())).toEqual([
+      expect.stringMatching(/must be one exact path/),
+    ]);
+    expect(redirectProblems('/old/:id/ /projects/ 301', context())).toHaveLength(1);
+    expect(
+      redirectProblems('/old/ /projects/ 301\n/old/ /systems/software/ 301', context()),
+    ).toEqual([expect.stringMatching(/line 2: "\/old\/" is redirected twice \(also line 1\)/)]);
+  });
+
+  it('refuses a line Cloudflare would ignore', () => {
+    expect(redirectProblems('/systems/code/', context())).toEqual([
+      expect.stringMatching(/line 1 is not "source destination 301"/),
+    ]);
+  });
+
+  it('refuses a page that links to an old URL instead of where it goes', () => {
+    const links = [{ page: '/about/', target: '/systems/code/' }];
+    expect(redirectProblems(real, context(links))).toEqual([
+      expect.stringMatching(/^\/about\/: links to "\/systems\/code\/", which only redirects/),
+    ]);
   });
 });

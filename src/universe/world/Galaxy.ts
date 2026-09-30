@@ -276,7 +276,11 @@ export class Galaxy implements System {
    * `shipLightFadeRadii`, and `(R/d)²` lets the nearer sun lead where two families meet. The key
    * light takes whatever share the suns leave (`1 - w` of the strongest), and up to
    * `shipLightTiebreak` more, as a second sun's pull comes up to the first one's. So:
-   * - inside one family, the light falls from its sun and nowhere else;
+   * - inside one family, the light falls from its sun and nowhere else, wherever no other sun
+   *   pulls. In a binary one does, near the gap: the other sun's pull reaches across it, so a
+   *   ship on the ring of an outer planet is lit from off its own sun, toward the other one and
+   *   the key light (on Robotics' ring, the worst, by up to 57 degrees). tests/ship-light.test.ts
+   *   pins every ring's lean, and docs/PLAN.md §5.4 has the ways out, for the design round;
    * - between two suns that pull equally from opposite sides, their directions cancel and the key
    *   light, from above the plane, is what is left: the light swings over the top from one to the
    *   other, where a nearest-sun rule would flip it round in a single frame (a binary's gap), and

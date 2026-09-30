@@ -699,7 +699,7 @@ main > .resume-section {
 
 /* 1d. Components ---------------------------------------------------------------------------------- */
 
-/* Where this page sits, drawn as a route: Projects ── Code. */
+/* Where this page sits, drawn as a route: Projects ── Software. */
 .crumbs ol {
   display: flex;
   flex-wrap: wrap;
@@ -757,7 +757,7 @@ main > .resume-section {
 
 /*
  * Buttons are keys: a flat pill on a hard ledge, which it drops onto when pressed. The primary
- * one is filled in the page's family (sky on a project in the Code system): the one solid family
+ * one is filled in the page's family (sky on a project of Projects): the one solid family
  * fill in a view. The others are outlined keys, their edge in ink.low (6.7:1 on the page, so the
  * boundary is plain to see, 3:1 being the bar).
  * --key-edge and --key-ledge are the two shadows a key casts; its focus ring adds --rim to them.

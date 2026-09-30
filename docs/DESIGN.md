@@ -242,10 +242,10 @@ transit map.
   36 px chip behind one, and the current page has its butter bar. The last word ends on the
   column's edge, as the wordmark starts on the other. On a phone the nav takes a row of its own,
   spread across, each word lined up with the column's edges.
-- **A page's head.** The crumbs are a route (Projects ── Code), their dashes in the family. The
-  **route sign** says what kind of place this is: a tinted plate (10 %) with a hairline edge
-  (50 %) and the family's glyph, in caps at the smallest size, quiet enough that the heading
-  under it wins the first glance. A sign in two parts that has no room for one line gives each
+- **A page's head.** The crumbs are a route (Projects ── Software ── Canadian Fish, on FishAI's
+  page), their dashes in the family. The **route sign** says what kind of place this is: a
+  tinted plate (10 %) with a hairline edge (50 %) and the family's glyph, in caps at the smallest
+  size, quiet enough that the heading under it wins the first glance. A sign in two parts that has no room for one line gives each
   part a line of its own. Then the h1, and the lede in `ink.high`.
 - **Keys.** The primary action is the one solid family fill in a view; the others are outlined in
   `ink.low`. All are pills on a hard ledge.
@@ -257,7 +257,7 @@ transit map.
   name, and the words take the card's full width.
 - **A list's route line takes its stations' colour**, as on a transit map. A list of one system
   wears that system (the home page's "Start here" is a sky line on a butter page while every
-  featured planet is in Code); a list that mixes systems draws its line neutral, in `ink.low`, so
+  featured planet is in Projects); a list that mixes systems draws its line neutral, in `ink.low`, so
   that each station is the only thing in its family's colour. A card names its own family
   (`data-theme`, from `projectTheme()` in `src/site/view-models.ts`), so a planet wears its own
   colour on every page.

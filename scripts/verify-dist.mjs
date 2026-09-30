@@ -5,6 +5,8 @@
 //   2. nothing dev-only leaked into production: the /lab page, the live tuning panel (lil-gui)
 //   3. every internal link and asset reference resolves, and page links end with "/"; every
 //      page names a link-preview image (og:image) that is absolute, on this site, and exists
+//  3b. OLD URLS (dist/_redirects): each one exact path, 301, to a page of this build, and never
+//      a page itself nor linked to (link where it goes instead)
 //   4. PLAIN-MODE PURITY: no page can reach three.js through static imports. The engine must
 //      only ever be reachable through a dynamic import(), which plain mode never executes.
 //   5. WEIGHT BUDGETS: what plain mode costs per page, the fonts every page preloads, and what
@@ -32,6 +34,7 @@ import {
   pageSkeleton,
   toSitePath,
 } from './lib/html.mjs';
+import { REDIRECTS, redirectProblems } from './lib/redirects.mjs';
 import { RESUME_PAGE, RESUME_PDF, RESUME_PDF_LOCK, resumePdfProblems } from './lib/resume-pdf.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -121,6 +124,7 @@ for (const file of files.filter((name) => name.endsWith('.js') || name.endsWith(
 const pagePathOf = (file) => sitePathOf(file).replace(/(^|\/)index\.html$/, '$1');
 
 const pages = [];
+const internalLinks = [];
 let linkCount = 0;
 for (const file of htmlFiles) {
   const pagePath = pagePathOf(file);
@@ -132,6 +136,7 @@ for (const file of htmlFiles) {
     const target = toSitePath(url, pagePath);
     if (target === null) continue;
     linkCount += 1;
+    internalLinks.push({ page: pagePath, target });
 
     const isFile = sitePaths.has(target);
     const isPage = sitePaths.has(posix.join(target, 'index.html'));
@@ -162,6 +167,20 @@ for (const page of pages) {
   } else if (!sitePaths.has(decodeURIComponent(new URL(image).pathname))) {
     errors.push(`${page.pagePath}: og:image "${image}" does not exist in dist/`);
   }
+}
+
+// 3b --- old URLs ------------------------------------------------------------------------------
+// public/_redirects is the promise that a URL once shared keeps working (/systems/code/ became
+// /systems/software/). Without the file every old URL would quietly 404, so it must be there.
+if (!sitePaths.has(REDIRECTS)) {
+  errors.push(`dist${REDIRECTS} is missing: public${REDIRECTS} keeps old URLs working`);
+} else {
+  errors.push(
+    ...redirectProblems(await readFile(resolve(DIST, REDIRECTS.slice(1)), 'utf8'), {
+      isPage: (path) => sitePaths.has(posix.join(path, 'index.html')),
+      links: internalLinks,
+    }),
+  );
 }
 
 // 4 --- plain-mode purity -------------------------------------------------------------------

@@ -73,6 +73,10 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
 - [ ] `/_astro/*` and `/fonts/*` are `immutable`; `/nope` is a 404 with the site's own page;
       `http://` and `www.` answer 301 to the apex with path and query kept; `/index.html` → 307.
       All four held on 2026-09-30.
+- [ ] Once the Projects binary is live: `curl.exe -sI https://allenkh.com/systems/code/` and
+      `curl.exe -sI https://allenkh.com/systems/code` both answer 301 with
+      `location: /systems/software/` (`public/_redirects`). `tests/e2e/tree.spec.ts` checks it
+      under `wrangler dev`, which only imitates Workers static assets: this is the real one.
 - [ ] `<meta name="build">` on the live page equals the commit that was merged.
 - [ ] A PR's preview URL sends `X-Robots-Tag: noindex` and loads no beacon. Both held on the
       preview of #48 (2026-09-30), in both modes.

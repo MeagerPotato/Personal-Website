@@ -704,13 +704,14 @@ describe('Galaxy, where suns move', () => {
     // The suns move, and each family's light goes with its own sun.
     expect(sunOf(meshOf('project/meet'))).not.toBe(sunOf(meshOf('project/rocket')));
     // The ship: deep in a family, lit by that family's sun alone; out at its outermost planet,
-    // where the other family is only the gap away, the other sun leans in by under a degree
-    // (0.5 and 0.65 here), which is the blend doing its job and not a second light.
+    // where the other family is only the gap away, the light leans a little toward the other sun
+    // and the key light (2.4 and 0.7 degrees here, with tuning.world.shipLightTiebreak at 0.2),
+    // which is the blend doing its job and not a second light.
     for (const [planet, sun, within] of [
       ['project/demo', 'system/soft', 0],
       ['project/rocket', 'system/hard', 0],
-      ['project/meet', 'system/soft', 1],
-      ['project/robot', 'system/hard', 1],
+      ['project/meet', 'system/soft', 3],
+      ['project/robot', 'system/hard', 3],
     ] as const) {
       const at = node(planet).position.clone();
       const own = direction(at, node(sun).position);

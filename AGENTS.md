@@ -34,16 +34,19 @@ names are real links, and pointing at one only brings its link forward. A first-
 a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
-"cluster"), the autopilot flies any journey in today's galaxy in 1.5 to 4.4 s, and every way a
-journey is handed back at speed (Stop, a key, the web layer letting go, a reload) brakes or
-guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
-visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
-direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
+"cluster"), the autopilot docks every journey in today's galaxy (median 2.5 s, p90 3.3 s, the
+slowest 5.02 s), and every way a journey is handed back at speed (Stop, a key, the web layer
+letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
+journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
+request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
 are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
 some of it on 2026-09-28 and accepted it ("everything is okay for now"); the feel gets its polish
-later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. Phase 3 waits on
-Allen's tree of solar systems (docs/PLAN.md §9).
+later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. **Allen's tree of
+solar systems** arrived on 2026-09-30 and is being built (docs/PLAN.md §9): **Projects is a binary
+star**, two suns (Software and Hardware) circling one slot, with `/projects/` as its page and a
+page for each sun; the old `/systems/code/` answers 301 to `/systems/software/`
+(`public/_redirects`). Research and Hackathons come next.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -296,12 +299,15 @@ page offers a PDF printed from itself, and `verify-dist` refuses one that no lon
 The resume page is the one place that gives the name in full (`site.fullName`). No phone number,
 no private email: `tests/privacy.test.ts` scans the whole repository for both.
 
-**Add a project (a planet).** Create `src/content/projects/<id>/index.md` plus a cover image
-beside it. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
+**Add a project (a planet).** Create `src/content/projects/<id>/index.md`, with its cover image
+beside it if it has one. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
 Frontmatter is validated by `src/site/schemas.ts` (unknown keys fail the build): `title`,
-`summary` (≤ 160 chars), `system: <system id>`, `date: "YYYY-MM"` in quotes, `status`, `role`,
-`cover: { src: ./cover.png, alt }`, `planet: { biome }`; optional `stack`, `links` (https only),
-`gallery`, `related`, `flagship`, `draft`. Copy the shape of `projects/days2meet/index.md`.
+`summary` (≤ 160 chars), `system: <sun id>`, `date: "YYYY-MM"` in quotes, `status` (`shipped`;
+`completed`, finished work that was never a product, like a team or a program; `in-progress`;
+`archived`; `planned`, which may leave out the date and the role), `role`, `planet: { biome }`;
+optional `cover: { src: ./cover.png, alt }` (without one the page shows its planet), `stack`,
+`links` (https only), `gallery`, `related`, `flagship`, `draft`. Copy the shape of
+`projects/days2meet/index.md`.
 Images are served as AVIF with a WebP fallback at three widths (`components/Shot.astro`), so
 commit one good source image, at least 1200 px wide, and let the build do the rest.
 
@@ -311,6 +317,24 @@ Moons cannot have moons. Promoting a moon to a planet is swapping that one line;
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
 (a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
 `order`:** it is the system's place in the galaxy.
+
+**A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
+file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no
+page of its own (its page is the projects index, shown in the universe from the primary). Each
+sun is a file of its own with `name` and `tagline` and its text: no `order`, `theme` or
+`position`, since it goes where its binary goes and wears its family; its page is
+`/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
+if one does. A binary is the one exception to "adding a project moves nothing": a planet under
+one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
+And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a
+content change flips one, run `npm run journeys` before updating its list. `tests/ship-light.test.ts`
+pins how far a ship on each ring near the gap is lit off its own sun (the other sun pulls there
+too): if one moves, look at it in flight before updating that list.
+
+**Retire a URL** (a renamed system, a moved page). One line in `public/_redirects`,
+`/old/ /new/ 301`, and the same without the slash: exact paths only, never a wildcard. The
+destination must be a page of the build and no page may link to the old path (`verify-dist`,
+check 3b); `tests/e2e/tree.spec.ts` shows `wrangler dev` answering it.
 
 **Add a profile (a network elsewhere: GitHub, LinkedIn, Devpost).** Give its https URL in
 `site.socials` (`src/config/site.ts`), the one place the URLs live: the home page's "Elsewhere", the
