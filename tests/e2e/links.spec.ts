@@ -193,16 +193,18 @@ test('pointing at a relay brings its link forward, and leaving is a second press
 test.describe('with a finger', () => {
   test.use({ hasTouch: true });
 
-  test('a finger on a relay stays on the site, on a slow phone too, and one on its name leaves', async ({
-    page,
-    browserName,
-    isMobile,
-  }) => {
-    // The phone is Chromium with a finger (pointAt: an area, as a phone reports a fingertip), and
-    // WebKit is an iPhone's engine. The browser moves a finger onto the nearest thing that
-    // answers clicks, and the name hangs just below the relay: the world has to answer them too
-    // (ui/Picker.ts), or a finger on the relay presses the link and leaves.
+  // The phone is Chromium with a finger (pointAt: an area, as a phone reports a fingertip), and
+  // WebKit is an iPhone's engine. Each test parks afresh: the relay rides its ring past a ship
+  // that holds still, and on CI (software drawing) a test that went on for long would find its
+  // name gone off the edge of the screen.
+  test.beforeEach(({ browserName, isMobile }) => {
     test.skip(browserName === 'chromium' && !isMobile, 'Chromium with a finger is the phone');
+  });
+
+  test('a finger on a relay stays on the site, on a slow phone too', async ({ page }) => {
+    // The browser moves a finger onto the nearest thing that answers clicks, and the name hangs
+    // just below the relay: the world has to answer them too (ui/Picker.ts), or a finger on the
+    // relay presses the link and leaves.
     const relay = await parkBeside(page, 'GitHub');
     const github = linkOf(page, 'GitHub');
     await expect(github).toHaveAttribute('data-shown', '');
@@ -230,9 +232,13 @@ test.describe('with a finger', () => {
     // (A press of the link sets off at once; three slow frames on, it would have been asked for.)
     expect(visits()).toBe(0);
     expect(pathOf(page)).toBe('/');
-    await slowFrames(page, 0);
+  });
 
-    // A finger on the name itself presses the link: that one leaves, in this tab.
+  test('a finger on its name leaves, in this tab', async ({ page }) => {
+    const relay = await parkBeside(page, 'GitHub');
+    const github = linkOf(page, 'GitHub');
+    await expect(github).toHaveAttribute('data-shown', '');
+    const visits = await answerElsewhere(page, relay);
     await pointAt(page, github, true);
     await expect.poll(() => page.url()).toBe(relay.href);
     expect(visits()).toBe(1);
