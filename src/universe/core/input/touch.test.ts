@@ -96,6 +96,28 @@ describe('TouchControls', () => {
     expect(read()).toEqual(blank());
   });
 
+  it('keeps a finger on the world to itself: the browser adds no mouse events after it', () => {
+    make();
+    const press = (pointerType: string): boolean => {
+      const event = new PointerEvent('pointerdown', {
+        pointerId: pointerType === 'mouse' ? 1 : 7,
+        pointerType,
+        bubbles: true,
+        cancelable: true,
+      });
+      canvas.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    // (Their mousedown would take the focus off a name a tap has just given it: TouchControls.)
+    expect(press('touch')).toBe(true);
+    expect(press('pen')).toBe(true);
+    fire(canvas, 'pointerup', 7);
+    // The mouse is left alone, and so is a finger on the star map, where the stick is put away.
+    expect(press('mouse')).toBe(false);
+    controls?.setEnabled(false);
+    expect(press('touch')).toBe(true);
+  });
+
   it('puts the stick under the first finger and flies by it', () => {
     make();
     fire(canvas, 'pointerdown', 7, 120, 300);

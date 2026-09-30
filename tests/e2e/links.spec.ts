@@ -11,6 +11,7 @@ import {
   openUniverse,
   plain,
   pointAt,
+  slowFrames,
   test,
   watchText,
   type Kept,
@@ -70,6 +71,20 @@ function beside(spawn: Kept, body: Body): Kept {
     Math.cos(comes) * orbit.radius - z,
   );
   return { ...spawn, dock: null, ship: { x, z, vx: 0, vz: 0, heading, yawRate: 0 } };
+}
+
+/**
+ * Answer a relay's own site here (these tests never leave the machine), from before anything is
+ * pressed: a press that should have stayed on the site and did not must not reach the real one.
+ * Returns how many times the browser has gone there.
+ */
+async function answerElsewhere(page: Page, relay: Body): Promise<() => number> {
+  let visits = 0;
+  await page.route(`${new URL(relay.href).origin}/**`, (route) => {
+    visits += 1;
+    return route.fulfill({ contentType: 'text/html', body: '<title>Elsewhere</title>' });
+  });
+  return () => visits;
 }
 
 /** Put the ship beside the body titled `title` on the home page, in universe mode. */
@@ -154,6 +169,7 @@ test('pointing at a relay brings its link forward, and leaving is a second press
   isMobile,
 }) => {
   const relay = await parkBeside(page, 'GitHub');
+  const visits = await answerElsewhere(page, relay);
   const said = await watchText(page, '.dock-prompt');
   const github = linkOf(page, 'GitHub');
   // The name hangs just below the disc it names, so a little above the name is the relay.
@@ -165,16 +181,62 @@ test('pointing at a relay brings its link forward, and leaving is a second press
   await expect(github).toHaveAttribute('data-beckon', '');
   await page.waitForTimeout(1000);
   expect(pathOf(page)).toBe('/');
+  expect(visits()).toBe(0);
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');
   for (const { text } of await said()) expect(text).not.toContain('Flying to');
 
-  // Leaving is the link itself, pressed: the browser follows it, in this tab. (The other site
-  // is answered here: these tests never leave the machine.)
-  await page.route(`${new URL(relay.href).origin}/**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: '<title>Elsewhere</title>' }),
-  );
+  // Leaving is the link itself, pressed: the browser follows it, in this tab.
   await page.keyboard.press('Enter');
   await expect.poll(() => page.url()).toBe(relay.href);
+});
+
+test.describe('with a finger', () => {
+  test.use({ hasTouch: true });
+
+  test('a finger on a relay stays on the site, on a slow phone too, and one on its name leaves', async ({
+    page,
+    browserName,
+    isMobile,
+  }) => {
+    // The phone is Chromium with a finger (pointAt: an area, as a phone reports a fingertip), and
+    // WebKit is an iPhone's engine. The browser moves a finger onto the nearest thing that
+    // answers clicks, and the name hangs just below the relay: the world has to answer them too
+    // (ui/Picker.ts), or a finger on the relay presses the link and leaves.
+    test.skip(browserName === 'chromium' && !isMobile, 'Chromium with a finger is the phone');
+    const relay = await parkBeside(page, 'GitHub');
+    const github = linkOf(page, 'GitHub');
+    await expect(github).toHaveAttribute('data-shown', '');
+    const visits = await answerElsewhere(page, relay);
+
+    // As slowly as a slow phone draws. The tap's own mouse events came after a frame there, by
+    // when its name had the focus, and took it away (core/input/TouchControls.ts).
+    await slowFrames(page, 100);
+    await pointAt(page, github, true, -14);
+    await expect(github).toBeFocused();
+    await expect(github).toHaveAttribute('data-beckon', '');
+    await page.evaluate(
+      () =>
+        new Promise<void>((done) => {
+          let frames = 0;
+          const next = (): void => {
+            frames += 1;
+            if (frames === 3) done();
+            else requestAnimationFrame(next);
+          };
+          requestAnimationFrame(next);
+        }),
+    );
+    expect(await github.evaluate((name) => document.activeElement === name)).toBe(true);
+    // (A press of the link sets off at once; three slow frames on, it would have been asked for.)
+    expect(visits()).toBe(0);
+    expect(pathOf(page)).toBe('/');
+    await slowFrames(page, 0);
+
+    // A finger on the name itself presses the link: that one leaves, in this tab.
+    await pointAt(page, github, true);
+    await expect.poll(() => page.url()).toBe(relay.href);
+    expect(visits()).toBe(1);
+  });
 });
 
 test('in forced colours a link still shows its arrow, in the ink of its name', async ({

@@ -117,6 +117,12 @@ export class TouchControls implements InputSource {
 
   private readonly onCanvasDown = (event: PointerEvent): void => {
     if (event.pointerType === 'mouse') return;
+    // A finger on the world is ours, and the browser adds nothing after it. A tap would otherwise
+    // be followed by mouse events of its own (mousedown, mouseup), and a mousedown on the canvas
+    // takes the keyboard's focus off whatever has it. On a slow phone they come after a frame, by
+    // when the tap has already given a name the focus (ui/Labels.ts, `beckon`): lit, then gone.
+    // (A drag never had them, and `click` still comes: ui/Picker.ts.)
+    event.preventDefault();
     this.touched = true; // a finger exists: from now on boost can be found
     if (!this.enabled) return;
     this.showPad();
