@@ -98,6 +98,8 @@ async function seriousIssues(page: Page, screen: string): Promise<string[]> {
 
 const entry = (page: Page) => page.getByRole('textbox', { name: /^Journal entry/ });
 const moods = (page: Page) => page.getByRole('radiogroup', { name: /mood/i });
+/** The screen's one heading, which has the focus whenever a new screen has just been shown. */
+const title = (page: Page) => page.getByRole('heading', { level: 1 });
 
 let phrase = '';
 let laptop: Device;
@@ -119,6 +121,7 @@ test('sets up the journal with a recovery phrase and a passkey', async () => {
   await page.getByRole('button', { name: 'Continue' }).click();
 
   await expect(page.locator('.phrase__word')).toHaveCount(24);
+  await expect(title(page)).toBeFocused();
   const words = await page.locator('.phrase__word').allTextContents();
   phrase = words.join(' ');
   await page.getByLabel('I’ve written down all 24 words').check();
@@ -134,8 +137,11 @@ test('sets up the journal with a recovery phrase and a passkey', async () => {
   await page.getByRole('button', { name: 'Continue' }).click();
 
   await page.getByRole('button', { name: 'Make a passkey' }).click();
+  await expect(title(page)).toHaveText('Unlock once to finish');
+  await expect(title(page)).toBeFocused();
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
   await expect(moods(page)).toBeVisible();
+  await expect(title(page)).toBeFocused();
 });
 
 test('writes a day, and the server receives only ciphertext', async () => {
@@ -199,6 +205,7 @@ test('a reload locks the journal, and the passkey opens it again', async () => {
   await page.getByRole('button', { name: /^Unlock with/ }).click();
   await expect(entry(page)).toContainText(SECRET);
   await expect(moods(page).getByRole('radio', { name: 'Good' })).toBeChecked();
+  await expect(title(page)).toBeFocused();
 });
 
 test('with no connection, the app still opens and unlocks this device’s copy', async () => {
@@ -289,6 +296,43 @@ test('the year in pixels is one tab stop, walked with the keyboard', async () =>
   await expect(stop).toHaveAttribute('data-date', first);
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/day/${first}$`));
+  await expect(title(page)).toBeFocused();
+});
+
+test('each new screen gives its title the focus, and the moods are one tab stop', async () => {
+  const { page } = laptop;
+  // A link followed from the keyboard, then Back: the title of the screen shown takes the focus.
+  await page.getByRole('link', { name: 'Timeline', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(title(page)).toHaveText('Timeline');
+  await expect(title(page)).toBeFocused();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/day\//);
+  await expect(title(page)).toBeFocused();
+
+  // Today's moods are one stop in the tab order, on the checked mood, and the arrow keys move
+  // the check (round from the first to the last).
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(title(page)).toBeFocused();
+  const great = moods(page).getByRole('radio', { name: 'Great' });
+  const awful = moods(page).getByRole('radio', { name: 'Awful' });
+  await expect(great).toBeChecked();
+  await expect(moods(page).locator('[tabindex="0"]')).toHaveCount(1);
+  await page.getByRole('button', { name: /highlight/i }).focus();
+  await page.keyboard.press('Tab');
+  await expect(great).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(awful).toBeFocused();
+  await expect(awful).toBeChecked();
+  await expect(great).not.toBeChecked();
+  await expect(awful).toHaveAttribute('tabindex', '0');
+  await page.keyboard.press('ArrowRight');
+  await expect(great).toBeChecked();
+  // Tab leaves the group; Shift+Tab comes back to the checked mood.
+  await page.keyboard.press('Tab');
+  await expect(great).not.toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(great).toBeFocused();
 });
 
 test('no screen has a serious accessibility issue', async () => {
@@ -333,7 +377,42 @@ test('no screen has a serious accessibility issue', async () => {
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await page.getByRole('button', { name: 'Lock' }).first().click();
   await expect(page.getByRole('button', { name: /^Unlock with/ })).toBeVisible();
+  await expect(title(page)).toBeFocused();
   expect.soft(await seriousIssues(page, 'lock screen'), 'lock screen').toEqual([]);
+});
+
+test('removed from a device that cannot tell the server, the journal says it stays signed in', async () => {
+  const { page } = phone;
+  const remove = page.getByRole('button', { name: 'Remove from this device' });
+  const unlock = page.getByRole('button', { name: /^Unlock with/ });
+  // The browser's own questions, answered in turn.
+  const answers: boolean[] = [];
+  const asked: string[] = [];
+  page.on('dialog', (dialog) => {
+    asked.push(dialog.message());
+    void (answers.shift() ? dialog.accept() : dialog.dismiss());
+  });
+  // The session cannot be ended: no connection for that one request.
+  await page.route('**/api/logout', (route) => route.abort('internetdisconnected'));
+
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.locator('#more').getByRole('link', { name: 'Settings' }).click();
+  await expect(title(page)).toHaveText('Settings');
+
+  // Remove? Yes. Still signed in to the server, then: remove anyway? No, and the journal stays.
+  answers.push(true, false);
+  await remove.click();
+  await expect.poll(() => asked.length).toBe(2);
+  expect(asked[1]).toContain('can’t be reached');
+  await expect(unlock).toBeVisible();
+
+  // Yes both times: this device is empty, and joins again like a new one.
+  await unlock.click();
+  await expect(title(page)).toHaveText('Settings');
+  answers.push(true, true);
+  await remove.click();
+  await expect(page.getByRole('button', { name: 'Use recovery phrase' })).toBeVisible();
+  expect(asked).toHaveLength(4);
 });
 
 test('neither device logged an error or a CSP violation', () => {

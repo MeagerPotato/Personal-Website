@@ -13,7 +13,7 @@ engine, the router and "thin Astro" do not.
 
 | Path | What |
 | --- | --- |
-| `packages/design` | `@allenkh/design`: tokens (the main site's palette plus paper), base and prose styles, the app frame both apps share (`styles/app.css`), icons, PWA helpers |
+| `packages/design` | `@allenkh/design`: tokens (the main site's palette plus paper), base and prose styles, the app frame both apps share (`styles/app.css`) and its behaviours (`focus.ts`, `radiogroup.ts`), icons, PWA helpers |
 | `packages/editor` | `@allenkh/editor`: the Notion-style editor (Tiptap 3), its schema, and an HTML renderer that needs no browser |
 | `packages/testing` | `@allenkh/testing`: test helpers both apps share (a software passkey that signs real WebAuthn responses) |
 | `journal/` | journal.allenkh.com: an end-to-end encrypted journal. Vite + React app (`src/`), Hono Worker (`worker/`), service worker (`sw/`) |
@@ -55,7 +55,9 @@ Status: both sites are built and wait for their Cloudflare setup: the journal's
    are stored as levels 1 to 3 and drawn one level down (`<h2>` to `<h4>`), in the editor and on
    the page: the page's own title is its only `<h1>`.
 9. **Accessible in both themes.** Every screen passes axe in day and night (the e2e sweep checks
-   each one), has exactly one `<h1>`, and keeps targets at 24 px or more.
+   each one), has exactly one `<h1>`, and keeps targets at 24 px or more. The `<h1>` is a
+   `<Title>` (each app's `ui/common.tsx`), which takes the focus when the screen changes; a test
+   refuses a bare one. A placeholder or a hint is text too: `--ink-low`, never `--ink-faint`.
 10. **The blog reads without JavaScript.** Reader pages carry no script of the blog's own:
     comments and subscriptions are plain HTML forms, the studio is the only page with a script,
     and Turnstile's widget (when it is on) the only third party. Every page's
@@ -129,13 +131,21 @@ otherwise. Kinds are never visible to the server; do not put one in an id.
 harmless the second time (`IF NOT EXISTS`). If it adds anything readable, update "What the
 server knows" in journal-crypto.md.
 
-**Add a screen to the journal.** A component in `src/screens/`, a route in `src/app/router.ts`
-and `src/app/Screen.tsx`, and the screen in the e2e accessibility sweep
-(`tests/e2e/journal.spec.ts`).
+**Add a screen to the journal.** A component in `src/screens/` with its title as a `<Title>`
+(`ui/common.tsx`), a route in `src/app/router.ts` and `src/app/Screen.tsx`, and the screen in the
+e2e accessibility sweep (`tests/e2e/journal.spec.ts`). A screen that should start somewhere else
+(a new record's name field) focuses it itself: the title then leaves it there.
 
-**Add a screen to the studio.** A component in `blog/src/studio/screens/`, its route in
-`studio/router.ts`, its link in `studio/Shell.tsx` (the sidebar and the phone's tab bar), and the
-screen in the e2e sweep (`blog/tests/e2e/blog.spec.ts`).
+**Add a screen to the studio.** A component in `blog/src/studio/screens/` with its title as a
+`<Title>` (`studio/ui/common.tsx`), its route in `studio/router.ts`, its link in
+`studio/Shell.tsx` (the sidebar and the phone's tab bar), and the screen in the e2e sweep
+(`blog/tests/e2e/blog.spec.ts`).
+
+**Offer a choice of one** (a mood, a colour, a period). Buttons with `role="radio"` in a
+`role="radiogroup"`, each with `tabIndex={radioTabIndex(index, checked)}` and
+`onKeyDown={onRadioKeyDown}` from `@allenkh/design/radiogroup`: the group is one tab stop, and
+the arrow keys move the check, as with the browser's own radios. `app.css` draws `.swatches` and
+`.segmented`.
 
 **Add a reader page to the blog.** An Astro page in `blog/src/pages/` on `layouts/Base.astro`,
 reading D1 through `src/server/`. No `<script>`: a form posts to its own page, which answers it

@@ -17,13 +17,22 @@ Dashboard labels drift; if something has moved, the dashboard's search box finds
 
 1. Snapshot the existing subdomains exactly as in the main runbook's §0 (`nslookup` and
    `curl.exe -sI` for days2meet and fishai), and keep the output.
-2. Check that nothing answers on `blog` yet. This should end with "Non-existent domain":
+2. Check that nothing answers on `blog` yet (asking Cloudflare's public resolver, 1.1.1.1):
 
    ```bash
-   nslookup blog.allenkh.com
+   nslookup blog.allenkh.com 1.1.1.1
    ```
 
-   If it finds something, stop and tell Claude: some record already uses the name.
+   Expect a `Name:` line with nothing under it: no `Addresses`, no `Aliases` (the `Address`
+   near the top is the resolver's own). Cloudflare answers a name that does not exist this way,
+   without the words "Non-existent domain"; a made-up name looks the same:
+
+   ```bash
+   nslookup no-such-name.allenkh.com 1.1.1.1
+   ```
+
+   If an address or an alias shows under the name, stop and tell Claude: some record already uses
+   it.
 
 **Plan.** The Workers Free plan runs the blog: D1, R2, the cron and the rate limits all work on
 it. Two things need Workers Paid ($5 a month), and nothing in the code changes when you switch:

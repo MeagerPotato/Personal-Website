@@ -1,9 +1,46 @@
-/** Small pieces every screen uses: the gate layout, error text, device names, error wording. */
-import type { ReactNode } from 'react';
+/**
+ * Small pieces every screen uses: the title, the gate layout, error text, device names, error
+ * wording.
+ */
+import { focusNextTitle, titleLeaving, titleShown } from '@allenkh/design/focus';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, OfflineError } from '../api/client';
 import { UnlockError } from '../account/account';
 import { PasskeyError } from '../auth/webauthn';
 import { Bean } from './Bean';
+
+/**
+ * A screen's one <h1>. When the screen changes it takes the focus (@allenkh/design/focus), so a
+ * screen reader reads out where it now is, and the next Tab goes on from there.
+ */
+export function Title({ className, children }: { className: string; children: ReactNode }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  // A layout effect, so that its cleanup runs while the title is still in the document.
+  useLayoutEffect(() => {
+    const title = heading.current;
+    if (!title) return undefined;
+    titleShown(title);
+    return () => titleLeaving(title);
+  }, []);
+  return (
+    <h1 ref={heading} className={className} tabIndex={-1}>
+      {children}
+    </h1>
+  );
+}
+
+/**
+ * The step a gate is on (setup's code, phrase, passkey…). A new step's title takes the focus:
+ * the button that led to it has gone.
+ */
+export function useStep<T>(first: T): [T, (next: T) => void] {
+  const [step, setStep] = useState(first);
+  const go = useCallback((next: T) => {
+    focusNextTitle();
+    setStep(next);
+  }, []);
+  return [step, go];
+}
 
 /** The screens before the journal opens: one calm column, a bean at the top. */
 export function Gate({
@@ -26,7 +63,10 @@ export function Gate({
           size={56}
           className="gate__bean"
         />
-        <h1 className="gate__title">{title}</h1>
+        {/* Keyed by its words: each step of a gate draws a title of its own. */}
+        <Title key={title} className="gate__title">
+          {title}
+        </Title>
         {lede ? <p className="gate__lede">{lede}</p> : null}
         {children}
       </div>

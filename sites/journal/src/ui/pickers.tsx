@@ -1,4 +1,5 @@
 /** The day's quick inputs: the mood beans, the activity chips, people and places. */
+import { onRadioKeyDown, radioTabIndex } from '@allenkh/design/radiogroup';
 import { FAMILY_KEYS, type FamilyKey } from '@allenkh/design/tokens';
 import { Plus, X } from 'lucide-react';
 import { useId, useMemo, useRef, useState } from 'react';
@@ -11,6 +12,7 @@ export function MoodPicker(props: {
   moods: MoodDef[];
   onChange: (mood: number | null) => void;
 }) {
+  const picked = props.moods.findIndex((mood) => mood.value === props.value);
   return (
     <div
       className="moods"
@@ -18,17 +20,20 @@ export function MoodPicker(props: {
       aria-label="Mood"
       data-picked={props.value !== null || undefined}
     >
-      {props.moods.map((mood) => {
-        const checked = props.value === mood.value;
+      {props.moods.map((mood, index) => {
+        const checked = index === picked;
         return (
           <button
             key={mood.value}
             type="button"
             role="radio"
             aria-checked={checked}
+            tabIndex={radioTabIndex(index, picked)}
             className="mood"
             data-family={mood.family}
+            // Clicked again, the mood is taken back: a day may have none.
             onClick={() => props.onChange(checked ? null : mood.value)}
+            onKeyDown={onRadioKeyDown}
           >
             <Bean mood={mood.value} family={mood.family} size={48} />
             <span className="mood__label">{mood.label}</span>

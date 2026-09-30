@@ -75,7 +75,11 @@ exactly one `<h1>`.
 **Shared app frame.** `packages/design/styles/app.css` is the frame both apps are built from (the
 sidebar, the phone tab bar, sheets and dialogs) and their common parts (chips, property lists,
 swatches, segmented controls, record lists, settings sections, the sign-in gate). Each app's own
-sheet adds only what is its alone.
+sheet adds only what is its alone. Two behaviours go with it, framework-free, so both apps work
+alike: when the screen changes (a link, Back, a gate's next step), the new screen's title takes
+the focus (`focus.ts`, through each app's `<Title>`), so a screen reader says where it now is;
+and a radio group drawn as buttons (the moods, swatches, segmented controls) is one stop in the
+tab order, walked with the arrow keys (`radiogroup.ts`), as the browser's own radios are.
 
 **The journal** (built). A local-first app: records are sealed and kept in IndexedDB, synced
 with compare-and-set writes and merged on the device (the server cannot read what it would
@@ -101,8 +105,13 @@ date, tags, series and part, cover), preview, publish, update, take down, delete
 post to subscribers once; the comment queue (approve, reply, spam); the subscribers; tags and
 series (Organize); and the passkeys (Settings). A draft saves as it is written, in order, each
 save over the version it started from, so two tabs on one post ask which version to keep
-instead of losing either. Mail (a subscription's confirmation, a new post) goes through an
-outbox in D1 that a cron drains and retries.
+instead of losing either. Until the server has it, the writing is also kept on the device
+(`studio/screens/post/backup.ts`), so a tab that dies first (offline, a crash) loses nothing:
+the post opened there again brings it back, or asks which version to keep if the server's draft
+has moved on since. Signing out saves first (what cannot be saved yet goes at the next sign-in),
+and counts only once the blog has ended the session: offline, the studio says it is still
+signed in. Mail (a subscription's confirmation, a new post) goes through an outbox in D1 that a
+cron drains and retries.
 
 ## 4. Roadmap
 
@@ -120,12 +129,8 @@ outbox in D1 that a cron drains and retries.
 
 **Known details for D** (noticed while building; none blocks a launch):
 
-- The editor's placeholder text is faint; check it against the contrast bar in daylight.
 - On the day page, the activity chips take more room than the writing; try them folded.
 - The story-sized snapshot leaves room at the bottom; give it to the photos.
-- Passkeys are labelled by device type ("iPhone"); let Allen rename them.
-- The mood picker is a radio group: arrow keys should move between moods.
-- After a route change, focus should move to the new screen's heading.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
 - The journal's rollback check (a manifest signed with the `manifest` key, so a device can tell
   that the server is hiding recent changes) is designed but not built (journal-crypto.md,
@@ -134,8 +139,6 @@ outbox in D1 that a cron drains and retries.
   are placeholders for Allen's words.
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
   Math) with the blog.
-- The studio keeps a draft that has not reached the server only in memory (it warns before the
-  tab closes); keep a copy on the device until it is saved.
 - The studio could tell Allen about a new comment by email, once email is set up.
 
 ## 5. Verification

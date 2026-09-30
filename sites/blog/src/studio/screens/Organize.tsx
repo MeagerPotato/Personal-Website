@@ -3,13 +3,14 @@
  * name as shown, and a line about them. Series are made here, then chosen on each post. Each is
  * a row that opens into its form (and closes again once saved).
  */
+import { onRadioKeyDown, radioTabIndex } from '@allenkh/design/radiogroup';
 import { ChevronRight, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { SeriesInfo, TagInfo } from '../../server/posts';
 import { FAMILIES, type Family } from '../../site/tags';
 import { api } from '../api';
 import { useTitle } from '../router';
-import { busyLabel, describe, ErrorText, plural, useConfirm } from '../ui/common';
+import { busyLabel, describe, ErrorText, plural, Title, useConfirm } from '../ui/common';
 
 type Ask = ReturnType<typeof useConfirm>[1];
 
@@ -22,35 +23,21 @@ function Swatches({
   onChange: (family: Family) => void;
   label: string;
 }) {
+  const picked = FAMILIES.indexOf(value);
   return (
     <div className="swatches" role="radiogroup" aria-label={label}>
-      {FAMILIES.map((family) => (
+      {FAMILIES.map((family, index) => (
         <button
           key={family}
           type="button"
           role="radio"
           className="swatch"
           data-family={family}
-          aria-checked={value === family}
+          aria-checked={index === picked}
           aria-label={family[0]?.toUpperCase() + family.slice(1)}
-          tabIndex={value === family ? 0 : -1}
+          tabIndex={radioTabIndex(index, picked)}
           onClick={() => onChange(family)}
-          onKeyDown={(event) => {
-            const step =
-              event.key === 'ArrowRight' || event.key === 'ArrowDown'
-                ? 1
-                : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-                  ? -1
-                  : 0;
-            if (!step) return;
-            event.preventDefault();
-            const next =
-              FAMILIES[(FAMILIES.indexOf(value) + step + FAMILIES.length) % FAMILIES.length] ??
-              value;
-            onChange(next);
-            const group = event.currentTarget.parentElement;
-            group?.querySelector<HTMLButtonElement>(`[data-family="${next}"]`)?.focus();
-          }}
+          onKeyDown={onRadioKeyDown}
         />
       ))}
     </div>
@@ -317,7 +304,7 @@ export function Organize() {
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Organize</h1>
+        <Title className="page__title">Organize</Title>
         <p className="hint">
           Tags and series: how readers find their way from one post to the next.
         </p>

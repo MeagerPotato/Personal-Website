@@ -224,7 +224,7 @@
 }
 
 .post-title::placeholder {
-  color: var(--ink-faint);
+  color: var(--ink-low);
 }
 
 .post-properties {
@@ -374,7 +374,7 @@
   content: 'Add a caption';
   position: absolute;
   inset-inline: 0;
-  color: var(--ink-faint);
+  color: var(--ink-low);
   pointer-events: none;
 }
 

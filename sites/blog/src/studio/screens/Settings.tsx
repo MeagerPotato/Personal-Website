@@ -8,7 +8,16 @@ import { api, type Passkey } from '../api';
 import { useOverview } from '../data';
 import { addPasskey, deviceLabel } from '../passkeys';
 import { useTitle } from '../router';
-import { busyLabel, describe, ErrorText, shortDate, useConfirm, whenAgo } from '../ui/common';
+import { useSignOut } from '../signOut';
+import {
+  busyLabel,
+  describe,
+  ErrorText,
+  shortDate,
+  Title,
+  useConfirm,
+  whenAgo,
+} from '../ui/common';
 
 type Ask = ReturnType<typeof useConfirm>[1];
 
@@ -84,6 +93,8 @@ export function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDialog, ask] = useConfirm();
+  // A full load after it, so nothing of the session is left in memory.
+  const signOut = useSignOut(() => location.assign('/studio/'));
 
   const load = useCallback(
     () =>
@@ -106,19 +117,12 @@ export function Settings() {
       .finally(() => setBusy(false));
   };
 
-  const signOut = () => {
-    void api
-      .logout()
-      .catch(() => undefined)
-      .then(() => location.assign('/studio/'));
-  };
-
   const mail = overview?.mail ?? null;
 
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Settings</h1>
+        <Title className="page__title">Settings</Title>
       </header>
 
       <section className="settings__section" aria-labelledby="passkeys-title">
@@ -179,12 +183,13 @@ export function Settings() {
         </h2>
         <p className="hint">A session lasts a day without use, and a week at most.</p>
         <div className="settings__actions">
-          <button type="button" className="button" onClick={signOut}>
+          <button type="button" className="button" onClick={signOut.start}>
             Sign out
           </button>
         </div>
       </section>
       {confirmDialog}
+      {signOut.dialog}
     </div>
   );
 }

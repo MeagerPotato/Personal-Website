@@ -7,7 +7,11 @@
  *     later and later (up to a minute), and at once when the connection or the session is back.
  *   - Saved elsewhere in between (another tab, another device): the server says 409 and sends its
  *     version, and the writer chooses which one to keep. Nothing is overwritten silently.
- *   - Leaving the screen saves what is left; closing the tab with unsaved changes asks first.
+ *   - Leaving the screen saves what is left; closing the tab with unsaved changes asks first;
+ *     signing out saves first (saveAll).
+ *   - Until the server has it, the writing is also kept on this device (backup.ts), so a tab that
+ *     dies first loses nothing: opening the post here again brings it back and saves it, or, if
+ *     the server's draft has moved on meanwhile, asks which version to keep, as above.
  *
  * Sessions outlive their screen until they are saved: opening the post again picks up the same
  * one, so a slow save never meets a fresh copy of its own post.
@@ -15,9 +19,12 @@
 import type { Draft, StudioPost } from '../../../server/posts';
 import { api, ApiError, onSignedIn } from '../../api';
 import { describe } from '../../ui/common';
+import { dropBackup, findBackup, keepBackup, sameDraft } from './backup';
 
 export const SAVE_DELAY_MS = 800;
 const MAX_RETRY_MS = 60_000;
+/** The copy on this device follows the writing at most this far behind. */
+const BACKUP_DELAY_MS = 400;
 
 export type SaveState =
   | { kind: 'saved'; at: number }
@@ -38,6 +45,8 @@ export interface DraftView {
   save: SaveState;
   /** Goes up when the copy is replaced from outside (their version): the editor starts again. */
   generation: number;
+  /** When the writing brought back from this device (backup.ts) was kept, if it was. */
+  restoredAt: number | null;
 }
 
 const isPost = (value: unknown): value is StudioPost =>
@@ -51,6 +60,7 @@ export class DraftSession {
   #edits = 0;
   #saved = 0;
   #timer: ReturnType<typeof setTimeout> | undefined;
+  #backupTimer: ReturnType<typeof setTimeout> | undefined;
   #queue: Promise<unknown> = Promise.resolve();
   #retryMs = 0;
   #open = true;
@@ -62,6 +72,7 @@ export class DraftSession {
       draft: post.draft,
       save: { kind: 'saved', at: post.draftSavedAt },
       generation: 0,
+      restoredAt: null,
     };
     this.#rev = post.draftRev;
   }
@@ -73,8 +84,40 @@ export class DraftSession {
 
   static start(post: StudioPost): DraftSession {
     const session = new DraftSession(post);
+    session.#restore();
     live.set(post.id, session);
     return session;
+  }
+
+  /**
+   * Writing this device kept (backup.ts) that the server does not have comes back into the copy.
+   * If it was written over the server's current version, it saves; if the server's draft has
+   * moved on since, the writer chooses which version to keep.
+   */
+  #restore(): void {
+    const backup = findBackup(this.id);
+    if (!backup) return;
+    const server = this.#view.post;
+    // A field a later studio added comes from the server's copy.
+    const draft = { ...server.draft, ...backup.draft };
+    if (sameDraft(draft, server.draft)) {
+      // It reached the server after all (the tab went between the save and the tidying).
+      dropBackup(this.id, { anyTab: true });
+      return;
+    }
+    const current = backup.rev === server.draftRev;
+    // The version the writing was done over, so that saving it can never pass for a later one.
+    this.#rev = backup.rev;
+    this.#edits = 1;
+    this.#view = {
+      ...this.#view,
+      draft,
+      save: current ? { kind: 'waiting' } : { kind: 'conflict', theirs: server },
+      restoredAt: backup.at,
+    };
+    // This tab's copy from now on.
+    keepBackup(this.id, backup.rev, draft, backup.at);
+    if (current) this.#schedule(0);
   }
 
   /** A screen shows it (again). */
@@ -93,6 +136,16 @@ export class DraftSession {
     for (const session of live.values()) {
       if (session.dirty && session.#view.save.kind === 'retrying') void session.flush();
     }
+  }
+
+  /** Brings every copy on this device up to date now (the page may be frozen or closed). */
+  static keepAll(): void {
+    for (const session of live.values()) session.#backupNow();
+  }
+
+  /** Saves everything that can be saved now (before signing out, after which nothing can be). */
+  static async saveAll(): Promise<void> {
+    await Promise.all([...live.values()].map((session) => session.flush()));
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -122,6 +175,19 @@ export class DraftSession {
     this.#timer = setTimeout(() => void this.flush(), ms);
   }
 
+  /** Keeps the copy on this device a moment after a change (at most every BACKUP_DELAY_MS). */
+  #backupSoon(): void {
+    this.#backupTimer ??= setTimeout(() => this.#backupNow(), BACKUP_DELAY_MS);
+  }
+
+  /** The copy on this device, now: the working copy while the server lacks any of it, else none. */
+  #backupNow(): void {
+    clearTimeout(this.#backupTimer);
+    this.#backupTimer = undefined;
+    if (this.dirty) keepBackup(this.id, this.#rev, this.#view.draft);
+    else dropBackup(this.id);
+  }
+
   /** A change from the page: kept at once, saved soon. */
   change(update: (draft: Draft) => Draft): void {
     const draft = update(this.#view.draft);
@@ -130,6 +196,7 @@ export class DraftSession {
     const { save } = this.#view;
     const stuck = save.kind === 'conflict' || save.kind === 'failed';
     this.#update({ draft, save: stuck ? save : { kind: 'waiting' } });
+    this.#backupSoon();
     if (save.kind !== 'conflict') this.#schedule(SAVE_DELAY_MS);
   }
 
@@ -161,6 +228,8 @@ export class DraftSession {
           },
           save: this.dirty ? { kind: 'waiting' } : { kind: 'saved', at: saved.draftSavedAt },
         });
+        // Over the new version, or gone once the server has it all.
+        this.#backupNow();
       } catch (error) {
         this.#fail(error);
         return false;
@@ -189,6 +258,7 @@ export class DraftSession {
     this.#rev = save.theirs.draftRev;
     this.#saved = -1;
     this.#update({ post: { ...save.theirs, draft: this.#view.draft }, save: { kind: 'waiting' } });
+    this.#backupNow();
     void this.flush();
   }
 
@@ -204,6 +274,7 @@ export class DraftSession {
       save: { kind: 'saved', at: save.theirs.draftSavedAt },
       generation: this.#view.generation + 1,
     });
+    this.#backupNow();
   }
 
   /** Why the post cannot be published or previewed yet, if it cannot. */
@@ -243,6 +314,8 @@ export class DraftSession {
     clearTimeout(this.#timer);
     await api.deletePost(this.id);
     this.#saved = this.#edits;
+    clearTimeout(this.#backupTimer);
+    dropBackup(this.id, { anyTab: true });
     live.delete(this.id);
   }
 
@@ -251,6 +324,7 @@ export class DraftSession {
    * conflict (or a save that failed) waits for the post to be opened again, where it shows.
    */
   close(): void {
+    this.#backupNow();
     this.#open = false;
     if (!this.dirty) live.delete(this.id);
     else if (this.#view.save.kind !== 'conflict') void this.flush();
@@ -263,3 +337,8 @@ addEventListener('beforeunload', (event) => {
 });
 addEventListener('online', () => DraftSession.retryAll());
 onSignedIn(() => DraftSession.retryAll());
+// A hidden page may be frozen, or thrown away, without another word: the copies are made now.
+addEventListener('pagehide', () => DraftSession.keepAll());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') DraftSession.keepAll();
+});

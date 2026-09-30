@@ -339,6 +339,32 @@ describe('recovery', () => {
   });
 });
 
+describe('passkeys', () => {
+  it('removes one, and signs out at once every device it signed in', async () => {
+    const { device: phone, credentialId: phoneKey } = await setUp(env);
+    // A second passkey, a laptop's, added from the phone and then signed in with.
+    const begin = await phone.json('POST', '/credentials/begin');
+    const laptopPasskey = new SoftAuthenticator(RP_ID, ORIGIN);
+    const added = await phone.json('POST', '/credentials/finish', {
+      challengeId: begin.body['challengeId'],
+      response: await laptopPasskey.register(begin.body['options'] as Body),
+      label: 'Mac',
+    });
+    expect(added.status).toBe(200);
+    const { device: laptop } = await signIn(env, laptopPasskey);
+    expect((await laptop.json('GET', '/sync?since=0')).status).toBe(200);
+
+    // Not the passkey this device signed in with...
+    expect((await phone.json('DELETE', `/credentials/${phoneKey}`)).status).toBe(409);
+    // ...but the laptop's (the laptop was lost): its session ends with it, and it signs in no more.
+    const laptopKey = added.body['credentialId'] as string;
+    expect((await phone.json('DELETE', `/credentials/${laptopKey}`)).status).toBe(200);
+    expect((await laptop.json('GET', '/sync?since=0')).status).toBe(401);
+    expect((await signIn(env, laptopPasskey)).finish.status).toBe(401);
+    expect((await phone.json('GET', '/sync?since=0')).status).toBe(200);
+  });
+});
+
 describe('sync', () => {
   const sealed = (n: number) => toBase64Url(new Uint8Array(300).fill(n));
 

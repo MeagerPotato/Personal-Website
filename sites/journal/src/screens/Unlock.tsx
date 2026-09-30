@@ -15,7 +15,7 @@ import {
 import { PasskeyError } from '../auth/webauthn';
 import { getMeta, type OfflineUnlock } from '../store/db';
 import { longDate, today } from '../model/dates';
-import { ErrorText, Gate, busyLabel, describe, unlockVerb } from '../ui/common';
+import { ErrorText, Gate, busyLabel, describe, unlockVerb, useStep } from '../ui/common';
 import { Recover } from './Recover';
 
 const REFRESH_MS = 4 * 60 * 1000;
@@ -24,7 +24,7 @@ export function Unlock({ onUnlocked }: { onUnlocked: (unlocked: Unlocked) => voi
   const [ticket, setTicket] = useState<UnlockTicket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<'passkey' | 'passphrase' | 'recover'>('passkey');
+  const [mode, setMode] = useStep<'passkey' | 'passphrase' | 'recover'>('passkey');
   const [hasPassphrase, setHasPassphrase] = useState(false);
   /** Bumped to fetch a fresh challenge at once (after one has been used). */
   const [round, setRound] = useState(0);

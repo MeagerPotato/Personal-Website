@@ -1,8 +1,9 @@
 // The blog end to end: Allen sets up the studio with a passkey, writes a post with every kind of
 // block and publishes it; a reader reads it (with JavaScript and without), and comments; Allen
-// approves and replies; two tabs on one post meet a conflict; and every page, the readers' and
-// the studio's, passes axe in light and in dark. One blog for the whole file, so the tests run
-// in order and each builds on the last.
+// approves and replies; two tabs on one post meet a conflict; writing that never reached the
+// server comes back; signing out saves first, and only counts once the blog has heard it; and
+// every page, the readers' and the studio's, passes axe in light and in dark. One blog for the
+// whole file, so the tests run in order and each builds on the last.
 
 import { AxeBuilder } from '@axe-core/playwright';
 import {
@@ -49,6 +50,9 @@ async function visitor(
   const refused: string[] = [];
   context.on('console', (message) => {
     if (message.type() !== 'error') return;
+    // Chrome logs every request that fails for want of a network; the unsaved-writing test makes
+    // some on purpose.
+    if (message.text() === 'Failed to load resource: net::ERR_INTERNET_DISCONNECTED') return;
     const status = REFUSED.exec(message.text())?.[1];
     if (status) refused.push(status);
     else problems.push(message.text());
@@ -104,6 +108,9 @@ const heading = (page: Page, name: string) => page.getByRole('heading', { level:
 /** A link in the studio's sidebar ("Comments" carries its count: matched by its start). */
 const sidebar = (page: Page, name: string) =>
   page.locator('.sidebar').getByRole('link', { name: new RegExp(`^${name}`) });
+/** The copies of unsaved writing this device keeps (studio/screens/post/backup.ts). */
+const kept = (page: Page) =>
+  page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('studio:')));
 
 let allen: Visitor;
 let reader: Visitor;
@@ -131,6 +138,7 @@ test('sets up the studio with a passkey, and only with the setup code', async ()
   await page.getByLabel('Setup code').fill('e2e-setup-code');
   await page.getByRole('button', { name: 'Create a passkey' }).click();
   await expect(heading(page, 'Posts')).toBeVisible();
+  await expect(heading(page, 'Posts')).toBeFocused();
 });
 
 test('writes a post with every kind of block, and publishes it', async () => {
@@ -139,7 +147,9 @@ test('writes a post with every kind of block, and publishes it', async () => {
   await expect(page).toHaveURL(/\/studio\/posts\/p_[\w-]+\/$/);
   studioPost = new URL(page.url()).pathname;
 
+  // A new post starts at its title.
   const title = page.getByRole('textbox', { name: 'Title' });
+  await expect(title).toBeFocused();
   await title.fill('First flight');
   await title.press('Enter');
   await expect(editor(page)).toBeFocused();
@@ -317,9 +327,96 @@ test('two tabs on one post: the later save asks which version to keep', async ()
   await expect(first.getByLabel('Summary')).toHaveValue('Written in the second tab.');
 });
 
+test('writing that never reached the server comes back, on the device it was written on', async ({
+  browser,
+}) => {
+  const context = allen.page.context();
+  const { page } = allen;
+  /**
+   * A tab writes, its saves get no answer (no connection), and it dies before one does (a crash,
+   * a flat battery). With `reached`, the saves do reach the server: only the answers are lost.
+   * (Not the browser's offline switch: a request can still slip out to localhost under it.)
+   */
+  const writeAndDie = async (summary: string, { reached = false } = {}) => {
+    const tab = await context.newPage();
+    await tab.goto(studioPost);
+    await expect(saveState(tab)).toHaveText('Saved');
+    await tab.route('**/draft/', async (route) => {
+      if (reached) await route.fetch();
+      await route.abort('internetdisconnected');
+    });
+    await tab.getByLabel('Summary').fill(summary);
+    await expect(saveState(tab)).toHaveText('Not saved');
+    await expect.poll(() => kept(tab)).toHaveLength(1);
+    await tab.close({ runBeforeUnload: false });
+  };
+
+  // Opened again here, the post has the writing back, and saves it; the copy then goes.
+  await writeAndDie('Written on a plane.');
+  await page.goto(studioPost);
+  await expect(page.getByLabel('Summary')).toHaveValue('Written on a plane.');
+  await expect(page.getByRole('status').filter({ hasText: 'Brought back' })).toBeVisible();
+  await expect(saveState(page)).toHaveText('Saved');
+  expect.soft(await seriousIssues(page, 'studio-post-restored'), 'restored').toEqual([]);
+  expect(await kept(page)).toEqual([]);
+  await page.reload();
+  await expect(page.getByLabel('Summary')).toHaveValue('Written on a plane.');
+
+  // A save that reached the server and lost only its answer: nothing to bring back, the copy is
+  // simply tidied away.
+  await writeAndDie('Written in a tunnel.', { reached: true });
+  await page.goto(studioPost);
+  await expect(page.getByLabel('Summary')).toHaveValue('Written in a tunnel.');
+  await expect(saveState(page)).toHaveText('Saved');
+  await expect(page.getByText('Brought back')).toHaveCount(0);
+  expect(await kept(page)).toEqual([]);
+
+  // Again, but the post is saved on another device before this one is back online: which
+  // version to keep is asked, as with two tabs, and never decided by the copy alone.
+  await writeAndDie('Written on the way home.');
+  const elsewhere = await browser.newContext({
+    storageState: { cookies: await context.cookies(), origins: [] },
+  });
+  const other = await elsewhere.newPage();
+  await other.goto(studioPost);
+  await other.getByLabel('Summary').fill('Written on another device.');
+  await expect(saveState(other)).toHaveText('Saved');
+  await elsewhere.close();
+
+  await page.goto(studioPost);
+  await expect(page.getByRole('alert')).toContainText('never reached the blog');
+  await expect(page.getByLabel('Summary')).toHaveValue('Written on the way home.');
+  expect.soft(await seriousIssues(page, 'studio-post-restored-conflict'), 'conflict').toEqual([]);
+  await page.getByRole('button', { name: 'Keep this one' }).click();
+  await expect(saveState(page)).toHaveText('Saved');
+  expect(await kept(page)).toEqual([]);
+  await page.reload();
+  await expect(page.getByLabel('Summary')).toHaveValue('Written on the way home.');
+});
+
 test('a series, made in Organize, strings the post into it', async () => {
   const { page } = allen;
+  // Each screen shown, by a link or by Back, gives its title the focus.
   await sidebar(page, 'Organize').click();
+  await expect(heading(page, 'Organize')).toBeFocused();
+  await sidebar(page, 'Settings').click();
+  await expect(heading(page, 'Settings')).toBeFocused();
+  await page.goBack();
+  await expect(heading(page, 'Organize')).toBeFocused();
+
+  // A tag's colours are one stop in the tab order, walked with the arrow keys.
+  await page.locator('.organize-item__summary', { hasText: 'Rockets' }).click();
+  const colours = page.getByRole('radiogroup', { name: 'Colour of Rockets' });
+  const checked = colours.getByRole('radio', { checked: true });
+  await expect(colours.locator('[tabindex="0"]')).toHaveCount(1);
+  const first = await checked.getAttribute('data-family');
+  await colours.locator('[tabindex="0"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(checked).not.toHaveAttribute('data-family', first ?? '');
+  await expect(checked).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(checked).toHaveAttribute('data-family', first ?? '');
+
   await page.getByRole('button', { name: 'New series' }).click();
   await page.getByLabel('Title', { exact: true }).fill('Rocket build');
   await page.getByRole('button', { name: 'Make the series' }).click();
@@ -345,11 +442,91 @@ test('signing out, and in again with the passkey; a second passkey here is refus
   await page.getByRole('button', { name: 'Add a passkey on this device' }).click();
   await expect(page.getByRole('alert')).toHaveText(/already has a passkey/);
 
+  // Out from Settings (the page loads again), in with the passkey; the studio's first screen
+  // takes the focus.
   await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
   const signIn = page.getByRole('button', { name: /^Sign in with/ });
   await expect(signIn).toBeVisible();
   await signIn.click();
   await expect(heading(page, 'Posts')).toBeVisible();
+  await expect(heading(page, 'Posts')).toBeFocused();
+
+  // Out from the sidebar, where the page stays: the sign-in's own title takes the focus.
+  await page.locator('.sidebar').getByRole('button', { name: 'Sign out' }).click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  await signIn.click();
+  await expect(heading(page, 'Posts')).toBeFocused();
+});
+
+test('signing out saves the writing first; what cannot be saved goes at the next sign-in', async () => {
+  const { page } = allen;
+  const signIn = page.getByRole('button', { name: /^Sign in with/ });
+  const signOut = page.locator('.sidebar').getByRole('button', { name: 'Sign out' });
+  // Out from the sidebar the address stays, so the post is back after signing in.
+  const post = heading(page, 'First flight, and a landing');
+  const summary = page.getByLabel('Summary');
+
+  // Out straight after writing, before its save was due: it is saved on the way out, so nothing
+  // is left waiting on this device.
+  await page.goto(studioPost);
+  await expect(saveState(page)).toHaveText('Saved');
+  await summary.fill('Written just before signing out.');
+  await signOut.click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  expect(await kept(page)).toEqual([]);
+  await signIn.click();
+  await expect(post).toBeFocused();
+  await page.reload();
+  await expect(summary).toHaveValue('Written just before signing out.');
+
+  // Out with no connection for the save: the writing waits, here and on the device.
+  await page.route('**/draft/', (route) => route.abort('internetdisconnected'));
+  await summary.fill('Written with no connection.');
+  await expect(saveState(page)).toHaveText('Not saved');
+  await signOut.click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  expect(await kept(page)).toHaveLength(1);
+  // The connection is back and the save tries again: refused, as nobody is signed in.
+  await page.unroute('**/draft/');
+  const refused = page.waitForResponse(
+    (response) => response.url().includes('/draft/') && response.status() === 401,
+  );
+  await page.evaluate(() => dispatchEvent(new Event('online')));
+  await refused;
+  // That is no news at the next sign-in: the passkey is not asked for twice, and the save goes.
+  await signIn.click();
+  await expect(post).toBeFocused();
+  await expect(page.getByRole('dialog', { name: 'Signed out' })).toHaveCount(0);
+  // At once, not at the next try (by then, 16 s away).
+  await expect(saveState(page)).toHaveText('Saved', { timeout: 5_000 });
+  expect(await kept(page)).toEqual([]);
+  await page.reload();
+  await expect(summary).toHaveValue('Written with no connection.');
+});
+
+test('a sign-out the blog never heard of is not one: the studio says so, and tries again', async () => {
+  const { page } = allen;
+  const signOut = page.locator('.sidebar').getByRole('button', { name: 'Sign out' });
+  const dialog = page.getByRole('dialog', { name: 'Not signed out' });
+  // No connection for that one request: the session cannot be ended.
+  await page.route('**/auth/logout/', (route) => route.abort('internetdisconnected'));
+
+  await signOut.click();
+  await expect(dialog).toContainText('can’t be reached');
+  expect.soft(await seriousIssues(page, 'studio-not-signed-out'), 'not signed out').toEqual([]);
+  // Left as it is, the studio is still signed in, and still all there.
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.sidebar')).toBeVisible();
+
+  // Once the blog can be reached, trying again signs out.
+  await signOut.click();
+  await expect(dialog).toBeVisible();
+  await page.unroute('**/auth/logout/');
+  await dialog.getByRole('button', { name: 'Try again' }).click();
+  await expect(heading(page, 'Studio')).toBeFocused();
+  await page.getByRole('button', { name: /^Sign in with/ }).click();
+  await expect(page.locator('.sidebar')).toBeVisible();
 });
 
 test('no page has a serious accessibility issue', async ({ browser }) => {
@@ -416,7 +593,8 @@ test('no page has a serious accessibility issue', async ({ browser }) => {
 test('no page logged an error or a CSP violation', () => {
   expect(allen.problems).toEqual([]);
   expect(reader.problems).toEqual([]);
-  // What the tests asked to be refused (the wrong setup code, the save over a newer one), and no more.
-  expect(allen.refused).toEqual(['403 (Forbidden)', '409 (Conflict)']);
+  // What the tests asked to be refused (the wrong setup code, the save over a newer one, the save
+  // tried while signed out), and no more.
+  expect(allen.refused).toEqual(['403 (Forbidden)', '409 (Conflict)', '401 (Unauthorized)']);
   expect(reader.refused).toEqual(['404 (Not Found)']); // the page that is not there
 });

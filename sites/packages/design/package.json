@@ -11,6 +11,8 @@
     "./vite": "./src/vite.ts",
     "./pwa": "./src/pwa.ts",
     "./icons": "./src/icons.ts",
+    "./focus": "./src/focus.ts",
+    "./radiogroup": "./src/radiogroup.ts",
     "./styles/*": "./styles/*"
   },
   "scripts": {
