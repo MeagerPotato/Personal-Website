@@ -280,7 +280,10 @@ describe('buildUniverse', () => {
     // served: JSON.stringify keeps the order of keys, so this is the file, byte for byte. A
     // galaxy of one-sun systems is built by the same code as before binaries (buildFamily). If
     // this fails, every body of today's galaxy has moved: meant only with the layout
-    // (docs/PLAN.md §5.4), as layout.test's PINNED.
+    // (docs/PLAN.md §5.4), as layout.test's PINNED. One value differs from the file as served
+    // before 2026-09-30, and on purpose: Code's position, from (-431.34, 431.34) to
+    // (-487.9, 487.9), when the slots made room for a binary star (tuning.layout, homeRoom and
+    // slotRoom). Everything else, down to the last ring, is as it was.
     const today: UniverseInput = {
       systems: [system('code', 1, { name: 'Code' })],
       projects: [
@@ -321,7 +324,7 @@ describe('buildUniverse', () => {
           id: 'code',
           name: 'Code',
           theme: 'sky',
-          position: [-431.34, 431.34],
+          position: [-487.9, 487.9],
           radius: 202.6,
           center: 'system/code',
         },
@@ -681,13 +684,12 @@ describe('buildUniverse', () => {
       // The one exception to "adding a project moves nothing" (data/layout.ts): each sun circles
       // at a radius set by the OTHER family's reach, and the pair's period by both. Their angles at
       // t = 0 stay, and so does every body's orbit round its own sun or planet, and everything
-      // outside the binary. (Without Days2Meet, so that the binary has room to grow within
-      // today's limit.)
+      // outside the binary. (Room to grow: 364.8 u, and 403.2 with the new planet, of 460.)
       const withResearch = (extra: ProjectInput[]): UniverseInput =>
         binary({
           systems: [...binary().systems, system('research', 2, { theme: 'lilac' })],
           projects: [
-            ...binary().projects.filter((entry) => entry.id !== 'days2meet'),
+            ...binary().projects,
             project('sports-analysis', { system: 'research' }),
             ...extra,
           ],
