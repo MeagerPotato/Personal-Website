@@ -1,7 +1,7 @@
 ---
 title: Fish Onboarding
 summary: Learn the card game Literature in about four minutes, in a scripted teaching game where you have to make the key moves yourself.
-parent: fishai
+parent: canadian-fish-demo
 date: "2026-08"
 status: shipped
 role: "Solo: rules engine, teaching script, components, design"

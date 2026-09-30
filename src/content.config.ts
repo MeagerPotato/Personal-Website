@@ -10,10 +10,10 @@ import { pageSchema, projectSchema, resumeSchema, systemSchema } from './site/sc
 const generateId = ({ entry }: { entry: string }): string => entryIdFromPath(entry);
 
 export const collections = {
-  // One file per solar system: src/content/systems/<id>.md
+  // One file per solar system, binary star, or sun of a binary: src/content/systems/<id>.md
   systems: defineCollection({
     loader: glob({ base: './src/content/systems', pattern: '*.md', generateId }),
-    schema: systemSchema(),
+    schema: systemSchema({ reference }),
   }),
 
   // One FOLDER per planet or moon, so its images live beside it: src/content/projects/<id>/index.md

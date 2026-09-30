@@ -8,9 +8,16 @@ export interface Destinations {
   idFor(pathname: string): string | null;
   /** The page a body opens. */
   hrefOf(id: string): string | null;
-  /** What a body is called. */
+  /** What a body is called, as it is said: planned work says so ("Sports Analysis, planned"). */
   titleOf(id: string): string | null;
 }
+
+/**
+ * Only a page of this site is a destination: a path from the root, never another site (a body
+ * that stands for a profile elsewhere) and never a protocol-relative `//host`. Docking follows a
+ * destination with the router, so an outbound href here would carry the visitor off the site.
+ */
+const isSitePath = (href: string): boolean => href.startsWith('/') && !href.startsWith('//');
 
 /** Pages end with a slash (astro.config.ts); a path typed without one is the same page. */
 const withSlash = (pathname: string): string =>
@@ -26,13 +33,21 @@ export function readDestinations(manifest: unknown): Destinations {
   };
 
   for (const body of Array.isArray(data.bodies) ? (data.bodies as unknown[]) : []) {
-    const { id, href, title } = (typeof body === 'object' && body !== null ? body : {}) as {
+    const { id, href, title, docks, planned } = (
+      typeof body === 'object' && body !== null ? body : {}
+    ) as {
       id?: unknown;
       href?: unknown;
       title?: unknown;
+      docks?: unknown;
+      planned?: unknown;
     };
-    if (typeof id !== 'string' || typeof href !== 'string') continue;
-    if (typeof title === 'string') titleById.set(id, title);
+    if (typeof id !== 'string') continue;
+    if (typeof title === 'string') {
+      // The engine's label and prompt show "Planned" after the name; spoken, it is part of it.
+      titleById.set(id, planned === true ? `${title}, planned` : title);
+    }
+    if (typeof href !== 'string' || !isSitePath(href) || docks === false) continue;
     hrefById.set(id, href);
     idByPath.set(withSlash(href), id);
   }

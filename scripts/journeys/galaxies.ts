@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { parseFrontmatter } from '@astrojs/internal-helpers/frontmatter';
 import { z } from 'astro/zod';
+import { site } from '../../src/config/site';
+import { profiles } from '../../src/site/profiles';
 import { entryIdFromPath } from '../../src/site/routes';
 import { pageSchema, projectSchema, systemSchema } from '../../src/site/schemas';
 import {
@@ -23,9 +25,9 @@ import { tuning } from '../../src/universe/design/tuning';
 import { createRng } from '../../src/universe/sim/rng';
 import { mergeInto, type DeepPartial } from './merge';
 
-// THE GALAXIES a journey is measured in: the real one, read from src/content exactly as the build
-// reads it (Astro's own frontmatter reader, the real schemas, the real toUniverseInput and
-// buildUniverse), and bigger ones made of the real one plus typical systems of the future, laid
+// THE GALAXIES a journey is measured in: the real one, read from src/content (and the profiles
+// from src/config/site.ts) exactly as the build reads it (Astro's own frontmatter reader, the real
+// schemas, the real toUniverseInput and buildUniverse), and bigger ones made of the real one plus typical systems of the future, laid
 // out by the real layout code in the free slots 2, 3, 4...
 //
 // Nothing here edits source. Layout changes are applied to tuning.layout IN PLACE for the length
@@ -95,13 +97,20 @@ function readEntries<T>(folder: string, pattern: 'file' | 'folder', parse: (data
 /** The content the build reads, as the plain input of buildUniverse(). Production drafts rule by default. */
 export function readRealInput(includeDrafts = false): UniverseInput {
   const systems: SystemEntry[] = readEntries('systems', 'file', (data) =>
-    systemSchema().parse(data),
+    systemSchema(helpers).parse(data),
   );
   const projects: ProjectEntry[] = readEntries('projects', 'folder', (data) =>
     projectSchema(helpers).parse(data),
   );
   const pages: PageEntry[] = readEntries('pages', 'file', (data) => pageSchema().parse(data));
-  return toUniverseInput({ systems, projects, pages, includeDrafts });
+  // Allen's profiles too, as the build reads them: relays in the home system, in the way.
+  return toUniverseInput({
+    systems,
+    projects,
+    pages,
+    profiles: profiles(site.socials),
+    includeDrafts,
+  });
 }
 
 // --- typical systems of the future ---------------------------------------------------------------
@@ -231,18 +240,31 @@ const project = (id: string, over: Partial<ProjectInput>): ProjectInput => ({
 });
 
 /**
+ * How many slots of the galaxy these systems fill: the entries with an `order`. The two suns of
+ * a binary star are entries too, but they share their binary's slot.
+ */
+const slotsFilled = (systems: readonly SystemInput[]): number =>
+  systems.filter((system) => system.order !== undefined).length;
+
+/**
  * The real content plus synthetic systems until there are `systemCount` systems, home included.
  * Each takes the lowest order no real system claims, so this keeps working as Allen adds systems.
+ *
+ * A synthetic system makes way only for a real SYSTEM of its id, and a synthetic project only for
+ * a real PROJECT of its id: the two are told apart everywhere (system/<id>, project/<id>, the
+ * build's own duplicate check), so a real Robotics planet must not silently drop the synthetic
+ * Robotics system and leave the grown galaxies no longer comparable with earlier runs.
  */
 export function grow(real: UniverseInput, systemCount: number): UniverseInput {
   const taken = new Set(real.systems.map((system) => system.order));
-  const ids = new Set([...real.systems, ...real.projects].map((entry) => entry.id));
+  const systemIds = new Set(real.systems.map((system) => system.id));
+  const projectIds = new Set(real.projects.map((entry) => entry.id));
   const systems: SystemInput[] = [...real.systems];
   const projects: ProjectInput[] = [...real.projects];
   let order = 1;
   for (const extra of SYNTHETIC) {
-    if (systems.length + 1 >= systemCount) break;
-    if (ids.has(extra.id)) continue;
+    if (slotsFilled(systems) + 1 >= systemCount) break;
+    if (systemIds.has(extra.id)) continue;
     while (taken.has(order)) order += 1;
     taken.add(order);
     systems.push({
@@ -255,16 +277,18 @@ export function grow(real: UniverseInput, systemCount: number): UniverseInput {
     });
     for (const planet of extra.planets) {
       const id = `${extra.id}-${planet.id}`;
+      // Its moons go with it: under the real project of that id they would be someone else's.
+      if (projectIds.has(id)) continue;
       projects.push(project(id, { system: extra.id, size: planet.size, date: planet.date }));
       for (const moon of planet.moons ?? []) {
-        projects.push(
-          project(`${extra.id}-${moon.id}`, { parent: id, size: moon.size, date: planet.date }),
-        );
+        const moonId = `${extra.id}-${moon.id}`;
+        if (projectIds.has(moonId)) continue;
+        projects.push(project(moonId, { parent: id, size: moon.size, date: planet.date }));
       }
     }
   }
-  if (systems.length + 1 < systemCount) {
-    throw new Error(`only ${systems.length + 1} systems can be made; add more to SYNTHETIC`);
+  if (slotsFilled(systems) + 1 < systemCount) {
+    throw new Error(`only ${slotsFilled(systems) + 1} systems can be made; add more to SYNTHETIC`);
   }
   return { ...real, systems, projects };
 }
@@ -325,7 +349,10 @@ export function buildGalaxy(
     const systems = input.systems.map((system): SystemInput => {
       const placed = overrides.positions?.[system.id];
       if (placed) return { ...system, position: placed };
-      if (formula === null || system.position !== 'auto') return system;
+      // A sun of a binary has no slot of its own: it goes where its binary goes.
+      if (formula === null || system.position !== 'auto' || system.order === undefined) {
+        return system;
+      }
       return { ...system, position: formula(system.order, system.id, slotPosition) };
     });
     return buildUniverse({ ...input, systems });

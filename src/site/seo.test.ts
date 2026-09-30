@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { site } from '../config/site';
+import { profiles } from './profiles';
 import {
   DEFAULT_PREVIEW,
   absoluteUrl,
@@ -35,10 +36,15 @@ describe('structured data', () => {
       '@type': 'Person',
       '@id': 'https://allenkh.com/#allen',
       name: site.name,
-      sameAs: [site.socials.github, site.socials.linkedin],
+      // (Every profile the site lists, in its order: the next test.)
+      sameAs: expect.arrayContaining([site.socials.github, site.socials.linkedin]),
     });
     expect(websiteLd()).toMatchObject({ '@type': 'WebSite', author: { '@id': person['@id'] } });
     expect(profilePageLd()).toMatchObject({ '@type': 'ProfilePage', mainEntity: person });
+  });
+
+  it('names the same profiles as the home page, in the same order, and nothing else', () => {
+    expect(personLd().sameAs).toEqual(profiles(site.socials).map(({ href }) => href));
   });
 
   it('never publishes contact details in structured data', () => {
@@ -89,6 +95,13 @@ describe('structured data', () => {
     expect(plain['@type']).toBe('CreativeWork');
     expect(plain).not.toHaveProperty('codeRepository');
     expect(plain).not.toHaveProperty('keywords');
+  });
+
+  it('leaves out the picture and the date that planned work does not have yet', () => {
+    const node = projectLd({ ...base, date: undefined, imagePath: undefined });
+    expect(node).not.toHaveProperty('image');
+    expect(node).not.toHaveProperty('dateCreated');
+    expect(node).toMatchObject({ name: 'FishAI', url: 'https://allenkh.com/projects/fishai/' });
   });
 
   it('hangs a moon on its planet', () => {

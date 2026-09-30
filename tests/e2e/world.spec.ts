@@ -8,7 +8,9 @@ import {
   expect,
   nameOf,
   openUniverse,
+  plannedName,
   pointAt,
+  settled,
   test,
   universe,
   watchText,
@@ -24,21 +26,24 @@ const pathOf = (page: Page): string => new URL(page.url()).pathname;
 /**
  * Somewhere that is NOT right in front of the ship, whatever the screen shows: the first name in
  * the sky from another system than home's, and the page it stands for (from the galaxy's
- * manifest).
+ * manifest). Built work only, on purpose: planned work is named "Fish Online, Planned" and its
+ * page is a single line, and these tests are about a journey, not about what planned work says
+ * (tree.spec.ts is).
  */
 async function somewhereFar(page: Page): Promise<{ name: string; path: string }> {
   const manifest = (await (await page.request.get('/universe.json')).json()) as {
-    bodies: { kind: string; title: string; href: string; system: string }[];
+    bodies: { kind: string; title: string; href: string; system: string; planned?: true }[];
   };
   // Another system: a journey of a few seconds (one in the home system is over in less than two).
   const home = manifest.bodies.find(({ kind }) => kind === 'home')?.system;
+  const built = manifest.bodies.filter((body) => body.system !== home && body.planned !== true);
   const names = page.getByRole('group', { name: 'Fly to' }).getByRole('button');
   await expect(names.first()).toBeVisible();
   for (const name of await names.allTextContents()) {
-    const body = manifest.bodies.find(({ title }) => title === name);
-    if (body && body.system !== home) return { name, path: body.href };
+    const body = built.find(({ title }) => title === name);
+    if (body) return { name, path: body.href };
   }
-  throw new Error('no other system has a name in the sky');
+  throw new Error('no other system has a name of built work in the sky');
 }
 
 /** A flight takes as long as it takes: a CI machine renders on its CPU, and time stretches. */
@@ -53,37 +58,40 @@ test('the name of a planet flies the ship there, and its page opens on arrival',
   // lasts: what was said, and where the page was when it was said.
   const said = await watchText(page, '.dock-prompt');
   const told = await watchText(page, '[data-announcer]');
-  await pointAt(page, nameOf(page, 'About'), isMobile);
+  // The home planet is called "About Me"; the nav keeps the short "About".
+  await pointAt(page, nameOf(page, 'About Me'), isMobile);
 
   // Nothing opens until the ship is there: the sky stays open while it flies.
   await expect
     .poll(async () =>
-      (await said()).find(({ text }) => text.includes('Flying to About') && text.includes('Stop')),
+      (await said()).find(
+        ({ text }) => text.includes('Flying to About Me') && text.includes('Stop'),
+      ),
     )
     .toMatchObject({ path: '/' });
   // Said, too, for someone who cannot see the ship turn.
   await expect
-    .poll(async () => (await told()).find(({ text }) => text === 'Flying to About.'))
+    .poll(async () => (await told()).find(({ text }) => text === 'Flying to About Me.'))
     .toMatchObject({ path: '/' });
 
   await expect.poll(() => pathOf(page), FLIGHT).toBe('/about/');
   await expect(html(page)).toHaveAttribute('data-panel', 'open');
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
   await expect(prompt(page)).toContainText('Leave orbit');
-  await expect(status(page)).toHaveText('Docked at About.');
+  await expect(status(page)).toHaveText('Docked at About Me.');
 });
 
 test('the planet itself can be pointed at', async ({ page, isMobile }) => {
   await openUniverse(page, '/');
   const said = await watchText(page, '.dock-prompt');
   // The name hangs just below the disc it names, so a little above the name is the planet.
-  await pointAt(page, nameOf(page, 'About'), isMobile, -14);
+  await pointAt(page, nameOf(page, 'About Me'), isMobile, -14);
 
   await expect
-    .poll(async () => (await said()).some(({ text }) => text.includes('Flying to About')))
+    .poll(async () => (await said()).some(({ text }) => text.includes('Flying to About Me')))
     .toBe(true);
   await expect.poll(() => pathOf(page), FLIGHT).toBe('/about/');
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
 });
 
 test('Stop gives the ship back, and nothing opens', async ({ page, isMobile }) => {
@@ -127,7 +135,7 @@ test('a link opens its page at once and the ship follows', async ({ page }) => {
 test('Close, pressed just as the ship arrives, still closes the page', async ({ page }) => {
   await openUniverse(page, '/');
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'About' }).click();
-  await expect(heading(page)).toHaveText('About');
+  await expect(heading(page)).toHaveText('About Me');
 
   // Close is Back, and after Back the URL is "/" at once while the sky only shows when its HTML
   // has arrived. Hold that answer until the ship has docked: it docks in the gap, where it once
@@ -191,5 +199,74 @@ test.describe('the first visit', () => {
     await page.reload();
     await engineReady(page);
     await expect(card).toBeHidden();
+  });
+});
+
+test.describe('on a laptop', () => {
+  // On a phone the map gives these names room only part of the time: Research sits at the bottom
+  // edge of the galaxy, and even all the way in, a planet's name there often has the screen's
+  // edge (and the Plain version chip) below it and its sun's name above (measured over a whole
+  // turn: Sports Analysis's name shows from about 70 s to 200 s after the page loads, and not at
+  // all in its first minute). The flight there from a page's link is tree.spec.ts's, on every
+  // screen.
+  test.skip(({ isMobile }) => isMobile, 'a keyboard, and room on the map for a planet of Research');
+
+  test('planned work is flown to like any other, and its one-line page says so', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    const said = await watchText(page, '.dock-prompt');
+    const told = await watchText(page, '[data-announcer]');
+    await page.keyboard.press('m');
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+
+    // Research, whose only work is planned, is at the bottom of the galaxy. Closer in (+, five
+    // times, about the middle), and with the map as far down as it goes (the arrow held until
+    // Research's name holds still), its bodies' names have room beside its sun's.
+    const research = nameOf(page, 'Research');
+    await settled(research);
+    for (let press = 0; press < 5; press += 1) await page.keyboard.press('Equal');
+    await page.keyboard.down('ArrowDown');
+    await settled(research);
+    await page.keyboard.up('ArrowDown');
+
+    // Both of Research's bodies are planned: the planet, and Kalshi, its moon. They are on their
+    // way round (the planet in six minutes), and a name hangs below or above its body where there
+    // is room: measured over a whole turn, the planet's gives way to its moon's or its sun's
+    // twice, for up to 36 s, and for a few seconds neither shows. So: whichever shows first,
+    // however long the way here took (a slow machine gets here later in the turn).
+    const planned = [
+      { title: 'Sports Analysis', path: '/projects/sports-analysis/' },
+      { title: 'Kalshi', path: '/projects/kalshi/' },
+    ] as const;
+    const shows = (title: string) =>
+      nameOf(page, plannedName(title)).and(page.locator('[data-shown]')).count();
+    const found: { body?: (typeof planned)[number] } = {};
+    await expect
+      .poll(
+        async () => {
+          found.body = undefined;
+          for (const body of planned) if ((await shows(body.title)) > 0) found.body ??= body;
+          return found.body?.title;
+        },
+        { timeout: 60_000 },
+      )
+      .toBeDefined();
+    const target = found.body;
+    if (!target) throw new Error('a planned name showed, and then there was none');
+    await pointAt(page, nameOf(page, plannedName(target.title)), false);
+
+    // As for built work: nothing opens until the ship is there, then its page.
+    await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
+    await expect.poll(() => pathOf(page), FLIGHT).toBe(target.path);
+    await expect(heading(page)).toHaveText(target.title);
+    await expect(status(page)).toHaveText(`Docked at ${target.title}, planned.`);
+    expect(
+      (await said()).filter(({ text }) => text.includes(`Flying to ${target.title}`)),
+    ).not.toEqual([]);
+    expect((await told()).map(({ text }) => text)).toContain(`Flying to ${target.title}, planned.`);
+    // One line and a status, and its planet where a picture would be: nothing pretends to be built.
+    await expect(page.locator('main .facts')).toContainText('Planned');
+    await expect(page.locator('main .cover--planet')).toHaveAttribute('data-planned', '');
   });
 });

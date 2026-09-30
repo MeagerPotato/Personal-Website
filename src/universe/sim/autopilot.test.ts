@@ -75,9 +75,10 @@ interface Journey {
   t: number;
 }
 
-function begin(t = 0): Journey {
+function begin(t = 0, manifest = MANIFEST): Journey {
+  const home = manifest.systems[0]?.position ?? HOME;
   const world = createSurroundings(
-    { systems: MANIFEST.systems, bodies: MANIFEST.bodies, home: HOME },
+    { systems: manifest.systems, bodies: manifest.bodies, home },
     tuning.edge.margin,
   );
   syncSurroundings(world, t);
@@ -99,8 +100,8 @@ function step(journey: Journey, pilot: Readonly<FlightInput> = NO_INPUT): void {
 }
 
 /** As a visitor reading a page is: in orbit round `id`, carried along for half a second. */
-function dockedAt(id: string, t = 0, angle = 0, spin = 1): Journey {
-  const journey = begin(t);
+function dockedAt(id: string, t = 0, angle = 0, spin = 1, manifest = MANIFEST): Journey {
+  const journey = begin(t, manifest);
   const { world } = journey;
   dockAt(
     world.field,
@@ -915,6 +916,104 @@ describe('the autopilot', () => {
       return journey.state;
     };
     expect(fly()).toEqual(fly());
+  });
+
+  it('crosses a binary star, family to family and through its empty centre, clear of everything', () => {
+    // Allen's Projects as the build lays it out (data/build.ts): Software's family and Hardware's
+    // circling one centre 40 u apart where they face, with nothing at the centre itself.
+    const binary = buildUniverse({
+      ...INPUT,
+      systems: [
+        {
+          id: 'projects',
+          name: 'Projects',
+          href: '/projects/',
+          theme: 'sky',
+          order: 1,
+          suns: ['software', 'hardware'],
+          position: 'auto',
+        },
+        { id: 'software', name: 'Software', href: '/systems/software/', position: 'auto' },
+        { id: 'hardware', name: 'Hardware', href: '/systems/hardware/', position: 'auto' },
+      ],
+      projects: [
+        project('cyberpatriot', { system: 'software', date: '2022-09' }),
+        project('canadian-fish', { system: 'software', date: '2026-08' }),
+        project('fishai', { parent: 'canadian-fish', size: 'l' }),
+        project('fish-onboarding', { parent: 'canadian-fish', size: 's' }),
+        project('days2meet', { system: 'software', date: '2026-08' }),
+        project('model-rocketry', { system: 'hardware', date: '2023-07' }),
+        project('robotics', { system: 'hardware', date: '2023-07' }),
+      ],
+    });
+    const journeys: ReadonlyArray<readonly [string, string, number, number, 1 | -1]> = [
+      // Across the gap, outer ring to outer ring; and across the whole of the other family.
+      ['project/days2meet', 'project/robotics', 0, 0.3, 1],
+      ['project/robotics', 'project/cyberpatriot', 900, 2.1, -1],
+      // To a moon of the other family, and sun to sun through the empty centre.
+      ['project/model-rocketry', 'project/fish-onboarding', 2400, 4.4, 1],
+      ['system/software', 'system/hardware', 3300, 1.2, -1],
+      // In from home, to a sun that is moving, and out again.
+      ['page/about', 'system/hardware', 600, 5.5, 1],
+      ['project/fishai', 'page/contact', 4000, 3.3, -1],
+    ];
+    for (const [from, to, t0, angle, spin] of journeys) {
+      const journey = dockedAt(from, t0, angle, spin, binary);
+      const { orbits } = journey.world;
+      sendTo(journey, to);
+      const seen = watchWhole(journey, [orbits.indexOf(from), orbits.indexOf(to)], 30);
+      const label = `${from} -> ${to}`;
+      expect(seen.docked, label).toBe(true);
+      expect(journey.world.dock.body, label).toBe(orbits.indexOf(to));
+      expect(seen.touched, label).toBe(false);
+      // Never through a shell, and never close enough to anything else to feel its cushion.
+      expect(seen.shellClear, label).toBeGreaterThan(tuning.cushion.depth * 0.5);
+      expect(seen.gap, `${label}, past ${seen.gapBody}`).toBeGreaterThan(
+        tuning.cushion.depth * 0.5,
+      );
+    }
+  });
+});
+
+describe('relays: bodies nothing docks at, only in the way', () => {
+  // Every place on the satellite's ring taken (data/build.ts, links): the home system as crowded
+  // as it can ever be, with seven bodies no journey may end at.
+  const LINKED = buildUniverse({
+    ...INPUT,
+    links: [1, 2, 3, 4, 5, 6, 7].map((slot) => ({
+      id: `net-${slot}`,
+      title: `Net ${slot}`,
+      href: `https://net-${slot}.example/`,
+      slot,
+    })),
+  });
+  const ENDS = LINKED.bodies.filter((body) => body.docks !== false);
+  const HOMES = ENDS.filter((body) => body.system === 'home').map((body) => body.id);
+
+  it('are gone round on every way into, out of and across the home system, and never touched', () => {
+    const rng = createRng('relays');
+    let closest = Infinity;
+    let where = '';
+    for (let run = 0; run < 80; run += 1) {
+      const t0 = rng() * 900;
+      // One end at home, among the relays; the other anywhere, home included.
+      const near = HOMES[Math.floor(rng() * HOMES.length)] ?? '';
+      let far = ENDS[Math.floor(rng() * ENDS.length)]?.id ?? '';
+      if (far === near) far = 'project/research';
+      const [from, to] = rng() < 0.5 ? [near, far] : [far, near];
+      const journey = dockedAt(from, t0, rng() * Math.PI * 2, rng() < 0.5 ? 1 : -1, LINKED);
+      const report = travel(journey, to, journey.world.orbits.indexOf(from));
+      const label = `run ${run}: ${from} -> ${to} at ${t0.toFixed(0)} s`;
+      expect(report.docked, label).toBe(true);
+      expect(report.touched, label).toBe(false);
+      if (report.leastGap < closest) {
+        closest = report.leastGap;
+        where = label;
+      }
+    }
+    // As wide a berth as anything else is given (the 200 journeys above): never in a cushion.
+    // Measured: 6.4 u from the nearest surface passed, of anything, relays included.
+    expect(closest, where).toBeGreaterThan(tuning.cushion.depth * 0.5);
   });
 });
 

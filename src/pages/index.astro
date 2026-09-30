@@ -3,13 +3,14 @@ import { getCollection } from 'astro:content';
 import ProjectCards from '../components/ProjectCards.astro';
 import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
+import { profiles } from '../site/profiles';
 import { routes } from '../site/routes';
 import { personLd, websiteLd } from '../site/seo';
-import { buildProjectTree, featuredPlanets, visibleProjects } from '../site/view-models';
+import { buildProjectTree, featured as featuredWork, visibleProjects } from '../site/view-models';
 
 const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
-const featured = featuredPlanets(buildProjectTree(systems, projects), 3);
+const featured = featuredWork(buildProjectTree(systems, projects), 3);
 ---
 
 <Base
@@ -61,18 +62,14 @@ const featured = featuredPlanets(buildProjectTree(systems, projects), 3);
   <section class="section" aria-labelledby="home-elsewhere">
     <h2 id="home-elsewhere">Elsewhere</h2>
     <ul class="links">
-      <li>
-        <a href={site.socials.github} rel="me noopener">
-          GitHub
-        </a>
-        <span>where the projects live</span>
-      </li>
-      <li>
-        <a href={site.socials.linkedin} rel="me noopener">
-          LinkedIn
-        </a>
-        <span>the formal version</span>
-      </li>
+      {profiles(site.socials).map((profile) => (
+        <li>
+          <a href={profile.href} rel="me noopener">
+            {profile.label}
+          </a>
+          <span>{profile.note}</span>
+        </li>
+      ))}
       <li>
         <a href={`mailto:${site.email}`}>Email</a>
         <span>{site.email}</span>

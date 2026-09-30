@@ -489,7 +489,7 @@ export const tuning = {
      * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
      * pixels per hundred units, and a planet at its true size would be a speck.
      */
-    minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4 },
+    minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4, link: 3.5 },
     /**
      * A body that circles another shows once their two discs are apart, and is full size once they
      * are this far apart (CSS px): from far out a system is its sun, and its moons come last.
@@ -591,6 +591,11 @@ export const tuning = {
     detailNear: 14,
     detailMoon: 3,
     detailSun: 4,
+    /**
+     * Planned work, not built yet: an unpainted maquette in its family's pale colours, as coarse
+     * as a model before the detail goes on (1 is 80 facets), with no close-up (world/looks.ts).
+     */
+    detailPlanned: 1,
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,
@@ -618,11 +623,24 @@ export const tuning = {
     orbitLineOpacity: 0.2,
     orbitLineSegments: 128,
     /**
-     * The ship is lit by the sun of the system it is in: fully inside `shipLightFullRadii` system
-     * radii, fading to the distant key light by `shipLightFadeRadii`.
+     * The ship is lit by the sun whose family it is in: fully inside `shipLightFullRadii` of that
+     * family's reach (a sun, its planets and their moons: for a system with one sun, the system's
+     * radius), fading to the distant key light by `shipLightFadeRadii` (world/Galaxy.ts, lightAt).
      */
     shipLightFullRadii: 1.2,
     shipLightFadeRadii: 2,
+    /**
+     * Between two suns of about equal pull (a binary's gap), their directions all but cancel, and
+     * the key light, from above the plane, takes up to this share more (0 to 1): the ship's light
+     * swings over the top from one sun to the other instead of flipping round. Larger is a wider,
+     * slower swing, and a wider lean toward the key light where two families are close: near
+     * the gap, every sun's outermost planets. Judged in the Projects binary (2026-09-30), over
+     * every journey into, out of and across it (320, at up to 430 u/s): at 0.05 the light turned
+     * up to 97 degrees in one frame (8 frames over 60); at 0.2, 54 at most and none over 60; 0.5
+     * would bring it to 41 but light a ship on Robotics' ring from beyond its own sun's side.
+     * What 0.2 costs on each ring is pinned by tests/ship-light.test.ts.
+     */
+    shipLightTiebreak: 0.2,
   },
 
   /** The three bands of the toon shader (shaders/toonFlat.ts). */
@@ -714,12 +732,15 @@ export const tuning = {
      * systems frames as a square on the star map. CHANGING ANY OF THE THREE MOVES EVERY SYSTEM
      * (a test pins where they are; galaxy.lock.json will). The build checks that they leave room
      * for the tripwires below: slotRoom for two full-size systems (2 x maxSystemRadius +
-     * minSystemGap + 1), homeRoom for one beside the home system as it really is (its reach,
-     * 66.2 u today, + maxSystemRadius + minSystemGap + 1): the home system may grow to 79 u.
+     * minSystemGap + 1 = 1071), homeRoom for one beside the home system as it really is (its
+     * reach, 66.2 u today, + maxSystemRadius + minSystemGap + 1 = 677.2): 690 lets the home
+     * system grow to 79 u (690 - 460 - 151), so a design edit that makes it bigger (dockMin 7,
+     * a home planet of 16 and a station of 3 reach 75.6 u) still moves nothing. Moved once, on
+     * 2026-09-30, from 610 and 911, to make room for the Projects binary (maxSystemRadius).
      */
     clusterAxisDeg: 135,
-    homeRoom: 610,
-    slotRoom: 911,
+    homeRoom: 690,
+    slotRoom: 1071,
 
     sunRadius: 20,
     /** Nothing orbits closer to a sun's surface than this (the autopilot's keep-out, plus headroom). */
@@ -739,9 +760,21 @@ export const tuning = {
     /**
      * Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the
      * build. They move nothing: a slot's room (homeRoom, slotRoom above) must be enough for them.
+     * 460 is the Projects binary of Allen's tree (Software and Hardware, 401.6 u from their
+     * centre) and room for one more planet or moon of any size under either sun: a moon adds
+     * 36.8 to 42 u, a planet 30 to 53.6 (size l). Any second addition trips it, and the build says
+     * which families to move (data/build.test.ts holds both). (It was 380, which the binary alone
+     * outgrows.)
      */
-    maxSystemRadius: 380,
+    maxSystemRadius: 460,
     minSystemGap: 150,
+    /**
+     * A binary star (two suns sharing one slot, systems/<id>.md with `suns`): each sun's family is
+     * laid out round it as a system's is, and the two circle their common centre this far apart
+     * where they come closest, u. Enough to fly between and to read as two families on the map.
+     * One period for both, orbitPeriod(separation), so they stay opposite (layout.ts, binaryOrbits).
+     */
+    binaryGap: 40,
     /** Orbital period in seconds: periodAtStartSec * (r / orbitStart) ^ periodExponent. */
     periodAtStartSec: 240,
     periodExponent: 1.5,
@@ -753,6 +786,12 @@ export const tuning = {
       planetRadius: 14,
       stationRadius: 2.2,
       satelliteRadius: 1.6,
+      /**
+       * A relay (a profile elsewhere: GitHub, LinkedIn) shares the satellite's ring, so its
+       * docking footprint must stay within the satellite's (the build checks): then the home
+       * system reaches as far as it did, and a new profile moves nothing.
+       */
+      relayRadius: 1.4,
     },
   },
 } as const;

@@ -10,6 +10,13 @@ import { createRng } from '../sim/rng';
 // moves nothing. The one thing that can shift is a ring's radius: a back-dated project, or a new
 // moon, widens the rings from that planet outwards. Angles never change. Phase 3's
 // galaxy.lock.json pins even that.
+//
+// One exception reaches further: in a BINARY STAR (binaryOrbits) each sun circles the centre at a
+// radius set by the OTHER family's reach (so that both reach equally far from it). A planet or a
+// moon added under one sun widens that family's reach, which moves the other sun's orbit radius,
+// the separation, the binary's reach and the pair's shared period (never their angles at t = 0,
+// and not the growing family's own sun's radius), and with them where every body of the binary is
+// at any later time; nothing outside the binary moves. galaxy.lock.json will pin those too.
 
 const L = tuning.layout;
 const TAU = Math.PI * 2;
@@ -62,6 +69,21 @@ export function homeReach(): number {
   return reach(homeRings(), dockRadius(L.home.planetRadius));
 }
 
+/** Places on the satellite's ring, 45 degrees apart: slot 0 is the satellite, 1 to 7 are relays. */
+export const RELAY_SLOTS = 8;
+
+/**
+ * Where a relay (a profile elsewhere: data/build.ts) is at t = 0: on the satellite's ring, `slot`
+ * steps of 45 degrees ahead of the satellite, in [0, 2π). It shares the satellite's radius and
+ * period, so the two keep their distance for ever, and a new relay moves nothing: not the
+ * satellite, not another relay, and not how far the home system reaches (a relay's footprint is
+ * no bigger than the satellite's).
+ */
+export function relayPhase(satellitePhase: number, slot: number): number {
+  const angle = (satellitePhase + (slot * TAU) / RELAY_SLOTS) % TAU;
+  return angle < 0 ? angle + TAU : angle;
+}
+
 /**
  * u. The room between slots must be the build's tripwires (data/build.ts) plus this much, so that
  * rounding positions to 2 places can never close a gap the build then complains about.
@@ -97,8 +119,8 @@ const TIE = 1e-3;
  *
  * So the galaxy grows round the hub in mirror pairs, and with an even number of systems it is
  * symmetric about the axis: on the diagonal of the map, that frames as a square, which suits a
- * wide screen and a tall one alike. Farthest pair of centres today: 610 u with 2 systems, 1,057
- * with 4, 1,814 with 6, 1,965 with 8.
+ * wide screen and a tall one alike. Farthest pair of centres today: 690 u with 2 systems, 1,195
+ * with 4, 2,137 with 6, 2,265 with 8 (with room for a binary star in every slot: 2026-09-30).
  *
  * Slot k is computed from slots 0 to k - 1 alone: adding systems never moves one already placed.
  */
@@ -292,4 +314,37 @@ export function stackRings<T extends RingItem>(
 export function reach(rings: ReadonlyArray<Ring<RingItem>>, fallback: number): number {
   const outermost = rings.at(-1);
   return outermost === undefined ? fallback : outermost.radius + outermost.item.footprint;
+}
+
+export interface BinaryOrbits {
+  /** Sun to sun, u: both families' reach and the gap between them, so they never meet. */
+  separation: number;
+  /** How far the primary sun (a) circles from the binary's centre, u. */
+  a: number;
+  /** How far the secondary sun (b) circles from it, on the opposite side, u. */
+  b: number;
+  /** How far the binary reaches from its centre: the smallest circle that holds both families. */
+  reach: number;
+  /** One period for both suns, so that they stay opposite each other for ever. */
+  periodSec: number;
+}
+
+/**
+ * The orbits of a binary star's two suns, whose families (a sun and everything round it, out to
+ * its outermost docking ring) reach `ra` and `rb`. Where the families face each other they are
+ * `gap` apart. The centre they circle sits where both reach equally far (a + ra = b + rb), which
+ * makes the binary no bigger than the smallest circle round the pair; so, as in a real binary,
+ * the bigger family's sun circles closer in. The period is the one rule every ring follows,
+ * outer is slower (orbitPeriod), at the distance between the suns: slow, so the families hardly
+ * move during a visit while the map shows them turning over the minutes.
+ */
+export function binaryOrbits(ra: number, rb: number, gap: number = L.binaryGap): BinaryOrbits {
+  const separation = ra + rb + gap;
+  return {
+    separation,
+    a: rb + gap / 2,
+    b: ra + gap / 2,
+    reach: ra + rb + gap / 2,
+    periodSec: orbitPeriod(separation),
+  };
 }

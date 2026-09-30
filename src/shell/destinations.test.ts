@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readDestinations } from './destinations';
 
 const MANIFEST = {
-  version: 1,
+  version: 2,
   bodies: [
     { id: 'page/about', href: '/about/', kind: 'home' },
     { id: 'system/code', href: '/systems/code/', kind: 'sun' },
@@ -28,10 +28,51 @@ describe('destinations', () => {
     expect(destinations.titleOf('project/unknown')).toBeNull();
   });
 
+  it('says that planned work is planned, as part of its name, and nothing else', () => {
+    const destinations = readDestinations({
+      bodies: [
+        {
+          id: 'project/sports',
+          href: '/projects/sports/',
+          title: 'Sports Analysis',
+          planned: true,
+        },
+        { id: 'project/odd', href: '/projects/odd/', title: 'Odd', planned: 'yes' },
+      ],
+    });
+    expect(destinations.titleOf('project/sports')).toBe('Sports Analysis, planned');
+    expect(destinations.titleOf('project/odd')).toBe('Odd');
+    // Its page is its page all the same.
+    expect(destinations.idFor('/projects/sports/')).toBe('project/sports');
+  });
+
   it('shows a listed page from the body it is listed at, which still opens its OWN page', () => {
     const destinations = readDestinations(MANIFEST);
     expect(destinations.idFor('/projects/')).toBe('system/code');
     expect(destinations.hrefOf('system/code')).toBe('/systems/code/');
+  });
+
+  it('never makes a destination of another site: a body standing for a profile elsewhere', () => {
+    const destinations = readDestinations({
+      bodies: [
+        {
+          id: 'link/github',
+          href: 'https://github.com/MeagerPotato',
+          title: 'GitHub',
+          docks: false,
+        },
+        { id: 'link/odd', href: '//elsewhere.example/x/', title: 'Odd' },
+        { id: 'page/about', href: '/about/', title: 'About', docks: false },
+      ],
+    });
+    expect(destinations.hrefOf('link/github')).toBeNull();
+    expect(destinations.hrefOf('link/odd')).toBeNull();
+    expect(destinations.idFor('/MeagerPotato/')).toBeNull();
+    expect(destinations.idFor('/x/')).toBeNull();
+    // A body that says it cannot be docked at is no destination either, wherever it points.
+    expect(destinations.idFor('/about/')).toBeNull();
+    // Its name is still known, for whatever announces it.
+    expect(destinations.titleOf('link/github')).toBe('GitHub');
   });
 
   it('treats a path without its slash as the same page', () => {

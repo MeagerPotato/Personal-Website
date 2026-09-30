@@ -9,15 +9,18 @@ import { measure, optionsFromEnv } from './measure';
 //
 //   npm run journeys
 //
-// runs every default in about 30 s (a minute with "stop"): the real galaxy from src/content, and
-// 4, 6 and 8 systems (the real ones plus typical future ones in the free slots, laid out by the
-// real layout code). Options come from
+// runs every default in about 30 s (a minute with "stop"): the real galaxy from src/content (four
+// systems), and 6 and 8 (the real ones plus typical future ones in the free slots, laid out by the
+// real layout code), and holds each to THE GATE (gate.ts): the run fails on a breach, and says
+// which in words. CI runs it too (.github/workflows/journeys.yml, not a required check) on every
+// pull request that touches the content (or src/site, which reads it), the site config, the
+// engine or this harness. Options come from
 // JOURNEYS, JSON or the path of a JSON file (see scripts/journeys/example.json):
 //
-//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",4],"layout":{"slotRoom":860,"maxSystemRadius":350}}'; npm run journeys
+//   PowerShell  $env:JOURNEYS = '{"galaxies":["real",6],"layout":{"homeRoom":720,"slotRoom":1120}}'; npm run journeys
 //   bash        JOURNEYS=scripts/journeys/example.json npm run journeys
 //
-//   galaxies       ["real", 4, 6, 8]: "real", or a number of systems, home included
+//   galaxies       ["real", 6, 8]: "real", or a number of systems, home included
 //   layout         merged into tuning.layout for the build: homeRoom, slotRoom, clusterAxisDeg
 //                  (where the systems are), maxSystemRadius, planetRadius, orbitGap...
 //   slotExponent   the OLD sunflower spiral instead of the honeycomb: slot k 1000 * k^slotExponent
@@ -52,15 +55,23 @@ import { measure, optionsFromEnv } from './measure';
 //                  Every flight must dock where it was sent (or come to rest) without touching a
 //                  shell or passing closer than half a cushion to anything: 0 failures is the gate
 //                  for a change to the autopilot, the approach, Stop, the guard or the snapshot.
-//                  With every kind and Stop: 2, 3.5, 7 and 11 minutes for 2, 4, 6 and 8 systems,
-//                  so run a galaxy per process ("galaxies": [8]) to have all four in 11.
+//                  With every kind and Stop: about 5 minutes for the real galaxy (four systems),
+//                  and 7 and 11 for 6 and 8 systems, so run a galaxy per process
+//                  ("galaxies": [8]) to have all three in 11.
+//   gate           what each galaxy must show. By default (gate.ts)
+//                  { "real": { "failures": 0, "p90Sec": 4.2, "maxSec": 6.5, "over5sShare": 0.015 },
+//                    "*": { "failures": 0 } }, "*" being every galaxy not named ("real", "6").
+//                  Given here, it replaces that whole; false switches every limit off (as
+//                  example.json does: its variants are slower on purpose). A galaxy held to any
+//                  limit must have been flown (built, and a sample that is not empty). Stress
+//                  flights and Stop, when they ran, are always held to 0 failures, gate off or on.
 //   seed, includeDrafts, rows (print every journey), out (write every journey as JSON)
 //
 // JOURNEYS_OUT=<file.json> also writes every journey. A formula that JSON cannot say goes in a
 // *.measure.ts of its own beside this one: import { measure } from './measure' and pass
 // variants: [{ name, slot: (order, id, spiral) => [x, z] }].
 
-it('measures how long journeys take', () => {
+it('measures how long journeys take, and holds them to the gate', () => {
   const { options, out } = optionsFromEnv();
   const reports = measure(options);
   if (out !== null) {
@@ -70,4 +81,15 @@ it('measures how long journeys take', () => {
     console.log(`\nevery journey: ${path}`);
   }
   expect(reports.length).toBeGreaterThan(0);
+  const breaches = reports.flatMap((report) =>
+    report.breaches.map((breach) => `${report.variant} / ${report.galaxy}: ${breach}`),
+  );
+  // Printed with the tables already; thrown again so that the run fails, and says why at its end.
+  if (breaches.length > 0) {
+    const count = `${breaches.length} breach${breaches.length === 1 ? '' : 'es'}`;
+    throw new Error(
+      `the journeys gate (scripts/journeys/gate.ts): ${count}\n` +
+        breaches.map((breach) => `  ${breach}`).join('\n'),
+    );
+  }
 });

@@ -28,20 +28,26 @@ within reach of a body a quiet prompt offers to orbit it (`E`, or tap it), the s
 the ring and then carried round it, and steering away leaves. **The route and the ship follow
 each other**: a link flies the ship to that page's body with the **autopilot** (the page opens at
 once), docking from inside the world opens the body's page, and a page opened directly boots in
-orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there. A
-first-time visitor gets a **hint card**. **The star map** (`M`, the Map button, scroll out) is
+orbit. Bodies carry **names** (real buttons), and pointing at a planet or its name flies there.
+Allen's profiles elsewhere (GitHub, LinkedIn) circle home as **relays** nothing docks at: their
+names are real links, and pointing at one only brings its link forward. A first-time visitor gets
+a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
-"cluster"), the autopilot flies any journey in today's galaxy in 1.5 to 4.3 s, and every way a
-journey is handed back at speed (Stop, a key, the web layer letting go, a reload) brakes or
-guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run journeys` is its gate. **The
-visual identity pass (A1) is done**: Claude did the packet at Allen's request, in the "roadmap"
-direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
+"cluster"), the autopilot docks every journey in today's galaxy of four systems (median 3.0 s,
+p90 4.05 s, the slowest 5.90 s), and every way a journey is handed back at speed (Stop, a key, the web layer
+letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
+journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
+request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
 are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
 some of it on 2026-09-28 and accepted it ("everything is okay for now"); the feel gets its polish
-later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. Phase 3 waits on
-Allen's tree of solar systems (docs/PLAN.md §9).
+later, and the real-device checks stay in docs/runbooks/launch-checklist.md §3. **Allen's tree of
+solar systems** arrived on 2026-09-30 and is built (docs/PLAN.md §4.1 and §9): four systems round
+home. **Projects is a binary star**, two suns (Software and Hardware) circling one slot, with
+`/projects/` as its page and a page for each sun; the old `/systems/code/` answers 301 to
+`/systems/software/` (`public/_redirects`). **Research** (all of it planned) and **Hackathons**
+are systems of one sun.
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -92,7 +98,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. **Not** part of `verify`: CI runs it as a second, non-required job. |
-| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy and in grown ones of 4, 6 and 8 systems, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 2 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout. |
+| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy (four systems) and in grown ones of 6 and 8, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. It **fails on a breach of the gate** (`scripts/journeys/gate.ts`, each breach printed in words): the real galaxy no failures, p90 ≤ 4.2 s, the slowest ≤ 6.5 s, at most 1.5% over 5 s; the grown ones no failures; stress and Stop, when run, no failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 5 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout; CI runs it as a non-required job on pull requests that touch the content (or `src/site`, which reads it), the site config, the engine or the harness. |
 | `npm run resume-pdf` | build → prints `/resume/` through the print stylesheet into `public/allen-hsieh-resume.pdf` (Playwright's Chromium) and records what it printed from in `config/resume-pdf.json`. `verify-dist` fails a build whose resume page or print stylesheet changed since, so run it after any resume change and commit both files. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
 
@@ -109,9 +115,10 @@ exact in open space and approximate near planets, which have moved on by then). 
 **dev server only**: `verify-dist` fails a build that contains it.
 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
-planet of any biome, a moon, a sun, the rocket with its flame, the station, the satellite, in
-front of the real sky and lit and post-processed as in the universe, with sliders for the
-`shading`, `planet`, `world`, `post` and `ship` blocks, the light's direction, and the tier.
+planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
+station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as
+in the universe, with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the
+light's direction, and the tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is
 `src/pages/_lab.astro` (the underscore keeps it out of every build; `astro.config.ts` injects the
 route for the dev server alone) and its scene is `src/universe/lab/LabScene.ts`. A new kind of
@@ -138,7 +145,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest) | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `manifest.ts` (reads `/universe.json`), `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
@@ -201,6 +208,14 @@ model) plus named **sockets** for whatever attaches to it. Colours are tokens th
 logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
 material, and releases the handle in its scope. Asset names and socket names are API.
 
+**Give a body a world of its own.** Every body is generated from its content (biome, size, rings)
+and its seed; one that should look like no other gets a recipe in `design/worlds.ts`, keyed by its
+manifest id (`project/<id>`, `system/<id>`, `page/<id>`): another biome, a changed `PlanetLook`, a
+ring or none, or a registered model instead of the globe. `world/looks.ts` (`lookOf`) is the one
+place that decides a look (recipe, then the planned maquette, then the generator), for the galaxy
+and the lab alike, and `tests/worlds.test.ts` fails on a key that names no body. A new kind of
+thing a recipe can say is a logic change.
+
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,
 a view for the exact time of its frame (`frame.simTime - (1 - frame.alpha) / stepHz`). Anything
@@ -230,7 +245,9 @@ the browser takes the WebGL context (a phone tab in the background), `api.ts` ta
 (`core/snapshot.ts`), disposes the engine, canvas and all, and boots a new one from it. So state
 lives in exactly one of two places: it follows from the simulation step count (where every planet
 is), or it is a field of the snapshot (the ship, and the dock it is headed for or carried by).
-Anything new that a visitor would miss after a rebuild becomes a snapshot field.
+Anything new that a visitor would miss after a rebuild becomes a snapshot field. A snapshot is
+only believed in the galaxy it was taken in (`galaxyKey` in `manifest.ts`), so a new manifest
+field that moves or sizes a body goes into that key too.
 
 **Where the visitor is headed** has one owner, `state/Navigator.ts`: it turns requests
 (`approach`, `place`, `release`) into simulation state (`sim/docking.ts`), keeps the app state
@@ -283,12 +300,15 @@ page offers a PDF printed from itself, and `verify-dist` refuses one that no lon
 The resume page is the one place that gives the name in full (`site.fullName`). No phone number,
 no private email: `tests/privacy.test.ts` scans the whole repository for both.
 
-**Add a project (a planet).** Create `src/content/projects/<id>/index.md` plus a cover image
-beside it. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
+**Add a project (a planet).** Create `src/content/projects/<id>/index.md`, with its cover image
+beside it if it has one. The folder name is the id and the URL (`/projects/<id>/`), so lowercase kebab-case.
 Frontmatter is validated by `src/site/schemas.ts` (unknown keys fail the build): `title`,
-`summary` (≤ 160 chars), `system: <system id>`, `date: "YYYY-MM"` in quotes, `status`, `role`,
-`cover: { src: ./cover.png, alt }`, `planet: { biome }`; optional `stack`, `links` (https only),
-`gallery`, `related`, `flagship`, `draft`. Copy the shape of `projects/days2meet/index.md`.
+`summary` (≤ 160 chars), `system: <sun id>`, `date: "YYYY-MM"` in quotes, `status` (`shipped`;
+`completed`, finished work that was never a product, like a team or a program; `in-progress`;
+`archived`; `planned`, which may leave out the date and the role), `role`, `planet: { biome }`;
+optional `cover: { src: ./cover.png, alt }` (without one the page shows its planet), `stack`,
+`links` (https only), `gallery`, `related`, `flagship`, `draft`. Copy the shape of
+`projects/days2meet/index.md`.
 Images are served as AVIF with a WebP fallback at three widths (`components/Shot.astro`), so
 commit one good source image, at least 1200 px wide, and let the build do the rest.
 
@@ -298,6 +318,36 @@ Moons cannot have moons. Promoting a moon to a planet is swapping that one line;
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
 (a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
 `order`:** it is the system's place in the galaxy.
+
+**A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
+file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no
+page of its own (its page is the projects index, shown in the universe from the primary). Each
+sun is a file of its own with `name` and `tagline` and its text: no `order`, `theme` or
+`position`, since it goes where its binary goes and wears its family; its page is
+`/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
+if one does. A binary is the one exception to "adding a project moves nothing": a planet under
+one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
+And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a
+content change flips one, run `npm run journeys` before updating its list. `tests/ship-light.test.ts`
+pins how far a ship on each ring near the gap is lit off its own sun (the other sun pulls there
+too): if one moves, look at it in flight before updating that list.
+
+**Retire a URL** (a renamed system, a moved page). One line in `public/_redirects`,
+`/old/ /new/ 301`, and the same without the slash: exact paths only, never a wildcard. The
+destination must be a page of the build and no page may link to the old path (`verify-dist`,
+check 3b); `tests/e2e/tree.spec.ts` shows `wrangler dev` answering it.
+
+**Add a profile (a network elsewhere: GitHub, LinkedIn, Devpost).** Give its https URL in
+`site.socials` (`src/config/site.ts`), the one place the URLs live: the home page's "Elsewhere", the
+contact page, the JSON-LD `sameAs` and a relay circling home (its name a real link) all follow, and
+nothing that exists moves. Devpost is that one line. A new relay is a new body, so it changes the
+galaxy's key (`galaxyKey`, `src/universe/manifest.ts`): each open tab's saved pose is dropped once
+on that deploy, as for any new body, and the ship starts afresh. A network the site does not know
+yet is an entry in `PROFILE` (`src/site/profiles.ts`): its label, its note for the home page, and
+the next free `slot` (1 to 7), its place on the Contact satellite's ring in steps of 45 degrees.
+**Never renumber a slot:** it is where the relay flies. The resume keeps its own two links, so a new
+profile never changes its PDF. A relay is a body nothing docks at (`docks: false` in the manifest):
+the autopilot, the assist and the journeys harness go round it.
 
 **Unfinished copy.** Write `TODO(copy)` where words are missing and, on a project, set
 `draft: true`. Drafts show in `npm run dev` and are left out of production. Pages (about, resume,

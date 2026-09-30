@@ -1,9 +1,10 @@
 import { z } from 'astro/zod';
 import { describe, expect, it } from 'vitest';
 import { buildUniverse } from '../universe/data/build';
+import { profiles } from './profiles';
 import { entryIdFromPath, routes } from './routes';
 import { pageSchema, projectSchema, systemSchema } from './schemas';
-import { toUniverseInput } from './universe-input';
+import { toSystemInput, toUniverseInput } from './universe-input';
 
 // Stand-ins for the two helpers Astro injects. reference() really does resolve an id string to
 // { collection, id }; image() resolves to image metadata, which these tests do not care about.
@@ -88,6 +89,34 @@ describe('projectSchema', () => {
     expect(project.safeParse({ ...validProject, ...override }).success).toBe(false);
   });
 
+  it('accepts planned work without a date, a role or a cover', () => {
+    const parsed = project.parse({
+      ...validProject,
+      date: undefined,
+      role: undefined,
+      cover: undefined,
+      status: 'planned',
+    });
+    expect(parsed.status).toBe('planned');
+    expect(parsed.date).toBeUndefined();
+    expect(parsed.cover).toBeUndefined();
+  });
+
+  it('still needs a date and a role for work that is not planned', () => {
+    const result = project.safeParse({ ...validProject, date: undefined, role: undefined });
+    expect(result.success).toBe(false);
+    expect(issuesOf(result)).toContain('date is required unless the status is');
+    expect(issuesOf(result)).toContain('role is required');
+  });
+
+  it('accepts finished work that was never a product as "completed"', () => {
+    expect(project.parse({ ...validProject, status: 'completed' }).status).toBe('completed');
+  });
+
+  it('accepts built work without a cover: the page shows its planet, the preview is the site card', () => {
+    expect(project.parse({ ...validProject, cover: undefined }).cover).toBeUndefined();
+  });
+
   it('accepts https links', () => {
     const parsed = project.parse({
       ...validProject,
@@ -97,15 +126,20 @@ describe('projectSchema', () => {
   });
 });
 
+const systemEntry = systemSchema(helpers);
+
 describe('systemSchema and pageSchema', () => {
-  it('accept what the seed content uses, and default a system to an automatic position', () => {
-    const system = systemSchema().parse({
+  it('accept what the seed content uses; the build places a system automatically', () => {
+    const system = systemEntry.parse({
       name: 'Code',
       tagline: 'Software I build because I wanted it to exist.',
       theme: 'sky',
       order: 1,
     });
-    expect(system.position).toBe('auto');
+    // No default in the schema (a sun of a binary must not have a position at all): the input
+    // to the build supplies it.
+    expect(system.position).toBeUndefined();
+    expect(toSystemInput({ id: 'code', data: system }).position).toBe('auto');
     expect(
       pageSchema().parse({ title: 'About', summary: 'Who Allen is.', dock: 'home' }).dock,
     ).toBe('home');
@@ -113,9 +147,109 @@ describe('systemSchema and pageSchema', () => {
 
   it('reject a theme that is not a token family, and order 0 (reserved for home)', () => {
     const base = { name: 'Code', tagline: 'x', theme: 'sky', order: 1 };
-    expect(systemSchema().safeParse({ ...base, theme: 'neon' }).success).toBe(false);
-    expect(systemSchema().safeParse({ ...base, order: 0 }).success).toBe(false);
-    expect(systemSchema().safeParse({ ...base, position: [1200, -300] }).success).toBe(true);
+    expect(systemEntry.safeParse({ ...base, theme: 'neon' }).success).toBe(false);
+    expect(systemEntry.safeParse({ ...base, order: 0 }).success).toBe(false);
+    expect(systemEntry.safeParse({ ...base, position: [1200, -300] }).success).toBe(true);
+  });
+});
+
+describe('systemSchema: three shapes', () => {
+  const solar = {
+    name: 'Research',
+    tagline: 'Questions I want to answer.',
+    theme: 'lilac',
+    order: 2,
+  };
+  const binary = { name: 'Projects', theme: 'sky', order: 1, suns: ['software', 'hardware'] };
+  const sun = { name: 'Hardware', tagline: 'Rockets that come back in one piece.' };
+
+  /** Every issue as "key: message", the way Astro reports them against a file. */
+  const issues = (data: object): string[] => {
+    const result = systemEntry.safeParse(data);
+    return result.success
+      ? []
+      : result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`);
+  };
+
+  it('accepts a solar system, a binary star and a sun of a binary, told apart by their keys', () => {
+    expect(issues(solar)).toEqual([]);
+    expect(issues(binary)).toEqual([]);
+    expect(issues(sun)).toEqual([]);
+    // A binary names its suns by id, primary first; the build checks that they exist.
+    expect(systemEntry.parse(binary).suns).toEqual([
+      { collection: 'systems', id: 'software' },
+      { collection: 'systems', id: 'hardware' },
+    ]);
+    // A system whose work lives elsewhere (the Blog) may say where, and so may a sun.
+    expect(issues({ ...solar, link: 'https://blog.allenkh.com' })).toEqual([]);
+    expect(issues({ ...sun, link: 'https://example.com/rockets' })).toEqual([]);
+  });
+
+  it('says what is wrong with a binary, on the key, and what to do', () => {
+    expect(issues({ ...binary, order: undefined })).toEqual([
+      'order: a binary needs one, its place in the galaxy',
+    ]);
+    expect(issues({ ...binary, theme: undefined })).toEqual([
+      "theme: a binary's two suns share its colour family (coral, mint, sky, lilac; butter is home's)",
+    ]);
+    expect(issues({ ...binary, tagline: 'x', link: 'https://example.com' })).toEqual([
+      'tagline: a binary has none; each of its suns has its own',
+      'link: a binary has none; each of its suns has its own',
+    ]);
+  });
+
+  it('says what is wrong with a solar system, and with a sun of a binary', () => {
+    expect(issues({ ...solar, theme: undefined, tagline: undefined })).toEqual([
+      "theme: every solar system needs a colour family (coral, mint, sky, lilac; butter is home's)",
+      'tagline: required: one sentence under its name',
+    ]);
+    expect(issues({ ...sun, theme: 'coral', position: [0, 900] })).toEqual([
+      "theme: a sun of a binary wears its binary's family; leave it out",
+      'position: a sun of a binary goes where its binary goes; leave it out',
+    ]);
+    expect(issues({ name: 'Hardware' })).toEqual([
+      'tagline: required: one sentence under its name',
+    ]);
+  });
+
+  it('takes exactly two suns, and only an https link', () => {
+    expect(issues({ ...binary, suns: ['software'] })).not.toEqual([]);
+    expect(issues({ ...binary, suns: ['a', 'b', 'c'] })).not.toEqual([]);
+    expect(issues({ ...solar, link: 'http://blog.allenkh.com' })).not.toEqual([]);
+    expect(issues({ ...solar, link: '' })).not.toEqual([]);
+    expect(issues({ ...solar, lnk: 'https://blog.allenkh.com' })).not.toEqual([]);
+  });
+
+  it('carries a binary into the galaxy: its suns circle one slot, each with its own page', () => {
+    const manifest = buildUniverse(
+      toUniverseInput({
+        systems: [
+          { id: 'projects', data: systemEntry.parse(binary) },
+          { id: 'software', data: systemEntry.parse({ ...sun, name: 'Software' }) },
+          { id: 'hardware', data: systemEntry.parse(sun) },
+        ],
+        projects: [
+          { id: 'fishai', data: project.parse({ ...validProject, system: 'software' }) },
+          { id: 'rocket', data: project.parse({ ...validProject, system: 'hardware' }) },
+        ],
+        pages: [
+          { id: 'about', data: pageSchema().parse({ title: 'About', summary: 'x', dock: 'home' }) },
+        ],
+        profiles: [],
+        includeDrafts: false,
+      }),
+    );
+    expect(manifest.systems.map((system) => [system.id, system.theme, system.center])).toEqual([
+      ['home', 'butter', 'page/about'],
+      ['projects', 'sky', 'system/software'],
+    ]);
+    expect(manifest.bodies.map((body) => [body.id, body.system, body.parent, body.href])).toEqual([
+      ['page/about', 'home', null, '/about/'],
+      ['system/software', 'projects', null, '/systems/software/'],
+      ['project/fishai', 'projects', 'system/software', '/projects/fishai/'],
+      ['system/hardware', 'projects', null, '/systems/hardware/'],
+      ['project/rocket', 'projects', 'system/hardware', '/projects/rocket/'],
+    ]);
   });
 });
 
@@ -133,7 +267,7 @@ describe('toUniverseInput', () => {
         systems: [
           {
             id: 'code',
-            data: systemSchema().parse({ name: 'Code', tagline: 'x', theme: 'sky', order: 1 }),
+            data: systemEntry.parse({ name: 'Code', tagline: 'x', theme: 'sky', order: 1 }),
           },
         ],
         projects: [
@@ -143,12 +277,14 @@ describe('toUniverseInput', () => {
         pages: [
           { id: 'about', data: pageSchema().parse({ title: 'About', summary: 'x', dock: 'home' }) },
         ],
+        profiles: profiles({ github: 'https://github.com/someone' }),
         includeDrafts: false,
       }),
     );
 
     expect(manifest.bodies.map((body) => [body.id, body.kind, body.href])).toEqual([
       ['page/about', 'home', '/about/'],
+      ['link/github', 'link', 'https://github.com/someone'],
       ['system/code', 'sun', '/systems/code/'],
       ['project/fishai', 'planet', '/projects/fishai/'],
       ['project/fish-onboarding', 'moon', '/projects/fish-onboarding/'],

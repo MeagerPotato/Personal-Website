@@ -21,63 +21,135 @@ export interface SchemaHelpers<Image extends z.ZodType, Reference extends z.ZodT
   reference: (collection: 'systems' | 'projects') => Reference;
 }
 
-/** A solar system: one passion. Its sun carries the name and the colour family. */
-export const systemSchema = () =>
-  z.strictObject({
-    name: z.string().min(1).max(32),
-    tagline: z.string().min(1).max(120),
-    theme: z.enum(THEME_KEYS),
-    /** Slot in the galaxy's honeycomb, from 1 (0 is home). Never reuse or renumber: it IS the position. */
-    order: z.number().int().min(1),
-    position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).default('auto'),
-  });
+/** The colour families a system may wear, as a person would list them: butter is home's. */
+const FAMILIES = `${THEME_KEYS.filter((key) => key !== 'butter').join(', ')}; butter is home's`;
 
-/** A planet (set `system`) or a moon (set `parent`). One schema, one URL shape. */
+/**
+ * A place in the galaxy and its sun(s). Three shapes in one schema, told apart by their keys:
+ *
+ *   a solar system    name, tagline, theme, order, [position], [link]   one sun: itself
+ *   a binary star     name, theme, order, suns, [position]              two suns, no page: its
+ *                                                                       page is the projects index
+ *   a sun of a binary name, tagline, [link]                             goes where its binary goes
+ *
+ * Each file is checked here on its own; what spans files (a sun no binary lists, a binary naming
+ * a sun that is not there) is buildUniverse()'s, which lists every problem at once.
+ */
+export const systemSchema = <Reference extends z.ZodType>({
+  reference,
+}: Pick<SchemaHelpers<z.ZodType, Reference>, 'reference'>) =>
+  z
+    .strictObject({
+      name: z.string().min(1).max(32),
+      /** One sentence under the sun's name. A binary has none: each of its suns has its own. */
+      tagline: z.string().min(1).max(120).optional(),
+      /** A system's colour family; a binary's two suns share their binary's. */
+      theme: z.enum(THEME_KEYS).optional(),
+      /** Slot in the galaxy, from 1 (0 is home). NEVER reuse or renumber: it IS the position. */
+      order: z.number().int().min(1).optional(),
+      position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).optional(),
+      /** A binary star: its two suns, PRIMARY FIRST (the projects index is shown from it). */
+      suns: z.array(reference('systems')).length(2).optional(),
+      /** A system whose work lives on a site of its own (the Blog): its page's first button. */
+      link: httpsUrl.optional(),
+    })
+    .superRefine((data, context) => {
+      const issue = (key: string, message: string): void => {
+        context.addIssue({ code: 'custom', path: [key], message });
+      };
+      if (data.suns !== undefined) {
+        if (data.order === undefined) issue('order', 'a binary needs one, its place in the galaxy');
+        if (data.theme === undefined) {
+          issue('theme', `a binary's two suns share its colour family (${FAMILIES})`);
+        }
+        for (const key of ['tagline', 'link'] as const) {
+          if (data[key] === undefined) continue;
+          issue(key, 'a binary has none; each of its suns has its own');
+        }
+      } else if (data.order !== undefined) {
+        if (data.theme === undefined) {
+          issue('theme', `every solar system needs a colour family (${FAMILIES})`);
+        }
+        if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
+      } else {
+        // No order and no suns: a sun of a binary, placed and coloured by the binary.
+        if (data.theme !== undefined) {
+          issue('theme', "a sun of a binary wears its binary's family; leave it out");
+        }
+        if (data.position !== undefined) {
+          issue('position', 'a sun of a binary goes where its binary goes; leave it out');
+        }
+        if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
+      }
+    });
+
+/**
+ * A planet (set `system`) or a moon (set `parent`). One schema, one URL shape.
+ *
+ * `status: planned` is work that is not built yet: it is shown (as planned), so it may leave out
+ * what only built work has, a date and a role. `completed` is finished work that was never a
+ * product to ship (a competition team, a program run for years): "Shipped" reads oddly on it and
+ * "Archived" as if it were abandoned. Every project may leave out its cover: without one the page
+ * shows its planet instead and its link preview is the site's card.
+ */
 export const projectSchema = <Image extends z.ZodType, Reference extends z.ZodType>({
   image,
   reference,
 }: SchemaHelpers<Image, Reference>) =>
-  z.strictObject({
-    title: z.string().min(1).max(60),
-    /** One sentence. Also the meta description and the link-preview text. */
-    summary: z.string().min(1).max(160),
-    system: reference('systems').optional(),
-    parent: reference('projects').optional(),
-    date: yearMonth,
-    dateEnd: yearMonth.optional(),
-    status: z.enum(['shipped', 'in-progress', 'archived']),
-    role: z.string().min(1).max(80),
-    stack: z.array(z.string().min(1)).max(12).default([]),
-    links: z
-      .strictObject({
-        repo: httpsUrl.optional(),
-        demo: httpsUrl.optional(),
-        video: httpsUrl.optional(),
-      })
-      .default({}),
-    cover: z.strictObject({ src: image(), alt: z.string().min(1) }),
-    gallery: z
-      .array(
-        z.strictObject({
-          src: image(),
-          alt: z.string().min(1),
-          caption: z.string().min(1).optional(),
-        }),
-      )
-      .max(8)
-      .default([]),
-    planet: z.strictObject({
-      size: z.enum(['s', 'm', 'l']).default('m'),
-      biome: z.enum(BIOME_KEYS),
-      rings: z.boolean().default(false),
-      decorMoons: z.number().int().min(0).max(3).default(0),
-      /** Reseeds the procedural surface without renaming the project. Defaults to the id. */
-      seed: z.string().min(1).optional(),
-    }),
-    flagship: z.boolean().default(false),
-    related: z.array(reference('projects')).default([]),
-    draft: z.boolean().default(false),
-  });
+  z
+    .strictObject({
+      title: z.string().min(1).max(60),
+      /** One sentence. Also the meta description and the link-preview text. */
+      summary: z.string().min(1).max(160),
+      system: reference('systems').optional(),
+      parent: reference('projects').optional(),
+      date: yearMonth.optional(),
+      dateEnd: yearMonth.optional(),
+      status: z.enum(['shipped', 'completed', 'in-progress', 'archived', 'planned']),
+      role: z.string().min(1).max(80).optional(),
+      stack: z.array(z.string().min(1)).max(12).default([]),
+      links: z
+        .strictObject({
+          repo: httpsUrl.optional(),
+          demo: httpsUrl.optional(),
+          video: httpsUrl.optional(),
+        })
+        .default({}),
+      cover: z.strictObject({ src: image(), alt: z.string().min(1) }).optional(),
+      gallery: z
+        .array(
+          z.strictObject({
+            src: image(),
+            alt: z.string().min(1),
+            caption: z.string().min(1).optional(),
+          }),
+        )
+        .max(8)
+        .default([]),
+      planet: z.strictObject({
+        size: z.enum(['s', 'm', 'l']).default('m'),
+        biome: z.enum(BIOME_KEYS),
+        rings: z.boolean().default(false),
+        decorMoons: z.number().int().min(0).max(3).default(0),
+        /** Reseeds the procedural surface without renaming the project. Defaults to the id. */
+        seed: z.string().min(1).optional(),
+      }),
+      flagship: z.boolean().default(false),
+      related: z.array(reference('projects')).default([]),
+      draft: z.boolean().default(false),
+    })
+    .superRefine((data, context) => {
+      if (data.status === 'planned') return;
+      for (const key of ['date', 'role'] as const) {
+        if (data[key] === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} is required unless the status is "planned"`,
+          });
+        }
+      }
+    });
 
 /** About, resume, contact: the bodies of the home system. */
 export const pageSchema = () =>

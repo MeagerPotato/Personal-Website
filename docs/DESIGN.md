@@ -242,10 +242,10 @@ transit map.
   36 px chip behind one, and the current page has its butter bar. The last word ends on the
   column's edge, as the wordmark starts on the other. On a phone the nav takes a row of its own,
   spread across, each word lined up with the column's edges.
-- **A page's head.** The crumbs are a route (Projects ── Code), their dashes in the family. The
-  **route sign** says what kind of place this is: a tinted plate (10 %) with a hairline edge
-  (50 %) and the family's glyph, in caps at the smallest size, quiet enough that the heading
-  under it wins the first glance. A sign in two parts that has no room for one line gives each
+- **A page's head.** The crumbs are a route (Projects ── Software ── Canadian Fish, on FishAI's
+  page), their dashes in the family. The **route sign** says what kind of place this is: a
+  tinted plate (10 %) with a hairline edge (50 %) and the family's glyph, in caps at the smallest
+  size, quiet enough that the heading under it wins the first glance. A sign in two parts that has no room for one line gives each
   part a line of its own. Then the h1, and the lede in `ink.high`.
 - **Keys.** The primary action is the one solid family fill in a view; the others are outlined in
   `ink.low`. All are pills on a hard ledge.
@@ -257,7 +257,7 @@ transit map.
   name, and the words take the card's full width.
 - **A list's route line takes its stations' colour**, as on a transit map. A list of one system
   wears that system (the home page's "Start here" is a sky line on a butter page while every
-  featured planet is in Code); a list that mixes systems draws its line neutral, in `ink.low`, so
+  featured planet is in Projects); a list that mixes systems draws its line neutral, in `ink.low`, so
   that each station is the only thing in its family's colour. A card names its own family
   (`data-theme`, from `projectTheme()` in `src/site/view-models.ts`), so a planet wears its own
   colour on every page.
@@ -327,6 +327,15 @@ of, is in the table under The 3D world.
   from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
   control). Where the ship is going, and a name the keyboard is on, never hide for the ship: with
   no room past it they stay where they would have been, even on it.
+- **A profile elsewhere** (GitHub, LinkedIn) is a relay on the Contact satellite's ring: a small
+  buoy (a float in the link colour, `accent`, with a sky band, a thin mast and a coral beacon;
+  never butter or the cream face), so it never reads as the satellite beside it, which a visitor
+  can dock at and a relay cannot. Its name is a real
+  link, in a group of its own ("Elsewhere"), with an outward arrow after the name in the name's
+  own ink (a clip-path, no icon font); the site it opens is heard, not shown ("GitHub, on
+  github.com"). Pointing at the relay never leaves the site: its name comes forward, focused and
+  lit with the focus ring (`data-beckon`), and leaving is a second press. On hover the arrow
+  steps out a little, by `translate`.
 - **The dock prompt** ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit") is one
   chip. Its E key cap is butter, the one key cap that is not white, because it is the prompt's
   action and not a key being named; "Stop" is set apart by a hairline, in butter.
@@ -400,7 +409,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems | `tuning.world` |
-| The station, the satellite, the planet ring | `design/models/docks.ts` |
+| The station, the satellite, a profile's relay, the planet ring | `design/models/docks.ts` |
 | Where a visitor starts, and what they see first | `tuning.ship.spawn` |
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
@@ -437,8 +446,8 @@ the top bar, with three quarters of the screen empty below them.
 
 **Judge one thing at a time in the lab.** With `npm run dev` running,
 `http://localhost:4321/lab/` puts a single planet (any biome, any seed, with or without rings,
-everyday or close-up detail), moon, sun, the rocket, the station or the satellite on a turntable
-in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
+everyday or close-up detail), moon, sun, the rocket, the station, the satellite or a relay on a
+turntable in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
 for `shading`, `planet`, `world`, `post` and `ship`; "copy tuning as JSON" gives you what to paste
 back into `tuning.ts`. Token colours are not sliders: edit `tokens.ts` and the page reloads.
 

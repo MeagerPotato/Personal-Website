@@ -1,5 +1,6 @@
 import { site } from '../config/site';
 import { OG_SIZE } from './og';
+import { profiles } from './profiles';
 import { routes } from './routes';
 import type { Crumb } from './view-models';
 
@@ -43,7 +44,8 @@ export const personLd = (): JsonLd => ({
   name: site.name,
   url: absoluteUrl(routes.page('about')),
   description: site.description,
-  sameAs: Object.values(site.socials),
+  // The same profiles, in the same order, as the home page lists (src/site/profiles.ts).
+  sameAs: profiles(site.socials).map(({ href }) => href),
   affiliation: { '@type': 'CollegeOrUniversity', name: site.affiliation },
   knowsAbout: [...site.knowsAbout],
 });
@@ -66,7 +68,7 @@ export const profilePageLd = (): JsonLd => ({
   mainEntity: personLd(),
 });
 
-/** "Projects > Code > FishAI", ending with the page itself. */
+/** "Projects > Software > Canadian Fish > FishAI", ending with the page itself. */
 export const breadcrumbLd = (crumbs: readonly Crumb[], current: Crumb): JsonLd => ({
   '@type': 'BreadcrumbList',
   itemListElement: [...crumbs, current].map((crumb, index) => ({
@@ -81,12 +83,13 @@ export interface ProjectLdInput {
   id: string;
   title: string;
   summary: string;
-  /** "2026-08" */
-  date: string;
+  /** "2026-08"; none for planned work. */
+  date?: string | undefined;
   stack: readonly string[];
   repo?: string | undefined;
   parentId?: string | undefined;
-  imagePath: string;
+  /** The link-preview picture, when the project has a cover. */
+  imagePath?: string | undefined;
 }
 
 const projectNodeId = (id: string): string => `${absoluteUrl(routes.project(id))}#project`;
@@ -98,8 +101,8 @@ export const projectLd = (project: ProjectLdInput): JsonLd => ({
   name: project.title,
   description: project.summary,
   url: absoluteUrl(routes.project(project.id)),
-  image: absoluteUrl(project.imagePath),
-  dateCreated: project.date,
+  ...(project.imagePath ? { image: absoluteUrl(project.imagePath) } : {}),
+  ...(project.date ? { dateCreated: project.date } : {}),
   author: { '@id': PERSON_ID },
   ...(project.repo ? { codeRepository: project.repo } : {}),
   ...(project.stack.length > 0 ? { keywords: project.stack.join(', ') } : {}),

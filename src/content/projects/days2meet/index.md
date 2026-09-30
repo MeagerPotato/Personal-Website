@@ -1,7 +1,7 @@
 ---
 title: Days2Meet
 summary: A group availability poll in the spirit of When2meet, plus a dates-only mode for the plans where hours are meaningless.
-system: code
+system: software
 date: "2026-08"
 status: shipped
 role: "Solo: product, frontend, backend, security"

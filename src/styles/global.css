@@ -699,7 +699,7 @@ main > .resume-section {
 
 /* 1d. Components ---------------------------------------------------------------------------------- */
 
-/* Where this page sits, drawn as a route: Projects ── Code. */
+/* Where this page sits, drawn as a route: Projects ── Software. */
 .crumbs ol {
   display: flex;
   flex-wrap: wrap;
@@ -757,7 +757,7 @@ main > .resume-section {
 
 /*
  * Buttons are keys: a flat pill on a hard ledge, which it drops onto when pressed. The primary
- * one is filled in the page's family (sky on a project in the Code system): the one solid family
+ * one is filled in the page's family (sky on a project of Projects): the one solid family
  * fill in a view. The others are outlined keys, their edge in ink.low (6.7:1 on the page, so the
  * boundary is plain to see, 3:1 being the bar).
  * --key-edge and --key-ledge are the two shadows a key casts; its focus ring adds --rim to them.
@@ -920,6 +920,10 @@ main > .resume-section {
 .card__moons a {
   /* A tall touch target that does not loosen the card's rhythm. */
   display: inline-block;
+  /* A name long enough to wrap ("Hackathons @ Berkeley" on a phone) fills its line, and its
+     target, wider than the words by the padding, would then poke past the card and scroll the
+     page sideways: it stops at the card's edge instead. */
+  max-width: 100%;
   margin: calc(var(--space-3) * -1) -0.625rem;
   padding: var(--space-3) 0.625rem;
   color: var(--color-ink-high);
@@ -1117,6 +1121,19 @@ main > .resume-section {
   padding-left: calc(var(--stop) + var(--space-4));
 }
 
+/*
+ * A sun of a binary star says so, under its tagline here and after its prose on its own page:
+ * which binary it belongs to, and the twin it circles opposite. Small print, a step quieter than
+ * the tagline: `sm` in the paragraph's `ink.mid`, as a caption or a card's summary is set. Here it
+ * is a second line of the sun's caption, so it keeps the tagline's indent and sits as close under
+ * it as the tagline sits under the name (`.system > p`: the grid's space-4 less space-2), and the
+ * first planet keeps the air it has after a tagline alone. On the sun's page it follows the prose
+ * at the page's own pace (`main > * + *`), within the measure like any paragraph.
+ */
+.twin {
+  font-size: var(--text-sm);
+}
+
 .system > .cards {
   margin-top: var(--space-4);
 }
@@ -1251,6 +1268,52 @@ picture {
   border: 1px solid var(--color-surface-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-panel);
+}
+
+/* A project with no picture yet shows its planet instead: the toy planet, large, held by a ring
+   of its system's colour, as a station is. */
+.cover--planet {
+  --ground: var(--color-surface-panel);
+
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 1;
+}
+
+.planet-dot--hero {
+  width: clamp(6rem, 26%, 10rem);
+  height: auto;
+  aspect-ratio: 1;
+  box-shadow:
+    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.5rem var(--ground),
+    0 0 0 calc(0.5rem + var(--line)) var(--theme-base);
+}
+
+/* Planned work: its ring is dashed, as a station that is not built yet is drawn on a transit
+   map. (An outline follows the round corners; a shadow cannot be dashed.) */
+.card[data-planned] > .planet-dot,
+.cover--planet[data-planned] > .planet-dot {
+  box-shadow:
+    inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.1875rem var(--ground);
+  outline: var(--line) dashed var(--theme-base);
+  outline-offset: 0.1875rem;
+}
+
+.cover--planet[data-planned] > .planet-dot {
+  box-shadow:
+    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.5rem var(--ground);
+  outline-offset: 0.5rem;
+}
+
+.card__moons > [data-planned] > .planet-dot--moon {
+  box-shadow:
+    inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.125rem var(--ground);
+  outline: 0.125rem dashed var(--theme-base);
+  outline-offset: 0.125rem;
 }
 
 .gallery {
@@ -2225,6 +2288,8 @@ main > .resume-name + .resume-contact {
    * on a small navy tag (::after, the height of the name alone), like a label on a transit map.
    * The names are part of the world, as the canvas is: a finger on one never scrolls or zooms the
    * page, and on the map a finger that moves on a name drags the map (universe/ui/StarMap.ts).
+   * A link's name (Allen's profiles elsewhere, `data-kind='link'`) is a real link, in a group of its
+   * own, with an outward arrow; pointing at its body beckons it (`data-beckon`).
    */
   .body-labels {
     position: absolute;
@@ -2254,6 +2319,7 @@ main > .resume-name + .resume-contact {
     letter-spacing: 0.02em;
     line-height: 1.4;
     white-space: nowrap;
+    text-decoration: none;
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
@@ -2316,6 +2382,65 @@ main > .resume-name + .resume-contact {
     font-weight: 500;
   }
 
+  /* A link leaves the site (a profile elsewhere): an arrow pointing out, after the name, in the
+     name's own ink. In the flow, so that the engine measures the name with it; centred on the
+     line whichever side of its body the tag is on. Drawn by clip-path: no icon font, no image. A
+     link is never where the ship is headed, so its ::before is free (a target's holds its dot). */
+  .body-label[data-kind='link'] {
+    gap: 0.3em;
+  }
+
+  .body-label[data-kind='link']::before {
+    content: '';
+    order: 1;
+    flex: none;
+    width: 0.6em;
+    height: 0.6em;
+    margin-block: 0.4em;
+    background: currentColor;
+    clip-path: polygon(
+      0% 100%,
+      0% 85.9%,
+      60.5% 25.5%,
+      35% 0%,
+      100% 0%,
+      100% 65%,
+      74.5% 39.5%,
+      14.1% 100%
+    );
+    transition: translate var(--motion-fast) var(--motion-ease-out);
+  }
+
+  /* Planned work (universe/ui/planned.ts): "Planned" after the name, set small in quieter ink, and
+     the tag's rim dashed, as a station that is not built yet is drawn on a transit map. The comma
+     before the note is heard ("Sports Analysis, Planned"), never seen: it is only transparent, and
+     its room is the gap before the note. Both stay inline: a browser reads out anything taken out
+     of the line (the visually hidden recipe, a flex item) with spaces round it, "Sports Analysis
+     , Planned". */
+  .body-label__note,
+  .dock-prompt .dock-prompt__note {
+    color: var(--color-ink-mid);
+    font-size: 0.85em;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .body-label__sep,
+  .dock-prompt .dock-prompt__sep {
+    opacity: 0;
+  }
+
+  /* (Not while it has the focus: forced colours draw the focus ring as the tag's outline.) */
+  .body-label[data-planned]:not([data-state='target'], :focus-visible)::after {
+    outline: 1px dashed var(--color-ink-low);
+    outline-offset: -1px;
+  }
+
+  /* On the filled tag of where the ship is going, the note is in the tag's own ink. */
+  .body-label[data-state='target'] .body-label__note {
+    color: inherit;
+  }
+
   .body-label:focus-visible {
     color: var(--color-ink-high);
   }
@@ -2331,6 +2456,11 @@ main > .resume-name + .resume-contact {
       background: var(--color-surface-raised);
       box-shadow: inset 0 0 0 1px var(--color-ink-low);
     }
+
+    /* The arrow leans the way the link goes: out. */
+    .body-label[data-kind='link']:hover::before {
+      translate: 0.08em -0.08em;
+    }
   }
 
   /* The ring goes round the tag, not round the 44 px box. */
@@ -2345,10 +2475,24 @@ main > .resume-name + .resume-contact {
       0 0 0 0.3125rem var(--color-focus);
   }
 
+  /* A link whose body was pointed at (universe/ui/Labels.ts, beckon) has the keyboard's focus,
+     but a browser shows no ring for focus that follows a tap: it wears the ring anyway, butter
+     for "here", until the focus moves on. Pressing it again is what leaves. */
+  .body-label[data-beckon] {
+    color: var(--color-ink-high);
+  }
+
+  .body-label[data-beckon]::after {
+    box-shadow:
+      0 0 0 0.125rem var(--color-space-950),
+      0 0 0 0.3125rem var(--color-focus);
+  }
+
   /* Forced colours drop every shadow and every fill: the focused name keeps a real outline, and
      the one the ship is headed for a border. */
   @media (forced-colors: active) {
-    .body-label:focus-visible::after {
+    .body-label:focus-visible::after,
+    .body-label[data-beckon]::after {
       outline: 0.1875rem solid Highlight;
       outline-offset: 0.125rem;
     }
@@ -2388,15 +2532,24 @@ main > .resume-name + .resume-contact {
   }
 
   /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,
-     like the tag's border. */
+     like the tag's border. And they would paint a link's arrow in the colour of the tag it sits
+     on, when it is the one sign that the name leaves the site: it takes the colour forced colours
+     give the name, the system's link colour. (Not currentColor: an element they leave alone
+     inherits the page's own ink, the cream, which may be the very colour of a light tag.) */
   @media (forced-colors: active) {
     .body-label[data-state='target']::before {
       forced-color-adjust: none;
       background: CanvasText;
     }
+
+    .body-label[data-kind='link']::before {
+      forced-color-adjust: none;
+      background: LinkText;
+    }
   }
 
   html[data-motion='reduced'] .body-label,
+  html[data-motion='reduced'] .body-label::before,
   html[data-motion='reduced'] .body-label::after {
     transition: none;
   }
@@ -3220,6 +3373,17 @@ main > .resume-name + .resume-contact {
       color-mix(in srgb, var(--color-space-800) 38%, transparent);
   }
 
+  /* Planned work: the planet has no ring here either; its station on the line is the dashed one. */
+  .card[data-planned] > .planet-dot {
+    box-shadow: inset -0.45rem -0.33rem 0 0
+      color-mix(in srgb, var(--color-space-800) 38%, transparent);
+    outline: none;
+  }
+
+  .card[data-planned]::before {
+    border-style: dashed;
+  }
+
   /* The station on the line, and the short track that ties it to its planet. */
   .card::before,
   .card::after {
@@ -3354,6 +3518,17 @@ main > .resume-name + .resume-contact {
     box-shadow:
       0 0 0 0.125rem Canvas,
       0 0 0 0.25rem CanvasText;
+  }
+
+  .card[data-planned] > .planet-dot,
+  .cover--planet[data-planned] > .planet-dot {
+    box-shadow: 0 0 0 0.1875rem Canvas;
+    outline-color: CanvasText;
+  }
+
+  .card__moons > [data-planned] > .planet-dot--moon {
+    box-shadow: 0 0 0 0.125rem Canvas;
+    outline-color: CanvasText;
   }
 }
 
@@ -3614,8 +3789,10 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     line-height: 1.2;
   }
 
-  /* A project page: the toy planets, the stations and their rings are the screen's. */
+  /* A project page: the toy planets, the stations and their rings are the screen's (and so is
+     the planet that stands in for a missing picture). */
   .planet-dot,
+  .cover--planet,
   .sun-dot,
   .prose > h2::before {
     display: none;

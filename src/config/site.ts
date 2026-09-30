@@ -1,3 +1,4 @@
+import type { ProfileKey } from '../site/profiles';
 import { routes } from '../site/routes';
 
 /** Site-wide constants. No phone number, ever (docs/PLAN.md decision 28). */
@@ -30,10 +31,18 @@ export const site = {
    */
   email: 'allen@allenkh.com',
 
+  /**
+   * Allen's profiles elsewhere, and the one place their URLs live (src/site/profiles.ts says what
+   * each network is called and where its relay circles). The home and contact pages, the
+   * structured data and the universe list whatever is here; adding Devpost is one line:
+   *   devpost: 'https://devpost.com/<username>',
+   * The resume keeps its own two links on purpose: a new network never changes the resume, its
+   * print or its PDF.
+   */
   socials: {
     github: 'https://github.com/MeagerPotato',
     linkedin: 'https://www.linkedin.com/in/allenkhsieh',
-  },
+  } satisfies Partial<Record<ProfileKey, string>>,
 
   /**
    * The main navigation, identical on every page. `section` lists the URL prefixes for which the

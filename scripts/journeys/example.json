@@ -1,5 +1,6 @@
 {
-  "galaxies": ["real", 4],
+  "galaxies": ["real", 6],
+  "gate": false,
   "variants": [
     { "name": "today" },
     {

@@ -1,5 +1,5 @@
 import type { ModelData } from '../sim/meshBuilder';
-import { buildPlanetRing, buildSatellite, buildStation } from './models/docks';
+import { buildPlanetRing, buildRelay, buildSatellite, buildStation } from './models/docks';
 import { buildFlame } from './models/flame';
 import { buildRocket } from './models/rocket';
 import { tuning } from './tuning';
@@ -22,6 +22,8 @@ export const assets = {
   flame: { kind: 'procedural', build: buildFlame },
   station: { kind: 'procedural', build: buildStation },
   satellite: { kind: 'procedural', build: buildSatellite },
+  /** A link's body: a profile elsewhere, circling home beside the satellite. */
+  relay: { kind: 'procedural', build: buildRelay },
   planetRing: {
     kind: 'procedural',
     build: buildPlanetRing(tuning.world.ringOuterRadii / tuning.world.ringInnerRadii),

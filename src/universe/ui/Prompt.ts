@@ -3,6 +3,7 @@ import { belongsToPage } from '../core/input/KeyboardInput';
 import { boxOf } from '../core/dom';
 import type { ScreenBox } from '../sim/declutter';
 import type { AppState } from '../state/appMachine';
+import { plannedNote } from './planned';
 
 /** What the prompt needs of state/Navigator.ts. */
 export interface PromptNavigator {
@@ -19,6 +20,8 @@ export interface PromptOptions {
   navigator: PromptNavigator;
   /** The name a visitor knows a body by. */
   titleOf(id: string): string;
+  /** Is it planned work, not built yet? Then its name says so, as its label does. */
+  isPlanned?(id: string): boolean;
   /**
    * While this says so, the prompt keeps its offers out of sight ("Orbit ...", "Leave orbit"),
    * and brings them back as they were when it stops saying so: the star map on a narrow screen,
@@ -48,6 +51,8 @@ export class Prompt implements System {
    */
   private readonly lead: HTMLSpanElement;
   private readonly name: Text;
+  /** "Planned" after the name of planned work (ui/planned.ts). */
+  private readonly note: HTMLSpanElement;
   private readonly key: HTMLElement;
   /** What pressing the button does, when the label is news rather than an offer ("Stop"). */
   private readonly action: HTMLSpanElement;
@@ -65,6 +70,8 @@ export class Prompt implements System {
     this.lead = document.createElement('span');
     this.lead.className = 'dock-prompt__lead';
     this.name = document.createTextNode('');
+    // (In the label only while it names planned work.)
+    this.note = plannedNote('dock-prompt');
     this.label.append(this.lead, this.name);
     this.action = document.createElement('span');
     this.action.className = 'dock-prompt__action';
@@ -84,9 +91,12 @@ export class Prompt implements System {
     let text = '';
     let key = '';
     let action = '';
+    // The body the words name, if they name one.
+    let named: string | null = null;
     if (mode === 'flight' && candidate !== null) {
       text = `Orbit ${titleOf(candidate)}`;
       key = 'E';
+      named = candidate;
     } else if (mode === 'docked' && target !== null) {
       text = 'Leave orbit';
     } else if (target !== null) {
@@ -95,14 +105,19 @@ export class Prompt implements System {
       lead = 'Flying to ';
       text = titleOf(target);
       action = 'Stop';
+      named = target;
     }
+    const planned = named !== null && (this.options.isPlanned?.(named) ?? false);
     const hushed = this.options.quiet?.() ?? false;
-    if (lead + text === this.shown && hushed === this.hushed) return;
-    this.shown = lead + text;
+    const shown = `${lead}${text}${planned ? ', planned' : ''}`;
+    if (shown === this.shown && hushed === this.hushed) return;
+    this.shown = shown;
     this.hushed = hushed;
     this.lead.textContent = lead;
     this.lead.hidden = lead === '';
     this.name.data = text;
+    if (planned) this.label.append(this.note);
+    else this.note.remove();
     this.key.textContent = key;
     this.key.hidden = key === '';
     this.action.textContent = action;

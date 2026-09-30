@@ -132,6 +132,85 @@ describe('orbits', () => {
     }
   });
 
+  it('turns a binary star: two suns round an empty centre, each carrying its planets and moons', () => {
+    // As the build lays one out (data/layout.ts, binaryOrbits): suns a = 133.8 and b = 287.8 u
+    // from the centre, half a turn apart, with one period; a family round each.
+    const [a, b, period] = [133.8, 287.8, 4470.3];
+    const binary = createOrbitTable(
+      [{ id: 'projects', position: [-487.9, 487.9] as const }],
+      [
+        {
+          id: 'moon',
+          parent: 'planet',
+          system: 'projects',
+          orbit: { radius: 26.4, phase: 2, periodSec: 90 },
+        },
+        {
+          id: 'planet',
+          parent: 'software',
+          system: 'projects',
+          orbit: { radius: 156.4, phase: 0.5, periodSec: 1180 },
+        },
+        {
+          id: 'software',
+          parent: null,
+          system: 'projects',
+          orbit: { radius: a, phase: 1.2345, periodSec: period },
+        },
+        {
+          id: 'hardware',
+          parent: null,
+          system: 'projects',
+          orbit: { radius: b, phase: 1.2345 + Math.PI, periodSec: period },
+        },
+        {
+          id: 'rocket',
+          parent: 'hardware',
+          system: 'projects',
+          orbit: { radius: 60.2, phase: 4, periodSec: 241.2 },
+        },
+      ],
+    );
+    const positions = new Float64Array(binary.count * 2);
+    const velocities = new Float64Array(binary.count * 2);
+    const at = (id: string, from: Float64Array = positions): [number, number] => {
+      const i = binary.indexOf(id);
+      return [from[i * 2] ?? NaN, from[i * 2 + 1] ?? NaN];
+    };
+    const one = new Float64Array(2);
+    const dt = 1e-4;
+    for (const t of [0, 1000, 5000]) {
+      bodyPositions(binary, t, positions, velocities);
+      const [sx, sz] = at('software');
+      const [hx, hz] = at('hardware');
+      // Each sun on its own circle round the centre, on opposite sides of it: a constant pair.
+      expect(Math.hypot(sx + 487.9, sz - 487.9)).toBeCloseTo(a, 9);
+      expect(Math.hypot(hx + 487.9, hz - 487.9)).toBeCloseTo(b, 9);
+      expect(Math.hypot(sx - hx, sz - hz)).toBeCloseTo(a + b, 9);
+      expect(((sx + 487.9) * b + (hx + 487.9) * a) / (a + b)).toBeCloseTo(0, 9);
+      expect(((sz - 487.9) * b + (hz - 487.9) * a) / (a + b)).toBeCloseTo(0, 9);
+      // A planet circles its moving sun, and a moon its planet, whatever the sun is doing.
+      const [px, pz] = at('planet');
+      const [mx, mz] = at('moon');
+      const [rx, rz] = at('rocket');
+      expect(Math.hypot(px - sx, pz - sz)).toBeCloseTo(156.4, 9);
+      expect(Math.hypot(mx - px, mz - pz)).toBeCloseTo(26.4, 9);
+      expect(Math.hypot(rx - hx, rz - hz)).toBeCloseTo(60.2, 9);
+      // Velocities add down the chain: they match how the positions really change.
+      const later = bodyPositions(binary, t + dt, new Float64Array(binary.count * 2));
+      for (const id of ['software', 'hardware', 'planet', 'moon', 'rocket']) {
+        const [x0, z0] = at(id);
+        const [x1, z1] = at(id, later);
+        const [vx, vz] = at(id, velocities);
+        expect((x1 - x0) / dt, `${id} at ${t}`).toBeCloseTo(vx, 3);
+        expect((z1 - z0) / dt, `${id} at ${t}`).toBeCloseTo(vz, 3);
+        // And one body alone is exactly where the whole pass puts it.
+        bodyPositionAt(binary, binary.indexOf(id), t, one);
+        expect([one[0], one[1]], `${id} at ${t}`).toEqual(at(id));
+      }
+    }
+  });
+
   it('refuses a manifest that does not add up', () => {
     const moon = { id: 'moon', system: 'code', orbit: { radius: 30, phase: 0, periodSec: 100 } };
     expect(() => createOrbitTable(systems, [{ ...moon, parent: 'nobody' }])).toThrow(

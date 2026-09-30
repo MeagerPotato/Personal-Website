@@ -4,8 +4,9 @@ import { tokens } from '../tokens';
 
 /**
  * THE THINGS THAT ARE NOT PLANETS: the Resume station and the Contact satellite of the home
- * system, and the ring a ringed planet wears. Each is modelled to fit a sphere of radius 1 and is
- * scaled by the body's radius from the manifest, +Y up.
+ * system, the relays beside the satellite (Allen's profiles elsewhere), and the ring a ringed
+ * planet wears. Each is modelled to fit a sphere of radius 1 and is scaled by the body's radius
+ * from the manifest, +Y up.
  *
  * DESIGN SURFACE: shapes and paint are free to change.
  */
@@ -18,6 +19,8 @@ const paint = {
   accent: hexToLinear(tokens.color.system.coral.base),
   panel: hexToLinear(tokens.color.system.sky.base),
   panelFrame: hexToLinear(tokens.color.system.sky.shade),
+  /** The colour of a link on the page, for the relays, which are links. */
+  link: hexToLinear(tokens.color.accent),
 } as const;
 
 /** A wheel station: a ring, a hub, four spokes and a mast. The wheel lies flat, axis up. */
@@ -90,6 +93,50 @@ export function buildSatellite(): ModelData {
     .box([0.7, 0, 0], [0.04, 0.05, 0.46], paint.panelFrame)
     .box([-0.7, 0, 0], [0.04, 0.05, 0.46], paint.panelFrame);
 
+  return { mesh: builder.build(), sockets: {} };
+}
+
+/**
+ * A relay: a small comms buoy that stands for a profile on another site (GitHub, LinkedIn) and
+ * shares the satellite's ring. A float in the colour of a link with a band round it, a keel below,
+ * and a thin mast with a beacon on top: no dish and no wings, so that it never reads as the
+ * satellite beside it, which can be docked at while a relay cannot. Neither butter nor the
+ * cream face, which say "here" and "on" (docs/DESIGN.md). Stands upright.
+ */
+export function buildRelay(): ModelData {
+  const builder = new MeshBuilder();
+  builder
+    .lathe(
+      [
+        { z: -0.95, radius: 0 }, // the keel's tip
+        { z: -0.55, radius: 0.3 },
+        { z: -0.5, radius: 0.42 }, // the float
+        { z: -0.2, radius: 0.42 },
+        { z: -0.1, radius: 0.42 },
+        { z: 0.05, radius: 0.42 },
+        { z: 0.05, radius: 0.3 },
+        { z: 0.16, radius: 0.1 }, // its shoulder
+        { z: 0.7, radius: 0.045 }, // the mast
+        { z: 0.76, radius: 0.13 }, // the beacon
+        { z: 0.88, radius: 0.13 },
+        { z: 0.97, radius: 0 },
+      ],
+      10,
+      [
+        paint.dark,
+        paint.dark,
+        paint.link,
+        paint.panelFrame,
+        paint.link,
+        paint.inner,
+        paint.inner,
+        paint.dark,
+        paint.accent,
+        paint.accent,
+        paint.accent,
+      ],
+    )
+    .rotateX(-Math.PI / 2);
   return { mesh: builder.build(), sockets: {} };
 }
 

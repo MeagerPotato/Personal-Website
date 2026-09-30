@@ -57,7 +57,10 @@ export class Rocket {
     this.tilt.position.y = lift;
   }
 
-  /** The light that shades the ship: the sun of whichever system it is in. */
+  /**
+   * Where the light that shades the ship falls from (world/Galaxy.ts, lightAt): the sun whose
+   * family it is in, turning toward the distant key light in the space between families.
+   */
   setSun(position: Readonly<Vector3>): void {
     this.material.uniforms.uSunPosition.value.copy(position);
   }

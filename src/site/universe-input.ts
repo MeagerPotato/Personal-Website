@@ -1,12 +1,14 @@
 import type { BiomeKey, ThemeKey } from '../universe/design/tokens';
 import type {
   DockKind,
+  LinkInput,
   PageInput,
   PlanetSize,
   ProjectInput,
   SystemInput,
   UniverseInput,
 } from '../universe/data/types';
+import type { Profile } from './profiles';
 import { routes } from './routes';
 
 // Content entries -> the plain input of buildUniverse(). Structural types only: this file knows
@@ -22,18 +24,21 @@ interface Ref {
   id: string;
 }
 
+/** A solar system, a binary star (it lists `suns`), or a sun of a binary (no order, no suns). */
 export type SystemEntry = Entry<{
   name: string;
-  theme: ThemeKey;
-  order: number;
-  position: 'auto' | [number, number];
+  theme?: ThemeKey | undefined;
+  order?: number | undefined;
+  position?: 'auto' | [number, number] | undefined;
+  suns?: readonly Ref[] | undefined;
 }>;
 
 export type ProjectEntry = Entry<{
   title: string;
   system?: Ref | undefined;
   parent?: Ref | undefined;
-  date: string;
+  date?: string | undefined;
+  status: 'shipped' | 'completed' | 'in-progress' | 'archived' | 'planned';
   planet: {
     size: PlanetSize;
     biome: BiomeKey;
@@ -48,13 +53,15 @@ export type ProjectEntry = Entry<{
 
 export type PageEntry = Entry<{ title: string; dock: DockKind }>;
 
+/** A binary star has no page of its own: the projects index is its page (it shows both suns). */
 export const toSystemInput = ({ id, data }: SystemEntry): SystemInput => ({
   id,
   name: data.name,
-  href: routes.system(id),
+  href: data.suns === undefined ? routes.system(id) : routes.projects(),
   theme: data.theme,
   order: data.order,
-  position: data.position,
+  ...(data.suns === undefined ? {} : { suns: data.suns.map((sun) => sun.id) }),
+  position: data.position ?? 'auto',
 });
 
 export const toProjectInput = ({ id, data }: ProjectEntry): ProjectInput => ({
@@ -64,6 +71,7 @@ export const toProjectInput = ({ id, data }: ProjectEntry): ProjectInput => ({
   system: data.system?.id,
   parent: data.parent?.id,
   date: data.date,
+  planned: data.status === 'planned',
   size: data.planet.size,
   biome: data.planet.biome,
   rings: data.planet.rings,
@@ -81,16 +89,27 @@ export const toPageInput = ({ id, data }: PageEntry): PageInput => ({
   dock: data.dock,
 });
 
+/** A profile elsewhere (src/site/profiles.ts) as a relay round the home planet. */
+export const toLinkInput = ({ key, label, href, slot }: Profile): LinkInput => ({
+  id: key,
+  title: label,
+  href,
+  slot,
+});
+
 export function toUniverseInput(content: {
   systems: readonly SystemEntry[];
   projects: readonly ProjectEntry[];
   pages: readonly PageEntry[];
+  /** `profiles(site.socials)`: what the home page lists, circling home. */
+  profiles: readonly Profile[];
   includeDrafts: boolean;
 }): UniverseInput {
   return {
     systems: content.systems.map(toSystemInput),
     projects: content.projects.map(toProjectInput),
     pages: content.pages.map(toPageInput),
+    links: content.profiles.map(toLinkInput),
     projectsHref: routes.projects(),
     includeDrafts: content.includeDrafts,
   };

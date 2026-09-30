@@ -1,15 +1,23 @@
-import { Vector3, type LineLoop, type Mesh, type Object3D } from 'three';
+import { Vector3, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
 import { JobQueue } from '../core/jobs';
 import { buildUniverse } from '../data/build';
 import type { UniverseInput } from '../data/types';
-import { KEY_LIGHT_POSITION } from '../design/materials';
+import { KEY_LIGHT_POSITION, type ToonMaterial } from '../design/materials';
 import { tuning } from '../design/tuning';
-import { centerBodyOf, homeSystemOf, nearestNeighbourOf, readManifest } from '../manifest';
+import {
+  centerBodyOf,
+  homeSystemOf,
+  nearestNeighbourOf,
+  readManifest,
+  type ManifestBody,
+  type UniverseManifest,
+} from '../manifest';
 import { spawnPoint } from '../sim/spawn';
 import { Galaxy } from './Galaxy';
+import { plannedBands } from './looks';
 
 const project = (id: string, over: object) => ({
   id,
@@ -48,6 +56,7 @@ const input: UniverseInput = {
     { id: 'resume', title: 'Resume', href: '/resume/', dock: 'station' },
     { id: 'contact', title: 'Contact', href: '/contact/', dock: 'satellite' },
   ],
+  links: [{ id: 'github', title: 'GitHub', href: 'https://github.com/someone', slot: 2 }],
   includeDrafts: false,
 };
 const manifest = buildUniverse(input);
@@ -58,6 +67,19 @@ const frame = (simTime: number, dt = 1 / 60): Frame => ({
   alpha: 1,
   simTime,
 });
+
+/** Which way the ship's light falls from, seen from `at`. */
+function lightFrom(galaxy: Galaxy, at: Vector3): Vector3 {
+  return galaxy.lightAt(at, new Vector3()).sub(at).normalize();
+}
+const direction = (from: Vector3, to: Vector3): Vector3 => to.clone().sub(from).normalize();
+function expectSameDirection(actual: Vector3, expected: Vector3): void {
+  expect(actual.x).toBeCloseTo(expected.x, 9);
+  expect(actual.y).toBeCloseTo(expected.y, 9);
+  expect(actual.z).toBeCloseTo(expected.z, 9);
+}
+/** Where the light that falls on this mesh is. */
+const sunOf = (mesh: Mesh): Vector3 => (mesh.material as ToonMaterial).uniforms.uSunPosition.value;
 
 function setup(viewerAt = new Vector3(0, 0, -120)) {
   const viewer = { position: viewerAt };
@@ -86,12 +108,17 @@ describe('reading the manifest', () => {
     expect(nearestNeighbourOf({ ...read, systems: [home] }, home)).toBeNull();
   });
 
-  it('refuses what is not a manifest, or one from a newer build', () => {
+  it('refuses what is not a manifest, or one from another build', () => {
     expect(() => readManifest(null)).toThrow(/not an object/);
     expect(() => readManifest('<!doctype html>')).toThrow(/not an object/);
-    expect(() => readManifest({ ...manifest, version: 2 })).toThrow(/version 2/);
-    expect(() => readManifest({ version: 1 })).toThrow(/missing/);
-    expect(() => readManifest({ version: 1, systems: [], bodies: [] })).toThrow(/empty/);
+    expect(() => readManifest({ ...manifest, version: 3 })).toThrow(/version 3/);
+    // One version, the engine's own: 1 is from the deploy before links (an engine that reads it
+    // would dock at one), so across that deploy each side refuses the other.
+    expect(() => readManifest({ ...manifest, version: 1 })).toThrow(
+      /version 1, this engine reads 2/,
+    );
+    expect(() => readManifest({ version: 2 })).toThrow(/missing/);
+    expect(() => readManifest({ version: 2, systems: [], bodies: [] })).toThrow(/empty/);
   });
 });
 
@@ -127,14 +154,32 @@ describe('where a visitor starts', () => {
 });
 
 describe('Galaxy', () => {
-  it('makes a view for every body, and an orbit line for every body that orbits', () => {
-    const { galaxy } = setup();
+  it('makes a view for every body, and draws the path of every body that orbits, once', () => {
+    const { galaxy, node } = setup();
+    galaxy.frameUpdate(frame(10));
+    const lines = galaxy.object.children.filter((child) => child.name.endsWith(':orbit'));
+    const drawing = new Set<Object3D>();
     for (const body of manifest.bodies) {
       expect(galaxy.object.getObjectByName(body.id)).toBeDefined();
-      const line = galaxy.object.getObjectByName(`${body.id}:orbit`) as LineLoop | undefined;
-      expect(line !== undefined).toBe(body.orbit !== null);
-      if (line && body.orbit) expect(line.scale.x).toBe(body.orbit.radius);
+      const { orbit } = body;
+      if (!orbit) continue;
+      const system = manifest.systems.find((candidate) => candidate.id === body.system);
+      const around = body.parent
+        ? node(body.parent).position
+        : new Vector3(system?.position[0], 0, system?.position[1]);
+      // Exactly one line is this body's circle: its radius, round what it goes round.
+      const drawn = lines.filter(
+        (line) => line.scale.x === orbit.radius && line.position.distanceTo(around) < 1e-9,
+      );
+      expect(drawn).toHaveLength(1);
+      drawing.add(drawn[0] as Object3D);
     }
+    // And there is no line that draws nobody's path.
+    expect(drawing.size).toBe(lines.length);
+    // The relays ride the Contact satellite's ring, and it is drawn once: a see-through line drawn
+    // over itself would be the darkest path in the sky.
+    expect(galaxy.object.getObjectByName('page/contact:orbit')).toBeDefined();
+    expect(galaxy.object.getObjectByName('link/github:orbit')).toBeUndefined();
   });
 
   it('puts everything where the orbits say, at the time of the frame', () => {
@@ -250,18 +295,175 @@ describe('Galaxy', () => {
     const code = manifest.systems.find((system) => system.id === 'code');
     if (!code) throw new Error('fixture');
     const sun = new Vector3(code.position[0], 0, code.position[1]);
-    const out = new Vector3();
 
-    expect(galaxy.lightAt(new Vector3(0, 0, 0), out).equals(KEY_LIGHT_POSITION)).toBe(true);
-    expect(
-      galaxy.lightAt(sun.clone().add(new Vector3(40, 0, 0)), out).distanceTo(sun),
-    ).toBeLessThan(1e-6);
+    // Out at home, far from every sun: the key light.
+    const home = new Vector3(0, 0, 0);
+    expectSameDirection(lightFrom(galaxy, home), direction(home, KEY_LIGHT_POSITION));
 
-    // On the way in, somewhere between the two: no pop.
+    // Anywhere inside the sun's family, wherever round it: from the sun, and nowhere else.
+    const full = code.radius * tuning.world.shipLightFullRadii;
+    for (const [off, angle] of [
+      [30, 0],
+      [40, 1],
+      [120, 2.5],
+      [code.radius, 4],
+      [full - 0.1, 5.5],
+    ] as const) {
+      const at = sun.clone().add(new Vector3(Math.cos(angle) * off, 0, Math.sin(angle) * off));
+      expectSameDirection(lightFrom(galaxy, at), direction(at, sun));
+    }
+
+    // On the way in, somewhere between the two: neither of them, so no pop.
     const edge = sun.clone().add(new Vector3(code.radius * 1.6, 0, 0));
-    const between = galaxy.lightAt(edge, out).clone();
-    expect(between.distanceTo(sun)).toBeGreaterThan(1);
-    expect(between.distanceTo(KEY_LIGHT_POSITION)).toBeGreaterThan(1);
+    const between = lightFrom(galaxy, edge);
+    expect(between.angleTo(direction(edge, sun))).toBeGreaterThan(0.05);
+    expect(between.angleTo(direction(edge, KEY_LIGHT_POSITION))).toBeGreaterThan(0.05);
+    // And past the fade, the key light again.
+    const out = sun.clone().add(new Vector3(0, 0, -code.radius * tuning.world.shipLightFadeRadii));
+    expectSameDirection(lightFrom(galaxy, out), direction(out, KEY_LIGHT_POSITION));
+  });
+
+  it('lights a planet by its sun, a moon by its planet’s sun, and home by the key light', () => {
+    const { galaxy, meshOf } = setup();
+    galaxy.frameUpdate(frame(10));
+    const code = manifest.systems.find((system) => system.id === 'code');
+    if (!code) throw new Error('fixture');
+    for (const id of ['project/days2meet', 'project/fishai', 'project/fish-onboarding']) {
+      const light = sunOf(meshOf(id));
+      expect([light.x, light.y, light.z]).toEqual([code.position[0], 0, code.position[1]]);
+      expect(galaxy.subject(id)?.light).toBe(light);
+    }
+    for (const id of ['page/about', 'page/resume', 'page/contact', 'link/github']) {
+      const mesh = galaxy.object.getObjectByName(id)?.getObjectByProperty('type', 'Mesh') as Mesh;
+      expect(sunOf(mesh).equals(KEY_LIGHT_POSITION)).toBe(true);
+      expect(galaxy.subject(id)?.light?.equals(KEY_LIGHT_POSITION)).toBe(true);
+    }
+    // A sun is the light: a camera frames it from any side.
+    expect(galaxy.subject('system/code')?.light).toBeNull();
+  });
+
+  it('draws planned work as an unpainted maquette in its family’s colours, never in close-up', () => {
+    const planned = buildUniverse({
+      ...input,
+      projects: [
+        ...input.projects,
+        project('sports', { system: 'code', planned: true, date: undefined, biome: 'ember' }),
+      ],
+    });
+    const viewer = { position: new Vector3(0, 0, -120) };
+    const jobs = new JobQueue(1000);
+    const galaxy = new Galaxy({
+      manifest: planned,
+      assets: new AssetStore(),
+      jobs,
+      viewer,
+      reducedMotion: false,
+    });
+    const mesh = galaxy.object.getObjectByName('project/sports')?.children[0] as Mesh;
+    const finishJobs = (): void => {
+      while (jobs.pending > 0) jobs.frameUpdate();
+    };
+    finishJobs();
+    const facets = (): number => mesh.geometry.getAttribute('position').count / 3;
+    expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+
+    // Every facet is one of the family's two colours (nudged by the generator's jitter), and none
+    // of its biome's.
+    const bands = plannedBands('sky');
+    const colors = mesh.geometry.getAttribute('color');
+    const near = (at: number, band: readonly number[]): boolean =>
+      [colors.getX(at), colors.getY(at), colors.getZ(at)].every(
+        (value, channel) =>
+          Math.abs(value - (band[channel] ?? 0)) <=
+          tuning.planet.colorJitter * (band[channel] ?? 0) + 1e-6,
+      );
+    for (let at = 0; at < colors.count; at += 1) {
+      expect(near(at, bands.low) || near(at, bands.high)).toBe(true);
+    }
+
+    // Close by, it stays a maquette.
+    const at = galaxy.object.getObjectByName('project/sports')?.position ?? new Vector3();
+    viewer.position.copy(at).add(new Vector3(0, 0, 20));
+    galaxy.frameUpdate(frame(1));
+    finishJobs();
+    expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+    galaxy.dispose();
+  });
+
+  it('draws a link as a relay: a model of its own, not the satellite beside it', () => {
+    const { galaxy, node } = setup();
+    const relay = node('link/github');
+    expect(relay.getObjectByName('relay')).toBeDefined();
+    expect(relay.getObjectByName('satellite')).toBeUndefined();
+    expect(node('page/contact').getObjectByName('satellite')).toBeDefined();
+    // At its size, and on the satellite's ring.
+    const model = relay.getObjectByName('relay');
+    expect(model?.scale.x).toBe(tuning.layout.home.relayRadius);
+    galaxy.frameUpdate(frame(10));
+    const home = node('page/about').position;
+    const satellite = node('page/contact').position;
+    expect(relay.position.distanceTo(home)).toBeCloseTo(satellite.distanceTo(home), 6);
+    galaxy.dispose();
+  });
+
+  it('shows a path on the star map while any body on it shows', () => {
+    const viewer = { position: new Vector3(0, 0, -120) };
+    const satellite = manifest.bodies.find((body) => body.id === 'page/contact');
+    const home = manifest.bodies.find((body) => body.id === 'page/about');
+    if (!satellite?.orbit || !home) throw new Error('fixture');
+    // Zoomed out so far that the satellite's disc touches home's, and the relay's, a little
+    // smaller on the map, does not yet (sim/mapView.ts, displayScales).
+    const px = tuning.map.minRadiusPx;
+    const ringRadius = satellite.orbit.radius;
+    const touches = (own: number): number => ringRadius / (px.home + own);
+    const map = { weight: 1, unitsPerPx: (touches(px.satellite) + touches(px.link)) / 2 };
+    expect(home.radius).toBeLessThan(px.home * map.unitsPerPx);
+    const galaxy = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer,
+      reducedMotion: false,
+      map,
+    });
+    const row = (id: string): number => galaxy.orbits.indexOf(id);
+    const ring = galaxy.object.getObjectByName('page/contact:orbit');
+
+    galaxy.frameUpdate(frame(1));
+    expect(galaxy.displayScale[row('page/contact')]).toBe(0);
+    expect(galaxy.displayScale[row('link/github')]).toBeGreaterThan(0);
+    expect(ring?.visible).toBe(true);
+
+    // Further out, neither shows, and neither does their ring.
+    map.unitsPerPx = touches(px.link) * 1.1;
+    galaxy.frameUpdate(frame(2));
+    expect(galaxy.displayScale[row('link/github')]).toBe(0);
+    expect(ring?.visible).toBe(false);
+    galaxy.dispose();
+  });
+
+  it('draws a world of its own as its recipe says, lit by its sun', () => {
+    const galaxy = new Galaxy({
+      manifest,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+      worlds: {
+        'project/days2meet': { model: 'station', rings: true },
+        'project/fishai': { rings: false },
+      },
+    });
+    const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
+    const model = node('project/days2meet').getObjectByName('station');
+    expect(model).toBeDefined();
+    expect(node('project/days2meet').getObjectByName('planetRing')).toBeDefined();
+    // The content gives FishAI a ring; its recipe takes it away.
+    expect(node('project/fishai').getObjectByName('planetRing')).toBeUndefined();
+    const code = manifest.systems.find((system) => system.id === 'code');
+    const light = sunOf(model?.getObjectByProperty('type', 'Mesh') as Mesh);
+    expect([light.x, light.z]).toEqual([code?.position[0], code?.position[1]]);
+    galaxy.dispose();
   });
 
   it('gives back every GPU resource, and cancels meshes still waiting to be built', () => {
@@ -289,5 +491,234 @@ describe('Galaxy', () => {
     expect(lazy.pending).toBeGreaterThan(0);
     waiting.dispose();
     expect(lazy.pending).toBe(0);
+  });
+});
+
+/**
+ * A binary star, by hand (the build makes none yet): two suns circling one centre, each with its
+ * own planets, their families 40 u apart at the closest, as the tree's Projects will be.
+ */
+function binary(): UniverseManifest {
+  const orbit = (radius: number, phase: number, periodSec: number) => ({
+    radius,
+    phase,
+    periodSec,
+  });
+  const sun = (id: string, radius: number, phase: number): ManifestBody => ({
+    id: `system/${id}`,
+    kind: 'sun',
+    title: id,
+    href: `/systems/${id}/`,
+    system: 'pair',
+    parent: null,
+    radius: 20,
+    dockRadius: 38,
+    orbit: orbit(radius, phase, 4000),
+    seed: id,
+  });
+  const planet = (id: string, parent: string, radius: number): ManifestBody => ({
+    id: `project/${id}`,
+    kind: 'planet',
+    title: id,
+    href: `/projects/${id}/`,
+    system: 'pair',
+    parent: `system/${parent}`,
+    radius: 8,
+    dockRadius: 15.2,
+    orbit: orbit(radius, 1, 300),
+    seed: id,
+    biome: 'terra',
+  });
+  // Reaches: a 70 + 15.2 = 85.2, b 110 + 15.2 = 125.2. Each sun sits the OTHER family's reach
+  // and half the gap from the centre, so both families reach equally far: 145.2 and 105.2.
+  return {
+    version: 2,
+    systems: [
+      {
+        id: 'pair',
+        name: 'Pair',
+        theme: 'sky',
+        position: [-900, 300],
+        radius: 250.4,
+        center: 'system/a',
+      },
+    ],
+    bodies: [
+      sun('a', 145.2, 0.3),
+      sun('b', 105.2, 0.3 + Math.PI),
+      planet('a1', 'a', 70),
+      planet('b1', 'b', 70),
+      planet('b2', 'b', 110),
+    ],
+    lanes: [],
+  };
+}
+
+describe('Galaxy, where suns move', () => {
+  function setupBinary() {
+    const galaxy = new Galaxy({
+      manifest: binary(),
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3(-900, 0, 300) },
+      reducedMotion: false,
+    });
+    const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
+    const meshOf = (id: string): Mesh => node(id).children[0] as Mesh;
+    return { galaxy, node, meshOf };
+  }
+
+  it('lights each planet from its own sun, where that sun is THIS frame', () => {
+    const { galaxy, node, meshOf } = setupBinary();
+    for (const t of [0, 1000, 2345.6]) {
+      galaxy.frameUpdate(frame(t));
+      for (const [planet, sun] of [
+        ['project/a1', 'system/a'],
+        ['project/b1', 'system/b'],
+        ['project/b2', 'system/b'],
+      ] as const) {
+        expect(sunOf(meshOf(planet)).distanceTo(node(sun).position)).toBeLessThan(1e-9);
+      }
+    }
+    // Two suns, two lights: the planets of one never share a light with the other's.
+    expect(sunOf(meshOf('project/a1'))).not.toBe(sunOf(meshOf('project/b1')));
+    expect(sunOf(meshOf('project/b1'))).toBe(sunOf(meshOf('project/b2')));
+    galaxy.dispose();
+  });
+
+  it('gives the camera a light that moves with the sun, for as long as it looks', () => {
+    const { galaxy, node } = setupBinary();
+    galaxy.frameUpdate(frame(0));
+    const subject = galaxy.subject('project/b2');
+    if (!subject?.light) throw new Error('no light');
+    const before = subject.light.clone();
+    galaxy.frameUpdate(frame(500));
+    expect(subject.light.distanceTo(node('system/b').position)).toBeLessThan(1e-9);
+    expect(subject.light.distanceTo(before)).toBeGreaterThan(10);
+    galaxy.dispose();
+  });
+
+  it('turns the ship’s light over the top from one sun to the other, never round in a frame', () => {
+    const { galaxy, node } = setupBinary();
+    galaxy.frameUpdate(frame(0));
+    const a = node('system/a').position.clone();
+    const b = node('system/b').position.clone();
+    const across = b.clone().sub(a).normalize();
+    const aside = new Vector3(-across.z, 0, across.x);
+    // Straight from one sun's ring to the other's, where their pulls are exactly opposite; and on
+    // lines beside that one (clear of both rings), from out past one family to out past the other.
+    const ring = 38;
+    const paths = [
+      [a.clone().addScaledVector(across, ring), b.clone().addScaledVector(across, -ring)],
+      ...[45, -60, 150].map((offset) => [
+        a.clone().addScaledVector(across, -300).addScaledVector(aside, offset),
+        b.clone().addScaledVector(across, 300).addScaledVector(aside, offset),
+      ]),
+    ];
+    for (const [from, to] of paths) {
+      if (!from || !to) throw new Error('fixture');
+      const steps = 4000;
+      let last: Vector3 | null = null;
+      let largest = 0;
+      let highest = 0;
+      for (let i = 0; i <= steps; i += 1) {
+        const at = from.clone().lerp(to, i / steps);
+        const light = lightFrom(galaxy, at);
+        expect(Number.isFinite(light.x + light.y + light.z)).toBe(true);
+        if (last) largest = Math.max(largest, light.angleTo(last));
+        highest = Math.max(highest, light.y);
+        last = light;
+      }
+      // Never more than a couple of degrees in one step of a fifth of a unit or less.
+      expect(largest).toBeLessThan((2.5 * Math.PI) / 180);
+      // Where the suns cancel, the light is up in the key light's direction.
+      if (from === paths[0]?.[0]) expect(highest).toBeGreaterThan(0.4);
+    }
+    // Deep inside either family, it is that sun's light alone.
+    for (const [sun, planet] of [
+      [a, 'project/a1'],
+      [b, 'project/b2'],
+    ] as const) {
+      const at = node(planet).position.clone();
+      expectSameDirection(lightFrom(galaxy, at), direction(at, sun));
+    }
+    galaxy.dispose();
+  });
+
+  it('is the binary the build makes: every body drawn, each lit by its own sun', () => {
+    // The shape of the tree's Projects, through the real build (the fixture above is by hand).
+    const built = buildUniverse({
+      ...input,
+      systems: [
+        ...input.systems,
+        {
+          id: 'pair',
+          name: 'Pair',
+          href: '/projects/',
+          theme: 'lilac',
+          order: 2,
+          position: 'auto',
+          suns: ['soft', 'hard'],
+        },
+        { id: 'soft', name: 'Soft', href: '/systems/soft/', position: 'auto' },
+        { id: 'hard', name: 'Hard', href: '/systems/hard/', position: 'auto' },
+      ],
+      projects: [
+        ...input.projects,
+        project('demo', { system: 'soft', size: 'l' }),
+        project('online', { parent: 'demo', size: 's' }),
+        project('meet', { system: 'soft' }),
+        project('rocket', { system: 'hard' }),
+        project('robot', { system: 'hard' }),
+      ],
+    });
+    const galaxy = new Galaxy({
+      manifest: built,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+    });
+    const node = (id: string): Object3D => {
+      const found = galaxy.object.getObjectByName(id);
+      if (!found) throw new Error(`no node '${id}'`);
+      return found;
+    };
+    const meshOf = (id: string): Mesh => node(id).children[0] as Mesh;
+    for (const body of built.bodies) node(body.id);
+
+    for (const t of [0, 1500]) {
+      galaxy.frameUpdate(frame(t));
+      for (const [id, sun] of [
+        ['project/demo', 'system/soft'],
+        ['project/online', 'system/soft'],
+        ['project/meet', 'system/soft'],
+        ['project/rocket', 'system/hard'],
+        ['project/robot', 'system/hard'],
+      ] as const) {
+        expect(sunOf(meshOf(id)).distanceTo(node(sun).position), `${id} at ${t}`).toBeLessThan(
+          1e-9,
+        );
+      }
+    }
+    // The suns move, and each family's light goes with its own sun.
+    expect(sunOf(meshOf('project/meet'))).not.toBe(sunOf(meshOf('project/rocket')));
+    // The ship: deep in a family, lit by that family's sun alone; out at its outermost planet,
+    // where the other family is only the gap away, the light leans a little toward the other sun
+    // and the key light (2.4 and 0.7 degrees here, with tuning.world.shipLightTiebreak at 0.2),
+    // which is the blend doing its job and not a second light.
+    for (const [planet, sun, within] of [
+      ['project/demo', 'system/soft', 0],
+      ['project/rocket', 'system/hard', 0],
+      ['project/meet', 'system/soft', 3],
+      ['project/robot', 'system/hard', 3],
+    ] as const) {
+      const at = node(planet).position.clone();
+      const own = direction(at, node(sun).position);
+      if (within === 0) expectSameDirection(lightFrom(galaxy, at), own);
+      else
+        expect(lightFrom(galaxy, at).angleTo(own), planet).toBeLessThan((within * Math.PI) / 180);
+    }
+    galaxy.dispose();
   });
 });

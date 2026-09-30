@@ -13,11 +13,11 @@ import { PointerSteer } from './core/input/PointerSteer';
 import { TouchControls } from './core/input/TouchControls';
 import { JobQueue } from './core/jobs';
 import { lowerTier, type QualityTier } from './core/quality/tiers';
-import type { Snapshot } from './core/snapshot';
+import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
-import { homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
+import { galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
@@ -88,8 +88,8 @@ export interface Booted {
   setInset(inset: ViewInset, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
   setMapOpen(open: boolean, cut: boolean): void;
-  /** Where everything is right now (core/snapshot.ts). */
-  snapshot(): Snapshot;
+  /** Where everything is right now, and in which galaxy (core/snapshot.ts). */
+  snapshot(): StampedSnapshot;
 }
 
 export function boot(
@@ -101,6 +101,8 @@ export function boot(
 ): Booted {
   // Before anything is created: a manifest we cannot read must not leave a canvas behind.
   const manifest = readManifest(options.manifest);
+  // Every snapshot says which galaxy it was taken in (core/snapshot.ts, startingFrom).
+  const stamp = galaxyKey(manifest);
   const reducedMotion = options.reducedMotion ?? false;
 
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -266,13 +268,20 @@ export function boot(
     // The map was for choosing where to go. Now for going there.
     starMap.setOpen(false);
   };
+  // A body nothing docks at (a link: GitHub, circling home) is not somewhere to go, and a hand on
+  // the sky, busy steering, must never be carried off the site by one either: pointing at it
+  // brings its name forward instead (ui/Labels.ts, beckon), and the name is the link.
+  const pickRow = (row: number): void => {
+    if (surroundings.field.docks[row] === 0) labels?.beckon(row);
+    else flyToRow(row);
+  };
   engine.add(
     new Picker({
       canvas: engine.canvas,
       screen: onScreen.map,
       params: tuning.picking,
       ignore: targetRow,
-      onPick: flyToRow,
+      onPick: pickRow,
     }),
   );
   let labels: Labels | null = null;
@@ -285,7 +294,8 @@ export function boot(
   const shipAt = { x: 0, y: 0 };
   const shipBox = { left: 0, top: 0, width: 0, height: 0 };
   if (options.overlay) {
-    // A name under every body that has room for one: pressing it is pointing at the body.
+    // A name under every body that has room for one: pressing it is pointing at the body, and
+    // for a link (which nothing docks at) following the link.
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
     labels = engine.add(
       new Labels({
@@ -293,7 +303,12 @@ export function boot(
         screen: onScreen.map,
         bodies: surroundings.orbits.ids.map((id) => {
           const body = byId.get(id);
-          return { title: body?.title ?? id, kind: body?.kind ?? 'moon' };
+          return {
+            title: body?.title ?? id,
+            kind: body?.kind ?? 'moon',
+            planned: body?.planned === true,
+            href: body?.docks === false ? body.href : undefined,
+          };
         }),
         params: tuning.labels,
         view: rig.shape,
@@ -345,11 +360,13 @@ export function boot(
 
   if (options.overlay) {
     const titles = new Map(manifest.bodies.map((body) => [body.id, body.title]));
+    const planned = new Set(manifest.bodies.filter((body) => body.planned).map((body) => body.id));
     prompt = engine.add(
       new Prompt({
         overlay: options.overlay,
         navigator,
         titleOf: (id) => titles.get(id) ?? id,
+        isPlanned: (id) => planned.has(id),
         // The map on a narrow screen with a page open is the strip above the sheet: the prompt's
         // offers would sit on the galaxy. They are back when the map closes; a journey's Stop
         // shows all along.
@@ -406,6 +423,7 @@ export function boot(
       dock: navigator.snapshot(),
       halting: navigator.halting,
       guarding: navigator.guarding,
+      galaxy: stamp,
     }),
   };
 }

@@ -63,7 +63,11 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
       page. The `summary:` line is what Google and link previews show; the rest is the page.
       New since your last look: the **Berkeley** section (Cal Aero SAE, Hackathons @ Berkeley),
       and **Rockets** and **Robots** now match your 2026-09-23 resume (3,200 ft; 7 teams, about
-      60 students, 9 national appearances).
+      60 students, 9 national appearances). New on 2026-09-30: the title "About Me" (your
+      tree's name for it), and links to the new planets (Model Rocketry, Robotics, CyberPatriot,
+      Canadian Fish), and the Software section's first line now names the Software sun and
+      Projects instead of the Code system. Later that day, with Research and Hackathons: links
+      to Hackathons @ Berkeley, Cal Hacks 13.0 and the Corgi Hackathon (the words are unchanged).
 - [ ] **Home page** · `src/pages/index.astro` · shows at `/`. The browser-tab title and the
       `description` (Google's snippet: at 173 characters it is cut off after about 160), the line
       above the heading, the heading ("A small universe of things I've built."), the sentence
@@ -81,8 +85,65 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
       README confirms the modes, no accounts and no polling, but not press-and-hold painting,
       moving answers when the dates change, or the security list: make sure they are true as
       written.
-- [ ] **Canadian Fish** (a moon of FishAI) · `src/content/projects/canadian-fish-demo/index.md`.
-- [ ] **Fish Onboarding** (a moon of FishAI) · `src/content/projects/fish-onboarding/index.md`.
+- [ ] **Canadian Fish** (a planet of Software since 2026-09-30, and FishAI's, Fish Onboarding's
+      and Fish Online's planet) · `src/content/projects/canadian-fish-demo/index.md`. New: the
+      sentence at the end of its first paragraph that introduces its moons, which calls Fish
+      Online "a home for the game beyond a single room code" (the drafts' words for it).
+- [ ] **Fish Onboarding** (a moon of Canadian Fish) · `src/content/projects/fish-onboarding/index.md`.
+- [ ] **CyberPatriot** (new, a planet of Software) · `src/content/projects/cyberpatriot/index.md` ·
+      `/projects/cyberpatriot/`. Drafted from your resume and About page. Written from general
+      knowledge rather than your own words, so keep or cut: the first paragraph (the
+      competition's format), "the national youth cyber defense competition" in the `summary`
+      (worded so it cannot read as a national team), and "Along the way I earned the GIAC GFACT",
+      which ties your certification to it.
+- [ ] **Model Rocketry** (new, a planet of Hardware) · `src/content/projects/model-rocketry/index.md`
+      · `/projects/model-rocketry/`. AFRL and the American Rocketry Challenge, from the resume; it
+      grows when the rocket details and the CAD arrive.
+- [ ] **Robotics** (new, a planet of Hardware) · `src/content/projects/robotics/index.md` ·
+      `/projects/robotics/`. The VEX team and program, from the resume and About, and two
+      phrases from general knowledge, not from you: "spends the start of every match on its own,
+      with no one to steer it" (the autonomous period), and "to correct itself when the wheels
+      slip" (what Monte Carlo localization is for). Check that they say what your code did, or
+      cut them.
+- [ ] **Fish Online** (new, a planned moon of Canadian Fish) · `src/content/projects/fish-online/index.md`
+      · `/projects/fish-online/`. One line: the Fish playing website of your tree. Its name (and
+      so its URL, for good) was my pick: say if you want another before it is shared.
+- [ ] **The two suns of Projects** · `src/content/systems/software.md` (the Code system's words,
+      plus a sentence about CyberPatriot) and `src/content/systems/hardware.md` · shown at
+      `/systems/software/` and `/systems/hardware/`, and as the sections of the projects index.
+      Each has a name, a `tagline` (one sentence) and a short paragraph. The binary itself,
+      `src/content/systems/projects.md`, is only its name and colour.
+- [ ] **Hackathons** (new, a system of one sun) · `src/content/systems/hackathons.md` ·
+      `/systems/hackathons/`. Its tagline and a paragraph naming the three events. The
+      paragraph's first line ("A hackathon is a deadline with snacks.") is mine: keep it or cut
+      it.
+- [ ] **Hackathons @ Berkeley** (new, a planet of Hackathons) ·
+      `src/content/projects/hackathons-at-berkeley/index.md` · `/projects/hackathons-at-berkeley/`.
+      Your logistics director role, from the resume: catering and hacker buses for 3,000+
+      attendees, merchandise from vendor quotes to delivery. You started in September 2026
+      (you confirmed it on 2026-09-30).
+- [ ] **Cal Hacks 13.0** (new, a planet of Hackathons) · `src/content/projects/cal-hacks-13/index.md`
+      · `/projects/cal-hacks-13/`. October 23 to 25, 2026; you are on the organizing side
+      ("Logistics, for Hackathons @ Berkeley"), and a motorway joins it to Hackathons @ Berkeley.
+      Its `summary` ("Berkeley's hackathon, October 23 to 25, 2026…", the line under its name on
+      the projects index and the page's first line) and its last line ("if the food arrives and the buses show up,
+      my part went well") are mine: keep them or rewrite them.
+- [ ] **HackGT 13** (new, a planet of Hackathons) · `src/content/projects/hackgt-13/index.md` ·
+      `/projects/hackgt-13/`. HEARSAY, team dh squad's entry to the NSA challenge, written from
+      the repository's README: the data findings, the four detectors, the sixteen experts and the
+      scores. Your `role` reads "Hacker" (you confirmed it on 2026-09-30), and no placing is
+      claimed, since the README gives none: add the result if there was one.
+- [ ] **Corgi Hackathon** (new, a planned planet of Hackathons) · `src/content/projects/corgi/index.md`
+      · `/projects/corgi/`. RunItBack, 5th of more than 1,000 at Y Combinator's Startup School,
+      and "the write-up is coming": planned until you write it up.
+- [ ] **Research** (new, a system of one sun, all of it planned) · `src/content/systems/research.md`
+      · `/systems/research/`, with **Sports Analysis** (`src/content/projects/sports-analysis/index.md`)
+      and its moon **Kalshi** (`src/content/projects/kalshi/index.md`): one line each, since
+      nothing has started. Research's first line ("Where a project starts from a question instead
+      of a product.") is mine. Each planned page says "Planned" twice already, in the line under
+      its name and in its Status, so its own line only says that nothing has started. "Kalshi" as
+      the moon's name (and so `/projects/kalshi/`, for good) was my pick: say if you want another
+      before it is shared.
 - [ ] **The one-line bio**, which lives in three places that should agree: `description` in
       `src/config/site.ts`, `summary` in `about.md`, and the home page's `description`.
 
@@ -104,14 +165,17 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
       when the 3D view cannot start or their device asks for reduced motion, and the two chips
       "Plain version" and "Launch the starfield".
 - [ ] **Place labels** · `src/site/view-models.ts` · "Home planet", "Resume station", "Comms
-      satellite" (the small label over each page's heading), the statuses (Shipped, In progress,
-      Archived) and the link labels (Live site, Source, Video).
-
-### Skip until your solar-system tree arrives
-
-- The **Code** system (`src/content/systems/code.md`: its name, tagline and blurb) and the home
-  page's "Every solar system here is something I care about": the systems are being reorganized
-  (About Me, Personal Projects, Hackathons…), and they will be written again with the tree.
+      satellite" (the small label over each page's heading), the statuses (Shipped, Completed,
+      In progress, Archived, Planned: "Completed" is new, for CyberPatriot, Model Rocketry and
+      Robotics, which were never products to ship; say if "Shipped" reads better to you) and the
+      link labels (Live site, Source, Video).
+- [ ] **A sun's route sign and twin line** · `src/site/view-models.ts` and
+      `src/pages/systems/[id].astro` · "Sun of Projects" over Software's and Hardware's names,
+      and "One of the two suns of Projects; it circles the centre opposite Hardware.".
+- [ ] **What a solar system is** · the home page's "Every solar system here is something I care
+      about" (`src/pages/index.astro`) and the projects index's paragraph ("Solar systems are
+      the things I care about…", `src/pages/projects/index.astro`). Your tree has landed
+      (Projects, Research and Hackathons, 2026-09-30): check they still describe it.
 
 ### Tiny labels: tell Claude rather than editing them
 
@@ -135,13 +199,17 @@ Answer these in chat, or decide them as you edit. None is urgent.
 - **Orbit or dock?** What a visitor sees says orbit ("Orbit FishAI"); what a screen reader hears
   says dock ("Docked at FishAI.").
 - **Map words.** "Star chart" (the projects page) against "star map" and "Map" (the universe).
-- **The game's name.** FishAI says "Canadian Fish"; both moons say "Literature"; one moon is
-  itself called "Canadian Fish".
+- **The game's name.** The planet is called Canadian Fish, while its own page and Fish
+  Onboarding call the game Literature; FishAI, now its moon, still opens with the game's
+  introduction ("Canadian Fish (also called Literature) is…"). Should that introduction move up
+  to the planet, and FishAI's page open with one sentence pointing up to it?
 - **"The formal version"** means LinkedIn on the home page, but the resume on About and Resume.
-- **Page titles are place names.** The home planet is called "About", so the world says "Orbit
-  About" and "Docked at About." Your tree may settle this.
-- **The promise.** The home page says rockets, robots and software, but only software has
-  planets until the tree lands.
+- **Page titles are place names.** Your tree called the home planet "About Me", so since
+  2026-09-30 that is its page's title and its name in the world ("Orbit About Me", "Docked at
+  About Me."), while the nav keeps the short "About". Say if you would rather have one of the two.
+- **The promise.** The home page says rockets, robots and software: since 2026-09-30 all three
+  have planets (Model Rocketry and Robotics round Hardware). Hackathons and Research are not in
+  that line: say if they should be.
 - **More from LinkedIn, if you want it:** VEX's 4 Worlds qualifications and 3 California state
   qualifications, JROTC nationals, the National Build, Create and Inspire awards. The site
   follows your resume, which leaves them out.
