@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { api, type Overview } from './api';
 import { OverviewContext } from './data';
+import { signOut } from './passkeys';
 import { follow, hrefFor, useRoute, type Route } from './router';
 import { Comments } from './screens/Comments';
 import { Missing } from './screens/Missing';
@@ -136,13 +137,6 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
     };
   }, [route.name]);
 
-  const signOut = () => {
-    void api
-      .logout()
-      .catch(() => undefined)
-      .then(onSignOut);
-  };
-
   const pending = overview?.pendingComments ?? 0;
   const counts = (item: NavItem) => (item.route.name === 'comments' ? pending : 0);
 
@@ -164,7 +158,11 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
               <ExternalLink aria-hidden />
               <span>View the blog</span>
             </a>
-            <button type="button" className="nav-link" onClick={signOut}>
+            <button
+              type="button"
+              className="nav-link"
+              onClick={() => void signOut().then(onSignOut)}
+            >
               <LogOut aria-hidden />
               <span>Sign out</span>
             </button>

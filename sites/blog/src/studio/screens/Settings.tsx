@@ -6,7 +6,7 @@ import { KeyRound, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Passkey } from '../api';
 import { useOverview } from '../data';
-import { addPasskey, deviceLabel } from '../passkeys';
+import { addPasskey, deviceLabel, signOut } from '../passkeys';
 import { useTitle } from '../router';
 import {
   busyLabel,
@@ -114,13 +114,6 @@ export function Settings() {
       .finally(() => setBusy(false));
   };
 
-  const signOut = () => {
-    void api
-      .logout()
-      .catch(() => undefined)
-      .then(() => location.assign('/studio/'));
-  };
-
   const mail = overview?.mail ?? null;
 
   return (
@@ -187,7 +180,11 @@ export function Settings() {
         </h2>
         <p className="hint">A session lasts a day without use, and a week at most.</p>
         <div className="settings__actions">
-          <button type="button" className="button" onClick={signOut}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => void signOut().then(() => location.assign('/studio/'))}
+          >
             Sign out
           </button>
         </div>
