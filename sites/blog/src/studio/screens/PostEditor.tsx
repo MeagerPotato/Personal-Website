@@ -11,12 +11,13 @@ import { mediaUrl, pickWidth } from '../../editor/nodes';
 import type { Draft, SeriesInfo, TagInfo } from '../../server/posts';
 import type { StoredImage } from '../../server/media';
 import { readingMinutes } from '../../site/format';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { useOverview } from '../data';
 import { StudioEditor } from '../editor/StudioEditor';
 import { uploadImage } from '../editor/uploads';
 import { follow, hrefFor, navigate, useTitle } from '../router';
 import { busyLabel, describe, ErrorText, plural, Title, useConfirm, whenAgo } from '../ui/common';
+import { dropBackup } from './post/backup';
 import { Properties } from './post/Properties';
 import { DraftSession, type SaveState } from './post/session';
 import { PublishState, standing } from './post/status';
@@ -33,6 +34,8 @@ export function PostEditor({ id }: { id: string }) {
         if (live) setSession(DraftSession.existing(id) ?? DraftSession.start(post));
       },
       (caught: unknown) => {
+        // Deleted elsewhere: whatever this device kept of it has nowhere to go.
+        if (caught instanceof ApiError && caught.status === 404) dropBackup(id, { anyTab: true });
         if (live) setError(describe(caught));
       },
     );
@@ -119,7 +122,10 @@ type Notice =
   { kind: 'published'; slug: string; firstTime: boolean } | { kind: 'sent'; queued: number };
 
 function Writing({ session }: { session: DraftSession }) {
-  const { post, draft, save, generation } = useSyncExternalStore(session.subscribe, session.view);
+  const { post, draft, save, generation, restoredAt } = useSyncExternalStore(
+    session.subscribe,
+    session.view,
+  );
   const { overview, refresh } = useOverview();
   const [confirmDialog, ask] = useConfirm();
   const [busy, setBusy] = useState<Busy>(null);
@@ -327,10 +333,18 @@ function Writing({ session }: { session: DraftSession }) {
       <div className="page post-page">
         {save.kind === 'conflict' ? (
           <div className="banner" role="alert">
-            <p>
-              <strong>This post was changed somewhere else</strong> (another tab or device, saved{' '}
-              {whenAgo(save.theirs.draftSavedAt)}). Which version should it keep?
-            </p>
+            {restoredAt !== null ? (
+              <p>
+                <strong>Writing kept on this device never reached the blog</strong> (kept{' '}
+                {whenAgo(restoredAt)}), and the post was saved somewhere else since (
+                {whenAgo(save.theirs.draftSavedAt)}). Which version should it keep?
+              </p>
+            ) : (
+              <p>
+                <strong>This post was changed somewhere else</strong> (another tab or device, saved{' '}
+                {whenAgo(save.theirs.draftSavedAt)}). Which version should it keep?
+              </p>
+            )}
             <div className="row">
               <button
                 type="button"
@@ -370,6 +384,13 @@ function Writing({ session }: { session: DraftSession }) {
                 </button>
               </div>
             ) : null}
+          </div>
+        ) : restoredAt !== null ? (
+          <div className="banner banner--good" role="status">
+            <p>
+              <strong>Brought back</strong> from this device: writing that hadn’t reached the blog
+              (kept {whenAgo(restoredAt)}).
+            </p>
           </div>
         ) : null}
 

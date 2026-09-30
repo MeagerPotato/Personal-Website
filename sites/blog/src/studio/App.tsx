@@ -49,6 +49,8 @@ export function App() {
 
   const enter = (next: GateState) => {
     focusNextTitle();
+    // A session found ended while the gate was shut (a save trying again) is no news now.
+    setExpired(false);
     setGate(next);
   };
 
@@ -58,7 +60,15 @@ export function App() {
     case 'setup':
       return <SetUp onDone={() => enter({ state: 'signed-in' })} />;
     case 'signed-out':
-      return <SignIn onDone={() => enter({ state: 'signed-in' })} />;
+      return (
+        <SignIn
+          onDone={() => {
+            enter({ state: 'signed-in' });
+            // Whatever waited for a session (writing left unsaved at signing out) goes now.
+            signedInAgain();
+          }}
+        />
+      );
     case 'unavailable':
       return (
         <Gate title="Studio" lede={`The blog’s server isn’t answering (${gate.message}).`}>

@@ -105,8 +105,12 @@ date, tags, series and part, cover), preview, publish, update, take down, delete
 post to subscribers once; the comment queue (approve, reply, spam); the subscribers; tags and
 series (Organize); and the passkeys (Settings). A draft saves as it is written, in order, each
 save over the version it started from, so two tabs on one post ask which version to keep
-instead of losing either. Mail (a subscription's confirmation, a new post) goes through an
-outbox in D1 that a cron drains and retries.
+instead of losing either. Until the server has it, the writing is also kept on the device
+(`studio/screens/post/backup.ts`), so a tab that dies first (offline, a crash) loses nothing:
+the post opened there again brings it back, or asks which version to keep if the server's draft
+has moved on since. Signing out saves first; what cannot be saved yet goes at the next sign-in.
+Mail (a subscription's confirmation, a new post) goes through an outbox in D1 that a cron
+drains and retries.
 
 ## 4. Roadmap
 
@@ -135,8 +139,6 @@ outbox in D1 that a cron drains and retries.
   are placeholders for Allen's words.
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
   Math) with the blog.
-- The studio keeps a draft that has not reached the server only in memory (it warns before the
-  tab closes); keep a copy on the device until it is saved.
 - The studio could tell Allen about a new comment by email, once email is set up.
 
 ## 5. Verification
