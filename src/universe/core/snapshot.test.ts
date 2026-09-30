@@ -217,21 +217,21 @@ describe('where a visit starts', () => {
     }
   });
 
-  it('takes a snapshot from before galaxies were told apart as it always did', () => {
-    // Written by the deploy before stamps existed: as likely as not this very galaxy.
-    const kept = startingFrom({ snapshot: unstamped(FLYING) }, HERE).snapshot;
-    expect(kept).toEqual({ ...FLYING, galaxy: undefined });
-    expect(kept).not.toHaveProperty('galaxy');
-    expect(startingFrom({ at: 'project/fishai', snapshot: unstamped(DOCKED) }, HERE)).toEqual({
-      snapshot: { ...DOCKED, galaxy: undefined },
-      at: 'project/fishai',
-    });
-    // And a journey it does not take up is still a Stop.
-    expect(startingFrom({ snapshot: unstamped(HEADED) }, HERE).snapshot).toEqual({
-      ...HEADED,
-      galaxy: undefined,
-      dock: null,
-      halting: true,
-    });
+  it('forgets a snapshot from before galaxies were told apart: the galaxy has changed since', () => {
+    // Written by a deploy before stamps existed, and no engine since writes one without: so it
+    // is from a galaxy older than the first whose key changed (the relays round home), however
+    // it came back. Here it is as good as one from another galaxy.
+    for (const saved of [FLYING, STOPPING, GUARDED, DOCKED, HEADED]) {
+      expect(startingFrom({ snapshot: unstamped(saved) }, HERE)).toEqual({
+        snapshot: null,
+        at: null,
+      });
+      for (const at of ['page/resume', 'project/fishai']) {
+        expect(startingFrom({ at, snapshot: unstamped(saved) }, HERE)).toEqual({
+          snapshot: null,
+          at,
+        });
+      }
+    }
   });
 });

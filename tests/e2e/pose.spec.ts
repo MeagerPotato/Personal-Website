@@ -111,16 +111,20 @@ test('a snapshot from another galaxy is forgotten: the visit starts at the spawn
   expect(now.galaxy).toBe(spawn.galaxy);
 });
 
-test('a snapshot from before galaxies were told apart is believed as it always was', async ({
+test('a snapshot from before galaxies were told apart is forgotten too: the galaxy has changed since', async ({
   page,
 }) => {
-  const { moved } = await elsewhere(page);
+  // No engine since stamps writes one without, so it is from a galaxy older than the first whose
+  // key changed (the relays round home: core/snapshot.ts, startingFrom).
+  const { spawn, moved } = await elsewhere(page);
   const unstamped: Partial<Kept> = { ...moved };
   delete unstamped.galaxy;
   await loadWith(page, unstamped);
   const now = await keptNow(page);
-  expect(now.steps).toBeGreaterThanOrEqual(moved.steps);
-  expect(apart(now.ship, moved.ship)).toBeLessThan(5);
+  expect(now.steps).toBeLessThan(moved.steps);
+  expect(apart(now.ship, spawn.ship)).toBeLessThan(5);
+  expect(apart(now.ship, moved.ship)).toBeGreaterThan(100);
+  expect(now.galaxy).toBe(spawn.galaxy);
 });
 
 test('on a body page, the ship is in orbit there, on the clock of a snapshot of this galaxy only', async ({
