@@ -318,7 +318,8 @@ const quantile = (values: number[], q: number): number => {
 const least = (values: number[]): number => values.reduce((a, b) => Math.min(a, b), Infinity);
 const most = (values: number[]): number => values.reduce((a, b) => Math.max(a, b), 0);
 
-function describeFlight(flight: StressFlight): string {
+/** One flight in words: the journey, what was done to it and when, at what speed. */
+export function describeFlight(flight: StressFlight): string {
   const { result, interrupt } = flight;
   const done = result.interrupt;
   const within = done?.how === 'approach' ? ' (within reach)' : '';

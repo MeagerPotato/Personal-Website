@@ -1,0 +1,44 @@
+name: Journeys
+
+# The journey-time harness (scripts/journeys, `npm run journeys`): every pair of bodies flown
+# headless through the real simulation, in the real galaxy and in grown ones, and held to the gate
+# in scripts/journeys/gate.ts (no journey fails anywhere; in the real galaxy p90 <= 4.2 s, the
+# slowest <= 6.5 s, at most 1.5% over 5 s). A breach fails the run and is printed in words.
+#
+# It runs only when something a journey depends on changes: the content (where the bodies are),
+# the engine (how the ship flies), the site config, or the harness itself. NOT a required check,
+# like E2E: `verify` (ci.yml) guards `main`, and a red run here is a reason to look before merging.
+
+on:
+  pull_request:
+    paths:
+      - 'src/content/**'
+      - 'src/universe/**'
+      - 'scripts/journeys/**'
+      - 'src/config/site.ts'
+      - '.github/workflows/journeys.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: journeys-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    runs-on: ubuntu-latest
+    # About 30 s of simulation on a laptop; the rest is npm ci.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run journeys
