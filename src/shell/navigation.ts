@@ -55,16 +55,26 @@ export function interceptableUrl(
   return url;
 }
 
-/** A response the router may swap in: 2xx, HTML, and still on this site after any redirect. */
+/**
+ * A response the router may swap in: 2xx, HTML, and not redirected. A page load follows a
+ * redirect and shows its target under the target's own URL; a swap would show it under the URL
+ * that was asked for, so a redirect of any kind (to another site, or to another page of this
+ * one, as `_redirects` does) is left to a page load.
+ */
 export function isSwappableResponse(
-  response: { ok: boolean; url: string; headers: { get(name: string): string | null } },
+  response: {
+    ok: boolean;
+    redirected: boolean;
+    url: string;
+    headers: { get(name: string): string | null };
+  },
   origin: string,
 ): boolean {
-  if (!response.ok) return false;
+  if (!response.ok || response.redirected) return false;
   if (!(response.headers.get('content-type') ?? '').toLowerCase().includes('text/html')) {
     return false;
   }
-  // `url` is empty for a synthetic Response, which cannot have been redirected anywhere.
+  // `url` is empty for a synthetic Response, which cannot have come from anywhere else.
   return response.url === '' || new URL(response.url).origin === origin;
 }
 
