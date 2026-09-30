@@ -81,6 +81,7 @@ describe('projectSchema', () => {
     ['an http link', { links: { repo: 'http://github.com/x/y' } }],
     ['an empty link', { links: { demo: '' } }],
     ['a biome that is not in the tokens', { planet: { biome: 'swamp' } }],
+    ['primer, the clay only planned work wears', { planet: { biome: 'primer' } }],
     ['an image without alt text', { cover: { src: './cover.png', alt: '' } }],
     ['too many decorative moons', { planet: { biome: 'tide', decorMoons: 4 } }],
     ['a summary too long for a link preview', { summary: 'x'.repeat(161) }],

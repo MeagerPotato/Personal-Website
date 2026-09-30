@@ -596,6 +596,14 @@ export const tuning = {
      * as a model before the detail goes on (1 is 80 facets), with no close-up (world/looks.ts).
      */
     detailPlanned: 1,
+    /**
+     * The worlds of their own (sim/world, design/worlds): a planned body there is a maquette of
+     * primer clay that does not sharpen up close, coarser than a built world but not a sketch
+     * (980 facets for a planet, 320 for a moon). `detailPlanned` above is today's placeholder
+     * look, which the worlds replace body by body.
+     */
+    detailMaquettePlanet: 6,
+    detailMaquetteMoon: 3,
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,
