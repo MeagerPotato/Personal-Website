@@ -1,5 +1,6 @@
 import type { ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { REACH } from '../design/worlds/reach';
 import {
   RELAY_SLOTS,
   binaryOrbits,
@@ -521,7 +522,14 @@ function buildBinary(
   };
 }
 
-export function buildUniverse(input: UniverseInput): UniverseManifest {
+/**
+ * `reach`: how far each emblem world's solid reaches, in radii, by body id (design/worlds/reach.ts
+ * unless a test says otherwise: its made-up galaxies reuse real ids for bodies of other sizes).
+ */
+export function buildUniverse(
+  input: UniverseInput,
+  reach: Readonly<Partial<Record<string, number>>> = REACH,
+): UniverseManifest {
   const problems = validate(input);
   if (problems.length > 0) throw new UniverseDataError(problems);
 
@@ -584,6 +592,23 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
     }
   }
 
+  // An emblem world's solid reaches past its radius (design/worlds/reach.ts): the collision field
+  // takes that as its surface. Its cushion must still fit under its docking ring.
+  const solid = bodies.map((body) => {
+    const declared = reach[body.id] ?? 1;
+    if (!(declared > 1)) return body;
+    const solidRadius = round(body.radius * declared);
+    if (solidRadius + tuning.cushion.depth > body.dockRadius + 1e-9) {
+      problems.push(
+        `"${body.id}" reaches ${declared} radii (design/worlds/reach.ts): its cushion ` +
+          `(${tuning.cushion.depth} u) needs its docking ring at ${round(solidRadius + tuning.cushion.depth)} u, ` +
+          `not ${body.dockRadius} u`,
+      );
+    }
+    return { ...body, solidRadius };
+  });
+  if (problems.length > 0) throw new UniverseDataError(problems);
+
   // The home system is systems[0]; the first system of projects, by `order`, comes after it.
   const firstOfProjects = systems[1];
   const alsoAt: Record<string, string> = {};
@@ -594,7 +619,7 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   return {
     version: 2,
     systems,
-    bodies,
+    bodies: solid,
     lanes: [...lanes.keys()].sort(compare).flatMap((key) => lanes.get(key) ?? []),
     alsoAt,
   };

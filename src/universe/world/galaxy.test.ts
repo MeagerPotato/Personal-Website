@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
 import { JobQueue } from '../core/jobs';
-import { buildUniverse } from '../data/build';
+import { buildUniverse as buildWithReach } from '../data/build';
 import type { UniverseInput } from '../data/types';
 import { KEY_LIGHT_POSITION, type ToonMaterial } from '../design/materials';
 import { tuning } from '../design/tuning';
@@ -18,6 +18,12 @@ import {
 import { spawnPoint } from '../sim/spawn';
 import { Galaxy } from './Galaxy';
 import { plannedBands } from './looks';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const project = (id: string, over: object) => ({
   id,

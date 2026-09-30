@@ -35,7 +35,7 @@ a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
 "cluster"), the autopilot docks every journey in today's galaxy of four systems (median 3.0 s,
-p90 4.05 s, the slowest 5.90 s), and every way a journey is handed back at speed (Stop, a key, the web layer
+p90 4.1 s, the slowest 6.2 s, since the emblem worlds' solids reach past their radii), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
 journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits

@@ -118,6 +118,12 @@ export interface ManifestBody {
   /** Body it orbits, or null when it sits at the centre of its system. */
   parent: string | null;
   radius: number;
+  /**
+   * How far its solid reaches in the plane the ship flies in, when that is past `radius`: an
+   * emblem world's signs, rings and fins (design/worlds/reach.ts, `radius x reach`). The collision
+   * field's surface (sim/surroundings.ts); the docking ring stays `dockRadius`. Absent: `radius`.
+   */
+  solidRadius?: number;
   /** Radius of the docking orbit around it. Computed once here so layout and engine agree. */
   dockRadius: number;
   orbit: Orbit | null;

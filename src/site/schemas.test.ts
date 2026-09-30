@@ -1,10 +1,16 @@
 import { z } from 'astro/zod';
 import { describe, expect, it } from 'vitest';
-import { buildUniverse } from '../universe/data/build';
+import { buildUniverse as buildWithReach } from '../universe/data/build';
 import { profiles } from './profiles';
 import { entryIdFromPath, routes } from './routes';
 import { pageSchema, projectSchema, systemSchema } from './schemas';
 import { toSystemInput, toUniverseInput } from './universe-input';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 // Stand-ins for the two helpers Astro injects. reference() really does resolve an id string to
 // { collection, id }; image() resolves to image metadata, which these tests do not care about.

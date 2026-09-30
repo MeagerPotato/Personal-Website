@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import { bodyPositions, createOrbitTable } from '../sim/orbits';
-import { buildUniverse, UniverseDataError } from './build';
+import { buildUniverse as buildWithReach, UniverseDataError } from './build';
 import { binaryOrbits, orbitPhase, round, slotPosition } from './layout';
 import type {
   LinkInput,
@@ -12,6 +12,12 @@ import type {
   UniverseInput,
   UniverseManifest,
 } from './types';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const L = tuning.layout;
 
@@ -179,6 +185,33 @@ describe('buildUniverse', () => {
       system: 'code',
       radius: L.moonRadius.s,
     });
+  });
+
+  it('sizes an emblem world’s solid by its declared reach, and leaves its ring where it was', () => {
+    const plain = byId(buildUniverse(v01()));
+    const reach = { 'page/about': 1.57, 'project/days2meet': 1.19, 'page/resume': 1 };
+    const drawn = byId(buildWithReach(v01(), reach));
+    const about = drawn.get('page/about');
+    expect(about?.solidRadius).toBe(Math.round(L.home.planetRadius * 1.57 * 100) / 100);
+    expect(drawn.get('project/days2meet')?.solidRadius).toBe(
+      Math.round(L.planetRadius.m * 1.19 * 100) / 100,
+    );
+    // A reach of 1 is its radius: nothing to say. And nothing else moves.
+    expect(drawn.get('page/resume')).not.toHaveProperty('solidRadius');
+    expect(drawn.get('project/fishai')).not.toHaveProperty('solidRadius');
+    for (const [id, body] of drawn) {
+      const rest: Partial<typeof body> = { ...body };
+      delete rest.solidRadius;
+      expect(rest, id).toEqual(plain.get(id));
+    }
+  });
+
+  it('refuses a reach whose cushion would not fit under the docking ring', () => {
+    // A planet's ring is 1.4 radii and the cushion's depth out: no room for 1.5.
+    expect(() => buildWithReach(v01(), { 'project/days2meet': 1.5 })).toThrow(
+      /"project\/days2meet" reaches 1\.5 radii .*its docking ring/,
+    );
+    expect(() => buildWithReach(v01(), { 'project/days2meet': 1.4 })).not.toThrow();
   });
 
   it('shows the projects index from the sun of the first system, when there is one', () => {

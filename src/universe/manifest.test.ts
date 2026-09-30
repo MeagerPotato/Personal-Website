@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildUniverse } from './data/build';
+import { buildUniverse as buildWithReach } from './data/build';
 import type { ProjectInput, UniverseInput, UniverseManifest } from './data/types';
 import { galaxyKey } from './manifest';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const project = (id: string, over: Partial<ProjectInput> = {}): ProjectInput => ({
   id,
@@ -165,5 +171,14 @@ describe('galaxyKey', () => {
     for (const [what, changed] of changes) {
       expect(galaxyKey(changed), what).not.toBe(key);
     }
+  });
+
+  it('changes when a world’s solid reaches further, and not for a body without one', () => {
+    const solid = buildWithReach(input(), { 'project/days2meet': 1.19 });
+    expect(galaxyKey(solid)).not.toBe(key);
+    expect(galaxyKey(buildWithReach(input(), { 'project/days2meet': 1.2 }))).not.toBe(
+      galaxyKey(solid),
+    );
+    expect(galaxyKey(buildWithReach(input(), { 'project/days2meet': 1 }))).toBe(key);
   });
 });

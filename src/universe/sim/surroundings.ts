@@ -67,6 +67,8 @@ export interface SurroundingsParams {
 /** The few fields of a manifest body that matter here (structural, like sim/orbits.ts). */
 export interface SolidBody extends OrbitingBody {
   readonly radius: number;
+  /** Its surface, when its solid reaches past `radius` (an emblem world's parts). */
+  readonly solidRadius?: number;
   readonly dockRadius: number;
   /** `false`: nothing may dock at it (a link). Solid all the same. */
   readonly docks?: boolean;
@@ -95,7 +97,8 @@ export function createSurroundings(input: SurroundingsInput, edgeMargin: number)
   };
   for (const body of input.bodies) {
     const i = orbits.indexOf(body.id);
-    field.radius[i] = body.radius;
+    // The surface is what is drawn, a world's parts included; the ring is where it always was.
+    field.radius[i] = body.solidRadius ?? body.radius;
     field.ringRadius[i] = body.dockRadius;
     field.docks[i] = body.docks === false ? 0 : 1;
   }

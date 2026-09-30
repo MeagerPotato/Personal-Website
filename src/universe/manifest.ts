@@ -42,7 +42,7 @@ const byId = (a: { id: string }, b: { id: string }): number =>
  * inside a planet, and dock it on a ring that has gone elsewhere; with this, it is not believed.
  *
  * Only what decides where a body is and how big it is goes in: every system's centre and reach,
- * every body's place in the tree, size, docking ring and orbit, in order of id (the order a list
+ * every body's place in the tree, size, solid, docking ring and orbit, in order of id (the order a list
  * is written in moves nothing). Titles, hrefs and looks stay out, so a copy edit, a new biome or
  * a renamed page never costs a returning visitor their place. A new field that moves or sizes a
  * body belongs here too. 32 bits (sim/rng.ts's string hash), as eight hex digits: it only has to
@@ -56,8 +56,10 @@ export function galaxyKey(manifest: UniverseManifest): string {
   for (const body of [...manifest.bodies].sort(byId)) {
     const { orbit } = body;
     const around = orbit === null ? '-' : `${orbit.radius} ${orbit.phase} ${orbit.periodSec}`;
+    // Its solid, only when it has one of its own: a key from before the field stays the same.
+    const solid = body.solidRadius === undefined ? '' : ` solid ${body.solidRadius}`;
     lines.push(
-      `body ${body.id} ${body.system} ${body.parent ?? '-'} ${body.radius} ${body.dockRadius} ${around}`,
+      `body ${body.id} ${body.system} ${body.parent ?? '-'} ${body.radius} ${body.dockRadius} ${around}${solid}`,
     );
   }
   return hashSeed(lines.join('\n')).toString(16).padStart(8, '0');
