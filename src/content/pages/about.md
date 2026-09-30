@@ -1,5 +1,5 @@
 ---
-title: About
+title: About Me
 summary: Allen studies aerospace engineering at UC Berkeley and builds rockets, robots, and software that has to work in the real world.
 dock: home
 ---
@@ -19,33 +19,34 @@ Hackathons @ Berkeley: catering, hacker buses, and merchandise for Cal Hacks 13.
 ## Rockets
 
 I spent the summer of 2024 as an AFRL Scholars intern in Albuquerque, where I designed, built, and
-tested a staged-recovery rocket through eleven design iterations in OpenRocket and CAD. It reached
-3,200 feet on its barometric altimeter and came back under its parachute. The rest of that summer
-went to the machine shop: FDM and resin printers, a CNC lathe and mill, and a laser cutter. At
-school I founded and captained an American Rocketry Challenge team.
+tested a [staged-recovery rocket](/projects/model-rocketry/) through eleven design iterations in
+OpenRocket and CAD. It reached 3,200 feet on its barometric altimeter and came back under its
+parachute. The rest of that summer went to the machine shop: FDM and resin printers, a CNC lathe and
+mill, and a laser cutter. At school I founded and captained an American Rocketry Challenge team.
 
 ## Robots
 
-In 2023 I co-founded my high school's first VEX V5RC team and became its programmer. I wrote the
-autonomous navigation in C++: odometry, sensor fusion, motion profiling, and Monte Carlo
-localization, so the robot could work out where it was and get where it was going. The program
-grew to seven teams and about 60 students, with nine national appearances and back-to-back
+In 2023 I co-founded my high school's first [VEX V5RC team](/projects/robotics/) and became its
+programmer. I wrote the autonomous navigation in C++: odometry, sensor fusion, motion profiling, and
+Monte Carlo localization, so the robot could work out where it was and get where it was going. The
+program grew to seven teams and about 60 students, with nine national appearances and back-to-back
 national division finals in 2024 and 2025.
 
 ## Security
 
-Four years of CyberPatriot, as my team's Windows specialist and then its captain: second place at
-the National Finals twice, in 2025 and 2026, and first place in the Cisco Networking Challenge both
-years. I also taught it, to about 200 students over two years.
+Four years of [CyberPatriot](/projects/cyberpatriot/), as my team's Windows specialist and then its
+captain: second place at the National Finals twice, in 2025 and 2026, and first place in the Cisco
+Networking Challenge both years. I also taught it, to about 200 students over two years.
 
 ## Software
 
-Most of my software lives in the [Code system](/systems/code/): [FishAI](/projects/fishai/), bots
-for a six-player card game and the lab that measures them, and
-[Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are meaningless. At
-the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack in twelve hours,
-a tool that turns a single photo into an interactive 3D environment for dementia reminiscence
-therapy, and placed 5th of more than 1,000 competitors.
+Most of my software orbits [Software](/systems/software/), one of the two suns of
+[Projects](/projects/): [FishAI](/projects/fishai/), bots for
+[Canadian Fish](/projects/canadian-fish-demo/), a six-player card game, and the lab that measures
+them, and [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are
+meaningless. At the Corgi Hackathon during Y Combinator's Startup School in 2026 I built RunItBack
+in twelve hours, a tool that turns a single photo into an interactive 3D environment for dementia
+reminiscence therapy, and placed 5th of more than 1,000 competitors.
 
 ## Work
 

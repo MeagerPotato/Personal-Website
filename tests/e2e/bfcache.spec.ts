@@ -131,7 +131,7 @@ test('Back after leaving the site restores the page in plain mode, still plain',
   expect(await restores(page)).toBe(1);
   expect(await sameDocument(page)).toBe(true);
   await expect(page.locator('html')).toHaveAttribute('data-mode', 'plain');
-  await expect(page.locator('main h1')).toHaveText('About');
+  await expect(page.locator('main h1')).toHaveText('About Me');
 });
 
 test('Back after leaving the site restores the world as it was, and it is still moving', async ({

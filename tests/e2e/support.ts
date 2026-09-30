@@ -13,7 +13,12 @@ export const PAGES = [
   '/projects/canadian-fish-demo/',
   '/projects/fish-onboarding/',
   '/projects/days2meet/',
-  '/systems/code/',
+  // Built work without a cover (its planet stands in), and planned work (a one-line page).
+  '/projects/cyberpatriot/',
+  '/projects/fish-online/',
+  // The two suns of the Projects binary: the binary's own page is /projects/.
+  '/systems/software/',
+  '/systems/hardware/',
   '/resume/',
   '/contact/',
 ] as const;
@@ -66,6 +71,12 @@ export const nameOf = (page: Page, name: string): Locator =>
   page.getByRole('group', { name: 'Fly to' }).getByRole('button', { name, exact: true });
 
 /**
+ * What planned work is called, by a name over it and by the prompt: its title and a note that
+ * says so ("Fish Online, Planned"), so that nobody flies there expecting finished work.
+ */
+export const plannedName = (title: string): string => `${title}, Planned`;
+
+/**
  * Click or tap where the thing IS, the way a hand does. A name follows a body that is moving, so
  * it never holds still for Playwright's own click, which waits for that; and a real pointer also
  * proves that nothing lies on top of it.
@@ -78,6 +89,44 @@ export async function pointAt(page: Page, target: Locator, touch: boolean, dy = 
   const y = dy === 0 ? box.y + box.height / 2 : box.y + dy;
   if (touch) await page.touchscreen.tap(x, y);
   else await page.mouse.click(x, y);
+}
+
+/**
+ * Wait until a name shows and has stopped moving (to within a pixel between two looks, with a
+ * frame of the engine between them). Both conditions matter where frames are slow (WebKit on CI
+ * draws in software, a few frames a second): two looks a quarter of a second apart can see the
+ * same frame, and a name that the map hides on its way out is no longer moved (ui/Labels.ts), so
+ * it holds still where it was hidden, and a click there finds only sky.
+ *
+ * Only for a body that holds still once the view does: a sun, or the home planet at the heart of
+ * its system. (The two suns of Projects circle their centre, but at 0.4 u/s at most: on a map
+ * that fits the galaxy, a pixel every few seconds.) A planet is always on its way round its sun:
+ * settle the view on the sun, then ask where the planet is (map.spec.ts, `shownAt`).
+ */
+export async function settled(target: Locator): Promise<{ x: number; y: number }> {
+  const page = target.page();
+  let last = { x: Number.NaN, y: Number.NaN };
+  await expect
+    .poll(
+      async () => {
+        // The engine draws on animation frames: after two, it has drawn since the last look.
+        await page.evaluate(
+          () =>
+            new Promise<void>((done) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => done()));
+            }),
+        );
+        const shows = await target.evaluate((name) => name.hasAttribute('data-shown'));
+        const box = shows ? await target.boundingBox() : null;
+        const now = { x: box?.x ?? Number.NaN, y: box?.y ?? Number.NaN };
+        const moved = Math.hypot(now.x - last.x, now.y - last.y);
+        last = now;
+        return moved;
+      },
+      { intervals: [250], timeout: 30_000 },
+    )
+    .toBeLessThan(1);
+  return last;
 }
 
 /**

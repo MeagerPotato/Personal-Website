@@ -1,7 +1,7 @@
 ---
 title: FishAI
 summary: Bots for Canadian Fish, a six-player card game of hidden information, and the simulation lab that measures whether they are any good.
-system: code
+parent: canadian-fish-demo
 date: "2026-08"
 status: in-progress
 role: "Solo: rules engine, bots, lab, papers, site"
