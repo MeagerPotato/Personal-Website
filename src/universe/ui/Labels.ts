@@ -10,6 +10,7 @@ import {
   type ScreenBox,
 } from '../sim/declutter';
 import type { ScreenMap } from '../sim/screen';
+import { plannedName } from './planned';
 
 type BodyKind = ManifestBody['kind'];
 
@@ -29,8 +30,12 @@ export interface LabelsOptions {
   overlay: HTMLElement;
   /** Where every body is on screen (ui/BodiesOnScreen.ts). */
   screen: Readonly<ScreenMap>;
-  /** By row of the orbit table. */
-  bodies: ReadonlyArray<{ readonly title: string; readonly kind: BodyKind }>;
+  /** By row of the orbit table. `planned`: work not built yet, and its name says so. */
+  bodies: ReadonlyArray<{
+    readonly title: string;
+    readonly kind: BodyKind;
+    readonly planned?: boolean;
+  }>;
   params: LabelsParams;
   /** The part of the view that the info panel leaves free, as shares of its width and height. */
   view: { readonly freeWidth: number; readonly freeHeight: number };
@@ -141,6 +146,12 @@ export class Labels implements System {
       button.dataset.row = String(row);
       button.dataset.kind = body.kind;
       button.textContent = body.title;
+      // Planned work says so, seen and heard: "Sports Analysis, Planned" (ui/planned.ts). The
+      // button is a flex box: the name and its note share one inline wrapper.
+      if (body.planned) {
+        button.dataset.planned = '';
+        button.replaceChildren(plannedName('body-label', body.title));
+      }
       this.buttons.push(button);
     });
     this.root.append(...this.buttons);

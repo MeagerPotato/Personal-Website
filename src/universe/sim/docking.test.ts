@@ -504,6 +504,83 @@ describe('docking', () => {
     expect(run()).toEqual(run());
   });
 
+  it('docks at a sun that moves (one of a binary), is carried round with it, and leaves it', () => {
+    // Two suns circling their centre, a planet round one of them. Faster than the site's own
+    // pair will go (a period of 10 minutes, not 75), so that the sun has moved well away from
+    // where the ship first found it.
+    const PAIR: SurroundingsInput = {
+      home: [0, 0],
+      systems: [
+        { id: 'home', position: [0, 0], radius: 66 },
+        { id: 'pair', position: [-700, 600], radius: 290 },
+      ],
+      bodies: [
+        { id: 'home', system: 'home', parent: null, orbit: null, radius: 14, dockRadius: 26.6 },
+        {
+          id: 'a',
+          system: 'pair',
+          parent: null,
+          orbit: { radius: 145, phase: 0.3, periodSec: 600 },
+          radius: 20,
+          dockRadius: 38,
+        },
+        {
+          id: 'b',
+          system: 'pair',
+          parent: null,
+          orbit: { radius: 105, phase: 0.3 + Math.PI, periodSec: 600 },
+          radius: 20,
+          dockRadius: 38,
+        },
+        {
+          id: 'planet',
+          system: 'pair',
+          parent: 'b',
+          orbit: { radius: 90, phase: 1, periodSec: 400 },
+          radius: 8,
+          dockRadius: 15.2,
+        },
+      ],
+    };
+    const flight: Flight = {
+      world: createSurroundings(PAIR, tuning.edge.margin),
+      state: createShipState(),
+      t: 0,
+      flown: { ...NO_INPUT },
+    };
+    step(flight);
+    const found = place(flight, 'a');
+    expect(Math.hypot(found.vx, found.vz)).toBeCloseTo((TAU * 145) / 600, 6);
+    // Beside its ring, moving with it, nose across it.
+    flight.state.x = found.x + 1.4 * 38;
+    flight.state.z = found.z;
+    flight.state.vx = found.vx;
+    flight.state.vz = found.vz;
+    flight.state.heading = 0;
+    request(flight, 'a');
+    fly(flight, 8);
+    expect(flight.world.dock.phase).toBe('docked');
+
+    // Carried round it for a minute while it travels on: on the ring, at the docked pace.
+    let worst = 0;
+    for (let i = 0; i < 60 * 60; i += 1) {
+      step(flight);
+      worst = Math.max(worst, Math.abs(offRing(flight, 'a')));
+    }
+    expect(worst).toBeLessThan(0.05);
+    const now = place(flight, 'a');
+    expect(Math.hypot(now.x - found.x, now.z - found.z)).toBeGreaterThan(80);
+    const pace = Math.hypot(flight.state.vx - now.vx, flight.state.vz - now.vz);
+    expect(pace).toBeCloseTo(Math.min(38 * tuning.dock.orbitRate, tuning.dock.maxSpeed), 1);
+
+    // And away at full thrust: free at once, clear of the ring in 3 seconds.
+    const thrust = { ...NO_INPUT, thrust: 1 };
+    step(flight, thrust);
+    expect(flight.world.dock.phase).toBe('free');
+    fly(flight, 3, thrust);
+    expect(offRing(flight, 'a')).toBeGreaterThan(10);
+  });
+
   it('goes round a moon that lies between the ship and its planet, not into it', () => {
     for (const heading of [0, 1.5, 3, 4.5]) {
       // In orbit round the moon, on the far side of it from the planet: the planet's ring lies
