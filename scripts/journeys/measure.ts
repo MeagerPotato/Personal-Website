@@ -12,6 +12,15 @@ import {
   type TuningOverrides,
 } from './fly';
 import { buildGalaxy, grow, readRealInput, type LayoutOverrides } from './galaxies';
+import {
+  DEFAULT_GATE,
+  breachesOf,
+  describeGate,
+  gateFor,
+  parseGate,
+  type GalaxyGate,
+  type Gate,
+} from './gate';
 import { describe as describeRow, phasesOf, statsOf, stopTable, table } from './report';
 import {
   STRESS_DEFAULTS,
@@ -65,6 +74,13 @@ export interface MeasureOptions {
    * or a rebuilt engine, at every moment of the flight. Null: not done.
    */
   stress: StressOptions | null;
+  /**
+   * What each galaxy must show (gate.ts): limits per galaxy name ("real", "6"), "*" for the rest.
+   * Every report carries its breaches in words, and journeys.measure.ts fails the run on any.
+   * Null: the gate is off, no limits; stress flights and Stop, when they ran, are still held to
+   * 0 failures.
+   */
+  gate: Gate | null;
   log: (text: string) => void;
 }
 
@@ -80,6 +96,7 @@ export const DEFAULTS: MeasureOptions = {
   trace: null,
   stop: null,
   stress: null,
+  gate: DEFAULT_GATE,
   log: (text) => console.log(text),
 };
 
@@ -94,6 +111,12 @@ export interface GalaxyReport {
   stops: JourneyResult[];
   /** The stress test's flights (MeasureOptions.stress). */
   stress: StressFlight[];
+  /**
+   * What it was held to (MeasureOptions.gate; null with the gate off), and every way it missed
+   * that, in words.
+   */
+  gate: GalaxyGate | null;
+  breaches: string[];
   wallSec: number;
 }
 
@@ -172,6 +195,8 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         rows: [],
         stops: [],
         stress: [],
+        gate: options.gate === null ? null : gateFor(options.gate, spec),
+        breaches: [],
         wallSec: 0,
       };
       reports.push(report);
@@ -272,6 +297,21 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
       );
     }
   }
+  // With the gate off it is `{}`: no limits, and stress flights and Stop still held to 0 failures.
+  for (const report of reports) report.breaches = breachesOf(report, report.gate ?? {});
+  if (options.gate !== null || options.stress !== null || options.stop !== null) {
+    log(
+      options.gate === null
+        ? '\n== the gate: off ("gate": false), but stress flights and Stop, when they ran: 0 failures'
+        : '\n== the gate (gate.ts; stress flights and Stop, when they ran: 0 failures)',
+    );
+    for (const report of reports) {
+      const gate = report.gate === null ? 'off' : describeGate(report.gate);
+      const verdict = report.breaches.length === 0 ? 'passed' : 'BREACHED';
+      log(`${labelOf(report).padEnd(width)}${gate}: ${verdict}`);
+      for (const breach of report.breaches) log(`    ${breach}`);
+    }
+  }
   return reports;
 }
 
@@ -289,6 +329,7 @@ const OPTION_KEYS = [
   'trace',
   'stop',
   'stress',
+  'gate',
   'out',
 ] as const;
 
@@ -349,6 +390,7 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): EnvOptions
       }
     }
   }
+  if (raw.gate !== undefined) options.gate = parseGate(raw.gate);
   if (raw.sample !== undefined) {
     options.sample = { ...DEFAULTS.sample, ...(raw.sample as Partial<MeasureOptions['sample']>) };
   }
