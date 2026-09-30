@@ -758,9 +758,10 @@ export const tuning = {
      * Tripwires: a system that outgrows its radius, or sits this close to a neighbour, fails the
      * build. They move nothing: a slot's room (homeRoom, slotRoom above) must be enough for them.
      * 460 is the Projects binary of Allen's tree (Software and Hardware, 401.6 u from their
-     * centre) and room for one more: a planet of size m (+38.4 u) or l (+53.6) under either sun,
-     * or a moon round Model Rocketry (+36.8). A second addition trips it, and the build says which
-     * families to move. (It was 380, which the binary alone outgrows.)
+     * centre) and room for one more planet or moon of any size under either sun: a moon adds
+     * 36.8 to 42 u, a planet 30 to 53.6 (size l). Any second addition trips it, and the build says
+     * which families to move (data/build.test.ts holds both). (It was 380, which the binary alone
+     * outgrows.)
      */
     maxSystemRadius: 460,
     minSystemGap: 150,
