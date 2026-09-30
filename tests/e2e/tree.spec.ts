@@ -145,10 +145,12 @@ test('Hackathons lists its work newest first, and joins the role to the event', 
   await expect(heading(page)).toHaveText('Hackathons');
   await expect(page.locator('main .eyebrow')).toHaveText('Solar system');
   // Built work by date, newest first, and planned work (the Corgi Hackathon's write-up) last.
+  // Hackathons @ Berkeley and HackGT 13 both began in September 2026, and a tie goes by id
+  // (src/site/view-models.ts, byShowcase).
   await expect(page.locator('main h3')).toHaveText([
     'Cal Hacks 13.0',
-    'HackGT 13',
     'Hackathons @ Berkeley',
+    'HackGT 13',
     'Corgi Hackathon',
   ]);
 

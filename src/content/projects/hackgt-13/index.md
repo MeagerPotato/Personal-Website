@@ -4,7 +4,7 @@ summary: HEARSAY, team dh squad's entry to the NSA challenge at HackGT 13, which
 system: hackathons
 date: "2026-09"
 status: shipped
-role: Team member, dh squad
+role: Hacker
 stack: [Python, Hugging Face Transformers, ONNX, LightGBM, ffmpeg, Docker]
 links:
   repo: https://github.com/MeagerPotato/hearsay-dh-squad

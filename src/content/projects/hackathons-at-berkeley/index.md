@@ -2,7 +2,7 @@
 title: Hackathons @ Berkeley
 summary: "Logistics director for the student team behind Cal Hacks: catering and hacker buses for 3,000+ attendees, and merchandise from vendor quotes to delivery."
 system: hackathons
-date: "2026-08"
+date: "2026-09"
 status: in-progress
 role: Logistics Director
 related: [cal-hacks-13]

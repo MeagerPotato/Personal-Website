@@ -480,10 +480,9 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
   line. Cal Hacks 13.0's dates, October 23 to 25, 2026, come from Allen's own CalHacks_Technical
   repository (`lib/event.ts`, checked there against calhacks.io on 2026-09-11), and the site has
   him on its organizing side (logistics, through Hackathons @ Berkeley) rather than competing, as
-  the tree's facts gave it on 2026-09-30. **Still to confirm with Allen** (asked in chat): the
-  month he started at Hackathons @ Berkeley (the resume says "Fall 2026"; the page says August
-  2026), and his own part in team dh squad at HackGT 13 (the HEARSAY README credits the team, so
-  his role reads "Team member, dh squad"; no placing is claimed, the README gives none). What
+  the tree's facts gave it on 2026-09-30. **Confirmed by Allen** (in chat, 2026-09-30): he
+  started at Hackathons @ Berkeley in September 2026, as Logistics Director, and at HackGT 13 he
+  was a Hacker on team dh squad (no placing is claimed; the HEARSAY README gives none). What
   stood before: Asked whether the Code system should keep its name, Allen answered that neither "Code" nor "Software" is how the site should be organized, and that a complete tree of the solar systems is coming (for example About Me, Personal Projects, Hackathons). Until then the Code system's name and words stay as they are, and so does the layout's `order`; the tree is the first input of Phase 3, before `galaxy.lock.json` freezes where systems sit. Claude reminds Allen until it arrives.
 - **The copy's voice edit:** the step by step and the list of every piece of copy on the site are in docs/runbooks/copy-edit.md (2026-09-28), for whenever Allen has the time.
 - **Copy time (W6):** how to frame FishAI's results (resolved 2026-09-20: SESTINA v1.0 is a third-party bot that runs in FishLab, someone else's engine; FishAI's README is the source for every number); how project pages describe AI-assisted development (answered 2026-09-28: the colophon only, §4.4); display name for the Code system (superseded by the tree of systems, above); whether to host a resume PDF (answered 2026-09-28: yes, printed from the page itself, above).

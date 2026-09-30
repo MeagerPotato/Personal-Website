@@ -120,8 +120,8 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
 - [ ] **Hackathons @ Berkeley** (new, a planet of Hackathons) ·
       `src/content/projects/hackathons-at-berkeley/index.md` · `/projects/hackathons-at-berkeley/`.
       Your logistics director role, from the resume: catering and hacker buses for 3,000+
-      attendees, merchandise from vendor quotes to delivery. The page says you started in
-      **August 2026** (the resume says "Fall 2026"): say the real month.
+      attendees, merchandise from vendor quotes to delivery. You started in September 2026
+      (you confirmed it on 2026-09-30).
 - [ ] **Cal Hacks 13.0** (new, a planet of Hackathons) · `src/content/projects/cal-hacks-13/index.md`
       · `/projects/cal-hacks-13/`. October 23 to 25, 2026; you are on the organizing side
       ("Logistics, for Hackathons @ Berkeley"), and a motorway joins it to Hackathons @ Berkeley.
@@ -131,9 +131,8 @@ Tick the boxes here as you go (on github.com: edit this file, or keep the list i
 - [ ] **HackGT 13** (new, a planet of Hackathons) · `src/content/projects/hackgt-13/index.md` ·
       `/projects/hackgt-13/`. HEARSAY, team dh squad's entry to the NSA challenge, written from
       the repository's README: the data findings, the four detectors, the sixteen experts and the
-      scores. The README credits the team, not who did what, so your `role` reads "Team member,
-      dh squad" and no placing is claimed: say what your part was, and the result if there was
-      one.
+      scores. Your `role` reads "Hacker" (you confirmed it on 2026-09-30), and no placing is
+      claimed, since the README gives none: add the result if there was one.
 - [ ] **Corgi Hackathon** (new, a planned planet of Hackathons) · `src/content/projects/corgi/index.md`
       · `/projects/corgi/`. RunItBack, 5th of more than 1,000 at Y Combinator's Startup School,
       and "the write-up is coming": planned until you write it up.
