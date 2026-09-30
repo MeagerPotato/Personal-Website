@@ -142,6 +142,54 @@ describe('Labels', () => {
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
+  it('says after the name of planned work that it is planned, seen and heard', () => {
+    document.body.innerHTML = '<div id="overlay"></div>';
+    const overlay = document.getElementById('overlay') as HTMLElement;
+    const screen = createScreenMap(3);
+    put(screen, SPREAD.slice(0, 3));
+    const picked: number[] = [];
+    const labels = new Labels({
+      overlay,
+      screen,
+      bodies: [
+        { title: 'Research', kind: 'sun' },
+        { title: 'Sports Analysis', kind: 'planet', planned: true },
+        { title: 'Kalshi', kind: 'moon', planned: true },
+      ],
+      params: PARAMS,
+      view: { freeWidth: 1, freeHeight: 1 },
+      target: () => -1,
+      docked: () => false,
+      onPick: (row) => picked.push(row),
+    });
+    cleanup = () => labels.dispose();
+    labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
+    labels.frameUpdate();
+    const [sun, planet, moon] = [...overlay.querySelectorAll('button')];
+    if (!sun || !planet || !moon) throw new Error('no names');
+    // The name it is known by, read out: "Sports Analysis, Planned".
+    expect(planet.textContent).toBe('Sports Analysis, Planned');
+    expect(moon.textContent).toBe('Kalshi, Planned');
+    expect([sun, planet, moon].map((button) => button.dataset.planned)).toEqual([
+      undefined,
+      '',
+      '',
+    ]);
+    // Seen: the name, then the note; the comma is only heard.
+    const note = planet.querySelector('.body-label__note');
+    expect(note?.textContent).toBe(', Planned');
+    expect(note?.querySelector('.body-label__sep')?.textContent).toBe(', ');
+    expect(sun.querySelector('.body-label__note')).toBeNull();
+    // The button is a flex box, whose children a browser reads as blocks, with spaces round
+    // them ("Sports Analysis , Planned"): the name and its note are ONE child, inline together.
+    expect([...planet.childNodes]).toEqual([planet.querySelector('.body-label__name')]);
+    expect(note?.parentElement?.className).toBe('body-label__name');
+    expect(sun.textContent).toBe('Research');
+    // Pressing the note is pressing the name.
+    note?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(picked).toEqual([1]);
+  });
+
   it('puts each name under its body, centred', () => {
     const { labels, button } = setup(SPREAD);
     cleanup = () => labels.dispose();

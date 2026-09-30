@@ -2375,6 +2375,36 @@ main > .resume-name + .resume-contact {
     font-weight: 500;
   }
 
+  /* Planned work (universe/ui/planned.ts): "Planned" after the name, set small in quieter ink, and
+     the tag's rim dashed, as a station that is not built yet is drawn on a transit map. The comma
+     before the note is heard ("Sports Analysis, Planned"), never seen: it is only transparent, and
+     its room is the gap before the note. Both stay inline: a browser reads out anything taken out
+     of the line (the visually hidden recipe, a flex item) with spaces round it, "Sports Analysis
+     , Planned". */
+  .body-label__note,
+  .dock-prompt .dock-prompt__note {
+    color: var(--color-ink-mid);
+    font-size: 0.85em;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .body-label__sep,
+  .dock-prompt .dock-prompt__sep {
+    opacity: 0;
+  }
+
+  /* (Not while it has the focus: forced colours draw the focus ring as the tag's outline.) */
+  .body-label[data-planned]:not([data-state='target'], :focus-visible)::after {
+    outline: 1px dashed var(--color-ink-low);
+    outline-offset: -1px;
+  }
+
+  /* On the filled tag of where the ship is going, the note is in the tag's own ink. */
+  .body-label[data-state='target'] .body-label__note {
+    color: inherit;
+  }
+
   .body-label:focus-visible {
     color: var(--color-ink-high);
   }

@@ -1,5 +1,6 @@
 import type { BodyField } from './assist';
 import { approachPace, type DockParams } from './docking';
+import { familyReaches } from './families';
 import { maxYawRate, speedOf } from './flight';
 import { angleDelta, angleOf, clamp, lerp, smoothstep } from './math';
 import { bodyPositionAt, type OrbitTable } from './orbits';
@@ -319,17 +320,9 @@ export function planCruise(
   const reach = ring * params.handOffRadii;
   const speed = speedOf(state);
 
-  // FAMILIES. How far a body and everything that circles it reach from it (parents come before
-  // their children in the table, so backwards is children first)...
-  for (let j = 0; j < field.count; j += 1) {
-    const own = field.ringRadius[j] ?? 0;
-    family[j] = own > 0 ? own + params.keepOut : 0;
-  }
-  for (let j = field.count - 1; j >= 0; j -= 1) {
-    const parent = orbits.parent[j] ?? -1;
-    if (parent < 0 || !((family[j] ?? 0) > 0)) continue;
-    family[parent] = Math.max(family[parent] ?? 0, (orbits.radius[j] ?? 0) + (family[j] ?? 0));
-  }
+  // FAMILIES. How far a body and everything that circles it reach from it, each ring with its
+  // keep-out (sim/families.ts)...
+  familyReaches(orbits, field.ringRadius, params.keepOut, family);
   // ...and whose family each body counts as part of: the biggest one round it that is still
   // small enough to go round as a whole.
   for (let j = 0; j < field.count; j += 1) {

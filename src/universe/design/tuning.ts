@@ -591,6 +591,11 @@ export const tuning = {
     detailNear: 14,
     detailMoon: 3,
     detailSun: 4,
+    /**
+     * Planned work, not built yet: an unpainted maquette in its family's pale colours, as coarse
+     * as a model before the detail goes on (1 is 80 facets), with no close-up (world/looks.ts).
+     */
+    detailPlanned: 1,
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,
@@ -618,11 +623,21 @@ export const tuning = {
     orbitLineOpacity: 0.2,
     orbitLineSegments: 128,
     /**
-     * The ship is lit by the sun of the system it is in: fully inside `shipLightFullRadii` system
-     * radii, fading to the distant key light by `shipLightFadeRadii`.
+     * The ship is lit by the sun whose family it is in: fully inside `shipLightFullRadii` of that
+     * family's reach (a sun, its planets and their moons: for a system with one sun, the system's
+     * radius), fading to the distant key light by `shipLightFadeRadii` (world/Galaxy.ts, lightAt).
      */
     shipLightFullRadii: 1.2,
     shipLightFadeRadii: 2,
+    /**
+     * Between two suns of about equal pull (a binary's gap), their directions all but cancel, and
+     * the key light, from above the plane, takes up to this share more (0 to 1): the ship's light
+     * swings over the top from one sun to the other instead of flipping round. Larger is a wider,
+     * slower swing. At 0.05 the light is more than 30 degrees off both suns for only about 5 u of
+     * the gap, so a ship crossing it at 300 u/s turns its light by some 120 degrees in one frame:
+     * judge it in flight, where a binary's suns face each other.
+     */
+    shipLightTiebreak: 0.05,
   },
 
   /** The three bands of the toon shader (shaders/toonFlat.ts). */

@@ -28,6 +28,24 @@ describe('destinations', () => {
     expect(destinations.titleOf('project/unknown')).toBeNull();
   });
 
+  it('says that planned work is planned, as part of its name, and nothing else', () => {
+    const destinations = readDestinations({
+      bodies: [
+        {
+          id: 'project/sports',
+          href: '/projects/sports/',
+          title: 'Sports Analysis',
+          planned: true,
+        },
+        { id: 'project/odd', href: '/projects/odd/', title: 'Odd', planned: 'yes' },
+      ],
+    });
+    expect(destinations.titleOf('project/sports')).toBe('Sports Analysis, planned');
+    expect(destinations.titleOf('project/odd')).toBe('Odd');
+    // Its page is its page all the same.
+    expect(destinations.idFor('/projects/sports/')).toBe('project/sports');
+  });
+
   it('shows a listed page from the body it is listed at, which still opens its OWN page', () => {
     const destinations = readDestinations(MANIFEST);
     expect(destinations.idFor('/projects/')).toBe('system/code');

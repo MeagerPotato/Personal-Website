@@ -23,7 +23,7 @@ import { planetTriangleCount } from '../sim/planet';
 import { Backdrop } from '../world/Backdrop';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { Starfield } from '../world/Starfield';
-import { biomeBands, sunBands, sunLook } from '../world/looks';
+import { lookOf } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
 const SUBJECTS = ['planet', 'moon', 'sun', 'rocket', 'station', 'satellite'] as const;
@@ -96,7 +96,12 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   gui.add(state, 'subject', SUBJECTS).onChange(rebuild);
   const world = gui.addFolder('planet, moon, sun');
   world.add(state, 'biome', Object.keys(tokens.color.biome)).onChange(rebuild);
-  world.add(state, 'theme', Object.keys(tokens.color.system)).name('sun theme').onChange(rebuild);
+  world
+    .add(state, 'theme', Object.keys(tokens.color.system))
+    .name('system theme')
+    .onChange(rebuild);
+  // Planned work, as the galaxy draws it: a maquette in the system theme's colours.
+  world.add(state, 'planned').name('planned (planet, moon)').onChange(rebuild);
   world.add(state, 'radius', 1, 24, 0.5).onChange(rebuild);
   world.add(state, 'seed').onFinishChange(rebuild);
   world.add(state, 'rings').onChange(rebuild);
@@ -154,6 +159,7 @@ class Turntable implements System {
     radius: 8,
     seed: 'lab',
     rings: false,
+    planned: false,
     closeUp: false,
     thrust: 0.7,
     boost: false,
@@ -182,8 +188,21 @@ class Turntable implements System {
 
   describe(): string {
     const { subject, biome, theme } = this.state;
-    const what = subject === 'sun' ? `${theme} sun` : subject === 'rocket' ? subject : biome;
+    const what =
+      subject === 'sun'
+        ? `${theme} sun`
+        : subject === 'rocket'
+          ? subject
+          : this.isPlanned()
+            ? `planned ${theme} ${subject}`
+            : biome;
     return this.triangles > 0 ? `${what}, ${this.triangles} tris` : `${subject}`;
+  }
+
+  /** Only a planet or a moon is ever planned work. */
+  private isPlanned(): boolean {
+    const { subject, planned } = this.state;
+    return planned && (subject === 'planet' || subject === 'moon');
   }
 
   /** Throw away what is on the table and build what `state` asks for. */
@@ -194,7 +213,8 @@ class Turntable implements System {
     this.lit.push(surface);
     this.triangles = 0;
 
-    if (state.subject === 'rocket') {
+    const { subject } = state;
+    if (subject === 'rocket') {
       this.rocket = new Rocket(assets, scope);
       this.flame = new EngineFlame(assets, this.rocket.engine, scope, tuning.ship.flame, true);
       this.object.add(this.rocket.object);
@@ -202,8 +222,20 @@ class Turntable implements System {
       return;
     }
 
-    if (state.subject === 'station' || state.subject === 'satellite') {
-      const handle = assets.acquire(state.subject, surface);
+    // Looked at exactly as the galaxy looks at a body of this kind (world/looks.ts).
+    const isSun = subject === 'sun';
+    const shape = lookOf(
+      {
+        id: 'lab',
+        kind: subject,
+        biome: state.biome,
+        rings: state.rings && !isSun,
+        ...(this.isPlanned() ? { planned: true as const } : {}),
+      },
+      state.theme,
+    );
+    if (shape.model !== null) {
+      const handle = assets.acquire(shape.model, surface);
       scope.onDispose(() => handle.release());
       handle.object.scale.setScalar(state.radius);
       this.object.add(handle.object);
@@ -211,16 +243,14 @@ class Turntable implements System {
       return;
     }
 
-    const isSun = state.subject === 'sun';
-    const { detailSun, detailMoon, detailPlanet, detailNear } = tuning.world;
-    const everyday = isSun ? detailSun : state.subject === 'moon' ? detailMoon : detailPlanet;
-    const detail = state.closeUp && state.subject === 'planet' ? detailNear : everyday;
+    // The galaxy swaps the close-up in as the ship comes near; here it is asked for.
+    const detail = state.closeUp && shape.nearDetail !== null ? shape.nearDetail : shape.detail;
     this.triangles = planetTriangleCount(detail);
     this.planet = new PlanetMesh({
       radius: state.radius,
       seed: state.seed,
-      bands: isSun ? sunBands(state.theme) : biomeBands(state.biome),
-      look: isSun ? sunLook() : tuning.planet,
+      bands: shape.bands,
+      look: shape.look,
       detail,
       nearDetail: null,
       material: isSun
@@ -230,7 +260,7 @@ class Turntable implements System {
     });
     this.object.add(this.planet.mesh);
 
-    if (state.rings && !isSun) {
+    if (shape.rings) {
       const theme = tokens.color.system[state.theme];
       const ring = assets.acquire(
         'planetRing',
@@ -243,7 +273,7 @@ class Turntable implements System {
       ring.object.rotation.set((tuning.world.ringTiltDeg * Math.PI) / 180, 0, 0);
       this.object.add(ring.object);
     }
-    const reach = state.rings && !isSun ? tuning.world.ringOuterRadii : 1;
+    const reach = shape.rings ? tuning.world.ringOuterRadii : 1;
     this.camera.frame(state.radius * reach);
   }
 
