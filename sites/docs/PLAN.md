@@ -85,7 +85,8 @@ tab order, walked with the arrow keys (`radiogroup.ts`), as the browser's own ra
 with compare-and-set writes and merged on the device (the server cannot read what it would
 merge). Screens: today and any day, the calendar, the month review and its snapshot, the
 timeline of events, people and places, stats, search, settings, and the lock, setup and recovery
-screens. The Worker (`worker/`) does sign-in, sync, sealed files in R2, and the daily reminder
+screens. A day's activities fold to its own and the usual ones (the most used in the 60 days
+before it), every activity one click away, so the writing comes first. The Worker (`worker/`) does sign-in, sync, sealed files in R2, and the daily reminder
 (empty Web Push, from a cron every five minutes). Offline, the app opens and unlocks from the
 device's own copy, and its service worker keeps the code.
 
@@ -129,7 +130,6 @@ cron drains and retries.
 
 **Known details for D** (noticed while building; none blocks a launch):
 
-- On the day page, the activity chips take more room than the writing; try them folded.
 - A story-sized snapshot gives its spare room to the photos, but three or four landscape photos
   in one row are already as tall as their shape allows: they could take two rows instead.
 - The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.

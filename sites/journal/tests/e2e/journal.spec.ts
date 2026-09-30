@@ -209,6 +209,27 @@ test('a reload locks the journal, and the passkey opens it again', async () => {
   await expect(title(page)).toBeFocused();
 });
 
+test('the day’s activities fold to its own and the usual ones, the rest a click away', async () => {
+  const { page } = laptop;
+  const all = page.getByRole('button', { name: 'All activities' });
+  const chip = (name: string) => page.getByRole('button', { name, exact: true });
+  // A new journal showed every activity; now the day has one, the rest are folded away.
+  await expect(all).toHaveAttribute('aria-expanded', 'false');
+  await expect(chip('coding')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip('rocketry')).toHaveCount(0);
+
+  // Unfolded, every group; picked there, it stays when folded.
+  await all.click();
+  await expect(all).toHaveAttribute('aria-expanded', 'true');
+  await chip('rocketry').click();
+  await all.click();
+  await expect(chip('rocketry')).toHaveAttribute('aria-pressed', 'true');
+  // Taken back while folded, it stays in place for the moment: a slip is one tap to undo.
+  await chip('rocketry').click();
+  await expect(chip('rocketry')).toHaveAttribute('aria-pressed', 'false');
+  await expect(chip('coding')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('with no connection, the app still opens and unlocks this device’s copy', async () => {
   const { page } = laptop;
   const context = page.context();
@@ -381,6 +402,10 @@ test('no screen has a serious accessibility issue', async () => {
     await page.getByRole('link', { name, exact: true }).click();
     await check(name, url);
   }
+  // The day with every activity unfolded.
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await page.getByRole('button', { name: 'All activities' }).click();
+  await check('Today, all activities', /\/$/);
   // And the screens one level down: the month review, a person, a new event.
   await page.getByRole('link', { name: 'Calendar', exact: true }).click();
   await page.getByRole('link', { name: 'Month review' }).click();
