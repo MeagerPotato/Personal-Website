@@ -745,6 +745,14 @@ export const tuning = {
     bandEdges: [-0.12, 0.38],
     /** How lit the middle band is: 0 = same as shade, 1 = same as lit. */
     midLevel: 0.55,
+    /**
+     * A decal (a grid or a number painted on a world's ground: sim/world/glue.ts) is drawn this
+     * share of its distance nearer the camera, along its own line of sight (shaders/toonFlat.ts):
+     * a depth bias that moves nothing on screen and keeps it over the ground it hugs, from the
+     * star map as from orbit, where a 24-bit depth buffer tells apart about 3e-6 of the distance.
+     * The ghost lines of planned work take twice it (shaders/edge.ts).
+     */
+    decalPull: 2e-4,
   },
 
   /** The backdrop behind the stars (world/Backdrop.ts). */

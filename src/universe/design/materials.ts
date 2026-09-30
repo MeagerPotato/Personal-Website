@@ -45,6 +45,10 @@ const toonLook = {
   uBandEdges: { value: new Vector2(...tuning.shading.bandEdges) },
   uMidLevel: { value: tuning.shading.midLevel },
   uFlatness: { value: 0 },
+  /** A glowing vertex (aUnlit 2) blooms as a sun does. */
+  uGlowBloom: { value: tuning.world.sunBloom },
+  /** A decal's pull toward the camera; the ghost lines (shaders/edge.ts) take twice it. */
+  uDecalPull: { value: tuning.shading.decalPull },
 };
 
 /**
@@ -72,7 +76,16 @@ export function setToonFlatness(flatness: number): void {
 export function refreshToonLook(): void {
   toonLook.uBandEdges.value.set(...tuning.shading.bandEdges);
   toonLook.uMidLevel.value = tuning.shading.midLevel;
+  toonLook.uGlowBloom.value = tuning.world.sunBloom;
+  toonLook.uDecalPull.value = tuning.shading.decalPull;
 }
+
+/**
+ * The per-vertex flags of the emblem worlds (shaders/toonFlat.ts): how a vertex is lit (0 lit, 1
+ * flat, 2 glow) and whether it is a decal. core/geometry.ts names its attributes after these.
+ */
+export const UNLIT_ATTRIBUTE = 'aUnlit';
+export const DECAL_ATTRIBUTE = 'aDecal';
 
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
@@ -100,6 +113,13 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     },
     vertexColors: options.vertexColors ?? false,
     defines: options.instancedSun ? { INSTANCED_SUN: '' } : {},
+  });
+  // Geometry without the worlds' flags (every generated planet, every model) reads these: lit,
+  // and no decal. Said here, because a missing attribute otherwise reads whatever an earlier
+  // program left at its location (WebGL's generic vertex attribute), which may be a 1.
+  Object.assign(material.defaultAttributeValues, {
+    [UNLIT_ATTRIBUTE]: [0],
+    [DECAL_ATTRIBUTE]: [0],
   });
   return material as ToonMaterial;
 }
