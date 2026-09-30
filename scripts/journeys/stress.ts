@@ -2,6 +2,7 @@ import { pullOf } from '../../src/universe/sim/assist';
 import { speedOf } from '../../src/universe/sim/flight';
 import { createRng } from '../../src/universe/sim/rng';
 import {
+  destinationsOf,
   fly,
   sampleOf,
   type Galaxy,
@@ -141,7 +142,8 @@ export function stress(
       `${seed}|${galaxy.name}|stress${kind === 'between' ? '' : `|${kind}`}`,
     ),
   );
-  const ids = galaxy.manifest.bodies.map((body) => body.id);
+  // Somewhere else to be sent: never a link, which nobody can be sent to (only past).
+  const ids = destinationsOf(galaxy).map((body) => body.id);
   const flights: StressFlight[] = [];
   const dt = 1 / sim.stepHz;
   for (const spec of chosen) {

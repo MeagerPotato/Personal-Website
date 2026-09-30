@@ -23,11 +23,21 @@ import { planetTriangleCount } from '../sim/planet';
 import { Backdrop } from '../world/Backdrop';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { Starfield } from '../world/Starfield';
-import { lookOf } from '../world/looks';
+import { lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
-const SUBJECTS = ['planet', 'moon', 'sun', 'rocket', 'station', 'satellite'] as const;
+const SUBJECTS = ['planet', 'moon', 'sun', 'rocket', 'station', 'satellite', 'relay'] as const;
 type Subject = (typeof SUBJECTS)[number];
+
+/** What kind of body a subject is: a relay is a link's body (a profile elsewhere). */
+const KIND_OF = {
+  planet: 'planet',
+  moon: 'moon',
+  sun: 'sun',
+  station: 'station',
+  satellite: 'satellite',
+  relay: 'link',
+} as const satisfies Record<Exclude<Subject, 'rocket'>, LookedAt['kind']>;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -227,7 +237,7 @@ class Turntable implements System {
     const shape = lookOf(
       {
         id: 'lab',
-        kind: subject,
+        kind: KIND_OF[subject],
         biome: state.biome,
         rings: state.rings && !isSun,
         ...(this.isPlanned() ? { planned: true as const } : {}),

@@ -211,6 +211,52 @@ export async function watchText(page: Page, selector: string): Promise<() => Pro
     page.evaluate((key) => (window as unknown as Record<string, Said[]>)[key] ?? [], key);
 }
 
+/** The shell's key in sessionStorage for the engine's snapshot (src/shell/pose-memory.ts). */
+const SNAPSHOT_KEY = 'universe:snapshot';
+
+/** As much of a snapshot as the tests read or change (src/universe/core/snapshot.ts). */
+export interface Kept {
+  steps: number;
+  ship: { x: number; z: number; vx: number; vz: number; heading: number; yawRate: number };
+  dock: { id: string; docked: boolean } | null;
+  galaxy?: string;
+}
+
+/** What the page would leave behind if it went away now: the shell saves on `pagehide`. */
+export function keptNow(page: Page): Promise<Kept> {
+  return page.evaluate((key) => {
+    dispatchEvent(new Event('pagehide'));
+    return JSON.parse(sessionStorage.getItem(key) ?? 'null') as Kept;
+  }, SNAPSHOT_KEY);
+}
+
+let plantings = 0;
+
+/**
+ * Load `path` in universe mode (or reload) with `planted` as the snapshot in storage, the way a
+ * tab that outlived a deploy would hold one, or to put the ship somewhere. The page that goes away
+ * saves its own snapshot first (pagehide), so the planting happens at the start of the next
+ * document, before any of the page's scripts, and only once.
+ */
+export async function loadWith(page: Page, planted: unknown, path?: string): Promise<void> {
+  plantings += 1;
+  await page.addInitScript(
+    ({ key, value, flag }) => {
+      try {
+        if (sessionStorage.getItem(flag) !== null) return;
+        sessionStorage.setItem(flag, '1');
+        sessionStorage.setItem(key, value);
+      } catch {
+        // A document with no storage of its own (about:blank): nothing to plant.
+      }
+    },
+    { key: SNAPSHOT_KEY, value: JSON.stringify(planted), flag: `e2e:planted:${plantings}` },
+  );
+  if (path === undefined) await page.reload();
+  else await page.goto(universe(path));
+  await engineReady(page);
+}
+
 /** What the visitor can see of a page, as the router is allowed to change it (swap.ts). */
 export function pageContent(page: Page): Promise<{
   title: string;

@@ -551,3 +551,149 @@ describe('Labels', () => {
     expect(overlay.children).toHaveLength(0);
   });
 });
+
+describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
+  /** Home, the satellite, and two relays beside it: GitHub and LinkedIn. */
+  function linked() {
+    document.body.innerHTML = '<div id="overlay"></div>';
+    const overlay = document.getElementById('overlay') as HTMLElement;
+    const screen = createScreenMap(4);
+    put(screen, [
+      [200, 300, 30, 300],
+      [500, 300, 6, 300],
+      [700, 300, 6, 300],
+      [900, 300, 6, 300],
+    ]);
+    const picked: number[] = [];
+    const labels = new Labels({
+      overlay,
+      screen,
+      bodies: [
+        { title: 'About', kind: 'home' },
+        { title: 'Contact', kind: 'satellite' },
+        { title: 'GitHub', kind: 'link', href: 'https://github.com/someone' },
+        { title: 'LinkedIn', kind: 'link', href: 'https://www.linkedin.com/in/someone' },
+      ],
+      params: PARAMS,
+      view: { freeWidth: 1, freeHeight: 1 },
+      target: () => -1,
+      docked: () => false,
+      onPick: (row) => picked.push(row),
+    });
+    cleanup = () => labels.dispose();
+    labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
+    labels.frameUpdate();
+    const link = (title: string): HTMLAnchorElement =>
+      [...overlay.querySelectorAll('a')].find(
+        (candidate) => candidate.textContent === title,
+      ) as HTMLAnchorElement;
+    return { overlay, screen, labels, picked, link };
+  }
+
+  it('are real links, heard with where they go, in a group of their own: not a way to fly', () => {
+    const { overlay, link } = linked();
+    const groups = [...overlay.querySelectorAll('[role="group"]')];
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
+      'Fly to',
+      'Elsewhere',
+    ]);
+    const [flyTo, elsewhere] = groups;
+    expect([...(flyTo?.children ?? [])].map((name) => name.textContent)).toEqual([
+      'About',
+      'Contact',
+    ]);
+    expect([...(flyTo?.querySelectorAll('a') ?? [])]).toHaveLength(0);
+    expect([...(elsewhere?.children ?? [])]).toEqual([link('GitHub'), link('LinkedIn')]);
+
+    const github = link('GitHub');
+    expect(github.getAttribute('href')).toBe('https://github.com/someone');
+    expect(github.rel).toBe('me noopener');
+    expect(github.target).toBe('');
+    expect(github.getAttribute('aria-label')).toBe('GitHub, on github.com');
+    expect(link('LinkedIn').getAttribute('aria-label')).toBe('LinkedIn, on linkedin.com');
+    expect(github.draggable).toBe(false);
+    expect(github.className).toBe('body-label');
+    expect(github.dataset.kind).toBe('link');
+    expect(github.dataset.row).toBe('2');
+    // Placed and shown like any name.
+    expect(github.dataset.shown).toBe('');
+    expect(github.style.transform).toMatch(/^translate\(/);
+  });
+
+  it('are followed as links: pressing one tells nobody to fly', () => {
+    const { link, picked } = linked();
+    // (The browser follows it; a test DOM does nothing.)
+    link('GitHub').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(picked).toEqual([]);
+  });
+
+  it('beckons: the body pointed at brings its name forward, focused and lit, with the next frame', () => {
+    const { labels, link, overlay } = linked();
+    const github = link('GitHub');
+    labels.beckon(2);
+    // Not yet: a name is only focused once it shows.
+    expect(document.activeElement).not.toBe(github);
+    labels.frameUpdate();
+    expect(document.activeElement).toBe(github);
+    expect(github.dataset.beckon).toBe('');
+    // Nothing but a link is ever beckoned.
+    labels.beckon(1);
+    labels.frameUpdate();
+    expect(document.activeElement).toBe(github);
+    expect(overlay.querySelector('button')?.dataset.beckon).toBeUndefined();
+    // Lit only while it has the focus.
+    github.blur();
+    expect(github.dataset.beckon).toBeUndefined();
+  });
+
+  it('keeps a beckoned name in view, as it keeps whatever the keyboard is on', () => {
+    const { labels, link, screen } = linked();
+    // LinkedIn's body drifts right under GitHub's: one of the two names must go...
+    screen.x[3] = 705;
+    screen.y[3] = 302;
+    labels.frameUpdate();
+    const shows = (title: string): boolean => link(title).dataset.shown === '';
+    expect(shows('GitHub') !== shows('LinkedIn')).toBe(true);
+    const hidden = shows('GitHub') ? 'LinkedIn' : 'GitHub';
+    // ...and the one pointed at is the one that stays, with the focus.
+    labels.beckon(hidden === 'GitHub' ? 2 : 3);
+    labels.frameUpdate();
+    expect(shows(hidden)).toBe(true);
+    expect(document.activeElement).toBe(link(hidden));
+    // It stays on the frames after, once the beckon is spent, because the keyboard is on it: even
+    // with the other body now right on top of it, and nearer, which would otherwise win the room.
+    const [mine, theirs] = hidden === 'GitHub' ? [2, 3] : [3, 2];
+    screen.x[theirs] = screen.x[mine] ?? 0;
+    screen.y[theirs] = screen.y[mine] ?? 0;
+    screen.depth[theirs] = 100;
+    for (let frame = 0; frame < 3; frame += 1) {
+      labels.frameUpdate();
+      expect(shows(hidden)).toBe(true);
+    }
+    expect(document.activeElement).toBe(link(hidden));
+    // Once the focus moves on, the nearer name has the room.
+    link(hidden).blur();
+    labels.frameUpdate();
+    expect(shows(hidden)).toBe(false);
+  });
+
+  it('beckons nothing whose body cannot be seen, and leaves the focus where it was', () => {
+    const { labels, screen, link } = linked();
+    screen.depth[2] = -1;
+    labels.beckon(2);
+    labels.frameUpdate();
+    expect(document.activeElement).not.toBe(link('GitHub'));
+    expect(link('GitHub').dataset.beckon).toBeUndefined();
+    // Nor later, once it is in view again: a beckon is for the moment it was asked.
+    screen.depth[2] = 300;
+    labels.frameUpdate();
+    expect(document.activeElement).not.toBe(link('GitHub'));
+  });
+
+  it('cleans up both groups', () => {
+    const { overlay, labels } = linked();
+    labels.dispose();
+    cleanup = null;
+    expect(overlay.children).toHaveLength(0);
+  });
+});
