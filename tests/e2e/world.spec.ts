@@ -229,11 +229,11 @@ test.describe('on a laptop', () => {
 
     // Both of Research's bodies are planned: the planet, and Kalshi, its moon. They are on their
     // way round (the planet in six minutes), and a name goes wherever its body leaves it room
-    // (below it, above it, beside it, slid along it): measured headless over a whole turn, in
-    // this view both names show at every moment (before names had more places than below and
-    // above, the planet's gave way for up to 42 s at a time, and for 19 s neither showed). So:
-    // whichever shows first, however long the way here took (a slow machine gets here later in
-    // the turn); and no more than the usual wait for it.
+    // (below it, above it, beside it, slid along it): measured headless, in this view both names
+    // show every second of 400 s (before names had more places than below and above, neither
+    // showed for 23 to 37 s at a time). So: whichever shows first, however long the way here took
+    // (a slow machine gets here later in the turn, and draws its frames on the CPU: it is given
+    // time).
     const planned = [
       { title: 'Sports Analysis', path: '/projects/sports-analysis/' },
       { title: 'Kalshi', path: '/projects/kalshi/' },
@@ -248,7 +248,7 @@ test.describe('on a laptop', () => {
           for (const body of planned) if ((await shows(body.title)) > 0) found.body ??= body;
           return found.body?.title;
         },
-        { timeout: 15_000 },
+        { timeout: 60_000 },
       )
       .toBeDefined();
     const target = found.body;

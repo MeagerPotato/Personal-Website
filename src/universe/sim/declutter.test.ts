@@ -4,12 +4,16 @@ import {
   createTakenBoxes,
   declutter,
   glidePast,
+  NOWHERE,
   verticalClearance,
+  type DeclutterRules,
   type LabelBoxes,
 } from './declutter';
 import { createRng } from './rng';
 
 const PARAMS = { gapPx: 4, keepPx: 6, max: 12 };
+/** The labels more important than 5 are placed together; none is firm. */
+const TOGETHER_5 = { firm: -Infinity, together: 5, keepSlots: false };
 
 type Row = readonly [left: number, top: number, width: number, height: number, priority: number];
 
@@ -434,10 +438,10 @@ describe('declutter, with places', () => {
     declutter(apart, PARAMS);
     expect(where(apart)).toEqual([0, 0, null, 0]);
     const together = placesOf(rows, 2);
-    declutter(together, PARAMS, undefined, 5);
+    declutter(together, PARAMS, undefined, TOGETHER_5);
     expect(where(together)).toEqual([1, 1, 0, 0]);
     // ...and it holds, frame after frame.
-    declutter(together, PARAMS, undefined, 5);
+    declutter(together, PARAMS, undefined, TOGETHER_5);
     expect(where(together)).toEqual([1, 1, 0, 0]);
   });
 
@@ -460,10 +464,551 @@ describe('declutter, with places', () => {
       ],
       2,
     );
-    declutter(boxes, PARAMS, taken, 5);
+    declutter(boxes, PARAMS, taken, TOGETHER_5);
     expect(where(boxes)).toEqual([1, null]);
   });
 });
+
+describe('declutter, who moves for whom', () => {
+  it('moves a label to make room only where it is then clear of the one it made room for', () => {
+    // C's only place is under A. A's next place is still in C's way; its last is clear of it.
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 50],
+            [0, 300],
+          ],
+        ],
+        [80, 40, 2, [[20, 30]]],
+      ],
+      3,
+    );
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([2, 0]);
+  });
+
+  it('goes back to its first place only where that takes no room from a label that shows', () => {
+    // A system's name A shows at its second place; its first is free of everything placed before
+    // it, but a planet's name B, placed after it, shows there. A stays, and so does B (a planet's
+    // name could not move A back out of its way).
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 10, [[40, 10]]],
+      ],
+      2,
+    );
+    shows(boxes, [1, 0]);
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 0]);
+  });
+
+  it('moves a label for its own kind to any of its places, for a lesser kind only back to its first', () => {
+    const rows: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [0, 200],
+        ],
+      ],
+      [80, 40, 10, [[40, 10]]],
+    ];
+    // Of one kind: A moves below, and both show.
+    const alike = placesOf(rows, 2);
+    declutter(alike, PARAMS);
+    expect(where(alike)).toEqual([1, 0]);
+    // A system's name in the way of a planet's: it keeps its first place, and the planet's waits.
+    const apart = placesOf(rows, 2);
+    declutter(apart, PARAMS, undefined, TOGETHER_5);
+    expect(where(apart)).toEqual([0, null]);
+  });
+
+  it('never moves a firm label, nor leaves one out, nor holds one back', () => {
+    const FIRM = { firm: 1, together: -Infinity, keepSlots: true } satisfies DeclutterRules;
+    // F is where the ship is going: B's only place is under it, and F stays put.
+    const put = placesOf(
+      [
+        [
+          80,
+          40,
+          0.5,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 2, [[40, 10]]],
+      ],
+      2,
+    );
+    declutter(put, PARAMS, undefined, FIRM);
+    expect(where(put)).toEqual([0, null]);
+    // Two names show, as many as may; F has only just been hidden (young), and comes all the
+    // same: the less important of the two gives it the room.
+    const full = placesOf(
+      [
+        [80, 40, 0.5, [[0, 0]]],
+        [80, 40, 2, [[200, 0]]],
+        [80, 40, 3, [[400, 0]]],
+      ],
+      1,
+    );
+    shows(full, [null, 0, 0], [0]);
+    declutter(full, { ...PARAMS, max: 2 }, undefined, FIRM);
+    expect(where(full)).toEqual([0, 0, null]);
+  });
+
+  it('takes a place that lies on something only where it has no other, and stays on one that shows', () => {
+    const rows: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [0, 200],
+        ],
+      ],
+    ];
+    // Its first place lies on a body: it takes its second.
+    const first = placesOf(rows, 2);
+    first.covers[0] = 1;
+    declutter(first, PARAMS);
+    expect(where(first)).toEqual([1]);
+    // Both do: its first, then.
+    const both = placesOf(rows, 2);
+    both.covers[0] = 1;
+    both.covers[1] = 1;
+    declutter(both, PARAMS);
+    expect(where(both)).toEqual([0]);
+    // Showing at its second, it does not go back to a first that lies on more than where it is.
+    const back = placesOf(rows, 2);
+    back.covers[0] = 1;
+    shows(back, [1]);
+    declutter(back, PARAMS);
+    expect(where(back)).toEqual([1]);
+    // And showing at its first, it stays there when a body drifts under it.
+    const under = placesOf(rows, 2);
+    shows(under, [0]);
+    under.covers[0] = 1;
+    declutter(under, PARAMS);
+    expect(where(under)).toEqual([0]);
+  });
+
+  it('with keepSlots, keeps the names that show: one that waits shows once one of them is gone', () => {
+    const SLOTS = {
+      firm: -Infinity,
+      together: -Infinity,
+      keepSlots: true,
+    } satisfies DeclutterRules;
+    const rows = (bGone: boolean): Placed[] => [
+      [80, 40, 1, [[0, 0]]],
+      [80, 40, bGone ? Infinity : 2, [[200, 0]]],
+      [80, 40, 1.5, [[400, 0]]],
+    ];
+    const params = { ...PARAMS, max: 2 };
+    const kept = placesOf(rows(false), 1);
+    shows(kept, [0, 0, null]);
+    declutter(kept, params, undefined, SLOTS);
+    expect(where(kept)).toEqual([0, 0, null]);
+    // Without, the more important name takes B's slot: names are traded as their bodies go round.
+    const traded = placesOf(rows(false), 1);
+    shows(traded, [0, 0, null]);
+    declutter(traded, params);
+    expect(where(traded)).toEqual([0, null, 0]);
+    // B's body goes out of view: C shows.
+    reload(kept, rows(true));
+    declutter(kept, params, undefined, SLOTS);
+    expect(where(kept)).toEqual([0, null, 0]);
+  });
+});
+
+describe('declutter, young labels', () => {
+  const rows: Placed[] = [
+    [
+      80,
+      40,
+      1,
+      [
+        [0, 0],
+        [0, 200],
+      ],
+    ],
+    [80, 40, 2, [[20, 10]]],
+  ];
+
+  it('leaves a young label that is hidden hidden, room or not, and shows it once it is not', () => {
+    const boxes = placesOf([[80, 40, 1, [[0, 0]]]], 1);
+    shows(boxes, [null], [0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([null]);
+    boxes.young[0] = 0;
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0]);
+  });
+
+  it('does not send a young label back to its first place, and does once it is not', () => {
+    const boxes = placesOf(rows.slice(0, 1), 2);
+    shows(boxes, [1], [0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([1]);
+    boxes.young[0] = 0;
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0]);
+  });
+
+  it('does not move a young label to make room for another', () => {
+    const young = placesOf(rows, 2);
+    shows(young, [0, null], [0]);
+    declutter(young, PARAMS);
+    expect(where(young)).toEqual([0, null]);
+    const grown = placesOf(rows, 2);
+    shows(grown, [0, null]);
+    declutter(grown, PARAMS);
+    expect(where(grown)).toEqual([1, 0]);
+  });
+
+  it('still moves a young label where it must: something more important takes its place', () => {
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          2,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 1, [[20, 10]]],
+      ],
+      2,
+    );
+    shows(boxes, [0, null], [0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([1, 0]);
+  });
+
+  it('moves a young label whose place is gone, where one that was hidden stays hidden', () => {
+    // Both young, both with room at their second place; A showed at a place that is no more.
+    const boxes = placesOf(
+      [
+        [80, 40, 1, [null, [0, 200]]],
+        [80, 40, 2, [null, [200, 200]]],
+      ],
+      2,
+    );
+    shows(boxes, [NOWHERE, null], [0, 1]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([1, null]);
+  });
+
+  it('in the group, keeps a young label where it was, and leaves a young one that is hidden out', () => {
+    // A (young) shows at its second place, which is C's only one; its first is free. Every way
+    // of placing the group is tried for C, but A stays: C waits until A is not young.
+    const group: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [0, 200],
+        ],
+      ],
+      [80, 40, 2, [[400, 0]]],
+      [80, 40, 3, [[20, 210]]],
+    ];
+    const boxes = placesOf(group, 2);
+    shows(boxes, [1, 0, null], [0]);
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 0, null]);
+    boxes.young[0] = 0;
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([0, 0, 0]);
+    // B, young and hidden, with room: it stays hidden, and nothing is searched for it.
+    const hidden = placesOf(group, 2);
+    shows(hidden, [0, null, null], [1]);
+    declutter(hidden, PARAMS, undefined, TOGETHER_5);
+    expect(where(hidden)).toEqual([0, null, 0]);
+  });
+
+  it('in the group, lets a label stay a keep closer than the gap where it was, as it would alone', () => {
+    // A, B and D (systems' names) show at their first places; C, the fourth, has one place, under
+    // A and D at once. Placed together, A and D move and C shows. B, a little closer than the gap
+    // to the dock prompt, stays where it is: it showed there, and the keep lets it.
+    const taken = createTakenBoxes(1);
+    taken.count = 1;
+    Object.assign(taken.boxes[0] ?? {}, { left: 382, top: 0, width: 50, height: 40 });
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [
+          80,
+          40,
+          2,
+          [
+            [300, 0],
+            [300, 200],
+          ],
+        ],
+        [
+          80,
+          40,
+          3,
+          [
+            [150, 0],
+            [150, 200],
+          ],
+        ],
+        [90, 40, 4, [[70, 10]]],
+      ],
+      2,
+    );
+    shows(boxes, [0, 0, 0, null]);
+    declutter(boxes, PARAMS, taken, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 0, 1, 0]);
+  });
+
+  it('in the group, does not show a young label that was hidden, even while searching for another', () => {
+    // C, the fourth system's name, has one place, under A and D at once: every way of placing the
+    // group is tried for it. B has room, but it hid a moment ago (young): the search leaves it
+    // out, as placing one by one does.
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 2, [[400, 0]]],
+        [
+          80,
+          40,
+          2.5,
+          [
+            [150, 0],
+            [150, 200],
+          ],
+        ],
+        [90, 40, 3, [[70, 10]]],
+      ],
+      2,
+    );
+    shows(boxes, [0, null, 0, null], [1]);
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, null, 1, 0]);
+  });
+
+  it('in the group, moves nothing for a search that shows no more than there was', () => {
+    // A goes back to its first place, which has room again. C's only place is under the dock
+    // prompt: the search for it finds no way to show more, and leaves A where it went.
+    const taken = createTakenBoxes(1);
+    taken.count = 1;
+    Object.assign(taken.boxes[0] ?? {}, { left: 290, top: 0, width: 100, height: 60 });
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 3, [[300, 0]]],
+      ],
+      2,
+    );
+    shows(boxes, [1, null]);
+    declutter(boxes, PARAMS, taken, TOGETHER_5);
+    expect(where(boxes)).toEqual([0, null]);
+  });
+});
+
+describe('declutter, at rest', () => {
+  it('settles within the frame: a move that makes room is followed at once, not a frame later', () => {
+    // A shows at its second place: its first is where C showed. B comes, and C moves aside for
+    // it. A's first place is then free: A goes back to it in the same call.
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 2, [[100, 60]]],
+        [
+          80,
+          40,
+          3,
+          [
+            [40, 30],
+            [300, 300],
+          ],
+        ],
+      ],
+      2,
+    );
+    shows(boxes, [1, null, 0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0, 0, 1]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0, 0, 1]);
+  });
+
+  it('comes to rest: every sky, once held still, stands within a few calls and then holds', () => {
+    // Random crowded skies, four places a label, that drift for a while (places moving, coming
+    // and going) and are then held still. Half as the star map has them: a label that waits goes
+    // after those of its rank that show (ui/Labels.ts), the firm first, the most important rank
+    // placed together, `keepSlots`, and a label that has just changed young for the next
+    // `DWELL` calls. Half as in flight: fixed priorities, one kind, none young.
+    const rng = createRng('at rest');
+    const COUNT = 16;
+    const PLACES = 4;
+    const STEP = 1e6;
+    const ON_MAP = { firm: STEP, together: 2 * STEP, keepSlots: true } satisfies DeclutterRules;
+    const params = { ...PARAMS, max: 10 };
+    const DRIFT = 12;
+    const HOLD = 20;
+    const DWELL = 3;
+    let latest = -1;
+    for (let sky = 0; sky < 400; sky += 1) {
+      const map = sky % 2 === 0;
+      const boxes = createLabelBoxes(COUNT, PLACES);
+      boxes.count = COUNT;
+      const rank: number[] = [];
+      const near: number[] = [];
+      for (let row = 0; row < COUNT; row += 1) {
+        rank.push(rng() < 0.05 ? 0.5 : 1 + Math.floor(rng() * 3));
+        near.push(rng() * 1000);
+        boxes.width[row] = 40 + rng() * 80;
+        boxes.height[row] = 40;
+        for (let p = 0; p < PLACES; p += 1) {
+          boxes.left[row * PLACES + p] = rng() * 400;
+          boxes.top[row * PLACES + p] = rng() * 300;
+        }
+      }
+      const changed = new Array<number>(COUNT).fill(-Infinity);
+      let before = where(boxes);
+      let last = -1;
+      for (let call = 0; call < DRIFT + HOLD; call += 1) {
+        const drifting = call < DRIFT;
+        for (let row = 0; row < COUNT; row += 1) {
+          for (let p = 0; drifting && p < PLACES; p += 1) {
+            const at = row * PLACES + p;
+            boxes.left[at] = (boxes.left[at] ?? 0) + (rng() - 0.5) * 24;
+            boxes.top[at] = (boxes.top[at] ?? 0) + (rng() - 0.5) * 24;
+            boxes.covers[at] = rng() < 0.2 ? 1 : 0;
+          }
+          // A place that is gone (as the caller says: ui/Labels.ts).
+          const gone = drifting && rng() < 0.1 ? Math.floor(rng() * PLACES) : -1;
+          if (gone >= 0) boxes.left[row * PLACES + gone] = Number.NaN;
+          if (gone >= 0 && boxes.at[row] === gone) boxes.at[row] = NOWHERE;
+          const wait = map && !boxes.shown[row] ? STEP / 4 : 0;
+          boxes.priority[row] = (rank[row] ?? 3) * STEP + wait + (near[row] ?? 0);
+          boxes.young[row] = map && call - (changed[row] ?? -Infinity) < DWELL ? 1 : 0;
+        }
+        declutter(boxes, params, undefined, map ? ON_MAP : undefined);
+        const now = where(boxes);
+        now.forEach((place, row) => {
+          if (place === before[row]) return;
+          changed[row] = call;
+          if (!drifting) last = call - DRIFT;
+        });
+        before = now;
+        // Never more than may show, nothing where it has no place, and no two closer than a keep
+        // inside the gap.
+        const on = now.flatMap((place, row) => (place === null ? [] : [{ row, place }]));
+        expect(on.length).toBeLessThanOrEqual(params.max);
+        for (const a of on) {
+          const box = boxAt(boxes, a.row, a.place);
+          expect(Number.isFinite(box.left), `sky ${sky}: ${a.row} has no place`).toBe(true);
+          for (const b of on) {
+            if (b.row <= a.row) continue;
+            const other = boxAt(boxes, b.row, b.place);
+            expect(
+              gapBetween(box, other),
+              `sky ${sky}, call ${call}: ${a.row} and ${b.row}`,
+            ).toBeGreaterThanOrEqual(PARAMS.gapPx - PARAMS.keepPx);
+          }
+        }
+      }
+      expect(last, `sky ${sky} still changing`).toBeLessThan(HOLD - 2 * DWELL);
+      latest = Math.max(latest, last);
+    }
+    // The changes that come once the sky stops are the young labels' last few, held back by the
+    // dwell; then nothing.
+    expect(latest).toBeLessThanOrEqual(DWELL);
+  });
+});
+
+/** Say where each label showed last time (null: it did not; NOWHERE: at a place now gone). */
+function shows(
+  boxes: LabelBoxes,
+  places: readonly (number | null)[],
+  young: readonly number[] = [],
+): void {
+  places.forEach((place, row) => {
+    boxes.shown[row] = place === null ? 0 : 1;
+    boxes.at[row] = place ?? 0;
+  });
+  boxes.young.fill(0);
+  for (const row of young) boxes.young[row] = 1;
+}
+
+function boxAt(boxes: LabelBoxes, row: number, place: number) {
+  const at = row * boxes.places + place;
+  return {
+    left: boxes.left[at] ?? Number.NaN,
+    top: boxes.top[at] ?? Number.NaN,
+    width: boxes.width[row] ?? 0,
+    height: boxes.height[row] ?? 0,
+  };
+}
+
+/** How far apart two boxes are (CSS px): negative by as much as they overlap, both ways. */
+function gapBetween(a: ReturnType<typeof boxAt>, b: ReturnType<typeof boxAt>): number {
+  return Math.max(
+    a.left - (b.left + b.width),
+    b.left - (a.left + a.width),
+    a.top - (b.top + b.height),
+    b.top - (a.top + a.height),
+  );
+}
 
 describe('verticalClearance', () => {
   const box = { left: 100, top: 100, width: 20, height: 20 };

@@ -132,30 +132,6 @@ describe('the map, fitting the galaxy', () => {
     expect(view.z).toBeCloseTo(-66 + 550, 9);
   });
 
-  it('lets the view past the top and the bottom as far as a name needs there, and no further', () => {
-    // A body at the very top or bottom of the galaxy has its name above it or below it: the map
-    // goes that much further (`pastPx`: main.ts asks the names), so that it can be brought in.
-    // Across, a name has other places (beside its body, slid along it), and the pad it had.
-    const bounds = boundsOf(SYSTEMS);
-    const padded = { ...PARAMS, fitPadPx: 40 };
-    // 0.5 u a pixel, as above: a 40 px pad is 20 u, and 70 px past is 35 u.
-    const view = clampView({ x: 5000, z: -5000, span: 400 }, bounds, DESKTOP, padded, 70);
-    expect(view).toEqual({ x: 66 - 320 + 20, z: -66 + 200 - 35, span: 400 });
-    clampView(Object.assign(view, { x: -5000, z: 5000 }), bounds, DESKTOP, padded, 70);
-    expect(view).toEqual({ x: -938 + 320 - 20, z: 821 - 200 + 35, span: 400 });
-    // Less than the pad is the pad, as it always was.
-    for (const pastPx of [0, 10, 40]) {
-      clampView(Object.assign(view, { z: -5000 }), bounds, DESKTOP, padded, pastPx);
-      expect(view.z).toBe(-66 + 200 - 20);
-    }
-    // A view bigger than the galaxy keeps all of it in view, however far past it may go.
-    for (const z of [5000, -5000]) {
-      const far = clampView({ x: 0, z, span: 1100 }, bounds, DESKTOP, padded, 70);
-      const near = clampView({ x: 0, z, span: 1100 }, bounds, DESKTOP, padded);
-      expect(far.z).toBeCloseTo(near.z, 9);
-    }
-  });
-
   it('takes in the ship, wherever it is', () => {
     const bounds = boundsOf(SYSTEMS);
     const out = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };

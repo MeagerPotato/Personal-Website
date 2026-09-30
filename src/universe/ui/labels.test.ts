@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Frame } from '../core/Engine';
 import type { ScreenBox } from '../sim/declutter';
 import { createScreenMap, type ScreenMap } from '../sim/screen';
 import { Labels } from './Labels';
@@ -12,7 +13,18 @@ const PARAMS = {
   gapPx: 4,
   keepPx: 8,
   max: 14,
+  dwellSec: 1,
 };
+
+/**
+ * The engine's frames, one after another: `tick()` is the next, a 60th of a second on, and
+ * `tick(seconds)` one that long after the last.
+ */
+let elapsed = 0;
+function tick(seconds = 1 / 60): Frame {
+  elapsed += seconds;
+  return { elapsed, dt: Math.min(seconds, 0.1), alpha: 1, simTime: elapsed };
+}
 
 const BODIES = [
   { title: 'Code', kind: 'sun' },
@@ -61,7 +73,7 @@ function setup(rows: readonly Row[]) {
     onMap: () => state.onMap,
   });
   labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
-  labels.frameUpdate();
+  labels.frameUpdate(tick());
   const button = (title: string): HTMLButtonElement =>
     [...overlay.querySelectorAll('button')].find(
       (candidate) => candidate.textContent === title,
@@ -177,7 +189,7 @@ describe('Labels', () => {
     });
     cleanup = () => labels.dispose();
     labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     const [sun, planet, moon] = [...overlay.querySelectorAll('button')];
     if (!sun || !planet || !moon) throw new Error('no names');
     // The name it is known by, read out: "Sports Analysis, Planned".
@@ -216,12 +228,12 @@ describe('Labels', () => {
     cleanup = () => labels.dispose();
     const name = button('FishAI');
     Object.defineProperty(name, 'offsetWidth', { value: 100, configurable: true });
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     // Measured once: the new size is not read on every frame...
     expect(drawn(name)).toMatchObject({ x: 367, y: 442 });
     // ...but on request, and the name is centred under its body again.
     labels.remeasure();
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(drawn(name)).toMatchObject({ x: 350, y: 442 });
   });
 
@@ -230,7 +242,7 @@ describe('Labels', () => {
     cleanup = () => labels.dispose();
     screen.x[1] = 410.04;
     screen.y[1] = 395.5;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(drawn(button('FishAI'))).toMatchObject({ x: 377, y: 437.5 });
   });
 
@@ -250,11 +262,11 @@ describe('Labels', () => {
     const { labels, view, shown } = setup(SPREAD);
     cleanup = () => labels.dispose();
     view.freeWidth = 0.6; // a side panel over the right 40%: 720 px are free
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['FishAI', 'Canadian Fish', 'About']);
     view.freeWidth = 1;
     view.freeHeight = 0.5; // a bottom sheet: 400 px are free
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'About']);
   });
 
@@ -265,10 +277,10 @@ describe('Labels', () => {
     expect(shown()).toEqual(['Code']);
     // ...but a phone's bar is two rows: 104 px, and names keep their distance from its edge too.
     labels.setTop(104);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual([]);
     labels.setTop(70);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code']);
   });
 
@@ -278,10 +290,10 @@ describe('Labels', () => {
     state.target = 1;
     // The dock prompt, right where FishAI's name is (367..433 x 442..486).
     state.prompt = { left: 300, top: 460, width: 220, height: 44 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
     state.prompt = null;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
@@ -305,12 +317,12 @@ describe('Labels', () => {
     ]);
     cleanup = () => labels.dispose();
     state.target = 2;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Canadian Fish', 'About']);
     expect(button('Canadian Fish').dataset.state).toBe('target');
 
     state.target = -1;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(button('Canadian Fish').dataset.state).toBeUndefined();
     expect(shown()).toEqual(['Code', 'About']);
   });
@@ -320,7 +332,7 @@ describe('Labels', () => {
     cleanup = () => labels.dispose();
     state.target = 1;
     state.docked = true;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
   });
 
@@ -336,12 +348,12 @@ describe('Labels', () => {
       [420, 330, 6, 50],
       [200, 300, 30, 300],
     ]);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'About']);
 
     // Past its edge, the moon has its name again.
     screen.x[2] = 620;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'Canadian Fish', 'About']);
   });
 
@@ -352,7 +364,7 @@ describe('Labels', () => {
     state.target = 1;
     // The ship's marker, parked in the middle of FishAI's usual place (367..433 x 442..486).
     state.ship = { left: 390, top: 450, width: 18, height: 18 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
     // Above: 400 - 40 - 2 - 44, and CSS is told, to draw the tag at the bottom of the button.
     expect(drawn(button('FishAI'))).toMatchObject({ x: 367, y: 314 });
@@ -360,7 +372,7 @@ describe('Labels', () => {
 
     // The ship has gone: under its body again.
     state.ship = { left: 700, top: 650, width: 18, height: 18 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(drawn(button('FishAI'))).toMatchObject({ x: 367, y: 442 });
     expect(button('FishAI').dataset.side).toBeUndefined();
   });
@@ -371,30 +383,30 @@ describe('Labels', () => {
     cleanup = () => labels.dispose();
     state.onMap = true;
     screen.y[2] = 120;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(drawn(button('Canadian Fish'))).toMatchObject({ x: 542.5, y: 128 });
 
     // The ship just over the top of the name (to 131): the name glides down to 135, a gap clear.
     state.ship = { left: 591, top: 113, width: 18, height: 18 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('Canadian Fish');
     expect(drawn(button('Canadian Fish'))).toMatchObject({ x: 542.5, y: 135 });
 
     // Right over the name: it would have to go 34 px from its body. It makes way instead...
     state.ship = { left: 591, top: 140, width: 18, height: 18 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'About']);
 
     // ...unless it is where the ship is going, or the keyboard is on it: those glide on.
     state.target = 2;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('Canadian Fish');
     expect(drawn(button('Canadian Fish'))).toMatchObject({ x: 542.5, y: 162 });
     state.target = -1;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).not.toContain('Canadian Fish');
     button('Canadian Fish').dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('Canadian Fish');
   });
 
@@ -413,7 +425,7 @@ describe('Labels', () => {
         const cx = x + 55 * Math.cos(angle);
         const cy = y + 55 * Math.sin(angle);
         state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
-        labels.frameUpdate();
+        labels.frameUpdate(tick());
         const name = button('About');
         if (!('shown' in name.dataset)) {
           hidden += 1;
@@ -443,7 +455,7 @@ describe('Labels', () => {
         state.onMap = true;
         state.target = 2; // Canadian Fish, at (600, 380)
         screen.radius[2] = radius;
-        labels.frameUpdate(); // marks the target; the next frame measures its longer tag
+        labels.frameUpdate(tick()); // marks the target; the next frame measures its longer tag
         const name = button('Canadian Fish');
         let hidden = 0;
         let hops = 0;
@@ -454,7 +466,7 @@ describe('Labels', () => {
           const cx = 600 + ring * Math.cos(angle);
           const cy = 380 + ring * Math.sin(angle);
           state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
-          labels.frameUpdate();
+          labels.frameUpdate(tick());
           if (!('shown' in name.dataset)) {
             hidden += 1;
             continue;
@@ -486,8 +498,8 @@ describe('Labels', () => {
     screen.y[3] = 292;
     screen.radius[3] = 8;
     state.target = 3;
-    labels.frameUpdate();
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
+    labels.frameUpdate(tick());
     // In flight a name does not hop round its body: no room below, no name.
     expect(shown()).not.toContain('About');
 
@@ -498,7 +510,7 @@ describe('Labels', () => {
       const cx = 118 + 3.8 * Math.cos(angle);
       const cy = 292 + 3.8 * Math.sin(angle);
       state.ship = { left: cx - 9, top: cy - 9, width: 18, height: 18 };
-      labels.frameUpdate();
+      labels.frameUpdate(tick());
       expect('shown' in name.dataset, `step ${step}`).toBe(true);
       const tag = tagOf(name, 26, 12);
       expect(tag.top + tag.height).toBeLessThanOrEqual(292 - 8);
@@ -506,7 +518,7 @@ describe('Labels', () => {
     }
     // With the ship away, it sits just over the body, as a name below sits just under it.
     state.ship = null;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(tagOf(name, 26, 12).top).toBeCloseTo(292 - 8 - 2 - 26, 5);
   });
 
@@ -515,10 +527,10 @@ describe('Labels', () => {
     const { labels, shown } = setup(SPREAD);
     cleanup = () => labels.dispose();
     labels.setFoot({ right: 180, top: 360 });
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish']);
     labels.setFoot(null);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
@@ -528,13 +540,16 @@ describe('Labels', () => {
     state.onMap = true;
     // The footer chip over About's usual place (170.5..229.5 x 332..376)...
     labels.setFoot({ right: 180, top: 360 });
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
     // ...so it sits above: 300 - 30 - 2 - 44 (no layout here, so the tag is the whole box).
     expect(drawn(button('About'))).toMatchObject({ x: 170.5, y: 224 });
-    // And back below once the chip is gone.
+    // And back below once the chip is gone: not at once (it has only just moved, and makes no
+    // other move of its own for a while, `dwellSec`), but a second later.
     labels.setFoot(null);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
+    expect(drawn(button('About'))).toMatchObject({ x: 170.5, y: 224 });
+    labels.frameUpdate(tick(1));
     expect(drawn(button('About'))).toMatchObject({ x: 170.5, y: 332 });
   });
 
@@ -546,7 +561,7 @@ describe('Labels', () => {
     state.onMap = true;
     labels.setFoot({ right: 180, top: 360 });
     screen.x[3] = 200.04;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(drawn(button('About'))).toEqual({ x: 170.5, y: 224, body: { x: 200, y: 300 } });
   });
 
@@ -554,14 +569,14 @@ describe('Labels', () => {
     drawnTags();
     const { labels, screen, state, button, shown } = setup(SPREAD);
     cleanup = () => labels.dispose();
-    // Code's name is 52 px wide; centred under a sun 25 px from the right edge (1200), it would
+    // Code's name is 52 px wide; centred under a sun 30 px from the right edge (1200), it would
     // cross the 8 px the names keep from it.
-    screen.x[0] = 1175;
-    labels.frameUpdate();
+    screen.x[0] = 1170;
+    labels.frameUpdate(tick());
     expect(shown()).not.toContain('Code');
 
     state.onMap = true;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('Code');
     // As far right as it may go, and still under its sun: the sun is over its tag, past the tag's
     // round end (13 px, half the tag's height).
@@ -571,13 +586,42 @@ describe('Labels', () => {
     expect(at.body.x).toBeLessThanOrEqual(at.x + 52 - 13);
     expect(button('Code').dataset.side).toBeUndefined();
 
-    // Too close to the edge for that (the sun would be past the tag's round end), it goes beside
-    // its sun instead: to the left, where there is room, in line with the sun, 2 px off its disc.
+    // It stays there as long as the sun is over its tag, past that round end (to 1179)...
+    screen.x[0] = 1178;
+    labels.frameUpdate(tick());
+    expect(drawn(button('Code'))).toMatchObject({ x: 1140, y: 314 });
+    expect(button('Code').dataset.side).toBeUndefined();
+
+    // ...and too close to the edge for that, it goes beside its sun instead: to the left, where
+    // there is room, in line with the sun, 2 px off its disc.
     screen.x[0] = 1186;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('Code');
     expect(button('Code').dataset.side).toBe('left');
     expect(drawn(button('Code'))).toMatchObject({ x: 1186 - 12 - 2 - 52, y: 300 - 22 });
+
+    // A name that is not slid there already takes that place only with room to spare (the sun a
+    // keep, 8 px, further in than the round end): so none comes and goes as its body drifts by
+    // a pixel at the edge. At 1178 it goes beside its sun...
+    // (Both hidden in flight first: there a name at the edge does not slide.)
+    const fresh = setup(SPREAD);
+    labels.dispose();
+    cleanup = () => fresh.labels.dispose();
+    fresh.screen.x[0] = 1178;
+    fresh.labels.frameUpdate(tick());
+    fresh.state.onMap = true;
+    fresh.labels.frameUpdate(tick());
+    expect(fresh.button('Code').dataset.side).toBe('left');
+    // ...and at 1171 it slides.
+    const again = setup(SPREAD);
+    fresh.labels.dispose();
+    cleanup = () => again.labels.dispose();
+    again.screen.x[0] = 1171;
+    again.labels.frameUpdate(tick());
+    again.state.onMap = true;
+    again.labels.frameUpdate(tick());
+    expect(again.button('Code').dataset.side).toBeUndefined();
+    expect(drawn(again.button('Code'))).toMatchObject({ x: 1140, y: 314 });
   });
 
   it('on the map, puts a name with no room below its body or above it beside it, the way in first', () => {
@@ -586,11 +630,11 @@ describe('Labels', () => {
     // Something that can be pressed, over FishAI and above and below it (its name is 66 px wide,
     // under a planet of 40 px radius), and not beside it.
     state.prompt = { left: 360, top: 300, width: 76, height: 200 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).not.toContain('FishAI');
 
     state.onMap = true;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toContain('FishAI');
     // To the right: towards the middle of the view, the planet being left of it.
     expect(button('FishAI').dataset.side).toBe('right');
@@ -600,11 +644,14 @@ describe('Labels', () => {
     // stays on the right, though the way in is now the left.
     screen.x[1] = 800;
     state.prompt = { left: 764, top: 300, width: 76, height: 200 };
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(button('FishAI').dataset.side).toBe('right');
-    // And under it again once there is room there (and to spare: it does not hop back and forth).
+    // And under it again once there is room there (and to spare: it does not hop back and forth),
+    // and it has shown a while where it is (`dwellSec`: it appeared only a moment ago).
     state.prompt = null;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
+    expect(button('FishAI').dataset.side).toBe('right');
+    labels.frameUpdate(tick(1));
     expect(button('FishAI').dataset.side).toBeUndefined();
     expect(drawn(button('FishAI'))).toMatchObject({ x: 800 - 33, y: 442 });
 
@@ -615,16 +662,183 @@ describe('Labels', () => {
     fresh.state.onMap = true;
     fresh.screen.x[1] = 800;
     fresh.state.prompt = { left: 764, top: 300, width: 76, height: 200 };
-    fresh.labels.frameUpdate();
+    fresh.labels.frameUpdate(tick());
     expect(fresh.button('FishAI').dataset.side).toBe('left');
     expect(drawn(fresh.button('FishAI'))).toMatchObject({ x: 800 - 40 - 2 - 66, y: 400 - 22 });
   });
 
-  it('says how much room a name needs past its body, once the names are measured', () => {
-    const { labels } = setup(SPREAD);
+  it('on the map, with room on both sides of a body and nowhere else, names it on the side towards the middle', () => {
+    const { labels, state, button, shown } = setup(SPREAD);
     cleanup = () => labels.dispose();
-    // The gap off the body, the 44 px box, and the gap from the edge of the view.
-    expect(labels.roomPx).toBe(2 + 44 + 8);
+    state.onMap = true;
+    // FishAI, left of the middle of the view (600): the footer chip under it, the dock prompt over
+    // it, and room on either side of it.
+    state.prompt = { left: 366, top: 300, width: 68, height: 70 };
+    labels.setFoot({ right: 500, top: 440 });
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('FishAI');
+    expect(button('FishAI').dataset.side).toBe('right');
+
+    // Right of the middle, the other way.
+    const fresh = setup(SPREAD);
+    labels.dispose();
+    cleanup = () => fresh.labels.dispose();
+    fresh.state.onMap = true;
+    fresh.screen.x[1] = 800;
+    fresh.state.prompt = { left: 766, top: 300, width: 68, height: 70 };
+    fresh.labels.setFoot({ right: 900, top: 440 });
+    fresh.labels.frameUpdate(tick());
+    expect(fresh.shown()).toContain('FishAI');
+    expect(fresh.button('FishAI').dataset.side).toBe('left');
+  });
+
+  it('on the map, reaches along its body where only that has room, however the pixels round', () => {
+    drawnTags();
+    const { labels, screen, state, button, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    // A sun just right of FishAI (66 px wide): its name is over FishAI's place below and the one
+    // beside it on the right; the dock prompt is over its places above and on the left. Below it,
+    // reaching left along it (the planet over the right end of its tag), there is room. At
+    // 501.07 px the tag's left edge plus its width, less the round end, comes to a hair short of
+    // the planet.
+    put(screen, [
+      [551.07, 300, 12, 1000],
+      [501.07, 300, 12, 120],
+      [600, 380, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    state.prompt = { left: 380, top: 200, width: 150, height: 100 };
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('FishAI');
+    expect(button('FishAI').dataset.side).toBeUndefined();
+    const at = drawn(button('FishAI'));
+    expect(at).toMatchObject({ x: 448.1, y: 314 });
+    expect(at.body.x).toBeCloseTo(at.x + 66 - 13, 5);
+  });
+
+  it('on the map, leaves the room with the name that shows, and between two that wait gives it to the one nearer the middle', () => {
+    // The sun's name and home's (both systems' names) want the same room. Out of view in flight.
+    const away: Row[] = [
+      [900, 300, 12, -1],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [200, 300, 30, -1],
+    ];
+    const { labels, screen, state, button } = setup(away);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    // Both come into view at once: Code 36 px from the middle of the view (600, 436), About 41.5.
+    // About is nearer the camera, which is what decides in flight; on the map, where the visitor
+    // is looking does. Code's name goes under its sun, About's elsewhere.
+    put(screen, [
+      [600, 400, 12, 1000],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [640, 425, 12, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(drawn(button('Code'))).toMatchObject({ x: 574, y: 414 });
+    expect(button('About').dataset.shown).toBeDefined();
+
+    // Code's name has shown for a while when About comes into view, nearer the middle and nearer
+    // the camera, where its name would want that room. Code's stays: a name that waits takes only
+    // the room that is left.
+    const fresh = setup(away);
+    labels.dispose();
+    cleanup = () => fresh.labels.dispose();
+    fresh.state.onMap = true;
+    put(fresh.screen, [
+      [640, 425, 12, 1000],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [200, 300, 30, -1],
+    ]);
+    fresh.labels.frameUpdate(tick());
+    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 614, y: 439 });
+    fresh.labels.frameUpdate(tick(1));
+    fresh.screen.x[3] = 600;
+    fresh.screen.y[3] = 400;
+    fresh.screen.radius[3] = 12;
+    fresh.screen.depth[3] = 300;
+    fresh.labels.frameUpdate(tick());
+    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 614, y: 439 });
+    expect(fresh.button('About').dataset.shown).toBeDefined();
+  });
+
+  it('on the map, puts a new name where its tag lies on no other body, where it has such a place', () => {
+    // FishAI is out of view in flight...
+    const { labels, screen, state, button } = setup([
+      [900, 300, 12, 1000],
+      [400, 400, 40, -1],
+      [600, 380, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    // ...and comes into view on the map with Canadian Fish's disc just under the bottom of where
+    // its name would go below it (to 486; the moon's own name hangs below the moon, clear of it).
+    // It goes above instead, where it covers nothing.
+    put(screen, [
+      [900, 300, 12, 1000],
+      [400, 400, 40, 120],
+      [400, 490, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(button('FishAI').dataset.side).toBe('above');
+    expect(drawn(button('FishAI'))).toMatchObject({ x: 367, y: 400 - 40 - 2 - 44 });
+  });
+
+  it('on the map, asks more room of a place a name is not at yet: past the ship, and from the edges', () => {
+    // Canadian Fish and FishAI are out of view in flight.
+    const { labels, screen, state, shown, button } = setup([
+      [900, 300, 12, 1000],
+      [400, 400, 40, -1],
+      [600, 380, 6, -1],
+      [200, 300, 30, 300],
+    ]);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    // The moon comes into view under the top bar (no room above it), the ship's marker just over
+    // where its name would go (128..172): the name would have to glide 7 px down past it, more
+    // than the gap. One that showed there could (a keep more: the test above); a new one does
+    // not come.
+    screen.y[2] = 120;
+    screen.depth[2] = 140;
+    state.ship = { left: 591, top: 113, width: 18, height: 18 };
+    labels.frameUpdate(tick());
+    expect(shown()).not.toContain('Canadian Fish');
+    // 3 px, within the gap: it comes, glided.
+    state.ship = { left: 591, top: 109, width: 18, height: 18 };
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('Canadian Fish');
+    expect(drawn(button('Canadian Fish'))).toMatchObject({ x: 542.5, y: 131 });
+
+    // FishAI comes into view near the bottom of the view: below it its name would end 4 px above
+    // the edge (at 788, the view ending at 792), which is room enough for a name there already
+    // but not for a new one (a keep, 8 px, to spare). It goes above.
+    screen.y[1] = 702;
+    screen.depth[1] = 120;
+    labels.frameUpdate(tick());
+    expect(button('FishAI').dataset.side).toBe('above');
+
+    // Showing below already, it stays there as its body drifts down to the same spot.
+    const fresh = setup([
+      [900, 300, 12, 1000],
+      [400, 690, 40, 120],
+      [600, 380, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    labels.dispose();
+    cleanup = () => fresh.labels.dispose();
+    fresh.state.onMap = true;
+    fresh.labels.frameUpdate(tick());
+    expect(fresh.button('FishAI').dataset.side).toBeUndefined();
+    fresh.screen.y[1] = 702;
+    fresh.labels.frameUpdate(tick());
+    expect(fresh.button('FishAI').dataset.side).toBeUndefined();
+    expect(drawn(fresh.button('FishAI'))).toMatchObject({ x: 367, y: 744 });
   });
 
   it('never takes a name away from under the keyboard', () => {
@@ -635,11 +849,11 @@ describe('Labels', () => {
     // ...and the sun drifts right behind it, with a name that would normally win.
     screen.x[0] = 605;
     screen.y[0] = 375;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['FishAI', 'Canadian Fish', 'About']);
 
     button('Canadian Fish').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'FishAI', 'About']);
   });
 
@@ -684,7 +898,7 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     });
     cleanup = () => labels.dispose();
     labels.resize({ width: 1200, height: 800, pixelRatio: 1 });
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     const link = (title: string): HTMLAnchorElement =>
       [...overlay.querySelectorAll('a')].find(
         (candidate) => candidate.textContent === title,
@@ -735,12 +949,12 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     labels.beckon(2);
     // Not yet: a name is only focused once it shows.
     expect(document.activeElement).not.toBe(github);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(document.activeElement).toBe(github);
     expect(github.dataset.beckon).toBe('');
     // Nothing but a link is ever beckoned.
     labels.beckon(1);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(document.activeElement).toBe(github);
     expect(overlay.querySelector('button')?.dataset.beckon).toBeUndefined();
     // Lit only while it has the focus.
@@ -753,13 +967,13 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     // LinkedIn's body drifts right under GitHub's: one of the two names must go...
     screen.x[3] = 705;
     screen.y[3] = 302;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     const shows = (title: string): boolean => link(title).dataset.shown === '';
     expect(shows('GitHub') !== shows('LinkedIn')).toBe(true);
     const hidden = shows('GitHub') ? 'LinkedIn' : 'GitHub';
     // ...and the one pointed at is the one that stays, with the focus.
     labels.beckon(hidden === 'GitHub' ? 2 : 3);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shows(hidden)).toBe(true);
     expect(document.activeElement).toBe(link(hidden));
     // It stays on the frames after, once the beckon is spent, because the keyboard is on it: even
@@ -769,13 +983,13 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     screen.y[theirs] = screen.y[mine] ?? 0;
     screen.depth[theirs] = 100;
     for (let frame = 0; frame < 3; frame += 1) {
-      labels.frameUpdate();
+      labels.frameUpdate(tick());
       expect(shows(hidden)).toBe(true);
     }
     expect(document.activeElement).toBe(link(hidden));
     // Once the focus moves on, the nearer name has the room.
     link(hidden).blur();
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(shows(hidden)).toBe(false);
   });
 
@@ -783,12 +997,12 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
     const { labels, screen, link } = linked();
     screen.depth[2] = -1;
     labels.beckon(2);
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(document.activeElement).not.toBe(link('GitHub'));
     expect(link('GitHub').dataset.beckon).toBeUndefined();
     // Nor later, once it is in view again: a beckon is for the moment it was asked.
     screen.depth[2] = 300;
-    labels.frameUpdate();
+    labels.frameUpdate(tick());
     expect(document.activeElement).not.toBe(link('GitHub'));
   });
 

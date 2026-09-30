@@ -1,4 +1,4 @@
-import type { System, Viewport } from '../core/Engine';
+import type { Frame, System, Viewport } from '../core/Engine';
 import type { ManifestBody } from '../manifest';
 import {
   createLabelBoxes,
@@ -8,6 +8,7 @@ import {
   NOWHERE,
   verticalClearance,
   type DeclutterParams,
+  type DeclutterRules,
   type ScreenBox,
 } from '../sim/declutter';
 import type { ScreenMap } from '../sim/screen';
@@ -24,6 +25,12 @@ export interface LabelsParams extends DeclutterParams {
   readonly edgePx: number;
   /** No name starts higher than this, even if nobody says how tall the top bar is (`setTop`). */
   readonly topPx: number;
+  /**
+   * On the map, a name that has just appeared, hidden or changed places makes no other change of
+   * its own accord for this long (s): it does not come back, go back to its first place, nor move
+   * aside for another. It still gives way where it must.
+   */
+  readonly dwellSec: number;
 }
 
 export interface LabelsOptions {
@@ -93,6 +100,8 @@ const SIDE_NAMES = [undefined, 'above', 'right', 'left'] as const;
 const PLACES = 8;
 /** Which way a tag reaches along its body: centred, or all to one side of it. */
 type Reach = -1 | 0 | 1;
+/** Far below anything anyone can see (CSS px), and far above a double's rounding. */
+const HAIR_PX = 1e-3;
 
 /**
  * Suns and the home planet name a whole system; moons are the small print. A link ranks with the
@@ -108,18 +117,44 @@ const RANK: Record<BodyKind, number> = {
   moon: 3,
 };
 /**
- * Ranks are this far apart, so that nearness (in flight the distance from the camera, u; on the
- * map the distance from the middle of the view, CSS px) only ever decides WITHIN a rank.
+ * Ranks are this far apart, so that what decides WITHIN a rank never crosses into the next: in
+ * flight, nearness (the distance from the camera, u); on the map, first whether the name shows
+ * already (`WAITING`), then nearness (the distance from the middle of the view, CSS px).
  */
 const RANK_STEP = 1e6;
-/** On the map, every name ranked with the systems or above them is placed together (declutter). */
-const SYSTEMS_TOGETHER = (RANK.sun + 1) * RANK_STEP;
+/**
+ * On the map, a name that does not show yet waits behind every name of its rank that does: it
+ * takes the room that is left, and never the room of one that shows (sim/declutter.ts). Nearness
+ * decides only between two that both show, or both wait, and is counted up to `NEAR_MAX` px.
+ */
+const WAITING = RANK_STEP / 4;
+const NEAR_MAX = WAITING - 1;
+/**
+ * Who gives way to whom (sim/declutter.ts). The name of where the ship is going and the one under
+ * the keyboard are placed first and never moved, nor left out, for another. On the map the
+ * systems' names come next, placed together, every way of fitting them all tried before one is
+ * left out; they move for each other, and for a planet's only back to their first places; and
+ * the names that show keep their places in `max` (14 names, which a laptop's map fills at its
+ * first view two times in three): a name that waits for one shows once one is free, not by taking
+ * another's.
+ */
+const IN_FLIGHT: DeclutterRules = {
+  firm: RANK.sun * RANK_STEP,
+  together: -Infinity,
+  keepSlots: false,
+};
+const ON_MAP: DeclutterRules = {
+  firm: RANK.sun * RANK_STEP,
+  together: (RANK.sun + 1) * RANK_STEP,
+  keepSlots: true,
+};
 
 /**
  * NAMES OVER THE BODIES (docs/PLAN.md §5.5): one real <button> per body, so a name can be tapped,
  * tabbed to and read out, and pressing it flies there like pointing at the body itself. The
  * engine decides where each one is and which may show (sim/declutter.ts: important first, never
- * touching, never flickering); how they LOOK is CSS (`.body-label` in src/styles/global.css).
+ * touching, and steady: tests/map-names/ counts every change over a whole turn); how they LOOK
+ * is CSS (`.body-label` in src/styles/global.css).
  *
  * A link's name (a profile elsewhere: GitHub) is a real <a> instead, in a group of its own,
  * "Elsewhere": a link that leaves the site is not a way to fly. Pointing at its BODY never leaves
@@ -149,10 +184,20 @@ export class Labels implements System {
   private leadMeasured = false;
   private readonly wasShown: Uint8Array;
   /**
-   * 1 for a name that sits above its body, out of the ship's way; 0 (as usual) below it, or
-   * beside it. What `sideOf` remembers from frame to frame.
+   * When each name last appeared, hid or changed places on the map (`Frame.elapsed`, s): what
+   * `dwellSec` counts from. A change in flight holds nothing back (-Infinity), so the map opens
+   * with every name free to show.
    */
-  private readonly above: Uint8Array;
+  private readonly changedAt: Float64Array;
+  /** `Frame.elapsed` of this frame. */
+  private now = 0;
+  /**
+   * Which side of its body each name would rather be on, on the map: 1 above (out of the ship's
+   * way, or where it has no room below), 0 below. `sideOf` alone decides it, from where things
+   * are and from what it decided the frame before, never from where declutter put the name: so a
+   * name's first place changes only when the sky does, not when the names do.
+   */
+  private readonly prefer: Uint8Array;
   /** Which way along its body each name's tag reaches, as it was last placed (`Reach`). */
   private readonly reach: Int8Array;
   /** What each place offered this frame is, by [row * PLACES + place]: its side, and its reach. */
@@ -176,6 +221,18 @@ export class Labels implements System {
   private foot: { right: number; top: number } | null = null;
   /** Where names may go this frame (CSS px): the free view, less its edges and the top bar. */
   private readonly room = { right: 0, bottom: 0, top: 0 };
+  /** Scratch: the name being placed and its body (`offer`), filled in again for every name. */
+  private readonly spot = {
+    x: 0,
+    y: 0,
+    radius: 0,
+    centred: 0,
+    width: 0,
+    tag: 0,
+    under: 0,
+    over: 0,
+    ship: null as Readonly<ScreenBox> | null,
+  };
 
   constructor(private readonly options: LabelsOptions) {
     const count = options.bodies.length;
@@ -187,7 +244,8 @@ export class Labels implements System {
     // footer chip.
     this.taken = createTakenBoxes((options.obstacles?.length ?? 0) + 2);
     this.wasShown = new Uint8Array(count);
-    this.above = new Uint8Array(count);
+    this.changedAt = new Float64Array(count).fill(-Infinity);
+    this.prefer = new Uint8Array(count);
     this.reach = new Int8Array(count);
     this.placeSide = new Uint8Array(count * PLACES);
     this.placeReach = new Int8Array(count * PLACES);
@@ -227,7 +285,8 @@ export class Labels implements System {
     });
   }
 
-  frameUpdate(): void {
+  frameUpdate(frame: Frame): void {
+    this.now = frame.elapsed;
     if (!this.measured) this.measure();
     // The target's tag is measured on the name that wears it, once one has (it was marked at the
     // end of a frame, so layout is clean again by the start of the next).
@@ -282,12 +341,13 @@ export class Labels implements System {
     boxes.count = Math.min(screen.count, bodies.length);
     boxes.left.fill(Number.NaN, 0, boxes.count * PLACES);
     boxes.top.fill(Number.NaN, 0, boxes.count * PLACES);
+    boxes.covers.fill(0, 0, boxes.count * PLACES);
     for (let row = 0; row < boxes.count; row += 1) {
       boxes.priority[row] = Infinity;
       const depth = screen.depth[row] ?? 0;
       const radius = screen.radius[row] ?? 0;
       if (!(depth > 0) || radius < params.minVisiblePx || (docked && row === target)) {
-        this.above[row] = 0;
+        this.prefer[row] = 0;
         continue;
       }
 
@@ -299,8 +359,19 @@ export class Labels implements System {
       const width = (this.widths[row] ?? 0) + lead;
       const tag = this.tags[row] ?? 0;
       const height = this.heights[row] ?? 0;
-      // On the map a name that would cross a screen edge slides away from it, along its body.
-      const slid = onMap ? this.along(x, centred, width, tag, 0) : Number.NaN;
+      const kept = row === target || row === this.focused || row === this.beckoning;
+      // On the map a name that would cross a screen edge slides away from it, along its body (as
+      // far as the body stays over its tag: with room to spare, `slackAt`, unless it is there).
+      const slid = onMap
+        ? this.along(
+            x,
+            centred,
+            width,
+            tag,
+            0,
+            kept ? 0 : Math.min(this.slackAt(row, BELOW, 0), this.slackAt(row, ABOVE, 0)),
+          )
+        : Number.NaN;
       const left = Number.isFinite(slid) ? slid : centred;
       // Where the button goes, below its body or above it. Either side the TAG sits offsetPx off
       // the body, at the end of the 44 px box nearest it (its top below, its bottom above: CSS,
@@ -312,22 +383,22 @@ export class Labels implements System {
       const up = ship
         ? glidePast(left, over + height - tag, width, tag, ship, params.gapPx, -1)
         : 0;
-      let side = onMap ? this.sideOf(row, left, width, under, over, down, up, ship) : 0;
+      let side = onMap ? this.sideOf(row, left, width, under, over, down, up, ship) : BELOW;
+      this.prefer[row] = side;
       let top = side ? over - up : under + down;
-      const kept = row === target || row === this.focused || row === this.beckoning;
       let first = true;
-      if (!this.fits(row, left, width, top)) {
+      const slack = onMap && !kept ? this.slackAt(row, side, 0) : 0;
+      if (!this.fits(row, left, width, top, 0, slack)) {
         // No room past the ship. Where the ship is going, and whatever the keyboard is on, then
         // show where they would have been: on the ship is better than gone.
         if (!kept || (down === 0 && up === 0)) first = false;
-        else if (this.fits(row, left, width, under)) [side, top] = [0, under];
-        else if (onMap && this.fits(row, left, width, over)) [side, top] = [1, over];
+        else if (this.fits(row, left, width, under)) [side, top] = [BELOW, under];
+        else if (onMap && this.fits(row, left, width, over)) [side, top] = [ABOVE, over];
         else first = false;
-      } else if (!kept && (side ? up : down) > this.patience(row)) {
+      } else if (!kept && (side ? up : down) > this.patienceAt(row, side, 0)) {
         // Any other name glides a little, and makes way for the ship beyond that.
         first = false;
       }
-      this.above[row] = side;
       const base = row * PLACES;
       placeSide[base] = side;
       placeReach[base] = 0;
@@ -342,14 +413,36 @@ export class Labels implements System {
         // the nearer screen edge.
         const inward: Reach = x < middleX ? 1 : -1;
         const other = side === ABOVE ? BELOW : ABOVE;
-        const at = { x, y, radius, centred, width, tag, under, over, ship };
-        offered += this.offer(row, 1, other, 0, at);
-        offered += this.offer(row, 2, inward > 0 ? RIGHT : LEFT, 0, at);
-        offered += this.offer(row, 3, inward > 0 ? LEFT : RIGHT, 0, at);
-        offered += this.offer(row, 4, side, inward, at);
-        offered += this.offer(row, 5, side, -inward as Reach, at);
-        offered += this.offer(row, 6, other, inward, at);
-        offered += this.offer(row, 7, other, -inward as Reach, at);
+        const { spot } = this;
+        spot.x = x;
+        spot.y = y;
+        spot.radius = radius;
+        spot.centred = centred;
+        spot.width = width;
+        spot.tag = tag;
+        spot.under = under;
+        spot.over = over;
+        spot.ship = ship;
+        offered += this.offer(row, 1, other, 0);
+        offered += this.offer(row, 2, inward > 0 ? RIGHT : LEFT, 0);
+        offered += this.offer(row, 3, inward > 0 ? LEFT : RIGHT, 0);
+        offered += this.offer(row, 4, side, inward);
+        offered += this.offer(row, 5, side, -inward as Reach);
+        offered += this.offer(row, 6, other, inward);
+        offered += this.offer(row, 7, other, -inward as Reach);
+        // Which of them would lie on another body: declutter takes those only where it must.
+        for (let place = 0; place < PLACES; place += 1) {
+          const at = base + place;
+          const placeLeft = boxes.left[at] ?? Number.NaN;
+          if (!Number.isFinite(placeLeft)) continue;
+          boxes.covers[at] = this.liesOnABody(
+            row,
+            placeLeft,
+            boxes.top[at] ?? 0,
+            width,
+            placeSide[at] ?? BELOW,
+          );
+        }
       }
       if (offered === 0) continue;
       boxes.width[row] = width;
@@ -366,18 +459,27 @@ export class Labels implements System {
 
       // Where the ship is going comes first, then whatever the keyboard is on (a name must not
       // vanish from under someone who has tabbed to it, or who is about to be: `beckon`), then
-      // systems, planets, moons. Among those, the nearest first: in flight the nearest the
-      // camera, and on the map, which is seen from straight above (every body is as far from the
-      // camera), the nearest the middle of the view, where the visitor is looking.
+      // systems, planets, moons. Among those, in flight, the nearest the camera first. The map is
+      // seen from straight above (every body is as far from the camera) and holds still: there a
+      // name that shows goes before one of its rank that waits to (`WAITING`), so that the room
+      // stays with whoever has it and nothing is traded back and forth as bodies go round; and
+      // between two that both show, or both wait, the nearest the middle of the view, where the
+      // visitor is looking.
       const kind = bodies[row]?.kind ?? 'moon';
       const rank =
         row === target ? 0 : row === this.focused || row === this.beckoning ? 0.5 : RANK[kind];
-      const near = onMap ? Math.hypot(x - middleX, y - middleY) : depth;
-      boxes.priority[row] = rank * RANK_STEP + near;
+      boxes.priority[row] = onMap
+        ? rank * RANK_STEP +
+          (this.wasShown[row] ? 0 : WAITING) +
+          Math.min(Math.hypot(x - middleX, y - middleY), NEAR_MAX)
+        : rank * RANK_STEP + depth;
+      // On the map, where it holds still, a name that has just changed lets that change stand a
+      // while (sim/declutter.ts: `young`). In flight everything drifts, and names come and go
+      // with it.
+      boxes.young[row] =
+        onMap && this.now - (this.changedAt[row] ?? -Infinity) < params.dwellSec ? 1 : 0;
     }
-    // On the map, whatever names a system (and where the ship is going, and the keyboard's name)
-    // is placed together: every way of fitting them all is tried before one of them is left out.
-    declutter(boxes, params, this.taken, onMap ? SYSTEMS_TOGETHER : -Infinity);
+    declutter(boxes, params, this.taken, onMap ? ON_MAP : IN_FLIGHT);
 
     for (let row = 0; row < boxes.count; row += 1) {
       const name = this.names[row];
@@ -385,14 +487,18 @@ export class Labels implements System {
       const shows = boxes.shown[row] === 1;
       if (shows !== (this.wasShown[row] === 1)) {
         this.wasShown[row] = shows ? 1 : 0;
+        this.changedAt[row] = onMap ? this.now : -Infinity;
         if (shows) name.dataset.shown = '';
         else delete name.dataset.shown;
       }
       if (!shows) continue;
       const place = row * PLACES + (boxes.at[row] ?? 0);
       const side = placeSide[place] ?? BELOW;
-      this.above[row] = side === ABOVE ? 1 : 0;
-      this.reach[row] = placeReach[place] ?? 0;
+      const reach = placeReach[place] ?? 0;
+      if (side !== this.drawnSide[row] || reach !== this.reach[row]) {
+        this.changedAt[row] = onMap ? this.now : -Infinity;
+      }
+      this.reach[row] = reach;
       if (side !== this.drawnSide[row]) {
         this.drawnSide[row] = side;
         const drawn = SIDE_NAMES[side];
@@ -446,20 +552,6 @@ export class Labels implements System {
   }
 
   /**
-   * The room a name needs below its body, or above it (CSS px): its gap off the body, its box,
-   * and the gap names keep from the edge of the view. The star map lets its view go this far
-   * past the top and the bottom of the galaxy (main.ts), so that a body at the very edge can be
-   * brought in until its name has room there. 0 until the names have been measured.
-   */
-  get roomPx(): number {
-    if (!this.measured) return 0;
-    let tallest = 0;
-    for (const height of this.heights) tallest = Math.max(tallest, height);
-    const { offsetPx, edgePx } = this.options.params;
-    return offsetPx + tallest + edgePx;
-  }
-
-  /**
    * The visitor pointed at the body of a link (a relay: main.ts): that never takes them off the
    * site by itself, whatever a hand does while it steers. The link's name comes forward instead,
    * with the next frame: it shows whatever else wants the room, takes the keyboard's focus and is
@@ -471,12 +563,14 @@ export class Labels implements System {
   }
 
   /**
-   * Above its body (1) or below it (0), given how far each side's tag would glide to clear the
-   * ship. Below, unless there is no room there (the panel, an edge, something that can be
-   * pressed), or the ship is in the way there and clearly less so above. Steady, like declutter:
-   * a name stays on its side as long as declutter would let it stay, and one that went above
-   * comes back only once below has room to spare and the ship is a gap and a keep clear of it (or
-   * clearly more in the way above), so it never hops back and forth.
+   * Which side of its body a name would rather be on, on the map: above it (1) or below (0),
+   * given how far each side's tag would glide to clear the ship. Below, unless there is no room
+   * there (the panel, an edge, something that can be pressed), or the ship is in the way there
+   * and clearly less so above. Steady, with a memory of its own (`prefer`): a side keeps its
+   * patience with the room it has (a keep closer than the gap), and the name goes back below only
+   * once below has room to spare and the ship is a gap and a keep clear of it (or clearly more in
+   * the way above), so it never hops back and forth. Where declutter then puts the name is its
+   * business: this is only its first place.
    */
   private sideOf(
     row: number,
@@ -490,8 +584,8 @@ export class Labels implements System {
   ): number {
     const { gapPx, keepPx } = this.options.params;
     const margin = keepPx / 2;
-    const stay = this.wasShown[row] ? -keepPx : 0;
-    if (this.above[row]) {
+    const stay = -keepPx;
+    if (this.prefer[row]) {
       if (!this.hasRoom(row, left, width, over - up, stay)) return 0;
       if (!this.hasRoom(row, left, width, under + down, keepPx)) return 1;
       const clear = ship
@@ -511,7 +605,7 @@ export class Labels implements System {
    * does.
    */
   private hasRoom(row: number, left: number, width: number, top: number, slack: number): boolean {
-    if (!this.fits(row, left, width, top, Math.max(0, slack))) return false;
+    if (!this.fits(row, left, width, top, 0, Math.max(0, slack))) return false;
     const pad = this.options.params.gapPx + slack;
     const height = this.heights[row] ?? 0;
     const { taken } = this;
@@ -534,42 +628,28 @@ export class Labels implements System {
    * Offer place `index` of a name on the map: its tag on `side` of its body. Below or above it,
    * reaching `reach` along it and glided a little past the ship if that is in the way, as the
    * first place is; beside it, in the middle of the box's height and `offsetPx` off the disc, and
-   * only where the ship is a gap clear of the tag. 1 if it is a place (wholly in the free view, and
-   * the glide no more than this name's patience), else 0, and the place is left out (NaN). `at` is
+   * only where the ship is a gap clear of the tag. 1 if it is a place (wholly in the free view, with
+   * room to spare unless the name is there already, `slackAt`, and the glide no more than this
+   * name's patience THERE: `patienceAt`), else 0, and the place is left out (NaN). `spot` says
    * where the name and its body are.
    */
-  private offer(
-    row: number,
-    index: number,
-    side: number,
-    reach: Reach,
-    at: {
-      readonly x: number;
-      readonly y: number;
-      readonly radius: number;
-      readonly centred: number;
-      readonly width: number;
-      readonly tag: number;
-      readonly under: number;
-      readonly over: number;
-      readonly ship: Readonly<ScreenBox> | null;
-    },
-  ): number {
+  private offer(row: number, index: number, side: number, reach: Reach): number {
     const place = row * PLACES + index;
     this.placeSide[place] = side;
     this.placeReach[place] = reach;
-    const { x, y, radius, centred, width, tag, under, over, ship } = at;
+    const { x, y, radius, centred, width, tag, under, over, ship } = this.spot;
     const { gapPx, offsetPx } = this.options.params;
     const height = this.heights[row] ?? 0;
+    const slack = this.slackAt(row, side, reach);
     let left: number;
     let top: number;
     if (side === RIGHT || side === LEFT) {
       left = side === RIGHT ? x + radius + offsetPx : x - radius - offsetPx - width;
       top = y - height / 2;
       if (ship && glidePast(left, y - tag / 2, width, tag, ship, gapPx, 1) > 0) return 0;
-      if (!this.fits(row, left, width, top)) return 0;
+      if (!this.fits(row, left, width, top, slack, slack)) return 0;
     } else {
-      left = this.along(x, centred, width, tag, reach);
+      left = this.along(x, centred, width, tag, reach, slack);
       if (!Number.isFinite(left)) return 0;
       const glide = !ship
         ? 0
@@ -577,7 +657,12 @@ export class Labels implements System {
           ? glidePast(left, over + height - tag, width, tag, ship, gapPx, -1)
           : glidePast(left, under, width, tag, ship, gapPx, 1);
       top = side === ABOVE ? over - glide : under + glide;
-      if (!this.fits(row, left, width, top) || glide > this.patience(row)) return 0;
+      if (
+        !this.fits(row, left, width, top, 0, slack) ||
+        glide > this.patienceAt(row, side, reach)
+      ) {
+        return 0;
+      }
     }
     this.boxes.left[place] = left;
     this.boxes.top[place] = top;
@@ -588,39 +673,104 @@ export class Labels implements System {
    * Where a name `width` wide goes along its body at `x`: centred on it (`centred`, reach 0), or
    * reaching all one way from it (1: to the right), the body over the round end of its tag. Slid
    * back into the free view if that would cross a side of it, as long as the body stays over the
-   * tag, past its round end; NaN if it cannot.
+   * tag, past its round end (and, slid, `slack` further in); NaN if it cannot.
    */
-  private along(x: number, centred: number, width: number, tag: number, reach: Reach): number {
+  private along(
+    x: number,
+    centred: number,
+    width: number,
+    tag: number,
+    reach: Reach,
+    slack = 0,
+  ): number {
     const end = tag / 2;
     const wanted = reach === 0 ? centred : reach > 0 ? x - end : x + end - width;
     const min = this.options.params.edgePx;
     const max = this.room.right - width;
     if (max < min) return Number.NaN;
     const left = Math.min(Math.max(wanted, min), max);
-    return x >= left + end && x <= left + width - end ? left : Number.NaN;
+    // Reaching one way, the body is right over the tag's round end by construction: a hair's
+    // tolerance, or rounding would take that place away every other frame. Slid, the body nears
+    // the end the tag was slid towards as it nears the edge: that is the end to keep clear of.
+    const low = left + end - HAIR_PX + (left > wanted ? slack : 0);
+    const high = left + width - end + HAIR_PX - (left < wanted ? slack : 0);
+    return x >= low && x <= high ? left : Number.NaN;
   }
 
   /**
-   * How far a name other than the target's or the focused one may glide to clear the ship (CSS
-   * px): as much closer than the gap as declutter lets a name that shows already stay, and no
-   * further than the gap for one that has yet to appear.
+   * How far a name other than the target's or the focused one may glide to clear the ship at one
+   * of its places (CSS px): at the place where it shows already, as much closer than the gap as
+   * declutter lets a name stay; anywhere else, no further than the gap. Only where it IS: a place
+   * open to a name only while it showed would come and go with it, and a name could then hop
+   * there and back.
    */
-  private patience(row: number): number {
+  private patienceAt(row: number, side: number, reach: Reach): number {
     const { gapPx, keepPx } = this.options.params;
-    return this.wasShown[row] ? gapPx + keepPx : gapPx;
+    return this.isAt(row, side, reach) ? gapPx + keepPx : gapPx;
   }
 
   /**
-   * Would this row's name, put here, be wholly in the free view, clear of its edges (and, up and
-   * down, `inset` more)?
+   * How much more room than it needs a name must have at one of its places to take it, on the
+   * map (CSS px): none where it shows already, and anywhere else `keepPx`, as declutter asks of a
+   * name next to another. Its edges are the view's (and the top bar's), and, for a name slid along
+   * its body, the round end of its tag. So a name whose body drifts past an edge by a pixel does
+   * not come and go with it.
    */
-  private fits(row: number, left: number, width: number, top: number, inset = 0): boolean {
+  private slackAt(row: number, side: number, reach: Reach): number {
+    return this.isAt(row, side, reach) ? 0 : this.options.params.keepPx;
+  }
+
+  /** Does this row's name show, on `side` of its body and reaching `reach` along it? */
+  private isAt(row: number, side: number, reach: Reach): boolean {
+    return this.wasShown[row] === 1 && this.drawnSide[row] === side && this.reach[row] === reach;
+  }
+
+  /**
+   * Would a name's tag, its box at (left, top) on `side` of its body, lie on the disc of another
+   * body that can be seen? 1 or 0. The tag is the visible part of the 44 px box: at its top below
+   * the body, at its bottom above it, in the middle beside it (CSS, `data-side`).
+   */
+  private liesOnABody(row: number, left: number, top: number, width: number, side: number): number {
+    const { screen, params } = this.options;
+    const height = this.heights[row] ?? 0;
+    const tag = this.tags[row] ?? height;
+    const tagTop =
+      side === BELOW ? top : side === ABOVE ? top + height - tag : top + (height - tag) / 2;
+    const right = left + width;
+    const bottom = tagTop + tag;
+    for (let other = 0; other < this.boxes.count; other += 1) {
+      const radius = screen.radius[other] ?? 0;
+      if (other === row || !((screen.depth[other] ?? 0) > 0) || radius < params.minVisiblePx) {
+        continue;
+      }
+      // The nearest point of the tag to the body's centre, and whether that is inside its disc.
+      const x = screen.x[other] ?? 0;
+      const y = screen.y[other] ?? 0;
+      const dx = x - Math.min(Math.max(x, left), right);
+      const dy = y - Math.min(Math.max(y, tagTop), bottom);
+      if (dx * dx + dy * dy < radius * radius) return 1;
+    }
+    return 0;
+  }
+
+  /**
+   * Would this row's name, put here, be wholly in the free view, clear of its edges (and `across`
+   * more from its sides, `upDown` more from its top and bottom)?
+   */
+  private fits(
+    row: number,
+    left: number,
+    width: number,
+    top: number,
+    across = 0,
+    upDown = 0,
+  ): boolean {
     const { room } = this;
     return (
-      left >= this.options.params.edgePx &&
-      left + width <= room.right &&
-      top >= room.top + inset &&
-      top + (this.heights[row] ?? 0) <= room.bottom - inset
+      left >= this.options.params.edgePx + across &&
+      left + width <= room.right - across &&
+      top >= room.top + upDown &&
+      top + (this.heights[row] ?? 0) <= room.bottom - upDown
     );
   }
 

@@ -133,64 +133,33 @@ export function fitView(
 
 /**
  * Keep the zoom within its limits, and the view on the galaxy: a view smaller than the galaxy
- * (one way, or both) can be moved until it shows `pastPx` of empty space beyond an edge of it, up
- * or down (across, fitPadPx), not further; one bigger than it keeps all of it in view, fitPadPx
- * inside its edges. So nothing is ever dragged off, and a body at the very edge can always be
- * brought far enough in for its name to have room beside it: `pastPx` is that room, below or
- * above a body (main.ts measures it), fitPadPx at least. Where the two meet, the view may go as
- * far as either lets it.
+ * (one way, or both) can be moved up to its edge and fitPadPx past it, not further; one bigger
+ * than it keeps all of it in view, fitPadPx inside its edges. So nothing is ever dragged off, and
+ * the empty space round the galaxy is never more than the view that shows all of it has.
  */
 export function clampView(
   view: MapView,
   bounds: MapBounds,
   frame: MapFrame,
   params: MapViewParams,
-  pastPx = 0,
 ): MapView {
   view.span = clamp(view.span, params.spanMin, spanLimit(bounds, frame, params));
   const perPx = unitsPerPx(view.span, frame);
   const width = Math.max(1, frame.width);
   const height = Math.max(1, frame.height);
-  const across = padOf(width, params);
-  const down = padOf(height, params);
-  view.x = keepOn(view.x, bounds.minX, bounds.maxX, width / 2, across, across, perPx);
-  view.z = keepOn(
-    view.z,
-    bounds.minZ,
-    bounds.maxZ,
-    height / 2,
-    down,
-    Math.max(down, pastPx),
-    perPx,
-  );
+  view.x = keepOn(view.x, bounds.minX, bounds.maxX, (width / 2 - padOf(width, params)) * perPx);
+  view.z = keepOn(view.z, bounds.minZ, bounds.maxZ, (height / 2 - padOf(height, params)) * perPx);
   return view;
 }
 
 /**
- * The middle of a view that reaches `halfPx` either side of it, kept where it shows no more than
- * `pastPx` beyond [min, max]; or, while it is wider than [min, max] and `innerPx` either side,
- * anywhere all of [min, max] is in it, `innerPx` inside its edges; whichever lets it go further.
- * Distances in CSS px, `perPx` world units each.
+ * The middle of a view that reaches `half` either side of it, kept where the view shows nothing
+ * outside [min, max]; or, when it is wider than that, where all of [min, max] is in it.
  */
-function keepOn(
-  at: number,
-  min: number,
-  max: number,
-  halfPx: number,
-  innerPx: number,
-  pastPx: number,
-  perPx: number,
-): number {
-  const half = halfPx * perPx;
-  const inner = innerPx * perPx;
-  const past = pastPx * perPx;
-  // Showing no more than `past` beyond either end (empty while the view is the wider)...
-  const lowPast = min - past + half;
-  const highPast = max + past - half;
-  // ...or all of it, `inner` in from both edges (empty while the view is the narrower).
-  const lowAll = max + inner - half;
-  const highAll = min - inner + half;
-  return clamp(at, Math.min(lowPast, lowAll), Math.max(highPast, highAll));
+function keepOn(at: number, min: number, max: number, half: number): number {
+  const low = min + half;
+  const high = max - half;
+  return clamp(at, Math.min(low, high), Math.max(low, high));
 }
 
 /**

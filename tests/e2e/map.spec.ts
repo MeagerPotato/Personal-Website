@@ -152,6 +152,73 @@ async function drag(page: Page, near: { x: number; y: number }, dx: number, dy: 
   await touch('touchEnd', []);
 }
 
+/** A name coming, going or changing sides: which, what it became, and when (ms, page time). */
+interface NameChange {
+  name: string;
+  now: string;
+  at: number;
+}
+
+/** What `watchNames` keeps in the page. */
+interface NamesWatch {
+  changes: NameChange[];
+  quiet: () => number;
+}
+
+/**
+ * Every frame from now on (`requestAnimationFrame`), which names show and on which side of their
+ * bodies (`data-side`: below, above, left, right), kept in the page: `changes` is each name that
+ * came, went or changed sides, and `quiet` how long it has been since the last of them (ms).
+ */
+async function watchNames(page: Page): Promise<{
+  changes: () => Promise<NameChange[]>;
+  quiet: () => Promise<number>;
+}> {
+  await page.evaluate(() => {
+    const changes: NameChange[] = [];
+    const seen = new Map<Element, string>();
+    let last = performance.now();
+    const look = (): void => {
+      for (const name of document.querySelectorAll('.body-label')) {
+        const now = name.hasAttribute('data-shown')
+          ? (name.getAttribute('data-side') ?? 'below')
+          : 'hidden';
+        const was = seen.get(name);
+        seen.set(name, now);
+        if (was === undefined || was === now) continue;
+        last = performance.now();
+        changes.push({ name: name.textContent ?? '', now, at: Math.round(last) });
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+    const watch: NamesWatch = { changes, quiet: () => performance.now() - last };
+    Object.assign(window, { e2eNames: watch });
+  });
+  return {
+    changes: () =>
+      page.evaluate(() => [...(window as unknown as { e2eNames: NamesWatch }).e2eNames.changes]),
+    quiet: () =>
+      page.evaluate(() => (window as unknown as { e2eNames: NamesWatch }).e2eNames.quiet()),
+  };
+}
+
+/** Each name that changed again within a second of its last change, with both changes. */
+function twiceWithinASecond(changes: readonly NameChange[]): string[] {
+  const last = new Map<string, NameChange>();
+  const twice: string[] = [];
+  for (const change of changes) {
+    const before = last.get(change.name);
+    if (before && change.at - before.at < 1000) {
+      twice.push(
+        `${change.name}: ${before.now}, then ${change.now} ${change.at - before.at} ms later`,
+      );
+    }
+    last.set(change.name, change);
+  }
+  return twice;
+}
+
 /** The steps of the simulation in a second: a planted snapshot counts time in them. */
 const STEPS_PER_SECOND = 60;
 
@@ -164,10 +231,10 @@ const STEPS_PER_SECOND = 60;
  * the edge of the galaxy it would rather do that than show empty space past it: sim/mapView.ts,
  * clampView); one drags the sun back to the middle of the map, as far as the map goes; twice, and
  * the map is all the way in. Both names show, wholly on the screen. (Measured headless over a
- * whole turn of the binary, in this view: before the map could go past the edge of the galaxy and
- * a name had other places than below its body or above it, the two never showed together, and
- * neither showed most of the time; now both show nine times in ten, and the planet's always. The
- * moments in between are not this one.)
+ * whole turn of the binary, in this view, each look taken afresh: before a name had other places
+ * than below its body or above it, the two never showed together, and neither showed most of the
+ * time; now both show two times in three on a 360 px phone and four in five on a Pixel 7, and
+ * the planet's alone nearly all the rest. The moments in between are not this one.)
  */
 async function researchUpClose(page: Page): Promise<void> {
   await openUniverse(page, '/');
@@ -463,9 +530,13 @@ test.describe('on a phone', () => {
     const zoomed = await bodyOf(nameOf(page, 'About Me'));
 
     // One finger, from empty space, down and to the left: the map goes along, by as much both
-    // ways, and the home planet with it.
+    // ways, and the home planet with it. Every frame of it, the names are watched: some must
+    // move as their bodies near the edge of the view, but none comes and goes, or changes sides
+    // and back, within a second.
+    const names = await watchNames(page);
     await drag(page, { x: 300, y: 650 }, -42, 42);
     const dragged = await bodyOf(nameOf(page, 'About Me'));
+    expect(twiceWithinASecond(await names.changes())).toEqual([]);
     expect(dragged.x - zoomed.x).toBeGreaterThan(-48);
     expect(dragged.x - zoomed.x).toBeLessThan(-36);
     expect(dragged.y - zoomed.y).toBeGreaterThan(36);
@@ -551,6 +622,42 @@ test.describe('on a phone', () => {
     await expect
       .poll(async () => (await said()).find(({ text }) => text.includes('Flying to Hardware')))
       .toMatchObject({ path: '/' });
+  });
+
+  test('at rest, the names hold still: frame after frame, none comes, goes or changes sides', async ({
+    page,
+  }) => {
+    // 1,500 s into a visit (planted: the time is part of what a page keeps), a busy moment on a
+    // phone's map: every system named, and the planets round them crowding their suns' names.
+    await openUniverse(page, '/');
+    const first = await keptNow(page);
+    await loadWith(page, { ...first, steps: 1500 * STEPS_PER_SECOND }, '/');
+    await openButton(page).tap();
+    await mapOpen(page, 'Research');
+    const names = await watchNames(page);
+    // The map has arrived. A name that moved on the way may go back to its first place once it
+    // has shown a while there (`labels.dwellSec`, 1 s): wait until they have all come to rest...
+    await expect.poll(() => names.quiet(), { timeout: 10_000 }).toBeGreaterThan(1500);
+    // ...and then watch every frame for four seconds (the page counts them, on its own clock).
+    const from = (await names.changes()).length;
+    const frames = await page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const start = performance.now();
+          let count = 0;
+          const step = (): void => {
+            count += 1;
+            if (performance.now() - start >= 4000) resolve(count);
+            else requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }),
+    );
+    expect(frames).toBeGreaterThan(60);
+    expect((await names.changes()).slice(from)).toEqual([]);
+    for (const name of ['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']) {
+      await expect(nameOf(page, name)).toBeVisible();
+    }
   });
 
   test('all the way in, fingers bring the names of Research’s planned work into view', async ({

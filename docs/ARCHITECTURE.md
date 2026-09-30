@@ -301,9 +301,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   never leaves the site either: it beckons the name (`Labels.beckon`: shown, focused and lit
   with the next frame), and leaving is a second, explicit press. They read the same map of the screen as the picker. Which names may show
   is `sim/declutter.ts` (pure): where the ship is going first, then systems, planets, moons, the
-  nearer first; never touching, never under the panel or the top bar, and steady (a name that
-  shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
-  while bodies drift past each other). The name of the body the ship is docked at is on the page
+  nearer first; never touching, never under the panel or the top bar, and steady: a name that
+  shows stays until it is really in the way, and a hidden one waits for real room, so names do
+  not blink while bodies drift past each other. The name of the body the ship is docked at is on the page
   already, so it is not shown, and no other name lies on its face. Names also keep off whatever
   else can be pressed out there: the dock prompt, the boost pad and the Map button are
   `obstacles`, room that is taken before the first name is placed (on a phone with the sheet up,
@@ -321,9 +321,17 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   long as its body stays over its tag. Declutter tries a name's places in turn, keeps it where
   it was while it may, brings it back to its first place once that has room to spare, and moves
   ONE name already placed to another of its places if that alone makes room for one more; the
-  systems' names (and the target's, and the keyboard's) are placed TOGETHER, every way tried
-  before one of them is left out. Among names of one rank the map prefers the nearest the middle
-  of the view: every body is as far from a camera straight above. Any other name glides a few
+  systems' names are placed TOGETHER, every way tried before one of them is left out (the
+  target's and the keyboard's come first and are never moved). Among names of one rank the map
+  prefers one that shows already (a name that waits takes only the room that is left, and a name
+  that shows keeps its slot in `labels.max`), then the nearest the middle of the view: every body
+  is as far from a camera straight above. And on the map a name that has just appeared, hidden
+  or moved makes no other change of its own accord for `labels.dwellSec` (1 s: `young` in
+  `sim/declutter.ts`), and a place a name is not at must have room to spare from the edges of
+  the view before it takes it, so nothing hops back and forth. What no rule holds off is a
+  change a name MUST make: its place went past the edge of the view, or something more
+  important needs the room (`tests/map-names/` counts the changes over a whole turn, at rest, on
+  two phones and a laptop). Any other name glides a few
   pixels at most and then makes way; the target's and the focused one never do, so the ship
   alone never hides the name of where it is, or takes the keyboard's focus away.
   Whichever side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
@@ -351,9 +359,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   (the galaxy, and the ship if it is out beyond it), snugly, with room in pixels for the names at
   the edge, zooms out no further than that, and never lets the galaxy be dragged off (zoomed in,
   the view stays on it; further out, all of it stays in view): past it there is only empty space,
-  and names too small to matter. Up and down it goes past the galaxy's edge by as much as a name
-  needs there (`pastPx`, which the names report: `Labels.roomPx`), so that a body at the very
-  top or bottom can be brought in until its name has room. While it is open the
+  and names too small to matter. While it is open the
   flight controls are OFF (`InputSystem.setEnabled`): keys pan and zoom, a drag pans, the wheel
   and two fingers zoom about where they are, and the thumb stick and the boost pad are put away.
   The names lie over the map and on a phone cover much of it, so to a finger they are the map

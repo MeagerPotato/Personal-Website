@@ -44,12 +44,6 @@ export interface StarMapOptions {
   ship?: (() => Readonly<{ x: number; z: number }>) | undefined;
   /** The part of the view that the info panel leaves free, as shares. A live object (CameraRig). */
   view: { readonly freeWidth: number; readonly freeHeight: number };
-  /**
-   * How far past the top and the bottom of the galaxy the map may be dragged (CSS px): the room
-   * a name needs below a body at the very edge, or above it (main.ts measures it). Never less
-   * than `fitPadPx`, which is what it is without this.
-   */
-  pastPx?: (() => number) | undefined;
   params: StarMapParams;
   reducedMotion: boolean;
   /**
@@ -258,7 +252,7 @@ export class StarMap implements System, MapSight {
       const reach = params.keyPanPxPerSec * frame.dt;
       panBy(this.want, -right * reach, -down * reach, this.frame());
     }
-    clampView(this.want, this.look(), this.frame(), params, this.past());
+    clampView(this.want, this.look(), this.frame(), params);
 
     if (reducedMotion) {
       this.settle();
@@ -330,11 +324,6 @@ export class StarMap implements System, MapSight {
     return { min: params.spanMin, max: spanLimit(this.look(), this.frame(), params) };
   }
 
-  /** How far past the top and the bottom of the galaxy it may be dragged (`pastPx`). */
-  private past(): number {
-    return this.options.pastPx?.() ?? 0;
-  }
-
   /** What the map has to show: the galaxy, grown to take in the ship when it is out beyond it. */
   private look(): MapBounds {
     const { bounds, ship } = this.options;
@@ -380,7 +369,7 @@ export class StarMap implements System, MapSight {
 
   private zoom(factor: number, px: number, py: number): void {
     zoomAbout(this.want, factor, px, py, this.frame(), this.limits());
-    clampView(this.want, this.look(), this.frame(), this.options.params, this.past());
+    clampView(this.want, this.look(), this.frame(), this.options.params);
   }
 
   private readonly letGo = (): void => {
@@ -551,7 +540,7 @@ export class StarMap implements System, MapSight {
     }
     pointer.x = event.clientX;
     pointer.y = event.clientY;
-    clampView(this.want, this.look(), frame, this.options.params, this.past());
+    clampView(this.want, this.look(), frame, this.options.params);
     // A hand on the map moves it exactly: no easing between a finger and what it holds.
     this.settle();
   };
