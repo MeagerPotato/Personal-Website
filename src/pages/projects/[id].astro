@@ -90,7 +90,19 @@ const jsonLd = [
     </ul>
   )}
 
-  {cover && <Shot class="cover" src={cover.src} alt={cover.alt} eager />}
+  {cover ? (
+    <Shot class="cover" src={cover.src} alt={cover.alt} eager />
+  ) : (
+    <div
+      class="cover cover--planet"
+      data-biome={data.planet.biome}
+      data-theme={context.theme}
+      data-planned={data.status === 'planned' ? '' : undefined}
+      aria-hidden="true"
+    >
+      <span class="planet-dot planet-dot--hero" />
+    </div>
+  )}
 
   <dl class="facts">
     {facts.map((fact) => (

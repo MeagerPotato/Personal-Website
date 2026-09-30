@@ -91,6 +91,8 @@ export interface ManifestBody {
   rings?: boolean;
   decorMoons?: number;
   flagship?: boolean;
+  /** Planned work, not built yet: drawn and labelled as such. Absent for everything else. */
+  planned?: true;
 }
 
 export interface ManifestSystem {

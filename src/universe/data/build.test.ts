@@ -210,6 +210,22 @@ describe('buildUniverse', () => {
     ).toEqual(['project/older', 'project/a-someday', 'project/newer']);
   });
 
+  it('marks planned work in the manifest, and only planned work', () => {
+    const { bodies } = buildUniverse(
+      v01({
+        projects: [
+          project('built', { system: 'code', date: '2026-09' }),
+          project('someday', { system: 'code', date: undefined, planned: true }),
+        ],
+      }),
+    );
+    expect(bodies.find((body) => body.id === 'project/someday')?.planned).toBe(true);
+    // Absent, not false, on everything else: a manifest without planned work is unchanged.
+    expect(bodies.filter((body) => 'planned' in body).map((body) => body.id)).toEqual([
+      'project/someday',
+    ]);
+  });
+
   it('is deterministic, and does not care about the order of its input', () => {
     const input = v01();
     const shuffled: UniverseInput = {

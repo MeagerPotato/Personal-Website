@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProjectTree,
   displayUrl,
-  featuredPlanets,
+  featured,
+  isPlanet,
   formatDateRange,
   mixesSystems,
   sharedTheme,
@@ -143,6 +144,7 @@ describe('buildProjectTree', () => {
       date: '2026-02',
       status: 'Shipped',
       planned: false,
+      pictured: false,
       biome: 'dune',
       theme: 'sky',
       flagship: false,
@@ -218,18 +220,17 @@ describe('sharedTheme', () => {
   });
 });
 
-describe('featuredPlanets', () => {
+describe('featured', () => {
+  const COVER = { src: 'cover.png', alt: 'A picture' };
+  const ids = (cards: ReadonlyArray<{ id: string }>): string[] => cards.map((card) => card.id);
+
   it('puts flagships first, then the newest work, and respects the limit', () => {
     const tree = buildProjectTree(SYSTEMS, PROJECTS);
     // A mixed list: each planet keeps its own system's colours.
-    expect(featuredPlanets(tree, 3).map((planet) => planet.theme)).toEqual(['sky', 'sky', 'coral']);
+    expect(featured(tree, 3).map((card) => card.theme)).toEqual(['sky', 'sky', 'coral']);
     // "rover" sits in another system and is the oldest of the three: newest-first is galaxy-wide.
-    expect(featuredPlanets(tree, 3).map((planet) => planet.id)).toEqual([
-      'older',
-      'newer',
-      'rover',
-    ]);
-    expect(featuredPlanets(tree, 1).map((planet) => planet.id)).toEqual(['older']);
+    expect(ids(featured(tree, 3))).toEqual(['older', 'newer', 'rover']);
+    expect(ids(featured(tree, 1))).toEqual(['older']);
   });
 
   it('never features planned work, however few built planets there are', () => {
@@ -237,7 +238,31 @@ describe('featuredPlanets', () => {
       project('only', { system: { id: 'code' } }),
       project('someday', { system: { id: 'code' }, status: 'planned', flagship: true }),
     ]);
-    expect(featuredPlanets(tree, 3).map((planet) => planet.id)).toEqual(['only']);
+    expect(ids(featured(tree, 3))).toEqual(['only']);
+  });
+
+  it('features a flagship moon, and lists it once', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('home', { system: { id: 'code' }, cover: COVER }),
+      project('star', { parent: { id: 'home' }, flagship: true }),
+      project('quiet', { parent: { id: 'home' } }),
+      project('later', { parent: { id: 'home' }, status: 'planned', flagship: true }),
+    ]);
+    const cards = featured(tree, 3);
+    expect(ids(cards)).toEqual(['star', 'home']);
+    // Its planet's card lists the rest of the family, not the moon that has a card of its own.
+    const planet = cards[1];
+    expect(planet && isPlanet(planet) ? ids(planet.moons) : []).toEqual(['quiet', 'later']);
+  });
+
+  it('prefers work with a picture, and takes work without one only to fill the list', () => {
+    const tree = buildProjectTree(SYSTEMS, [
+      project('bare-new', { system: { id: 'code' }, date: '2026-09' }),
+      project('shown-old', { system: { id: 'code' }, date: '2024-01', cover: COVER }),
+      project('shown-mid', { system: { id: 'robots' }, date: '2025-01', cover: COVER }),
+    ]);
+    expect(ids(featured(tree, 2))).toEqual(['shown-mid', 'shown-old']);
+    expect(ids(featured(tree, 3))).toEqual(['shown-mid', 'shown-old', 'bare-new']);
   });
 });
 

@@ -125,6 +125,8 @@ export interface ProjectLike {
     parent?: Ref | undefined;
     date?: string | undefined;
     status: ProjectStatus;
+    /** Only whether there is one matters here: a card with a picture is a better first look. */
+    cover?: unknown;
     planet: { biome: BiomeKey };
     flagship: boolean;
     related: readonly Ref[];
@@ -156,6 +158,8 @@ export interface ProjectCard {
   status: string;
   /** Planned, not built: listed after built work, never featured. */
   planned: boolean;
+  /** Has a cover picture: featured before work without one. */
+  pictured: boolean;
   biome: BiomeKey;
   /**
    * The colour family the card wears: its system's, and for a moon its planet's system's. A list
@@ -187,6 +191,7 @@ export const toCard = <P extends ProjectLike>(project: P, theme?: ThemeKey): Pro
   date: project.data.date ?? '',
   status: STATUS_LABEL[project.data.status],
   planned: project.data.status === 'planned',
+  pictured: project.data.cover !== undefined,
   biome: project.data.planet.biome,
   theme,
   flagship: project.data.flagship,
@@ -262,14 +267,32 @@ export function buildProjectTree(
     }));
 }
 
-/** Planets for the front page: the same showcase order, across the whole galaxy. Built work only. */
-export function featuredPlanets(tree: readonly SystemNode[], limit: number): PlanetNode[] {
-  return tree
-    .flatMap((system) => system.planets)
-    .filter((planet) => !planet.planned)
-    .sort(byShowcase)
-    .slice(0, limit);
+/**
+ * "Start here" on the front page: finished work, across the whole galaxy. Flagships first, planet
+ * or moon, then planets with a picture, then (only while the list is still short) planets without
+ * one; never planned work. Each group in showcase order. A moon that has a card of its own here is
+ * not listed again among its planet's moons.
+ */
+export function featured(
+  tree: readonly SystemNode[],
+  limit: number,
+): Array<PlanetNode | ProjectCard> {
+  const planets = tree.flatMap((system) => system.planets).filter((planet) => !planet.planned);
+  const moons = planets.flatMap((planet) => planet.moons).filter((moon) => !moon.planned);
+  const others = planets.filter((planet) => !planet.flagship);
+  const chosen = [
+    ...[...planets, ...moons].filter((card) => card.flagship).sort(byShowcase),
+    ...others.filter((planet) => planet.pictured).sort(byShowcase),
+    ...others.filter((planet) => !planet.pictured).sort(byShowcase),
+  ].slice(0, limit);
+  const shown = new Set(chosen.map((card) => card.id));
+  return chosen.map((card) =>
+    isPlanet(card) ? { ...card, moons: card.moons.filter((moon) => !shown.has(moon.id)) } : card,
+  );
 }
+
+/** A planet's card (it lists its moons), as opposed to a moon's. */
+export const isPlanet = (card: ProjectCard): card is PlanetNode => 'moons' in card;
 
 export interface Crumb {
   label: string;

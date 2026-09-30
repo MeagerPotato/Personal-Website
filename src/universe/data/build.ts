@@ -176,6 +176,7 @@ function projectBody(
     rings: project.rings,
     decorMoons: project.decorMoons,
     flagship: project.flagship,
+    ...(project.planned ? { planned: true as const } : {}),
   };
 }
 
