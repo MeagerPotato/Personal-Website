@@ -71,7 +71,8 @@ sized Chromium). From docs/PLAN.md §7, these are no longer hand checks:
       `http://` and `www.` answer 301 to the apex with path and query kept; `/index.html` → 307.
       All four held on 2026-09-30.
 - [ ] `<meta name="build">` on the live page equals the commit that was merged.
-- [ ] A PR's preview URL sends `X-Robots-Tag: noindex` and loads no beacon.
+- [ ] A PR's preview URL sends `X-Robots-Tag: noindex` and loads no beacon. Both held on the
+      preview of #48 (2026-09-30), in both modes.
 - [ ] No CSP error in the console, in either mode, on any page (`npm run dev` cannot show these:
       only the deployed site and `npm run preview` apply the headers). 2026-09-30, headless Edge
       on the live site, all eleven pages in both modes (the analytics POST aborted, so no visit
