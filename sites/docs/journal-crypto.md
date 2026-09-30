@@ -110,10 +110,19 @@ cannot read what it would be merging.
 (its rev) and one place in the log (its seq), for good: no row is ever removed, and a deletion is
 a version too. So a device shown an older version than the one it has, another version under the
 same number, or nothing where it had a record, is looking at a server that has gone back:
-restored from a backup, or keeping changes from it. It keeps its own version, holds its changes
-to that record until the next session, and says so (Settings, "Your data"). The log's numbers
-count on from the clock, in microseconds, so a database restored to an earlier time never gives a
-new write a number a device has already passed: every device still pulls it.
+restored from a backup, or keeping changes from it. It keeps its own version rather than merge
+its changes into the older one, and puts it back (below). The log's numbers count on from the
+clock, in microseconds, so a database restored to an earlier time never gives a new write a
+number a device has already passed: every device still pulls it.
+
+**Putting back what the server lost** (`repair` in `replica.ts`). A device that finds the server
+has gone back reads the whole log once, then sends its own version of every record the server
+has an older version of, another version in place of, or none at all. It numbers each one past
+both (a write may name its number, if that is higher than the next), so every device takes it. A
+version the server took after going back holds another device's writing: the device first
+merges the two, like two devices writing apart, but with no version both started from, so
+everything written is kept (though something deleted on one side may come back). Until it is
+done (offline, say), Settings says the server is missing changes.
 
 **The rollback check** (`src/journal/manifest.ts`). The server could also keep a change from a
 device without showing it anything older: by never sending it. So each device publishes a
@@ -202,8 +211,8 @@ What this design does not protect against, said plainly:
   back on a version the device has had, or keeps back one that another device's manifest lists
   ("Sync"). What no device can notice on its own: a server that shows it a consistent older
   journal, with every manifest held back as well, as if the other devices had been quiet since.
-  A device can only be as sure as the newest manifest it is shown. And a device that notices
-  keeps its own copy, but does not yet put back what the server lost.
+  A device can only be as sure as the newest manifest it is shown. What the server loses, a
+  device that still has it puts back; what no device kept is gone with it.
 - **Traffic analysis.** Sizes (padded), times and counts are visible to the server.
 
 ## Formats
@@ -221,7 +230,8 @@ Each record names the id of the AK that sealed it, so the AK can one day be rota
   sync conflicts, a restored database, files, the reminder), including the refusal of PRF results
   and of other origins.
 - `src/journal/replica.test.ts` and `manifest.test.ts`: a server that goes back (an older
-  version, another under the same number, a lost record) and one that keeps a record back.
+  version, another under the same number, a lost record) and one that keeps a record back; a
+  restored server getting back what the devices have, merged with what was written on it since.
 - `tests/e2e/journal.spec.ts`: two real browsers with virtual passkeys. The test writes a day with
   words, a to-do, a person and a photo, then searches every byte the server was sent for them and
   for a JPEG, and finds nothing. Later the laptop's pulls leave out a change the phone made, and

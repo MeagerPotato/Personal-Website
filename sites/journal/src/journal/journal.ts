@@ -76,6 +76,8 @@ const SYNC_EVERY_MS = 60_000;
 const RETRY_MS = [5_000, 15_000, 60_000, 300_000];
 /** At most one manifest this often, after the first of a session (publishManifest). */
 const MANIFEST_EVERY_MS = 10 * 60_000;
+/** At most one repair this often: each reads the whole log (replica.ts, repair). */
+const REPAIR_EVERY_MS = 10 * 60_000;
 
 export class Journal {
   private version = 0;
@@ -93,6 +95,8 @@ export class Journal {
   private readonly manifests = new Map<string, Manifest>();
   /** Whether this session has published its manifest yet: the first is not paced. */
   private manifestPaced = false;
+  /** When this session last tried to put back what the server lost (0: never). */
+  private repairedAt = 0;
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private syncTimer: ReturnType<typeof setTimeout> | undefined;
   private everyTimer: ReturnType<typeof setInterval> | undefined;
@@ -114,7 +118,7 @@ export class Journal {
     readonly keys: AccountKeys,
     private readonly replica: Replica,
     /** This device's own manifest: a random id, one per device (and per account key). */
-    private manifestId: string,
+    private readonly manifestId: string,
   ) {
     this.reindex(null);
     replica.subscribe((ids) => {
@@ -456,9 +460,14 @@ export class Journal {
     this.setStatus({ state: 'syncing' });
     try {
       await this.replica.sync();
-      const withheld = this.withheld();
       // Not worth failing a sync over: the next one says it all again.
       await this.publishManifest().catch(() => undefined);
+      // The server has gone back on something this device has: put back what it lost.
+      if (this.replica.status.behind > 0 && Date.now() - this.repairedAt >= REPAIR_EVERY_MS) {
+        this.repairedAt = Date.now();
+        await this.replica.repair().catch(() => undefined);
+      }
+      const withheld = this.withheld();
       void uploadQueued();
       this.failures = 0;
       this.setStatus({
@@ -513,13 +522,8 @@ export class Journal {
       if (this.manifestPaced && since >= 0 && since < MANIFEST_EVERY_MS) return;
     }
     this.manifestPaced = true;
-    const doc = manifestDoc(records, Date.now());
-    if ((await this.replica.publish(this.manifestId, doc)) === 'behind') {
-      // The server has gone back on it: a new one, under an id it has never seen, goes on.
-      this.manifestId = randomId();
-      await setMeta('manifestId', this.manifestId);
-      await this.replica.publish(this.manifestId, doc);
-    }
+    // Refused when the server has gone back on it: the repair that follows puts it back.
+    await this.replica.publish(this.manifestId, manifestDoc(records, Date.now()));
   }
 
   /** After signing in again (a fresh session): sync picks up where it stopped. */

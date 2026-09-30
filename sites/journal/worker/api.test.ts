@@ -452,6 +452,24 @@ describe('sync', () => {
     expect((again.body['results'] as Body[])[0]?.['ok']).toBe(false);
   });
 
+  it('writes the rev a push names, to put back what a restored database lost', async () => {
+    const { device } = await setUp(env);
+    const id = 'r_ffffffffffffffffffffff';
+    const push = (change: Body) => device.json('POST', '/sync', { changes: [{ id, ...change }] });
+    expect((await push({ baseRev: 0, rev: 7, sealed: sealed(1) })).body['results']).toEqual([
+      { id, ok: true, rev: 7, seq: expect.any(Number) },
+    ]);
+    expect((await push({ baseRev: 7, sealed: sealed(2) })).body['results']).toMatchObject([
+      { id, ok: true, rev: 8 },
+    ]);
+    // Compare-and-set all the same: a stale base lands nowhere, whatever rev it names.
+    expect((await push({ baseRev: 7, rev: 20, sealed: sealed(3) })).body['results']).toMatchObject([
+      { id, ok: false, current: { rev: 8 } },
+    ]);
+    // And a rev named is past the base: never back, never in place.
+    expect((await push({ baseRev: 8, rev: 8, sealed: sealed(4) })).status).toBe(400);
+  });
+
   it('keeps a deletion as a tombstone that other devices pull', async () => {
     const { device } = await setUp(env);
     const id = 'r_dddddddddddddddddddddd';

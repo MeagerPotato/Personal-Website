@@ -15,7 +15,8 @@
  * It never goes back. A version older than the one it has, another version under the same
  * number, or none at all where it had one, is the server going back (restored from a backup,
  * or keeping changes from it: journal-crypto.md, "Sync"): the record is counted as `behind`,
- * this device's copy stays as it is, and its changes to it wait here for the next session.
+ * this device's copy stays as it is, and its changes to it wait here until repair() has put
+ * this device's version back.
  *
  * Headless and testable: the server, the storage and the sealing are all passed in.
  */
@@ -235,6 +236,84 @@ export class Replica {
     });
   }
 
+  /**
+   * Puts back what the server has lost (journal-crypto.md, "Sync"), once it has gone back on a
+   * version this device had: restored from a backup, most likely. Reads the whole log once, as a
+   * pull reads it, then sends this device's version of each record the server has an older
+   * version of, another version in place of, or none at all, numbered past both, so that every
+   * device takes it. A version the server took after going back holds another device's changes:
+   * the two are merged first, like two devices writing apart, but with nothing to say which came
+   * first, so everything written is kept. How many records it put back.
+   */
+  repair(): Promise<number> {
+    return this.exclusive(async () => {
+      // Every change made here sealed and saved first, so that each one sent is the one cleared.
+      await this.flushNow();
+      const report: SyncReport = { pulled: 0, pushed: 0, merged: 0 };
+      const seen = new Set<string>();
+      const back = new Map<string, RemoteRecord>();
+      let since = 0;
+      for (;;) {
+        const page = await this.remote.pull(since);
+        await this.take(page.changes, report);
+        for (const change of page.changes) {
+          seen.add(change.id);
+          if (wentBack(this.confirmed.get(change.id), change)) back.set(change.id, change);
+        }
+        since = page.cursor;
+        if (!page.more) break;
+      }
+      if (since > this.cursor) {
+        await this.store.confirm([], since);
+        this.cursor = since;
+      }
+      // Read whole, the log has this device's version of these after all (one answer was wrong).
+      for (const id of [...this.behind]) if (seen.has(id) && !back.has(id)) this.behind.delete(id);
+
+      const outgoing: { change: Change; sent: Local; shown: Doc | null }[] = [];
+      for (const [id, known] of this.confirmed) {
+        const server = back.get(id) ?? null;
+        if (known.unreadable || (seen.has(id) && !server)) continue;
+        const mine = this.local.get(id);
+        const shown = mine ? mine.doc : known.doc;
+        let doc = shown;
+        if (server && !(server.rev < known.rev && server.seq < known.seq)) {
+          // Not an older version of this device's: another device wrote it after the server went back.
+          const theirs = await this.openConfirmed(server);
+          if (theirs.unreadable) continue;
+          doc = merge3(null, shown, theirs.doc);
+        }
+        const baseRev = server?.rev ?? 0;
+        const rev = Math.max(known.rev, baseRev) + 1;
+        const sealed = doc === null ? null : await this.codec.seal(id, rev, doc);
+        const stamp = mine?.stamp ?? -1;
+        outgoing.push({
+          change: { id, baseRev, rev, sealed },
+          sent: { doc, stamp, savedStamp: stamp, baseRev, sealed },
+          shown,
+        });
+      }
+
+      const putBack: string[] = [];
+      for (let start = 0; start < outgoing.length; start += PUSH_BATCH) {
+        const batch = outgoing.slice(start, start + PUSH_BATCH);
+        const { results } = await this.remote.push(batch.map((item) => item.change));
+        for (const [i, result] of results.entries()) {
+          const item = batch[i];
+          // Refused: written meanwhile by another device, and left to the next sync or repair.
+          if (!item || item.change.id !== result.id || !result.ok) continue;
+          await this.accepted(result.id, item.sent, result.rev, result.seq);
+          // Changed here while it went up: merged with it, as with any version from the server.
+          if (this.local.has(result.id)) await this.settle(result.id, item.shown, item.sent.doc);
+          this.behind.delete(result.id);
+          putBack.push(result.id);
+        }
+      }
+      this.emit(putBack);
+      return putBack.length;
+    });
+  }
+
   // --- Internals -------------------------------------------------------------------------------
 
   private exclusive<T>(task: () => Promise<T>): Promise<T> {
@@ -294,30 +373,38 @@ export class Replica {
   private async pullNow(report: SyncReport): Promise<void> {
     for (;;) {
       const page = await this.remote.pull(this.cursor);
-      const changed: string[] = [];
-      const fresh: StoredRecord[] = [];
-      for (const change of page.changes) {
-        const known = this.confirmed.get(change.id);
-        if (known && known.rev >= change.rev) {
-          // Our own write coming back is the version we have; anything else, the server going back.
-          if (wentBack(known, change)) this.behind.add(change.id);
-          continue;
-        }
-        this.behind.delete(change.id);
-        const next = await this.openConfirmed(change);
-        this.confirmed.set(change.id, next);
-        fresh.push(change);
-        changed.push(change.id);
-        if (!next.unreadable && (await this.settle(change.id, known?.doc ?? null, next.doc))) {
-          report.merged += 1;
-        }
-      }
-      await this.store.confirm(fresh, page.cursor);
-      this.cursor = page.cursor;
-      report.pulled += fresh.length;
-      this.emit(changed);
+      await this.take(page.changes, report, page.cursor);
       if (!page.more) return;
     }
+  }
+
+  /**
+   * Takes a page of the server's log: a newer version replaces this device's (a change made here
+   * is merged with it), and our own coming back is nothing new. Anything else is the server
+   * going back. Saved with the cursor, when given, in one go.
+   */
+  private async take(changes: RemoteRecord[], report: SyncReport, cursor?: number): Promise<void> {
+    const changed: string[] = [];
+    const fresh: StoredRecord[] = [];
+    for (const change of changes) {
+      const known = this.confirmed.get(change.id);
+      if (known && known.rev >= change.rev) {
+        if (wentBack(known, change)) this.behind.add(change.id);
+        continue;
+      }
+      this.behind.delete(change.id);
+      const next = await this.openConfirmed(change);
+      this.confirmed.set(change.id, next);
+      fresh.push(change);
+      changed.push(change.id);
+      if (!next.unreadable && (await this.settle(change.id, known?.doc ?? null, next.doc))) {
+        report.merged += 1;
+      }
+    }
+    await this.store.confirm(fresh, cursor);
+    if (cursor !== undefined) this.cursor = cursor;
+    report.pulled += fresh.length;
+    this.emit(changed);
   }
 
   private async pushNow(report: SyncReport): Promise<void> {

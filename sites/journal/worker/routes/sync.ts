@@ -5,11 +5,13 @@
  *   push   POST /api/sync               compare-and-set writes: each names the rev it was based on
  *
  * A write lands only if the record is still at the rev the device last saw (0 for a new record);
- * it then gets rev + 1 and the next seq. Otherwise the device is told what is there now, merges
- * on its own (it can read the content; the server cannot), and tries again. D1 runs a batch as one
- * transaction, statement after statement, so seq numbers come out unique and in order without a
- * lock or a Durable Object. A deletion is a tombstone (sealed = NULL) so other devices learn of it.
- * No row is ever removed: any of them may be listed in a device's manifest, the rollback check.
+ * it then gets rev + 1, or the rev it names if that is higher (a device putting back what a
+ * restored database lost, past every version a device has had), and the next seq. Otherwise the
+ * device is told what is there now, merges on its own (it can read the content; the server
+ * cannot), and tries again. D1 runs a batch as one transaction, statement after statement, so seq
+ * numbers come out unique and in order without a lock or a Durable Object. A deletion is a
+ * tombstone (sealed = NULL) so other devices learn of it. No row is ever removed: any of them may
+ * be listed in a device's manifest, the rollback check.
  *
  * seq never goes back, even if the database does (D1 Time Travel, the runbook's undo): it counts
  * on from the clock, in microseconds, so a write after a restore still numbers past every cursor
@@ -31,15 +33,19 @@ const recordId = z.string().regex(/^[kr]_[A-Za-z0-9_-]{22}$/);
 const pushBody = z.strictObject({
   changes: z
     .array(
-      z.strictObject({
-        id: recordId,
-        baseRev: z.number().int().min(0),
-        sealed: z
-          .string()
-          .regex(/^[A-Za-z0-9_-]+$/)
-          .max(MAX_SEALED)
-          .nullable(),
-      }),
+      z
+        .strictObject({
+          id: recordId,
+          baseRev: z.number().int().min(0),
+          /** The rev to write, when more than baseRev + 1 (see above). */
+          rev: z.number().int().max(Number.MAX_SAFE_INTEGER).optional(),
+          sealed: z
+            .string()
+            .regex(/^[A-Za-z0-9_-]+$/)
+            .max(MAX_SEALED)
+            .nullable(),
+        })
+        .refine((change) => change.rev === undefined || change.rev > change.baseRev),
     )
     .min(1)
     .max(MAX_CHANGES),
@@ -87,19 +93,20 @@ sync.post('/sync', async (c) => {
   const now = Date.now();
   // ?4 is `now` in both statements.
   const nextSeq = '(SELECT MAX(COALESCE(MAX(seq), 0) + 1, ?4 * 1000) FROM records)';
-  const statements = changes.map((change) =>
-    change.baseRev === 0
+  const statements = changes.map((change) => {
+    const rev = change.rev ?? change.baseRev + 1;
+    return change.baseRev === 0
       ? c.env.DB.prepare(
           `INSERT INTO records (id, rev, seq, sealed, size, updated_at)
-           VALUES (?1, 1, ${nextSeq}, ?2, ?3, ?4) ON CONFLICT (id) DO NOTHING
+           VALUES (?1, ?5, ${nextSeq}, ?2, ?3, ?4) ON CONFLICT (id) DO NOTHING
            RETURNING rev, seq`,
-        ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now)
+        ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now, rev)
       : c.env.DB.prepare(
-          `UPDATE records SET rev = rev + 1, seq = ${nextSeq}, sealed = ?2, size = ?3, updated_at = ?4
+          `UPDATE records SET rev = ?6, seq = ${nextSeq}, sealed = ?2, size = ?3, updated_at = ?4
            WHERE id = ?1 AND rev = ?5
            RETURNING rev, seq`,
-        ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now, change.baseRev),
-  );
+        ).bind(change.id, change.sealed, change.sealed?.length ?? 0, now, change.baseRev, rev);
+  });
   // What each write made, from the write itself: read afterwards, it could already be another
   // device's next version, and this device would take that for its own.
   const written = (await c.env.DB.batch<Pick<RecordRow, 'rev' | 'seq'>>(statements)).map(
