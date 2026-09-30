@@ -81,12 +81,13 @@ export interface ProjectLdInput {
   id: string;
   title: string;
   summary: string;
-  /** "2026-08" */
-  date: string;
+  /** "2026-08"; none for planned work. */
+  date?: string | undefined;
   stack: readonly string[];
   repo?: string | undefined;
   parentId?: string | undefined;
-  imagePath: string;
+  /** The link-preview picture, when the project has a cover. */
+  imagePath?: string | undefined;
 }
 
 const projectNodeId = (id: string): string => `${absoluteUrl(routes.project(id))}#project`;
@@ -98,8 +99,8 @@ export const projectLd = (project: ProjectLdInput): JsonLd => ({
   name: project.title,
   description: project.summary,
   url: absoluteUrl(routes.project(project.id)),
-  image: absoluteUrl(project.imagePath),
-  dateCreated: project.date,
+  ...(project.imagePath ? { image: absoluteUrl(project.imagePath) } : {}),
+  ...(project.date ? { dateCreated: project.date } : {}),
   author: { '@id': PERSON_ID },
   ...(project.repo ? { codeRepository: project.repo } : {}),
   ...(project.stack.length > 0 ? { keywords: project.stack.join(', ') } : {}),

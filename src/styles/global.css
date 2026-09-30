@@ -1253,6 +1253,52 @@ picture {
   background: var(--color-surface-panel);
 }
 
+/* A project with no picture yet shows its planet instead: the toy planet, large, held by a ring
+   of its system's colour, as a station is. */
+.cover--planet {
+  --ground: var(--color-surface-panel);
+
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 1;
+}
+
+.planet-dot--hero {
+  width: clamp(6rem, 26%, 10rem);
+  height: auto;
+  aspect-ratio: 1;
+  box-shadow:
+    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.5rem var(--ground),
+    0 0 0 calc(0.5rem + var(--line)) var(--theme-base);
+}
+
+/* Planned work: its ring is dashed, as a station that is not built yet is drawn on a transit
+   map. (An outline follows the round corners; a shadow cannot be dashed.) */
+.card[data-planned] > .planet-dot,
+.cover--planet[data-planned] > .planet-dot {
+  box-shadow:
+    inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.1875rem var(--ground);
+  outline: var(--line) dashed var(--theme-base);
+  outline-offset: 0.1875rem;
+}
+
+.cover--planet[data-planned] > .planet-dot {
+  box-shadow:
+    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.5rem var(--ground);
+  outline-offset: 0.5rem;
+}
+
+.card__moons > [data-planned] > .planet-dot--moon {
+  box-shadow:
+    inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    0 0 0 0.125rem var(--ground);
+  outline: 0.125rem dashed var(--theme-base);
+  outline-offset: 0.125rem;
+}
+
 .gallery {
   display: grid;
   gap: var(--space-6);
@@ -3220,6 +3266,17 @@ main > .resume-name + .resume-contact {
       color-mix(in srgb, var(--color-space-800) 38%, transparent);
   }
 
+  /* Planned work: the planet has no ring here either; its station on the line is the dashed one. */
+  .card[data-planned] > .planet-dot {
+    box-shadow: inset -0.45rem -0.33rem 0 0
+      color-mix(in srgb, var(--color-space-800) 38%, transparent);
+    outline: none;
+  }
+
+  .card[data-planned]::before {
+    border-style: dashed;
+  }
+
   /* The station on the line, and the short track that ties it to its planet. */
   .card::before,
   .card::after {
@@ -3354,6 +3411,17 @@ main > .resume-name + .resume-contact {
     box-shadow:
       0 0 0 0.125rem Canvas,
       0 0 0 0.25rem CanvasText;
+  }
+
+  .card[data-planned] > .planet-dot,
+  .cover--planet[data-planned] > .planet-dot {
+    box-shadow: 0 0 0 0.1875rem Canvas;
+    outline-color: CanvasText;
+  }
+
+  .card__moons > [data-planned] > .planet-dot--moon {
+    box-shadow: 0 0 0 0.125rem Canvas;
+    outline-color: CanvasText;
   }
 }
 
@@ -3614,8 +3682,10 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     line-height: 1.2;
   }
 
-  /* A project page: the toy planets, the stations and their rings are the screen's. */
+  /* A project page: the toy planets, the stations and their rings are the screen's (and so is
+     the planet that stands in for a missing picture). */
   .planet-dot,
+  .cover--planet,
   .sun-dot,
   .prose > h2::before {
     display: none;

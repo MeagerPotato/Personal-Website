@@ -12,10 +12,9 @@ import { OG_SIZE } from '../../site/og';
 import { routes } from '../../site/routes';
 import { breadcrumbLd, pageTitle, projectLd } from '../../site/seo';
 import {
-  STATUS_LABEL,
   projectContext,
+  projectFacts,
   projectLinks,
-  projectWhen,
   visibleProjects,
 } from '../../site/view-models';
 
@@ -35,16 +34,20 @@ const links = projectLinks(data.links);
 const { Content } = await render(entry);
 
 // The link-preview picture: the cover, cropped from the top to the card shape, as the JPEG that
-// preview crawlers insist on.
-const preview = await getImage({
-  src: data.cover.src,
-  ...OG_SIZE,
-  fit: 'cover',
-  position: 'top',
-  format: 'jpg',
-  quality: 82,
-});
-const image = { path: preview.src, alt: data.cover.alt, ...OG_SIZE };
+// preview crawlers insist on. Without a cover, the page takes the site's card (Base's default).
+const cover = data.cover;
+const preview = cover
+  ? await getImage({
+      src: cover.src,
+      ...OG_SIZE,
+      fit: 'cover',
+      position: 'top',
+      format: 'jpg',
+      quality: 82,
+    })
+  : undefined;
+const image = cover && preview ? { path: preview.src, alt: cover.alt, ...OG_SIZE } : undefined;
+const facts = projectFacts(data);
 const jsonLd = [
   projectLd({
     id: entry.id,
@@ -54,7 +57,7 @@ const jsonLd = [
     stack: data.stack,
     repo: data.links.repo,
     parentId: data.parent?.id,
-    imagePath: preview.src,
+    imagePath: preview?.src,
   }),
   breadcrumbLd(context.crumbs, { label: data.title, href: routes.project(entry.id) }),
 ];
@@ -87,21 +90,27 @@ const jsonLd = [
     </ul>
   )}
 
-  <Shot class="cover" src={data.cover.src} alt={data.cover.alt} eager />
+  {cover ? (
+    <Shot class="cover" src={cover.src} alt={cover.alt} eager />
+  ) : (
+    <div
+      class="cover cover--planet"
+      data-biome={data.planet.biome}
+      data-theme={context.theme}
+      data-planned={data.status === 'planned' ? '' : undefined}
+      aria-hidden="true"
+    >
+      <span class="planet-dot planet-dot--hero" />
+    </div>
+  )}
 
   <dl class="facts">
-    <div>
-      <dt>Status</dt>
-      <dd>{STATUS_LABEL[data.status]}</dd>
-    </div>
-    <div>
-      <dt>When</dt>
-      <dd>{projectWhen(data)}</dd>
-    </div>
-    <div>
-      <dt>Role</dt>
-      <dd>{data.role}</dd>
-    </div>
+    {facts.map((fact) => (
+      <div>
+        <dt>{fact.label}</dt>
+        <dd>{fact.value}</dd>
+      </div>
+    ))}
     {data.stack.length > 0 && (
       <div class="facts__wide">
         <dt>Built with</dt>

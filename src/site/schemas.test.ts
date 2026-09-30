@@ -88,6 +88,30 @@ describe('projectSchema', () => {
     expect(project.safeParse({ ...validProject, ...override }).success).toBe(false);
   });
 
+  it('accepts planned work without a date, a role or a cover', () => {
+    const parsed = project.parse({
+      ...validProject,
+      date: undefined,
+      role: undefined,
+      cover: undefined,
+      status: 'planned',
+    });
+    expect(parsed.status).toBe('planned');
+    expect(parsed.date).toBeUndefined();
+    expect(parsed.cover).toBeUndefined();
+  });
+
+  it('still needs a date and a role for work that is not planned', () => {
+    const result = project.safeParse({ ...validProject, date: undefined, role: undefined });
+    expect(result.success).toBe(false);
+    expect(issuesOf(result)).toContain('date is required unless the status is');
+    expect(issuesOf(result)).toContain('role is required');
+  });
+
+  it('accepts built work without a cover: the page shows none, the preview is the site card', () => {
+    expect(project.parse({ ...validProject, cover: undefined }).cover).toBeUndefined();
+  });
+
   it('accepts https links', () => {
     const parsed = project.parse({
       ...validProject,
