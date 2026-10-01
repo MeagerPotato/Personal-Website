@@ -121,14 +121,18 @@ describe('StarMap, opening and closing', () => {
     expect(changes).toEqual([[true, false]]);
     expect(button()?.textContent).toBe('MClose map');
     expect(canvas.dataset.map).toBe('');
-    // The way there takes blendSec, eased: slow, fast, slow.
+    // The way there takes blendSec, eased: slow, fast, slow. It has arrived only at the end.
     run(0.5);
     expect(map.weight).toBeCloseTo(0.5, 1);
+    expect(map.arrived).toBe(false);
     run(0.6);
     expect(map.weight).toBe(1);
+    expect(map.arrived).toBe(true);
 
     button()?.click();
     expect(map.isOpen).toBe(false);
+    // On its way down it is no longer there, from the first frame.
+    expect(map.arrived).toBe(false);
     expect(changes).toEqual([
       [true, false],
       [false, false],
@@ -213,6 +217,7 @@ describe('StarMap, opening and closing', () => {
     cleanup = () => map.dispose();
     map.setOpen(true, true);
     expect(map.weight).toBe(1);
+    expect(map.arrived).toBe(true);
     expect(changes).toEqual([[true, true]]);
     // Being told what it already knows is not news.
     map.setOpen(true);

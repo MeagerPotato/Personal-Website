@@ -73,13 +73,18 @@ export interface LabelsOptions {
    */
   ship?: () => Readonly<ScreenBox> | null;
   /**
-   * Is the star map up? It holds still, and there a name has more than one place: ABOVE its
-   * body, where it has no room below (the panel, an edge) or the ship is in its way there; BESIDE
-   * it, like a station's name on a transit map; or slid along it, away from a screen edge it
-   * would cross, as long as its body stays over its tag. Where one place is taken it takes
-   * another, and names make way for each other where they can (sim/declutter.ts). In flight
-   * everything drifts, and a name that hopped round its body would only distract: one place,
-   * under it.
+   * Is the star map up, and has the camera pulled all the way out to it? It holds still, and
+   * there a name has more than one place: ABOVE its body, where it has no room below (the panel,
+   * an edge) or the ship is in its way there; BESIDE it, like a station's name on a transit map;
+   * or slid along it, away from a screen edge it would cross, as long as its body stays over its
+   * tag. Where one place is taken it takes another, and names make way for each other where they
+   * can (sim/declutter.ts), and a name that has just changed lets that stand a while
+   * (`dwellSec`). In flight everything drifts, and a name that hopped round its body would only
+   * distract: one place, under it. So too on the way up to the map (its 0.9 s blend), while the
+   * view still sweeps: the map's places take over in the frame it arrives, every name free to
+   * take the one it likes best, and settle there, where the visitor is looking. (Taken on the way
+   * up, they would each hold the place they had at some moment of the sweep a second longer than
+   * that moment lasted: tests/map-names/, opening with the blend.)
    */
   onMap?: () => boolean;
 }
@@ -447,9 +452,14 @@ export class Labels implements System {
       if (offered === 0) continue;
       boxes.width[row] = width;
       boxes.height[row] = height;
-      // Where it showed last frame, among the places it has now: it may stay there a while.
-      boxes.at[row] = NOWHERE;
-      for (let place = 0; place < PLACES; place += 1) {
+      // Where it showed last frame, among the places it has now: it may stay there a while. In
+      // flight a name has one place, and showed there if it showed at all, wherever on the map it
+      // hung a frame ago (as the map closes).
+      boxes.at[row] =
+        !onMap && this.wasShown[row] === 1 && Number.isFinite(boxes.left[base] ?? Number.NaN)
+          ? 0
+          : NOWHERE;
+      for (let place = 0; onMap && place < PLACES; place += 1) {
         if (!Number.isFinite(boxes.left[base + place] ?? Number.NaN)) continue;
         if (placeSide[base + place] !== this.drawnSide[row]) continue;
         if (placeReach[base + place] !== this.reach[row]) continue;

@@ -333,8 +333,9 @@ export function boot(
           shipBox.height = 2 * half;
           return shipBox;
         },
-        // The map holds still: there a name has other places than under its body (ui/Labels.ts).
-        onMap: () => starMap.isOpen,
+        // The map holds still: there a name has other places than under its body (ui/Labels.ts),
+        // from the moment the camera has pulled all the way out to it.
+        onMap: () => starMap.arrived,
       }),
     );
   }

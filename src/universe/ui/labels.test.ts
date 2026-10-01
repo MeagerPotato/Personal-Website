@@ -377,6 +377,28 @@ describe('Labels', () => {
     expect(button('FishAI').dataset.side).toBeUndefined();
   });
 
+  it('as the map closes, keeps a name that showed there as patiently as one that showed in flight', () => {
+    const { labels, state, shown, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    // The prompt right over FishAI's place below its body (367..433 x 442..486): in flight it has
+    // no name; on the map it goes above.
+    state.prompt = { left: 360, top: 450, width: 80, height: 30 };
+    labels.frameUpdate(tick());
+    expect(shown()).not.toContain('FishAI');
+    state.onMap = true;
+    labels.frameUpdate(tick());
+    expect(button('FishAI').dataset.side).toBe('above');
+    // The map closes as the prompt moves to 2 px under that place: inside the gap, which a name
+    // that waits needs, but not a keep inside it, which one that shows may come. FishAI showed:
+    // under its body again, and named.
+    state.prompt = { left: 360, top: 488, width: 80, height: 30 };
+    state.onMap = false;
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('FishAI');
+    expect(drawn(button('FishAI'))).toMatchObject({ x: 367, y: 442 });
+    expect(button('FishAI').dataset.side).toBeUndefined();
+  });
+
   it('glides any other name a little past the ship, and beyond that it makes way', () => {
     // The moon is near the top bar: its name has no room above it (120 - 6 - 2 - 44 < 80).
     const { labels, screen, state, shown, button } = setup(SPREAD);

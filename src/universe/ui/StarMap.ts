@@ -179,6 +179,14 @@ export class StarMap implements System, MapSight {
     return easeBlend(this.progress);
   }
 
+  /**
+   * Open, and all the way there: the camera has finished pulling out to it (at once, under
+   * reduced motion). Whatever holds still on the map (its names: ui/Labels.ts) begins from here.
+   */
+  get arrived(): boolean {
+    return this.open && this.progress >= 1;
+  }
+
   get x(): number {
     return this.eased.x.value;
   }
