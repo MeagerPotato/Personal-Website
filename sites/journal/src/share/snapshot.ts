@@ -7,11 +7,12 @@
  * parts stack from the top. When they do not all fit, the calendar shrinks first (and moves the
  * mood summary and activities into a column beside it), then the photos; only then is a part
  * left out (the note first), and the caller is told which. Room left over goes to the photos, as
- * far as their own shape allows.
+ * far as their own shape allows, and two to four of them may take two rows (share/tiles.ts).
  */
 import { monthGrid, monthName, shortDate, weekdayNames } from '../model/dates';
 import type { MonthSummary } from '../model/stats';
 import type { Activities, MonthReview, MoodDef, Photo } from '../model/types';
+import { arrangePhotos, type Tile } from './tiles';
 
 export type SnapshotSize = 'portrait' | 'story' | 'square';
 
@@ -155,6 +156,32 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: n
   return lines;
 }
 
+/**
+ * Things of the given widths in lines no wider than `width`, `gap` apart: at most `max` lines,
+ * and none at all for a `max` of 0 (the column beside the calendar, with the activities off).
+ */
+export function inLines<T extends { w: number }>(
+  items: readonly T[],
+  width: number,
+  gap: number,
+  max: number,
+): T[][] {
+  const lines: T[][] = [];
+  let line: T[] = [];
+  let used = 0;
+  for (const item of items) {
+    if (line.length > 0 && used + item.w > width) {
+      lines.push(line);
+      line = [];
+      used = 0;
+    }
+    line.push(item);
+    used += item.w + gap;
+  }
+  if (line.length > 0) lines.push(line);
+  return lines.slice(0, max);
+}
+
 /** The parts the review's switches turn on (the calendar and mood bar are "mood"). */
 export type SnapshotPart = keyof MonthReview['share'];
 
@@ -189,6 +216,7 @@ interface Plan {
   cell: number;
   /** The mood summary and the activities in a column beside the calendar, not below it. */
   beside: boolean;
+  /** The room kept for the photos, which grow into whatever is left over. */
   photoHeight: number;
 }
 
@@ -259,22 +287,8 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
   /** Chips in lines no wider than `w`, at most `max` lines. */
   const chipLines = (w: number, max: number) => {
     ctx.font = font(500, 28);
-    const lines: { text: string; w: number }[][] = [];
-    let line: { text: string; w: number }[] = [];
-    let used = 0;
-    for (const text of chips) {
-      const chipWidth = Math.min(ctx.measureText(text).width + 40, w);
-      if (line.length > 0 && used + chipWidth > w) {
-        lines.push(line);
-        if (lines.length === max) return lines;
-        line = [];
-        used = 0;
-      }
-      line.push({ text, w: chipWidth });
-      used += chipWidth + CHIP_GAP;
-    }
-    if (line.length > 0 && lines.length < max) lines.push(line);
-    return lines;
+    const sized = chips.map((text) => ({ text, w: Math.min(ctx.measureText(text).width + 40, w) }));
+    return inLines(sized, w, CHIP_GAP, max);
   };
   const linesHeight = (count: number) => (count > 0 ? count * (CHIP + CHIP_GAP) - CHIP_GAP : 0);
 
@@ -335,18 +349,18 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
   }
   plan ??= plans[plans.length - 1] as Plan;
 
-  // Room left over (a story is tall) goes to the photos: up to their average height at this
-  // width, so that they show more of themselves rather than less, and never past 3:4.
-  if (parts.has('photos')) {
-    const w = (inner - PHOTO_GAP * (photos.length - 1)) / photos.length;
-    const natural =
-      photos.reduce((sum, { image }) => sum + (w * image.height) / Math.max(image.width, 1), 0) /
-      photos.length;
-    const tallest = Math.min(natural, (w * 4) / 3);
-    const slack = room - measure(plan, parts);
-    const grown = Math.floor(Math.min(plan.photoHeight + slack, tallest));
-    plan = { ...plan, photoHeight: Math.max(plan.photoHeight, grown) };
-  }
+  // Room left over (a story is tall) goes to the photos, in one row or two, whichever shows them
+  // best: they grow towards their own shape, so that they show more of themselves rather than
+  // less, and never past 3:4.
+  const block = parts.has('photos')
+    ? arrangePhotos(
+        photos.map(({ image }) => Math.max(image.width, 1) / Math.max(image.height, 1)),
+        inner,
+        PHOTO_GAP,
+        plan.photoHeight,
+        plan.photoHeight + room - measure(plan, parts),
+      )
+    : undefined;
 
   // --- Drawing ---------------------------------------------------------------------------------------
 
@@ -427,17 +441,21 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
     });
   };
 
-  const drawPhotos = (y: number, h: number) => {
-    const w = (inner - PHOTO_GAP * (photos.length - 1)) / photos.length;
-    photos.forEach(({ image }, i) => {
-      const x = PAD + i * (w + PHOTO_GAP);
+  /** Each photo fills its tile, cut evenly on both sides where their shapes differ. */
+  const drawPhotos = (y: number, tiles: Tile[]) => {
+    tiles.forEach((tile, i) => {
+      const image = photos[i]?.image;
+      if (!image) return;
+      const { w, h } = tile;
+      const x = PAD + tile.x;
+      const top = y + tile.y;
       ctx.save();
-      roundRect(ctx, x, y, w, h, 18);
+      roundRect(ctx, x, top, w, h, 18);
       ctx.clip();
       const scale = Math.max(w / image.width, h / image.height);
       const dw = image.width * scale;
       const dh = image.height * scale;
-      ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      ctx.drawImage(image, x + (w - dw) / 2, top + (h - dh) / 2, dw, dh);
       ctx.restore();
     });
   };
@@ -484,9 +502,9 @@ export async function renderSnapshot(input: SnapshotInput): Promise<Snapshot> {
     drawChips(PAD, y, lines);
     y += linesHeight(lines.length) + GAP;
   }
-  if (parts.has('photos')) {
-    drawPhotos(y, plan.photoHeight);
-    y += plan.photoHeight + GAP;
+  if (block) {
+    drawPhotos(y, block.tiles);
+    y += block.height + GAP;
   }
   if (parts.has('highlights')) {
     drawHighlights(y);

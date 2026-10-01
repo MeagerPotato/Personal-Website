@@ -1,8 +1,9 @@
 /**
  * This device's copy of the journal, in IndexedDB. Everything in it is sealed exactly as it is on
  * the server (or sealed and waiting to go up), so a copied browser profile holds nothing readable.
- * The only plain values are bookkeeping: the sync cursor, which passkeys this device has, and the
- * sealed key slots (ciphertext too) so the journal can be unlocked without a connection.
+ * The only plain values are bookkeeping: the sync cursor, the id of this device's manifest
+ * (journal/manifest.ts), which passkeys this device has, and the sealed key slots (ciphertext
+ * too) so the journal can be unlocked without a connection.
  *
  * An installed iOS app has its own storage, separate from Safari's, and is exempt from Safari's
  * seven-day eviction; persist() asks every other browser not to evict it under storage pressure.

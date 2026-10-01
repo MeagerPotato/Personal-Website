@@ -263,7 +263,10 @@ never an error. Interactive DOM made by the engine (the prompt, later the labels
 attributes on `<html>`, wait for outcomes and never for a number of seconds, and point at moving
 things with `pointAt` (a planet's name never holds still for Playwright's own click). Measure where
 a body is with `bodyOf`, not by its name's box: on the star map a name hangs wherever its body
-leaves it room (below, above, beside it, slid along it).
+leaves it room (below, above, beside it, slid along it). On the phone a tap is a finger
+(`fingerTap`: a touch with an area, which the browser may move onto a link or a button nearby, as
+it does a real one), and `slowFrames` makes a page as slow as a slow phone, or CI, where some
+things happen after a frame that happen before one on a fast machine.
 
 **Add a page.** `src/pages/<slug>.astro` using `layouts/Base.astro` with `title` (through
 `pageTitle()` from `src/site/seo.ts`) and `description`, then `components/PageHeader.astro` for

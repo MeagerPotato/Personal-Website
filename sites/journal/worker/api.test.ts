@@ -377,17 +377,50 @@ describe('sync', () => {
       ],
     });
     expect(push.body['results']).toEqual([
-      { id: 'k_aaaaaaaaaaaaaaaaaaaaaa', ok: true, rev: 1, seq: 1 },
-      { id: 'r_bbbbbbbbbbbbbbbbbbbbbb', ok: true, rev: 1, seq: 2 },
+      { id: 'k_aaaaaaaaaaaaaaaaaaaaaa', ok: true, rev: 1, seq: expect.any(Number) },
+      { id: 'r_bbbbbbbbbbbbbbbbbbbbbb', ok: true, rev: 1, seq: expect.any(Number) },
     ]);
+    const [first, second] = (push.body['results'] as Body[]).map((result) => result['seq']);
+    expect(second).toBeGreaterThan(first as number);
     const pull = await device.json('GET', '/sync?since=0');
-    expect(pull.body['cursor']).toBe(2);
+    expect(pull.body['cursor']).toBe(second);
     expect((pull.body['changes'] as Body[]).map((change) => change['id'])).toEqual([
       'k_aaaaaaaaaaaaaaaaaaaaaa',
       'r_bbbbbbbbbbbbbbbbbbbbbb',
     ]);
-    const nothingNew = await device.json('GET', '/sync?since=2');
-    expect(nothingNew.body).toMatchObject({ changes: [], cursor: 2, more: false });
+    const nothingNew = await device.json('GET', `/sync?since=${second}`);
+    expect(nothingNew.body).toMatchObject({ changes: [], cursor: second, more: false });
+  });
+
+  it('numbers on from the clock, so a restored database numbers past every cursor', async () => {
+    const { device } = await setUp(env);
+    const write = async (id: string): Promise<number> => {
+      const push = await device.json('POST', '/sync', {
+        changes: [{ id, baseRev: 0, sealed: sealed(1) }],
+      });
+      return (push.body['results'] as Body[])[0]?.['seq'] as number;
+    };
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const start = Date.now();
+      expect(await write('r_aaaaaaaaaaaaaaaaaaaaaa')).toBe(start * 1000);
+      const lost = await write('r_bbbbbbbbbbbbbbbbbbbbbb');
+      expect(lost).toBe(start * 1000 + 1); // the same millisecond: one past the last
+      // Minutes later the database is restored to before that write (D1 Time Travel), after a
+      // device had pulled it: its cursor is `lost`.
+      await env.DB.prepare('DELETE FROM records WHERE id = ?1')
+        .bind('r_bbbbbbbbbbbbbbbbbbbbbb')
+        .run();
+      vi.setSystemTime(start + 5 * 60_000);
+      // The next write numbers past that cursor all the same, so the device pulls it.
+      expect(await write('r_cccccccccccccccccccccc')).toBeGreaterThan(lost);
+      const pull = await device.json('GET', `/sync?since=${lost}`);
+      expect((pull.body['changes'] as Body[]).map((change) => change['id'])).toEqual([
+        'r_cccccccccccccccccccccc',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('turns a stale write into a conflict that carries what is there now', async () => {
@@ -397,14 +430,20 @@ describe('sync', () => {
     const phone = await device.json('POST', '/sync', {
       changes: [{ id, baseRev: 1, sealed: sealed(2) }],
     });
-    expect(phone.body['results']).toEqual([{ id, ok: true, rev: 2, seq: 2 }]);
+    expect(phone.body['results']).toEqual([{ id, ok: true, rev: 2, seq: expect.any(Number) }]);
+    const seq = (phone.body['results'] as Body[])[0]?.['seq'];
 
-    // The laptop still thinks the record is at rev 1.
+    // The laptop still thinks the record is at rev 1; the new one in the same push lands.
+    const other = 'r_eeeeeeeeeeeeeeeeeeeeee';
     const laptop = await device.json('POST', '/sync', {
-      changes: [{ id, baseRev: 1, sealed: sealed(3) }],
+      changes: [
+        { id, baseRev: 1, sealed: sealed(3) },
+        { id: other, baseRev: 0, sealed: sealed(5) },
+      ],
     });
     expect(laptop.body['results']).toEqual([
-      { id, ok: false, current: { id, rev: 2, seq: 2, sealed: sealed(2) } },
+      { id, ok: false, current: { id, rev: 2, seq, sealed: sealed(2) } },
+      { id: other, ok: true, rev: 1, seq: expect.any(Number) },
     ]);
     // Two devices creating the same day offline: the second create conflicts too.
     const again = await device.json('POST', '/sync', {
@@ -413,13 +452,34 @@ describe('sync', () => {
     expect((again.body['results'] as Body[])[0]?.['ok']).toBe(false);
   });
 
+  it('writes the rev a push names, to put back what a restored database lost', async () => {
+    const { device } = await setUp(env);
+    const id = 'r_ffffffffffffffffffffff';
+    const push = (change: Body) => device.json('POST', '/sync', { changes: [{ id, ...change }] });
+    expect((await push({ baseRev: 0, rev: 7, sealed: sealed(1) })).body['results']).toEqual([
+      { id, ok: true, rev: 7, seq: expect.any(Number) },
+    ]);
+    expect((await push({ baseRev: 7, sealed: sealed(2) })).body['results']).toMatchObject([
+      { id, ok: true, rev: 8 },
+    ]);
+    // Compare-and-set all the same: a stale base lands nowhere, whatever rev it names.
+    expect((await push({ baseRev: 7, rev: 20, sealed: sealed(3) })).body['results']).toMatchObject([
+      { id, ok: false, current: { rev: 8 } },
+    ]);
+    // And a rev named is past the base: never back, never in place.
+    expect((await push({ baseRev: 8, rev: 8, sealed: sealed(4) })).status).toBe(400);
+  });
+
   it('keeps a deletion as a tombstone that other devices pull', async () => {
     const { device } = await setUp(env);
     const id = 'r_dddddddddddddddddddddd';
-    await device.json('POST', '/sync', { changes: [{ id, baseRev: 0, sealed: sealed(1) }] });
+    const made = await device.json('POST', '/sync', {
+      changes: [{ id, baseRev: 0, sealed: sealed(1) }],
+    });
     await device.json('POST', '/sync', { changes: [{ id, baseRev: 1, sealed: null }] });
-    const pull = await device.json('GET', '/sync?since=1');
-    expect(pull.body['changes']).toEqual([{ id, rev: 2, seq: 2, sealed: null }]);
+    const since = (made.body['results'] as Body[])[0]?.['seq'] as number;
+    const pull = await device.json('GET', `/sync?since=${since}`);
+    expect(pull.body['changes']).toEqual([{ id, rev: 2, seq: expect.any(Number), sealed: null }]);
   });
 
   it('pages a long history', async () => {
