@@ -644,6 +644,46 @@ describe('Labels', () => {
     again.labels.frameUpdate(tick());
     expect(again.button('Code').dataset.side).toBeUndefined();
     expect(drawn(again.button('Code'))).toMatchObject({ x: 1140, y: 314 });
+
+    // The name of where the ship is going is placed first and never moved for another: it needs
+    // no room to spare, and at 1178 slides at once.
+    const going = setup(SPREAD);
+    again.labels.dispose();
+    cleanup = () => going.labels.dispose();
+    going.state.target = 0;
+    going.screen.x[0] = 1178;
+    going.labels.frameUpdate(tick());
+    going.state.onMap = true;
+    going.labels.frameUpdate(tick());
+    expect(going.shown()).toContain('Code');
+    expect(going.button('Code').dataset.side).toBeUndefined();
+  });
+
+  it('on the map, goes back from reaching along its body to under its middle only with room to spare', () => {
+    drawnTags();
+    // Code's sun 22 px from the right edge, the dock prompt beside it on the left: its name cannot
+    // slide under it (not with room to spare: the test above) nor go beside it. It reaches left
+    // along it, the sun over the right end of its tag.
+    // (Hidden in flight first: there a name at the edge does not slide.)
+    const { labels, screen, state, button } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    state.prompt = { left: 1100, top: 260, width: 60, height: 36 };
+    screen.x[0] = 1178;
+    labels.frameUpdate(tick());
+    state.onMap = true;
+    labels.frameUpdate(tick());
+    expect(button('Code').dataset.side).toBeUndefined();
+    expect(drawn(button('Code'))).toMatchObject({ x: 1178 + 13 - 52, y: 314 });
+    // A pixel further in, it could slide under its middle as one there already may (to 1179),
+    // but not with a keep to spare: it stays where it is, a while on...
+    labels.frameUpdate(tick(1));
+    screen.x[0] = 1177;
+    labels.frameUpdate(tick());
+    expect(drawn(button('Code'))).toMatchObject({ x: 1177 + 13 - 52, y: 314 });
+    // ...and goes back once it has that room (to 1171).
+    screen.x[0] = 1171;
+    labels.frameUpdate(tick());
+    expect(drawn(button('Code'))).toMatchObject({ x: 1140, y: 314 });
   });
 
   it('on the map, puts a name with no room below its body or above it beside it, the way in first', () => {

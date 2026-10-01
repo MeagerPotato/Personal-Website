@@ -407,6 +407,30 @@ describe('declutter, with places', () => {
     expect(where(boxes)).toEqual([0, 0, null]);
   });
 
+  it('moves a label to make room only where it takes none from a label that shows', () => {
+    // B's only place is under A. A's other place is clear of everything placed before B, but C,
+    // placed after it, shows there: A stays, B waits, and C keeps its place.
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          1,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 2, [[20, 10]]],
+        [80, 40, 3, [[20, 210]]],
+      ],
+      2,
+    );
+    shows(boxes, [0, null, 0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0, null, 0]);
+  });
+
   it('places the most important labels together, every way tried, before one is left out', () => {
     // Three systems' names. Greedy, A and B take their first places and C's only place is under
     // both: moving one of them is not enough. Placed together (all three more important than
@@ -443,6 +467,45 @@ describe('declutter, with places', () => {
     // ...and it holds, frame after frame.
     declutter(together, PARAMS, undefined, TOGETHER_5);
     expect(where(together)).toEqual([1, 1, 0, 0]);
+  });
+
+  it('together, puts a label where it lies on nothing before where it lies on something', () => {
+    // As above, with C's places all under A's first and B's: once they move, all three show
+    // whichever place C takes. Its first two lie on a body, its third on nothing: its third.
+    const rows: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [0, 200],
+        ],
+      ],
+      [
+        80,
+        40,
+        2,
+        [
+          [90, 0],
+          [90, 200],
+        ],
+      ],
+      [
+        150,
+        40,
+        3,
+        [
+          [20, 10],
+          [20, 14],
+          [20, 18],
+        ],
+      ],
+    ];
+    const boxes = placesOf(rows, 3);
+    boxes.covers.set([0, 0, 0, 0, 0, 0, 1, 1, 0]);
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 1, 2]);
   });
 
   it('together, tries some 4,000 places a call at most, and after a search that found nothing rests', () => {
