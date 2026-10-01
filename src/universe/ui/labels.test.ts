@@ -750,42 +750,44 @@ describe('Labels', () => {
     const { labels, screen, state, button } = setup(away);
     cleanup = () => labels.dispose();
     state.onMap = true;
-    // Both come into view at once: Code 36 px from the middle of the view (600, 436), About 41.5.
-    // About is nearer the camera, which is what decides in flight; on the map, where the visitor
-    // is looking does. Code's name goes under its sun, About's elsewhere.
+    // Both come into view at once, About's sun at the bottom edge, where its name has room only
+    // above it, in the way of Code's under its own: Code 204 px from the middle of the view
+    // (600, 436), About 314. About is nearer the camera, which is what decides in flight; on the
+    // map, where the visitor is looking does. Code's name goes under its sun, About's elsewhere.
     put(screen, [
-      [600, 400, 12, 1000],
+      [600, 640, 12, 1000],
       [400, 400, 40, 120],
       [600, 380, 6, -1],
-      [640, 425, 12, 300],
+      [610, 750, 12, 300],
     ]);
     labels.frameUpdate(tick());
-    expect(drawn(button('Code'))).toMatchObject({ x: 574, y: 414 });
+    expect(drawn(button('Code'))).toMatchObject({ x: 574, y: 654 });
     expect(button('About').dataset.shown).toBeDefined();
 
-    // Code's name has shown for a while when About comes into view, nearer the middle and nearer
-    // the camera, where its name would want that room. Code's stays: a name that waits takes only
-    // the room that is left.
+    // Code's name has shown above its sun at the bottom edge for a while when About comes into
+    // view, nearer the middle, where its name would want that room. Code's stays: a name that
+    // waits takes only the room that is left.
     const fresh = setup(away);
     labels.dispose();
     cleanup = () => fresh.labels.dispose();
     fresh.state.onMap = true;
     put(fresh.screen, [
-      [640, 425, 12, 1000],
+      [610, 750, 12, 1000],
       [400, 400, 40, 120],
       [600, 380, 6, -1],
       [200, 300, 30, -1],
     ]);
     fresh.labels.frameUpdate(tick());
-    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 614, y: 439 });
+    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 584, y: 692 });
     fresh.labels.frameUpdate(tick(1));
     fresh.screen.x[3] = 600;
-    fresh.screen.y[3] = 400;
+    fresh.screen.y[3] = 640;
     fresh.screen.radius[3] = 12;
     fresh.screen.depth[3] = 300;
     fresh.labels.frameUpdate(tick());
-    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 614, y: 439 });
+    expect(drawn(fresh.button('Code'))).toMatchObject({ x: 584, y: 692 });
     expect(fresh.button('About').dataset.shown).toBeDefined();
+    expect(fresh.button('About').dataset.side).toBe('above');
   });
 
   it('on the map, puts a new name where its tag lies on no other body, where it has such a place', () => {
@@ -810,6 +812,66 @@ describe('Labels', () => {
     labels.frameUpdate(tick());
     expect(button('FishAI').dataset.side).toBe('above');
     expect(drawn(button('FishAI'))).toMatchObject({ x: 367, y: 400 - 40 - 2 - 44 });
+  });
+
+  it("on the map, puts a new name where it does not read as a neighbour's: level with it, off its end", () => {
+    // FishAI comes into view on the map with Canadian Fish level with where its name would go
+    // below it (367..433 x 442..486), 11 px off the right end of the tag: "FishAI ( )" would read
+    // as the moon's name. Clear of the moon's disc, but it goes above instead.
+    const { labels, screen, state, button } = setup([
+      [900, 300, 12, 1000],
+      [400, 400, 40, -1],
+      [600, 380, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    put(screen, [
+      [900, 300, 12, 1000],
+      [400, 400, 40, 120],
+      [450, 464, 6, 140],
+      [200, 300, 30, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(button('FishAI').dataset.side).toBe('above');
+  });
+
+  it("on the map, lays no planet's or moon's name on a sun or the home planet, a system's only as a last resort", () => {
+    // A narrow free view (the panel has the rest: no name goes further right than 112 px), and
+    // FishAI between Code's sun above it and About's planet below: every place its name has
+    // (below, above, slid along) lies on one of them, and beside it there is no room. No name.
+    const { labels, screen, state, view, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    view.freeWidth = 0.1;
+    state.onMap = true;
+    put(screen, [
+      [60, 262, 15, 1000],
+      [60, 300, 10, 120],
+      [600, 380, 6, -1],
+      [60, 338, 20, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['Code', 'About']);
+    // Code's sun just under the top bar, where its name has no room above it, with About's
+    // planet under it: every place Code's name has lies on About's. A system's name lies there
+    // all the same, rather than go...
+    put(screen, [
+      [60, 110, 10, 1000],
+      [600, 400, 10, -1],
+      [600, 380, 6, -1],
+      [60, 150, 20, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['Code', 'About']);
+    // ...and a planet's in its place does not.
+    put(screen, [
+      [600, 300, 10, -1],
+      [60, 110, 10, 120],
+      [600, 380, 6, -1],
+      [60, 150, 20, 300],
+    ]);
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['About']);
   });
 
   it('on the map, asks more room of a place a name is not at yet: past the ship, and from the edges', () => {

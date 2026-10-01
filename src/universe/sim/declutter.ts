@@ -3,8 +3,8 @@
  * worse than missing ones. Greedy, by importance: the most important label is placed, then the
  * next one that does not touch anything placed so far, and so on. A label may offer more than one
  * PLACE (on the star map a name may sit below its body, above it, beside it, or slid along it:
- * ui/Labels.ts), tried in turn, the places that lie on nothing (`covers`) before the others; one
- * that finds no room anywhere may move ONE label already placed to another of that label's
+ * ui/Labels.ts), tried in turn, those that lie on less (`covers`) before those that lie on more;
+ * one that finds no room anywhere may move ONE label already placed to another of that label's
  * places, if that makes room for both (`makeRoom`); and the few that matter most (a system's
  * name, on the map) are placed TOGETHER, every way of placing them tried before one is left out
  * (`searchTogether`). Pure, and it allocates nothing: what it keeps from call to call, and its
@@ -15,7 +15,8 @@
  * where nothing more important is, hiding only less important ones; a label that was missing is
  * placed by moving ONE other, which hides nothing; the group shows more of itself than it did; a
  * label that had been moved aside goes back to its first place, only where that is clear of
- * every label that shows, those still to be placed included. None of them undoes another, so
+ * every label that shows, those still to be placed included, and lies on no more; a label that
+ * lies on what it must not moves to a place that lies on less. None of them undoes another, so
  * nothing cycles (declutter.test.ts runs random skies until they settle). While things drift, a
  * label that shows keeps its place until it is `keepPx` closer than the gap to something, and one
  * appears only a whole gap clear, or goes back only a gap and a keep clear: nothing hops back and
@@ -37,10 +38,12 @@ export interface LabelBoxes {
   readonly left: Float64Array;
   readonly top: Float64Array;
   /**
-   * 1 where a place lies on something it had better not (on the star map, another body), by
-   * [row * places + k]; 0 where it lies on nothing. A label takes such a place only where it has
-   * no other, and goes back to its first place only if that lies on no more; but one that shows
-   * already stays, whatever drifts under it.
+   * How much each place lies on what it had better not, by [row * places + k]: 0 nothing; 1
+   * something it had better not (on the star map, another body: ui/Labels.ts), which a label
+   * takes only where it has no place that lies on less and then keeps, whatever drifts under it;
+   * 2 something it must not, but as a last resort (a system's name, on another system's sun),
+   * which it also leaves once it may (not `young`), for a place that lies on less with room to
+   * spare. A label goes back to its first place only if that lies on no more than where it is.
    */
   readonly covers: Uint8Array;
   /** The size of each label, wherever it goes. */
@@ -145,9 +148,13 @@ export interface DeclutterParams {
  * never moved, left out or held back (`young`) for another. The rest, as far as `together` (a
  * system's name, on the map), are placed together (`searchTogether`), and moved only for each
  * other. Everything after them is placed round them, and moves for its like, or for them only by
- * going back to its first place. With `keepSlots`, a label that shows keeps its place in `max`:
- * one that did not show last time (and is not firm) shows only while that leaves a place for
- * every one that did, so that the names that show are not traded for others as bodies go round.
+ * going back to its first place. With `keepSlots`, a label that shows and is `young` keeps its
+ * place in `max`: one that did not show last time (and is not firm) shows only while that leaves a
+ * place for every one of those, so that a label that has just come does not go again at once for
+ * another. Past that, `max` goes by importance: a less important label that shows gives up its
+ * place to a more important one that waits with room (a moon's name to a planet's). Of the same
+ * importance, one that showed goes first anyway, where the caller orders them so (ui/Labels.ts:
+ * `WAITING`).
  */
 export interface DeclutterRules {
   readonly firm: number;
@@ -166,8 +173,8 @@ const ONE_KIND: DeclutterRules = { firm: -Infinity, together: -Infinity, keepSlo
  *   included, and lies on nothing more than where it is (it was elsewhere only for want of room);
  *   or else stays where it was while it may (a keep closer than the gap), as a label with one
  *   place always has;
- * - otherwise it takes the first of its places with real room (a gap), one that lies on nothing
- *   if it has such a place;
+ * - otherwise it takes the first of its places with real room (a gap), of those that lie on
+ *   least;
  * - and one that has room nowhere may move one label already placed to another of that label's
  *   places, where there is real room for it, if that alone makes room (`makeRoom`).
  *
@@ -274,12 +281,12 @@ function placeFrom(
   const { count, places, priority, shown, young, order, at, before, was, covers } = boxes;
   const { gapPx, keepPx } = params;
   let done = placed;
-  // With `keepSlots`, how many of the labels still to be placed showed last time: `max` keeps a
-  // place for each of them.
+  // With `keepSlots`, how many of the labels still to be placed showed last time and are young:
+  // `max` keeps a place for each of them.
   let owed = 0;
   for (let k = start; rules.keepSlots && k < count; k += 1) {
     const row = order[k] ?? 0;
-    if (before[row] && Number.isFinite(priority[row] ?? Infinity)) owed += 1;
+    if (before[row] && young[row] && Number.isFinite(priority[row] ?? Infinity)) owed += 1;
   }
   for (let k = start; k < count; k += 1) {
     const row = order[k] ?? 0;
@@ -288,7 +295,7 @@ function placeFrom(
     const last = was[row] ?? NOWHERE;
     const showed = before[row] === 1;
     const firm = kindOf(priority[row], rules) === 0;
-    if (showed && owed > 0) owed -= 1;
+    if (showed && young[row] && owed > 0) owed -= 1;
     if (done >= params.max || (!showed && !firm && done + owed >= params.max)) continue;
     // Too soon after its last change to make another of its own accord: one that is hidden stays
     // hidden, and one that shows neither goes back to its first place nor moves for another.
@@ -308,9 +315,28 @@ function placeFrom(
       } else if (fits(boxes, row, last, gapPx - keepPx, k, -1, taken)) {
         place = last;
       }
+      // Where it lies on what it must not (but as a last resort), it moves to the first of its
+      // places that lies on less, where that has room to spare, as it would go back to its first.
+      const lies = coverOf(covers[base + last]);
+      for (
+        let level = 0;
+        place === last && !settling && lies >= MUST_NOT && level < lies;
+        level += 1
+      ) {
+        for (let p = 0; place === last && p < places; p += 1) {
+          if (
+            p !== last &&
+            coverOf(covers[base + p]) === level &&
+            fits(boxes, row, p, gapPx + keepPx, k, -1, taken) &&
+            clearOfWaiting(boxes, row, p, gapPx + keepPx, k)
+          ) {
+            place = p;
+          }
+        }
+      }
     }
-    // The first of its other places with real room: one that lies on nothing, if it has one.
-    for (let pass = 0; place < 0 && pass < 2; pass += 1) {
+    // The first of its other places with real room, of those that lie on least.
+    for (let pass = 0; place < 0 && pass < COVERS; pass += 1) {
       for (let p = 0; place < 0 && p < places; p += 1) {
         if (p === last || coverOf(covers[base + p]) !== pass) continue;
         if (fits(boxes, row, p, gapPx, k, -1, taken)) place = p;
@@ -332,8 +358,8 @@ const TOGETHER_TRIES = 4000;
 
 /**
  * Every way of placing the labels from position `from` to `group` in the order (each at one of its
- * places, or left out), the most important first, each where it was last time first, then at the
- * places that lie on nothing, then at the others; a `young` one only where it was, if it has room
+ * places, or left out), the most important first, each where it was last time first, then at its
+ * places by how much they lie on (`covers`); a `young` one only where it was, if it has room
  * there, and left out if it was. The first way found that shows the most of them goes into
  * `boxes.best`, by position in the order (NOWHERE: left out), and how many it shows is returned.
  * Only what was there first, and the firm labels before them, are in their way.
@@ -375,12 +401,12 @@ function dive(
   const base = row * places;
   const last = was[row] ?? NOWHERE;
   const settling = young[row] === 1;
-  // Where it was (i = -1), then its places that lie on nothing, then its others; a young label
-  // that was hidden, none of them.
-  for (let i = -1; i < 2 * places && !(settling && !before[row]); i += 1) {
+  // Where it was (i = -1), then its places that lie on nothing, on something, on more; a young
+  // label that was hidden, none of them.
+  for (let i = -1; i < COVERS * places && !(settling && !before[row]); i += 1) {
     const place = i < 0 ? last : i % places;
     if (place === NOWHERE) continue;
-    if (i >= 0 && (place === last || coverOf(covers[base + place]) !== (i < places ? 0 : 1))) {
+    if (i >= 0 && (place === last || coverOf(covers[base + place]) !== Math.floor(i / places))) {
       continue;
     }
     tally[0] = (tally[0] ?? 0) + 1;
@@ -436,7 +462,7 @@ function clearOfTrial(
  * kind (`DeclutterRules`) may go to any of its places; one of a more important kind (a system's
  * name, in the way of a planet's) only back to its first place, with room to spare there, as it
  * would by itself; a firm one, or a `young` one, nowhere. Nothing else moves, and nothing that
- * showed is hidden for it. Places that lie on nothing first, for both. The place, or -1.
+ * showed is hidden for it. Places that lie on less first, for both. The place, or -1.
  */
 function makeRoom(
   boxes: LabelBoxes,
@@ -453,9 +479,9 @@ function makeRoom(
   if (kind === 0) return -1;
   const w = width[row] ?? 0;
   const h = height[row] ?? 0;
-  for (let i = 0; i < 2 * places; i += 1) {
+  for (let i = 0; i < COVERS * places; i += 1) {
     const p = i % places;
-    if (coverOf(covers[row * places + p]) !== (i < places ? 0 : 1)) continue;
+    if (coverOf(covers[row * places + p]) !== Math.floor(i / places)) continue;
     const pl = left[row * places + p] ?? Number.NaN;
     const pt = top[row * places + p] ?? Number.NaN;
     if (!Number.isFinite(pl) || !Number.isFinite(pt)) continue;
@@ -487,11 +513,11 @@ function makeRoom(
     }
     const bw = width[blocker] ?? 0;
     const bh = height[blocker] ?? 0;
-    for (let j = 0; j < (firstOnly ? 1 : 2 * places); j += 1) {
+    for (let j = 0; j < (firstOnly ? 1 : COVERS * places); j += 1) {
       const q = j % places;
       if (
         q === from ||
-        (!firstOnly && coverOf(covers[blocker * places + q]) !== (j < places ? 0 : 1))
+        (!firstOnly && coverOf(covers[blocker * places + q]) !== Math.floor(j / places))
       ) {
         continue;
       }
@@ -608,9 +634,18 @@ function clearOfTaken(
   return true;
 }
 
-/** 0 for a place that lies on nothing, 1 for one that lies on something. */
-function coverOf(flag: number | undefined): number {
-  return flag ? 1 : 0;
+/**
+ * How much a place may lie on (`LabelBoxes.covers`): nothing (0); something it had better not
+ * (1), which a label takes only where it has no place that lies on less, and keeps once it shows
+ * there, whatever drifts under it; or something it must not, but as a last resort (`MUST_NOT`),
+ * which it also leaves, once it may, for a place that lies on less.
+ */
+const COVERS = 3;
+const MUST_NOT = 2;
+
+/** How much a place lies on: 0 to `COVERS - 1`. */
+function coverOf(level: number | undefined): number {
+  return Math.min(level ?? 0, COVERS - 1);
 }
 
 /** Is this a candidate's priority, and below `limit`? */

@@ -107,6 +107,10 @@ const PLACES = 8;
 type Reach = -1 | 0 | 1;
 /** Far below anything anyone can see (CSS px), and far above a double's rounding. */
 const HAIR_PX = 1e-3;
+/** What a name's tag would lie on, at one of its places on the map (`liesOn`). */
+const CLEAR = 0;
+const ON_A_BODY = 1;
+const ON_A_LANDMARK = 2;
 
 /**
  * Suns and the home planet name a whole system; moons are the small print. A link ranks with the
@@ -138,10 +142,11 @@ const NEAR_MAX = WAITING - 1;
  * Who gives way to whom (sim/declutter.ts). The name of where the ship is going and the one under
  * the keyboard are placed first and never moved, nor left out, for another. On the map the
  * systems' names come next, placed together, every way of fitting them all tried before one is
- * left out; they move for each other, and for a planet's only back to their first places; and
- * the names that show keep their places in `max` (14 names, which a laptop's map fills at its
- * first view two times in three): a name that waits for one shows once one is free, not by taking
- * another's.
+ * left out; they move for each other, and for a planet's only back to their first places; and a
+ * name that has just appeared keeps its place in `max` (14 names, which a laptop's map fills at
+ * its first view most of the time) while it is young (`dwellSec`). Past that, `max` goes by rank:
+ * a planet's name that waits with room takes the place of a moon's that shows, never of another
+ * planet's (one that waits comes after every one of its rank that shows: `WAITING`).
  */
 const IN_FLIGHT: DeclutterRules = {
   firm: RANK.sun * RANK_STEP,
@@ -435,18 +440,26 @@ export class Labels implements System {
         offered += this.offer(row, 5, side, -inward as Reach);
         offered += this.offer(row, 6, other, inward);
         offered += this.offer(row, 7, other, -inward as Reach);
-        // Which of them would lie on another body: declutter takes those only where it must.
+        // What each of them would lie on: declutter takes a place that lies on another body only
+        // where the name has none that lies on less (sim/declutter.ts, `covers`). A sun or the
+        // home planet, the landmarks the map is read by, is no place at all for a planet's name
+        // or a moon's; a system's name (or the one where the ship is going, or the keyboard is)
+        // would rather lie on one, as a last resort, than go.
+        const lastResort = kept || RANK[bodies[row]?.kind ?? 'moon'] === RANK.sun;
         for (let place = 0; place < PLACES; place += 1) {
           const at = base + place;
           const placeLeft = boxes.left[at] ?? Number.NaN;
           if (!Number.isFinite(placeLeft)) continue;
-          boxes.covers[at] = this.liesOnABody(
-            row,
-            placeLeft,
-            boxes.top[at] ?? 0,
-            width,
-            placeSide[at] ?? BELOW,
-          );
+          const placed = placeSide[at] ?? BELOW;
+          const here = this.isAt(row, placed, (placeReach[at] ?? 0) as Reach);
+          const lies = this.liesOn(row, placeLeft, boxes.top[at] ?? 0, width, placed, here);
+          if (lies === ON_A_LANDMARK && !lastResort) {
+            boxes.left[at] = Number.NaN;
+            boxes.top[at] = Number.NaN;
+            offered -= 1;
+          } else {
+            boxes.covers[at] = lies;
+          }
         }
       }
       if (offered === 0) continue;
@@ -736,31 +749,54 @@ export class Labels implements System {
   }
 
   /**
-   * Would a name's tag, its box at (left, top) on `side` of its body, lie on the disc of another
-   * body that can be seen? 1 or 0. The tag is the visible part of the 44 px box: at its top below
-   * the body, at its bottom above it, in the middle beside it (CSS, `data-side`).
+   * What a name's tag, its box at (left, top) on `side` of its body, would lie on, on the map:
+   * the disc of a sun or the home planet not its own (`ON_A_LANDMARK`), of any other body that can
+   * be seen, or BESIDE one (`ON_A_BODY`), or nothing (`CLEAR`). A disc counts from a gap off it
+   * (`gapPx`), further than the name's own body is from its tag (`offsetPx`), so that its own
+   * body is always plainly the nearest. Beside: the body level with the tag, less than the tag's
+   * height off one of its ends, where the tag reads as that body's name ("SOFTWARE ( ) HARDWARE").
+   * Where the name is already (`here`) only the disc itself counts, and a body beside it a keep
+   * nearer, so that a body drifting past by a pixel does not send the name back and forth. The
+   * tag is the visible part of the 44 px box: at its top below the body, at its bottom above it,
+   * in the middle beside it (CSS, `data-side`).
    */
-  private liesOnABody(row: number, left: number, top: number, width: number, side: number): number {
-    const { screen, params } = this.options;
+  private liesOn(
+    row: number,
+    left: number,
+    top: number,
+    width: number,
+    side: number,
+    here: boolean,
+  ): number {
+    const { screen, params, bodies } = this.options;
     const height = this.heights[row] ?? 0;
     const tag = this.tags[row] ?? height;
     const tagTop =
       side === BELOW ? top : side === ABOVE ? top + height - tag : top + (height - tag) / 2;
     const right = left + width;
     const bottom = tagTop + tag;
+    const near = here ? 0 : params.gapPx;
+    const beside = here ? tag - params.keepPx : tag;
+    let lies = CLEAR;
     for (let other = 0; other < this.boxes.count; other += 1) {
       const radius = screen.radius[other] ?? 0;
       if (other === row || !((screen.depth[other] ?? 0) > 0) || radius < params.minVisiblePx) {
         continue;
       }
-      // The nearest point of the tag to the body's centre, and whether that is inside its disc.
+      // The nearest point of the tag to the body's centre, and how far that is from its disc.
       const x = screen.x[other] ?? 0;
       const y = screen.y[other] ?? 0;
       const dx = x - Math.min(Math.max(x, left), right);
       const dy = y - Math.min(Math.max(y, tagTop), bottom);
-      if (dx * dx + dy * dy < radius * radius) return 1;
+      const reach = radius + near;
+      if (dx * dx + dy * dy < reach * reach) {
+        if (RANK[bodies[other]?.kind ?? 'moon'] === RANK.sun) return ON_A_LANDMARK;
+        lies = ON_A_BODY;
+      } else if (dy === 0 && Math.abs(dx) - radius < beside) {
+        lies = ON_A_BODY;
+      }
     }
-    return 0;
+    return lies;
   }
 
   /**

@@ -574,7 +574,7 @@ describe('declutter, who moves for whom', () => {
     expect(where(full)).toEqual([0, 0, null]);
   });
 
-  it('takes a place that lies on something only where it has no other, and stays on one that shows', () => {
+  it('takes a place that lies on something only where it has no other, and keeps or leaves it', () => {
     const rows: Placed[] = [
       [
         80,
@@ -583,40 +583,69 @@ describe('declutter, who moves for whom', () => {
         [
           [0, 0],
           [0, 200],
+          [0, 400],
         ],
       ],
     ];
     // Its first place lies on a body: it takes its second.
-    const first = placesOf(rows, 2);
+    const first = placesOf(rows, 3);
     first.covers[0] = 1;
     declutter(first, PARAMS);
     expect(where(first)).toEqual([1]);
-    // Both do: its first, then.
-    const both = placesOf(rows, 2);
-    both.covers[0] = 1;
-    both.covers[1] = 1;
-    declutter(both, PARAMS);
-    expect(where(both)).toEqual([0]);
+    // Its first lies on what it must not, its second on a body: its second, then.
+    first.covers.set([2, 1, 2]);
+    shows(first, [null]);
+    declutter(first, PARAMS);
+    expect(where(first)).toEqual([1]);
+    // All do: the one that lies on least, first first.
+    const all = placesOf(rows, 3);
+    all.covers.set([2, 2, 2]);
+    declutter(all, PARAMS);
+    expect(where(all)).toEqual([0]);
     // Showing at its second, it does not go back to a first that lies on more than where it is.
-    const back = placesOf(rows, 2);
+    const back = placesOf(rows, 3);
     back.covers[0] = 1;
     shows(back, [1]);
     declutter(back, PARAMS);
     expect(where(back)).toEqual([1]);
-    // And showing at its first, it stays there when a body drifts under it.
-    const under = placesOf(rows, 2);
+    // Showing at its first, it stays there when a body drifts under it...
+    const under = placesOf(rows, 3);
     shows(under, [0]);
     under.covers[0] = 1;
     declutter(under, PARAMS);
     expect(where(under)).toEqual([0]);
+    // ...but not when it is something it must not lie on: then it moves to a place that lies on
+    // less once it may (not while young)...
+    under.covers.set([2, 1, 0]);
+    shows(under, [0], [0]);
+    declutter(under, PARAMS);
+    expect(where(under)).toEqual([0]);
+    shows(under, [0]);
+    declutter(under, PARAMS);
+    expect(where(under)).toEqual([2]);
+    // ...where that has room to spare (a keep more than the gap) and takes none from a label that
+    // shows...
+    const crowded = placesOf([...rows, [80, 40, 2, [[0, 448]]]], 3);
+    crowded.covers.set([2, 2, 0]);
+    shows(crowded, [0, 0]);
+    declutter(crowded, PARAMS);
+    expect(where(crowded)).toEqual([0, 0]);
+    // ...and there it stays: it goes back only to a first place that lies on no more.
+    under.covers.set([2, 1, 1]);
+    declutter(under, PARAMS);
+    expect(where(under)).toEqual([2]);
+    under.covers.set([1, 1, 1]);
+    declutter(under, PARAMS);
+    expect(where(under)).toEqual([0]);
   });
 
-  it('with keepSlots, keeps the names that show: one that waits shows once one of them is gone', () => {
+  it('with keepSlots, keeps a slot for a young label that shows, and only for one', () => {
     const SLOTS = {
       firm: -Infinity,
       together: -Infinity,
       keepSlots: true,
     } satisfies DeclutterRules;
+    // At most two. B shows, and has only just appeared; C, more important, waits with room.
     const rows = (bGone: boolean): Placed[] => [
       [80, 40, 1, [[0, 0]]],
       [80, 40, bGone ? Infinity : 2, [[200, 0]]],
@@ -624,18 +653,24 @@ describe('declutter, who moves for whom', () => {
     ];
     const params = { ...PARAMS, max: 2 };
     const kept = placesOf(rows(false), 1);
-    shows(kept, [0, 0, null]);
+    shows(kept, [0, 0, null], [1]);
     declutter(kept, params, undefined, SLOTS);
     expect(where(kept)).toEqual([0, 0, null]);
-    // Without, the more important name takes B's slot: names are traded as their bodies go round.
+    // Without, C takes B's slot at once: a name that has just come goes again.
     const traded = placesOf(rows(false), 1);
-    shows(traded, [0, 0, null]);
+    shows(traded, [0, 0, null], [1]);
     declutter(traded, params);
     expect(where(traded)).toEqual([0, null, 0]);
     // B's body goes out of view: C shows.
     reload(kept, rows(true));
     declutter(kept, params, undefined, SLOTS);
     expect(where(kept)).toEqual([0, null, 0]);
+    // Once B has shown a while, the more important C takes its slot: a moon's name does not keep a
+    // planet's out.
+    const settled = placesOf(rows(false), 1);
+    shows(settled, [0, 0, null]);
+    declutter(settled, params, undefined, SLOTS);
+    expect(where(settled)).toEqual([0, null, 0]);
   });
 });
 
