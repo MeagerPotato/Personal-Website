@@ -1,10 +1,20 @@
 import { TAU } from '../../sim/math';
-import { add, brg, cross, norm, scale, sub, type Vec2, type Vec3 } from '../../sim/world/kit';
+import {
+  add,
+  brg,
+  cross,
+  norm,
+  ORIGIN,
+  scale,
+  sub,
+  type Vec2,
+  type Vec3,
+} from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
-import { dirOf, shapeNormal, shapePoint } from '../../sim/world/placement';
+import { dirOf, shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
-import { BUS, WAVE } from './hackathons';
+import { BUS, LOAF, WAVE } from './hackathons';
 import { rocket } from './home';
 import { D2M, SCR, SHAPE_FISH, tilted, yTop } from './projects';
 import { COIN_TILT } from './research';
@@ -31,7 +41,7 @@ const house = (roof: ColorPath): Item => [
 const HOUSES: readonly (readonly [number, number, number, ColorPath])[] = [
   [66, 10, 0.3, 'butter.base'],
   [62, 60, 1, 'coral.light'],
-  [70, 110, 0.1, 'butter.base'],
+  [70, 110, 0.1, 'mint.light'],
   [60, 165, 0.7, 'sky.light'],
 ];
 const about: PartRow[] = [
@@ -114,7 +124,9 @@ const canadianFish: PartRow[] = [
     0,
     onTable([
       'g',
-      ['cyl', 0.17, 0.04, 0.075, 6, 'ink.high', 'ink.high', 'sky.shade'],
+      // Fish Online's table (projects.ts): a cream top on a grey rim. A sky top vanished into the
+      // stripes it stands on.
+      ['cyl', 0.17, 0.04, 0.075, 6, 'ink.mid', 'ink.mid', 'ink.high'],
       ['cyl', 0.025, 0, 0.04, 5, 'ink.mid'],
       ...Array.from({ length: 6 }, (_, i): Item => [
         'cyl',
@@ -148,11 +160,15 @@ const LOOP = 1.715;
 const BOARD = dirOf(64, 20);
 const EAST = norm(cross([0, 1, 0], BOARD));
 const SOUTH = cross(EAST, BOARD);
-const BAR = norm(add(BOARD, scale(EAST, -0.42)));
+const NORTH = scale(SOUTH, -1);
+/** How far round from the board's middle its west edge is (radians): where the scan bar rests. */
+const WEST = 0.45;
 const fishai: PartRow[] = [
   [
     'solver-board',
     0,
+    // Every cell's rows run east, as the board's do (spinToward): over a ground this curved, each
+    // cell's own frame would otherwise turn it a little further than the last.
     ...Array.from({ length: 54 }, (_, k): Item => {
       const col = k % 9;
       const row = Math.floor(k / 9);
@@ -163,16 +179,34 @@ const fishai: PartRow[] = [
         'n',
         scale(d, 1.012),
         d,
-        0,
+        spinToward(d, EAST),
         1,
         ['tile', 0.064, 4, col % 2 ? 'sky.light' : 'ink.high', 0, Math.PI / 4],
       ];
     }),
   ],
+  // The bar lies along the board's west edge and turns with the ground, as the board does. Its
+  // pivot is the moon's centre and its own +Y the axis the board's columns turn about (NORTH), so
+  // the sweep (motion.ts) is a turn about that axis: across the board, along its columns, at its
+  // height. Its own +X is the board's middle, and the bar lies WEST round from it.
   [
     'scan-bar',
-    FLAG.hold,
-    ['n', scale(BAR, 1.03), BAR, 0, 1, ['box', 0.012, 0.03, 0.66, 'coral.base']],
+    0,
+    [
+      'n',
+      ORIGIN,
+      NORTH,
+      spinToward(NORTH, BOARD),
+      1,
+      [
+        'box',
+        0.03,
+        0.66,
+        0.012,
+        'coral.base',
+        { at: [1.03 * Math.cos(WEST), 0, 1.03 * Math.sin(WEST)], rot: [0, -WEST, 0] },
+      ],
+    ],
   ],
   [
     'athena-loop',
@@ -207,7 +241,8 @@ const days2meet: PartRow[] = [
       'n',
       [CURSOR_X, yTop(CURSOR_X, CURSOR_Z) + 0.05, CURSOR_Z],
       [0, 1, 0],
-      0,
+      // Its own +X along the week (world +X): the way it sweeps (motion.ts).
+      spinToward([0, 1, 0], [1, 0, 0]),
       1,
       [
         'g',
@@ -357,17 +392,20 @@ const modelRocketry: PartRow[] = [
 ];
 
 // CyberPatriot: a vulnerability closing. A mint tick appears on the third row, open in the still,
-// every twenty seconds, and goes again.
+// every twenty seconds, and goes again. A group places it, so that its pivot is its own middle
+// and it grows where it stands (an op's own `at` is no pivot: rows.ts, `pivotOf`).
 const cyberpatriot: PartRow[] = [
   [
     'fix-tick',
     0,
-    tilted(['box', 0.1, 0.1, 0.02, 'mint.base', { at: [-0.34, SCR.cy - 0.07, 0.046] }]),
+    tilted(['g', ['box', 0.1, 0.1, 0.02, 'mint.base'], { at: [-0.34, SCR.cy - 0.07, 0.046] }]),
   ],
 ];
 
 // Fish Onboarding: your nine cards (the deal is 54 cards between six players), and "scan me": a
-// thin coral line sweeping to and fro across the code on the phone.
+// thin coral line sweeping to and fro across the code on the phone. Each card lies on the last,
+// turned 0.3 rad further, so a strip of its -X side shows: its pip is there, where the next card
+// does not cover it.
 const fishOnboarding: PartRow[] = [
   [
     'nine-cards',
@@ -384,14 +422,14 @@ const fishOnboarding: PartRow[] = [
           ['box', 0.09, 0.004, 0.13, i % 2 ? 'ink.high' : 'sky.light', { at: [0, 0, 0.065] }],
           [
             'tile',
-            0.02,
+            0.018,
             4,
             i % 3 ? 'coral.base' : 'space.800',
-            0.0045,
+            0.0035,
             Math.PI / 4,
-            { at: [0, 0, 0.09] },
+            { at: [-0.0305, 0, 0.108] },
           ],
-          { rot: [0, (i - 4) * 0.17, 0], at: [0, i * 0.0045, 0] },
+          { rot: [0, (i - 4) * 0.3, 0], at: [0, i * 0.0045, 0] },
         ]),
       ],
     ],
@@ -533,6 +571,8 @@ const DISH: Item = [
   ['dome', 0.13, 8, 2, 'lilac.light', { at: [0, 0.16, 0], rot: [0.7, 0, 0], s: [1, 0.6, 1] }],
 ];
 const LENS = brg(Math.PI, WAVE.r);
+/** Where the magnifier hangs: 0.46 over the seam, its lens tipped toward the ground. */
+const OVER_SEAM = { at: [LENS[0], 0.46, LENS[1]], rot: [0.5, 0, 0] } as const;
 const hackgt: PartRow[] = [
   [
     'detector-dishes',
@@ -565,22 +605,21 @@ const hackgt: PartRow[] = [
       ],
     ]),
   ],
+  // The lens and the handle are placed one by one, so that the magnifier's pivot is the body's
+  // centre: it turns with the wave ring (motion.ts) and stays over the seam.
   [
     'magnifier',
     FLAG.hold,
-    [
-      'g',
-      ['ring', [0.15, 0.22], 0, TAU, 14, -0.02, 0.035, 'ink.high', 'ink.mid', 1],
-      ['box', 0.42, 0.06, 0.09, 'ink.mid', { at: [0.41, 0, 0] }],
-      { at: [LENS[0], 0.46, LENS[1]], rot: [0.5, 0, 0] },
-    ],
+    ['g', ['ring', [0.15, 0.22], 0, TAU, 14, -0.02, 0.035, 'ink.high', 'ink.mid', 1], OVER_SEAM],
+    ['g', ['box', 0.42, 0.06, 0.09, 'ink.mid', { at: [0.41, 0, 0] }], OVER_SEAM],
   ],
+  // The report lies south of the ring of markers (latitude 34), clear of every one.
   [
     'report',
     0,
     [
       's',
-      22,
+      13,
       75,
       { spin: 0.3, alt: 0.01 },
       [
@@ -659,6 +698,8 @@ const calHacks: PartRow[] = [
 ];
 
 // Corgi: RunItBack, one photo becoming a room (as plan), and the 5th-place block with its numeral.
+// They stand on the loaf itself (its shape), not on the unit sphere round it. The photo leans back,
+// its face to the sky, so that it reads from orbit and not edge-on.
 const corgi: PartRow[] = [
   [
     'photo',
@@ -667,8 +708,8 @@ const corgi: PartRow[] = [
       's',
       16,
       -52,
-      { spin: 0.3, alt: 0.16 },
-      ['box', 0.28, 0.21, 0.02, 'lilac.base', { rot: [-0.2, 0, 0] }],
+      { spin: 0.3, alt: 0.16, shape: LOAF },
+      ['box', 0.28, 0.21, 0.02, 'lilac.base', { rot: [-1.25, 0, 0] }],
     ],
   ],
   [
@@ -678,7 +719,7 @@ const corgi: PartRow[] = [
       's',
       12,
       -8,
-      { spin: 0.2, alt: 0.01 },
+      { spin: 0.2, alt: 0.01, shape: LOAF },
       [
         'g',
         ['box', 0.26, 0.015, 0.26, 'lilac.base', { at: [0, 0.008, 0] }],
@@ -694,10 +735,11 @@ const corgi: PartRow[] = [
       's',
       6,
       30,
-      { spin: 0.1, alt: 0.01 },
+      { spin: 0.1, alt: 0.01, shape: LOAF },
       ['box', 0.34, 0.22, 0.16, 'lilac.base', { at: [0, 0.11, 0] }],
     ],
   ],
+  // On the block's outward face: so near the equator, its others look along the ground.
   [
     'fifth-numeral',
     0,
@@ -705,8 +747,8 @@ const corgi: PartRow[] = [
       's',
       6,
       30,
-      { spin: 0.1, alt: 0.01 },
-      ['pix', '5', 0.04, 'ink.high', { at: [0, 0.11, 0.083] }],
+      { spin: 0.1, alt: 0.01, shape: LOAF },
+      ['pix', '5', 0.04, 'ink.high', { at: [0, 0.223, 0], rot: [-Math.PI / 2, 0, 0] }],
     ],
   ],
 ];

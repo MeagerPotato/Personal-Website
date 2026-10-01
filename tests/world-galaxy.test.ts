@@ -144,6 +144,22 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
+  it('sends the Contact satellite’s mail away from home, toward the edge of the map', () => {
+    const { galaxy, node, world, finish } = setup();
+    finish();
+    const satellite = withRows.find((body) => body.kind === 'satellite');
+    if (!satellite) throw new Error('the real galaxy has a satellite');
+    for (const t of [0, 37, 400]) {
+      galaxy.frameUpdate(frame(t));
+      const home = node(satellite.parent ?? '').position;
+      const away = node(satellite.id).position.clone().sub(home).normalize();
+      // The letter and its trail leave along the satellite's +z (design/worlds/home.ts).
+      const trail = new Vector3(0, 0, 1).applyEuler(world(satellite.id).rotation);
+      expect(trail.distanceTo(away), `at ${t}`).toBeLessThan(1e-9);
+    }
+    galaxy.dispose();
+  });
+
   it('draws a sun’s world with the key light’s material: its ball glows, its signs are flat', () => {
     const { galaxy, world, finish } = setup();
     finish();

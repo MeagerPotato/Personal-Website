@@ -8,6 +8,7 @@ import {
   polar,
   shapeNormal,
   shapePoint,
+  spinToward,
   surfaceFrame,
 } from './placement';
 
@@ -57,6 +58,35 @@ describe('surface placement', () => {
     const { m, at } = normalFrame([0, 1, 0], [0, 1, 0]);
     close(at, [0, 1, 0]);
     close([m[0][1], m[1][1], m[2][1]], [0, 1, 0]);
+  });
+
+  it('stands a part on a shaped ground, on its surface and along its normal', () => {
+    const shape = { p: 2, s: [1.05, 0.72, 0.8] as Vec3 };
+    const ground = shapePoint(dirOf(20, 40), shape);
+    const up = shapeNormal(ground, shape);
+    const { m, at } = surfaceFrame(20, 40, { alt: 0.03, shape });
+    close(
+      at,
+      ground.map((v, i) => v + (up[i] ?? 0) * 0.03),
+    );
+    close([m[0][1], m[1][1], m[2][1]], up);
+    // On the unit sphere a shape changes nothing.
+    const sphere = surfaceFrame(20, 40, { alt: 0.03, spin: 0.4, shape: { p: 2, s: [1, 1, 1] } });
+    const plain = surfaceFrame(20, 40, { alt: 0.03, spin: 0.4 });
+    close(sphere.at, plain.at);
+    close(sphere.m.flat(), plain.m.flat());
+  });
+
+  it('spins a part stood along a normal until its +X runs toward a direction', () => {
+    // Near the pole (the frame's other reference axis) and away from it: the same answer.
+    for (const normal of [norm([0.1, 1, 0.05]), norm([0.6, 0.7, 0.3])]) {
+      const toward: Vec3 = [1, 0, 0];
+      const { m } = normalFrame([0, 0, 0], normal, spinToward(normal, toward));
+      const x: Vec3 = [m[0][0], m[1][0], m[2][0]];
+      // +X is the direction projected across the normal.
+      const k = dot(toward, normal);
+      close(x, norm([1 - k * normal[0], -k * normal[1], -k * normal[2]]));
+    }
   });
 
   it('finds the point and the normal of a superellipsoid', () => {

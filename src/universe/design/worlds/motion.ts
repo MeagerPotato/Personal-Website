@@ -48,7 +48,8 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
   ],
   'project/fishai': [
     ['athena-loop', 'rot', 'y', 'ramp', TAU, 30],
-    ['scan-bar', 'pos', 'x', 'sine', 0.42, 10, 0, 0.75],
+    // A turn about the axis the board's columns turn about (near.ts): west edge to east and back.
+    ['scan-bar', 'rot', 'y', 'sine', 0.45, 10, 0, 0.75],
   ],
   'project/fish-onboarding': [['scan-line', 'pos', 'z', 'sine', 0.17, 8]],
   'project/days2meet': [['paint-cursor', 'pos', 'x', 'sine', 0.5, 8]],
@@ -57,7 +58,11 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
   // The coin rocks as a whole ('*'), about the body's centre.
   'project/kalshi': [CRANE, ['*', 'rot', 'z', 'sine', 0.12, 12]],
   'project/corgi': [CRANE],
-  'project/hackgt-13': [['wave-ring', 'rot', 'y', 'ramp', TAU, 60]],
+  // The magnifier rides with the ring, over its seam.
+  'project/hackgt-13': [
+    ['wave-ring', 'rot', 'y', 'ramp', TAU, 60],
+    ['magnifier', 'rot', 'y', 'ramp', TAU, 60],
+  ],
   'project/hackathons-at-berkeley': [['headlights', 'glow', '', 'sine', 1, 4, 0, 0.25]],
   // The four stands do the wave, a quarter period apart.
   'project/cal-hacks-13': [0, 0.25, 0.5, 0.75].map((phase, i): MotionRow => [

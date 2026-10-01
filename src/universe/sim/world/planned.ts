@@ -1,5 +1,6 @@
 import type { ThemeKey } from '../../design/tokens';
 import { TAU } from '../math';
+import type { PlanetShape } from '../planet';
 import type { Radii } from './kit';
 import { FLAG, type Item, type PartRow } from './rows';
 
@@ -32,10 +33,14 @@ export const crane = (family: ThemeKey): Item => [
   ['bead', 0.05, 'star.warm', { at: [0, 0.8, 0], g: 2 }],
 ];
 
-/** A paint chip on a stake: a white card with the family's light, base and shade as three bands. */
+/**
+ * A paint chip on a stake: a white card with the family's light, base and shade as three bands.
+ * The stake stands behind the card and stops at its middle: through it, it would show as a line
+ * across the swatch.
+ */
 export const chip = (family: ThemeKey): Item => [
   'g',
-  ['cyl', 0.012, 0, 0.5, 4, 'ink.mid'],
+  ['cyl', 0.012, 0, 0.42, 4, 'ink.mid', { at: [0, 0, -0.02] }],
   ['box', 0.2, 0.3, 0.012, 'ink.high', { at: [0, 0.42, 0] }],
   ['box', 0.15, 0.075, 0.016, `${family}.light`, { at: [0, 0.505, 0] }],
   ['box', 0.15, 0.075, 0.016, `${family}.base`, { at: [0, 0.42, 0] }],
@@ -88,6 +93,8 @@ export interface PlannedKit {
   /** How many pebbles, and on what radius. */
   readonly debris?: number;
   readonly pr?: number;
+  /** The ground's shape, when it is not round: the crane and the chip stand on it (a loaf). */
+  readonly shape?: PlanetShape;
 }
 
 /** The shared parts of a planned body, to spread into its list of parts. */
@@ -100,12 +107,14 @@ export function planned(
     chip: chipAt = [70, 20],
     debris = 6,
     pr = 1.4,
+    shape,
   }: PlannedKit = {},
 ): PartRow[] {
+  const on = shape ? { shape } : {};
   return [
     ['final-size-ring', FLAG.hold, ...dashes(family, r, n)],
-    ['crane', 0, ['s', craneLat, craneLon, { s: 0.8, spin: 0.5 }, crane(family)]],
-    ['paint-chip', 0, ['s', chipAt[0], chipAt[1], { spin: chipAt[2] ?? 0.4 }, chip(family)]],
+    ['crane', 0, ['s', craneLat, craneLon, { s: 0.8, spin: 0.5, ...on }, crane(family)]],
+    ['paint-chip', 0, ['s', chipAt[0], chipAt[1], { spin: chipAt[2] ?? 0.4, ...on }, chip(family)]],
     ['debris', FLAG.hold, pebbles(debris, pr)],
   ];
 }

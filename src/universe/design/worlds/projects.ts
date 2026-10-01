@@ -2,7 +2,7 @@ import { TAU } from '../../sim/math';
 import type { PlanetShape } from '../../sim/planet';
 import { add, norm, scale, type Vec2 } from '../../sim/world/kit';
 import { colorOf } from '../../sim/world/palette';
-import { shapeNormal, shapePoint } from '../../sim/world/placement';
+import { shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { planned } from '../../sim/world/planned';
 import { FLAG, type BodyRecipe, type Item, type Rows } from '../../sim/world/rows';
 import { cutRect, rad, sunGround } from './shared';
@@ -281,8 +281,10 @@ const cyberpatriot: Rows = [
           { at: [-0.04 - (i % 2) * 0.06, SCR.cy + y, 0.03] },
         ],
       ]),
+      // The clock's track, and the spent part over it: a little taller, and from just past the
+      // track's end, so that no face of one lies in a face of the other.
       ['box', 0.76, 0.045, 0.02, 'space.900', { at: [0, SCR.cy - 0.26, 0.03] }],
-      ['box', 0.46, 0.045, 0.024, 'ink.high', { at: [-0.15, SCR.cy - 0.26, 0.032] }],
+      ['box', 0.47, 0.051, 0.024, 'ink.high', { at: [-0.155, SCR.cy - 0.26, 0.032] }],
     ),
   ],
 ];
@@ -302,7 +304,8 @@ const CARD: readonly Vec2[] = [
   [0, 0.12],
 ];
 const FAN = [-60, -36, -12, 12, 36, 60];
-const cardY = (i: number): number => 0.026 * i;
+/** Each card lies on the one before it (a card is 0.035 thick), so its edge shows as a step. */
+const cardY = (i: number): number => 0.04 * i;
 const eye = (side: number): Item => {
   const p = shapePoint(norm([-0.78, 0.44, side * 0.5]), SHAPE_FISH);
   return [
@@ -331,7 +334,9 @@ const canadianFish: Rows = [
       ['where', (o) => o.pos[1] <= -0.2, 'ink.high'],
     ],
   },
-  // The tail is a fan of six cards: one half-suit, ready to be declared.
+  // The tail is a fan of six cards: one half-suit, ready to be declared. Each card's pip is on it,
+  // so that the two flutter as one (motion.ts), and on the strip of it the next card leaves bare:
+  // its own -Z side, away from the next card, which lies 24 degrees further round.
   [
     'card-fan',
     0,
@@ -340,32 +345,21 @@ const canadianFish: Rows = [
       ...FAN.map((deg, i): Item => [
         'g',
         ['prism', CARD, cardY(i), cardY(i) + 0.035, 'ink.high', 'ink.mid', 'ink.mid', 1],
-        { rot: [0, -rad(deg), 0] },
-      ]),
-      { at: [0.91, 0.05, 0], rot: [rad(30), 0, 0] },
-    ],
-  ],
-  [
-    'card-pips',
-    0,
-    [
-      'g',
-      ...FAN.map((deg, i): Item => [
-        'g',
         [
           'tile',
-          0.085,
+          0.065,
           6,
           i % 2 ? 'space.800' : 'coral.base',
           cardY(i) + 0.037,
-          { at: [0.3, 0, 0] },
+          { at: [0.38, 0, -0.073] },
         ],
         { rot: [0, -rad(deg), 0] },
       ]),
-      { at: [0.91, 0.05, 0], rot: [rad(30), 0, 0] },
+      { at: [0.9, 0.05, 0], rot: [rad(30), 0, 0] },
     ],
   ],
-  // A dorsal fin and two eyes (on top, like a flounder's, so that they show from above).
+  // A dorsal fin and two eyes (on top, like a flounder's, so that they show from above). The fin's
+  // foot is a chord under the curve of the back, so neither of its ends stands off it.
   [
     'dorsal-fin',
     0,
@@ -374,12 +368,12 @@ const canadianFish: Rows = [
       [
         [-0.5, 0],
         [0.6, 0],
-        [0.3, 0.42],
-        [-0.15, 0.32],
+        [0.3, 0.51],
+        [-0.15, 0.41],
       ],
       0.06,
       'sky.shade',
-      { at: [0, 0.78, 0] },
+      { at: [0, 0.69, 0] },
     ],
   ],
   ['eyes', 0, eye(1), eye(-1)],
@@ -415,7 +409,8 @@ const fishai: Rows = [
           i === 6 ? 'coral.base' : 'ink.mid',
         ],
       ],
-      ['rq', TAU * 0.5838, 1.18, 1.76, 0.075, 0, 0, 0.001, 'star.white'],
+      // The needle lies over the ticks (one of them is at 210 degrees, under it), not among them.
+      ['rq', TAU * 0.5838, 1.18, 1.76, 0.075, 0, 0.002, 0.004, 'star.white'],
       { rot: [rad(14), 0, rad(-6)] },
     ],
   ],
@@ -469,7 +464,8 @@ const DAY: readonly Vec2[] = [
 const days2meet: Rows = [
   { seed: 'days2meet', biome: 'sky', recipe: { flat: 0.6 }, shape: SHAPE_D2M, up: 'vertex' },
   // The month on the top face: seven columns (Monday first), five weeks. Colour is how many
-  // people are free; the last weekend is the best window, and it stands proud.
+  // people are free; the last weekend is the best window, and it stands proud. Every cell lies
+  // square to the grid, its own +X along the week (spinToward), whatever its frame would do.
   [
     'month-grid',
     FLAG.decal,
@@ -478,11 +474,12 @@ const days2meet: Rows = [
         const x = D2M.cx + k * D2M.dx;
         const z = D2M.cz + r * D2M.dz;
         const y = yTop(x, z);
+        const normal = shapeNormal([x, y, z], SHAPE_D2M);
         return [
           'n',
           [x, y + 0.004, z],
-          shapeNormal([x, y, z], SHAPE_D2M),
-          0,
+          normal,
+          spinToward(normal, [1, 0, 0]),
           1,
           v === 4
             ? ['prism', DAY, 0, 0.08, 'ink.high', 'mint.base', 'mint.base', 1]

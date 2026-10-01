@@ -29,7 +29,8 @@ const sun: Rows = [
   [
     'cursor',
     FLAG.hold | FLAG.flat,
-    ['rq', rad(200), 1.02, 1.66, 0.022, 0.022, 0, 0.001, 'ink.high'],
+    // Over the curve (its area lies at 0, its edge at 0.001), not in either's plane.
+    ['rq', rad(200), 1.02, 1.66, 0.022, 0.022, 0.002, 0.003, 'ink.high'],
   ],
 ];
 

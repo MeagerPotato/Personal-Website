@@ -1,9 +1,12 @@
 import { shapePoint, type PlanetShape } from '../planet';
 import {
+  add,
   basisM,
   cross,
+  dot,
   mul3,
   norm,
+  ORIGIN,
   rotm,
   scale,
   xf,
@@ -54,21 +57,28 @@ export interface SurfaceOptions {
   readonly s?: number;
   /** A lean about the part's own X and Z, radians. */
   readonly tilt?: Vec2;
+  /**
+   * The ground's shape, when it is not the unit sphere (a loaf, a coin): the part stands on
+   * that surface, in the direction of the latitude and longitude, upright along its normal there.
+   */
+  readonly shape?: PlanetShape;
 }
 
 /** The frame of a part stood on a round world at a latitude and longitude: local -Z toward the pole. */
 export function surfaceFrame(
   latDeg: number,
   lonDeg: number,
-  { alt = 0, spin = 0, s = 1, tilt = [0, 0] }: SurfaceOptions = {},
+  { alt = 0, spin = 0, s = 1, tilt = [0, 0], shape }: SurfaceOptions = {},
 ): Frame {
-  const u = dirOf(latDeg, lonDeg);
+  const d = dirOf(latDeg, lonDeg);
+  const ground = shape ? shapePoint(d, shape) : d;
+  const u = shape ? shapeNormal(ground, shape) : d;
   let east = cross([0, 1, 0], u);
   // At a pole there is no east: any horizontal axis will do, and +X is the one the art used.
   east = Math.hypot(east[0], east[1], east[2]) < 1e-6 ? [1, 0, 0] : norm(east);
   return {
     m: mul3(basisM(east, u, cross(east, u)), rotm(tilt[0], spin, tilt[1])),
-    at: scale(u, 1 + alt),
+    at: shape ? add(ground, scale(u, alt)) : scale(u, 1 + alt),
     s,
   };
 }
@@ -90,6 +100,20 @@ export function normalFrame(pos: Vec3, normal: Vec3, spin = 0, s = 1): Frame {
 
 export const atNormal = (tris: readonly Tri[], pos: Vec3, normal: Vec3, spin = 0, s = 1): Tri[] =>
   xf(tris, normalFrame(pos, normal, spin, s));
+
+/**
+ * The spin of a part stood along `normal` (`normalFrame`, an `n` placement) that turns its own
+ * +X toward `toward`, as seen across the normal: a grid of cells whose rows all run one way, a bar
+ * laid along an edge. Without it a part's +X is wherever the frame's reference axis puts it,
+ * which turns from cell to cell over a curved ground.
+ */
+export function spinToward(normal: Vec3, toward: Vec3): number {
+  const { m } = normalFrame(ORIGIN, normal);
+  const x: Vec3 = [m[0][0], m[1][0], m[2][0]];
+  const z: Vec3 = [m[0][2], m[1][2], m[2][2]];
+  // The spin turns +X to x cos(spin) - z sin(spin).
+  return Math.atan2(-dot(toward, z), dot(toward, x));
+}
 
 /** The outward normal of a superellipsoid (or of the unit sphere) at a point of its surface. */
 export function shapeNormal(pos: Vec3, shape?: PlanetShape): Vec3 {

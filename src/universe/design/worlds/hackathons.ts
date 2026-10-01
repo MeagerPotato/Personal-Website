@@ -1,5 +1,7 @@
 import { TAU } from '../../sim/math';
+import type { PlanetShape } from '../../sim/planet';
 import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
+import type { ColorPath } from '../../sim/world/palette';
 import { planned } from '../../sim/world/planned';
 import { FLAG, type BodyRecipe, type Item, type PartRow, type Rows } from '../../sim/world/rows';
 import { rad, sunGround } from './shared';
@@ -22,7 +24,8 @@ const sun: Rows = [
   [
     'stopwatch',
     FLAG.hold | FLAG.flat,
-    ['ring', [1.2, 1.34], 0, TAU, 24, 0, 0.001, 'lilac.light', 'lilac.base'],
+    // The bezel is a raised case, its side showing as the art draws it.
+    ['ring', [1.2, 1.34], 0, TAU, 24, -0.03, 0.03, 'lilac.light', 'lilac.base'],
     [
       'around',
       12,
@@ -92,23 +95,47 @@ const hackgt: Rows = [
 
 // The planet IS the hacker bus: a rounded box with windows and wheels. SL, SH and SW are its half
 // length, height and width; `front(z, y)` is where its front is at a height and a distance from
-// its middle.
+// its middle, `flank(x, y)` where its (+Z) side is at a length and a height.
 export const BUS = { SL: 1.3, SH: 0.74, SW: 0.76 } as const;
 const { SL, SH, SW } = BUS;
 const front = (z: number, y: number): number => SL * (1 - (z / SW) ** 4 - (y / SH) ** 4) ** 0.25;
-const pane = (x: number, side: number): Item => {
-  const z = side * (SW * (1 - (x / SL) ** 4 - (0.18 / SH) ** 4) ** 0.25 + 0.008);
-  return [
-    'quad',
-    [x - 0.11, 0.03, z],
-    [x + 0.11, 0.03, z],
-    [x + 0.11, 0.33, z],
-    [x - 0.11, 0.33, z],
-    'space.800',
-    [0, 0, side],
-  ];
-};
-const SIGN = front(0, 0.56) + 0.02;
+const flank = (x: number, y: number): number => SW * (1 - (x / SL) ** 4 - (y / SH) ** 4) ** 0.25;
+/** How far a decal stands off the bus's skin (radii): more than any of its quads sags. */
+const LIFT = 0.01;
+const onFront = (z: number, y: number): Vec3 => [front(z, y) + LIFT, y, z];
+const onFlank =
+  (side: number) =>
+  (x: number, y: number): Vec3 => [x, y, side * (flank(x, y) + LIFT)];
+/**
+ * A decal that follows the bus's rounded skin: a grid of quads between the breaks `us` one way and
+ * `vs` the other, every corner put by `at` just off the surface. One flat plate as big as the
+ * windshield would sink into the rounded box at one edge and stand off it at the other. The
+ * breaks close up where the skin curves hardest, so no quad sags into it
+ * (tests/world-bodies.test.ts checks every corner, edge and middle).
+ */
+const skin = (
+  at: (u: number, v: number) => Vec3,
+  us: readonly number[],
+  vs: readonly number[],
+  color: ColorPath,
+  hint: Vec3,
+): Item[] =>
+  us.slice(1).flatMap((u1, i) =>
+    vs.slice(1).map((v1, j): Item => {
+      const [u0, v0] = [us[i] ?? u1, vs[j] ?? v1];
+      return ['quad', at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1), color, hint];
+    }),
+  );
+/** Breaks either side of the middle: -b ... 0 ... b, from breaks 0 ... b. */
+const both = (breaks: readonly number[]): number[] => [
+  ...breaks
+    .slice(1)
+    .map((b) => -b)
+    .reverse(),
+  ...breaks,
+];
+// The sign stands on the front's edge: its foot just off the skin, its top out over the slope.
+const SIGN = front(0, 0.46) + 0.025;
 const berkeley: Rows = [
   {
     seed: 'hackathons-at-berkeley',
@@ -116,30 +143,38 @@ const berkeley: Rows = [
     recipe: { flat: 0.5 },
     shape: { p: 4, s: [SL, SH, SW] },
     up: 'vertex',
-    paint: [
-      ['where', (o) => o.pos[1] > 0.56, 'ink.high'],
-      ['where', (o) => Math.abs(o.pos[1] + 0.2) < 0.09 && Math.abs(o.d[2]) > 0.55, 'lilac.shade'],
-    ],
+    paint: [['where', (o) => o.pos[1] > 0.56, 'ink.high']],
   },
-  // Windows are props (crisp at any facet size): seven panes a side and a two-part windshield.
+  // Windows are props (crisp at any facet size): seven panes a side and the windshield, its two
+  // halves either side of the middle.
   [
     'windows',
     FLAG.decal,
-    ...[-1, 1].flatMap((side) => Array.from({ length: 7 }, (_, i) => pane(-0.84 + i * 0.28, side))),
-    ...(
-      [
-        [-0.52, 0],
-        [0, 0.52],
-      ] as const
-    ).map(([z0, z1]): Item => [
-      'quad',
-      [front(z0, 0.3) - 0.004, -0.02, z0],
-      [front(z1, 0.3) - 0.004, -0.02, z1],
-      [front(z1, 0.3) - 0.004, 0.42, z1],
-      [front(z0, 0.3) - 0.004, 0.42, z0],
+    ...[-1, 1].flatMap((side) =>
+      Array.from({ length: 7 }, (_, i) => -0.84 + i * 0.28).flatMap((x) =>
+        skin(onFlank(side), [x - 0.11, x + 0.11], [0.03, 0.33], 'space.800', [0, 0, side]),
+      ),
+    ),
+    ...skin(
+      onFront,
+      both([0, 0.22, 0.36, 0.45, 0.52]),
+      [-0.02, 0.2, 0.33, 0.42],
       'space.800',
       [1, 0, 0],
-    ]),
+    ),
+  ],
+  // The belt line along both sides: a decal too, as straight-edged as the windows (a paint of the
+  // ground follows its facets, and its top edge was a row of teeth).
+  [
+    'belt',
+    FLAG.decal,
+    ...[-1, 1].flatMap((side) =>
+      skin(onFlank(side), both([0, 0.4, 0.8, 1, 1.1, 1.16]), [-0.29, -0.11], 'lilac.shade', [
+        0,
+        0,
+        side,
+      ]),
+    ),
   ],
   [
     'wheels',
@@ -214,7 +249,8 @@ const calHacks: Rows = [
     0,
     ...[1, 2, 3].map((k) => stand(section * 4 + k)),
   ]),
-  // The scoreboard on the north side, facing the pitch: it reads 13.0, in cells of 0.04.
+  // The scoreboard on the north side: it reads 13.0, in cells of 0.04, to the pitch and to the
+  // sky beyond it (from the docked ship's side of the stadium, half the time, its back shows).
   [
     'scoreboard',
     0,
@@ -226,7 +262,12 @@ const calHacks: Rows = [
       { at: [0, 0.16, -0.98] },
     ],
   ],
-  ['score-digits', FLAG.glow, ['pix', '13.0', 0.04, 'star.warm', { at: [0, 1.48, -0.956] }]],
+  [
+    'score-digits',
+    FLAG.glow,
+    ['pix', '13.0', 0.04, 'star.warm', { at: [0, 1.48, -0.956] }],
+    ['pix', '13.0', 0.04, 'star.warm', { at: [0, 1.48, -1.004], rot: [0, Math.PI, 0] }],
+  ],
   // The Campanile, Berkeley's own tower, beside the stadium: a needle over a lit lantern.
   [
     'campanile',
@@ -260,7 +301,7 @@ const calHacks: Rows = [
 // loaf of primer clay with a head and a snout (still clay); its finished-size ring is the
 // animal's own outline (twelve dashes, one an hour), and the ears and the stub tail, the parts
 // that say "corgi", are plan.
-const LOAF = { p: 2, s: [1.05, 0.72, 0.8] } as const;
+export const LOAF: PlanetShape = { p: 2, s: [1.05, 0.72, 0.8] };
 const loafRing = (b: number): Vec2 => {
   const r = 1 / Math.hypot(Math.sin(b) / 1.5, Math.cos(b) / 1.0);
   return [r - 0.04, r + 0.04];
@@ -314,7 +355,7 @@ const corgi: Rows = [
     FLAG.ghost,
     ['cone', 0.11, 0.02, 0, 0.26, 6, 'lilac.base', { at: [-1.04, 0.14, 0], rot: [0, 0, 1.15] }],
   ],
-  ...planned('lilac', { n: 12, r: loafRing, crane: [30, 235], chip: [66, 60, 4.45] }),
+  ...planned('lilac', { n: 12, r: loafRing, crane: [30, 235], chip: [66, 60, 4.45], shape: LOAF }),
 ];
 
 export const HACKATHONS: Readonly<Record<string, BodyRecipe>> = {

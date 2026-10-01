@@ -13,17 +13,19 @@ import {
   type Assembly,
   type Mover,
 } from '../src/universe/sim/world/glue';
-import type { GroundLooks } from '../src/universe/sim/world/ground';
-import { mulM, rotm, type Vec3 } from '../src/universe/sim/world/kit';
+import { groundLook, type GroundLooks, type GroundSpec } from '../src/universe/sim/world/ground';
+import { centroidOf, corner, mulM, rotm, type Vec3 } from '../src/universe/sim/world/kit';
 import { absentAtRest, drive, type MotionRow } from '../src/universe/sim/world/motion';
 import { colorOf } from '../src/universe/sim/world/palette';
 import {
   FLAG,
   fromPivot,
   make,
+  rowsOf,
   trianglesOf,
   type BodyRecipe,
   type Build,
+  type Hull,
 } from '../src/universe/sim/world/rows';
 
 // THE BUDGET of the emblem worlds, body by body: the triangles of the everyday mesh (flight and
@@ -37,13 +39,17 @@ import {
 // table is updated on purpose, with the reason in the commit. The `print` column is a fingerprint
 // of everything the body packs at rest, far and near (positions, colours, lighting and decal
 // flags rounded to 1e-5, the ghost edges and their colour) and of every part's name, tier and
-// flags, generated once from the verified port (2026-09-30): it catches a moved part or a
-// swapped colour that leaves every count alone. The CEILINGS below are the budget itself
-// (build-plan.md, section 7), which a change to the rows may approach but never pass.
+// flags, generated once from the verified port (2026-09-30) and again after the judges' pass
+// that day, which fixed what they found against the art (the commit says what, body by body):
+// it catches a moved part or a swapped colour that leaves every count alone. The CEILINGS below
+// are the budget itself (build-plan.md, section 7), which a change to the rows may approach but
+// never pass.
 //
-// Two rows differ from budget.json, on purpose: About Me has 18 triangles fewer (1896 and 4982
+// Rows that differ from budget.json, on purpose: About Me has 18 triangles fewer (1896 and 4982
 // instead of 1914 and 5000, and 276 of its own instead of 294), because the Circle Line's Blog
-// stop (a rose bookmark) waits for the Blog; there is no rose family yet.
+// stop (a rose bookmark) waits for the Blog; there is no rose family yet. Since the judges' pass,
+// Devpost's cup is open (12 more), the bus's windows and belt are skins of small quads that
+// follow its curve (84 more), and Cal Hacks' scoreboard has its digits on both faces (38 more).
 
 interface Budget {
   readonly everyday: number;
@@ -61,30 +67,30 @@ interface Budget {
 
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
-  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '624982e0' },
+  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '16c77970' },
   'page/resume':                    { everyday: 540,  closeup: 540,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8b35877c' },
   'page/contact':                   { everyday: 218,  closeup: 218,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '56cc4cf2' },
-  'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '66d1ba12' },
+  'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0adc41b2' },
   'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4c9b505e' },
-  'link/devpost':                   { everyday: 268,  closeup: 268,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '68101e32' },
+  'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4da94c42' },
   'system/hardware':                { everyday: 812,  closeup: 812,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '9dd2c1e4' },
   'system/software':                { everyday: 552,  closeup: 552,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '5f3841ab' },
-  'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '38f2fea6' },
-  'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '459f62ac' },
+  'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b9de84be' },
+  'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f5048eb4' },
   'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c4a93309' },
-  'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '68fa7212' },
-  'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0dbd5fa6' },
-  'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'cbe065ad' },
-  'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 1, print: '17f8bd67' },
-  'project/hackathons-at-berkeley': { everyday: 2006, closeup: 5060, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'de046325' },
-  'project/cal-hacks-13':           { everyday: 1878, closeup: 4870, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: '5bb4ec65' },
-  'project/fish-online':            { everyday: 820,  closeup: 820,  groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'a7887fa5' },
-  'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '7d9cac99' },
-  'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: 'b7ed40a7' },
-  'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '192f51f9' },
+  'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '17985b9c' },
+  'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'e060fe48' },
+  'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'de4f98f2' },
+  'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'ffbc301c' },
+  'project/hackathons-at-berkeley': { everyday: 2090, closeup: 5144, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '10588279' },
+  'project/cal-hacks-13':           { everyday: 1916, closeup: 4908, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: '2f3a0ec3' },
+  'project/fish-online':            { everyday: 820,  closeup: 820,  groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '88fd9df7' },
+  'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0384991d' },
+  'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '73711e6b' },
+  'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '596eb13a' },
   'project/model-rocketry':         { everyday: 1776, closeup: 4910, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '404f4e55' },
-  'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7e3231d3' },
-  'project/fish-onboarding':        { everyday: 462,  closeup: 600,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b5489582' },
+  'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f574d453' },
+  'project/fish-onboarding':        { everyday: 462,  closeup: 600,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3602a756' },
 };
 
 /** The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. */
@@ -151,6 +157,9 @@ function measure(id: string, recipe: BodyRecipe): Budget {
     print: fingerprintOf(near, rest, assemble(near, { kind, still, motion, near: true })),
   };
 }
+
+/** A body's ground is a hull (items that ARE the body) rather than a generated ground. */
+const isHull = (ground: GroundSpec | Hull): ground is Hull => Array.isArray(ground);
 
 const recipeOf = (id: string): BodyRecipe => {
   const recipe = BODIES[id];
@@ -337,6 +346,36 @@ describe('the emblem worlds', () => {
         packedText(assemble(far, { kind, still, motion })),
       );
     }
+  });
+
+  it('keeps every decal off a smooth ground: no corner, edge or middle of it inside', () => {
+    // A ground with no relief is its shape exactly at the corners of its facets, and the facets
+    // lie inside it. A decal that dips inside the shape anywhere (a flat plate on a rounded box)
+    // is covered there by the ground: half a windshield, the foot of a sign.
+    let checked = 0;
+    for (const [id, recipe] of Object.entries(BODIES)) {
+      const [ground] = rowsOf(recipe, { map: false });
+      if (isHull(ground) || groundLook(ground, LOOKS).flat === undefined) continue;
+      const { p, s } = ground.shape ?? { p: 2, s: [1, 1, 1] };
+      const level = (q: Vec3): number =>
+        q.reduce((sum, v, i) => sum + Math.abs(v / (s[i] ?? 1)) ** p, 0);
+      const { near } = built(id, recipe);
+      for (const part of near.parts.filter((x) => x.flags & FLAG.decal)) {
+        for (const t of part.tris) {
+          const [a, b, c] = [corner(t, 0), corner(t, 1), corner(t, 2)];
+          const mid = (u: Vec3, v: Vec3): Vec3 => [
+            (u[0] + v[0]) / 2,
+            (u[1] + v[1]) / 2,
+            (u[2] + v[2]) / 2,
+          ];
+          for (const q of [a, b, c, mid(a, b), mid(b, c), mid(c, a), centroidOf(t)]) {
+            expect(level(q), `${id} ${part.name}`).toBeGreaterThan(1);
+          }
+          checked += 1;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('gives close-up parts and motions only to bodies that have rows', () => {

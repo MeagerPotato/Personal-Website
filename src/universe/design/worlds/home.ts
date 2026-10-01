@@ -108,11 +108,8 @@ const about = ({ map }: { readonly map: boolean }): Rows => [
       { at: onLine(75, 1.35, 0.004) },
     ],
   ],
-  [
-    'train',
-    FLAG.hold,
-    ['bead', 0.075, 'ink.high', { at: [brg(rad(340), 1.35)[0], 0.06, brg(rad(340), 1.35)[1]] }],
-  ],
+  // Parked at layout bearing 340, clear of every stop (Hackathons' is the nearest, 35 degrees on).
+  ['train', FLAG.hold, ['bead', 0.075, 'ink.high', { at: onLine(340, 1.35, 0.06) }]],
 ];
 
 // --- Resume ----------------------------------------------------------------------------------------
@@ -350,6 +347,8 @@ const head = (points: readonly Vec2[], top: ColorPath, side: ColorPath): Item =>
   side,
   1,
 ];
+// An arm of a fork, from x 0.85. It lies a hundredth lower than the shaft it forks from, which
+// runs on over its root: two tops in one plane would fight for every pixel where they overlap.
 const arm = (a: number, top: ColorPath, side: ColorPath): Item => [
   'g',
   shaft(0, 0.5, top, side),
@@ -362,7 +361,7 @@ const arm = (a: number, top: ColorPath, side: ColorPath): Item => [
     top,
     side,
   ),
-  { at: [0.85, 0, 0], rot: [0, a, 0] },
+  { at: [0.85, -0.01, 0], rot: [0, a, 0] },
 ];
 const relay = (plinth: Item, exit: readonly Item[], ...mark: Item[]): Rows => [
   [plinth],
@@ -383,7 +382,8 @@ const rod = (x0: number, y0: number, x1: number, y1: number): Item => [
 const github = relay(
   DISC,
   [
-    shaft(0.4, 0.95, 'coral.light', 'coral.base'),
+    // The trunk ends just past the fork, over the arms' roots.
+    shaft(0.4, 0.88, 'coral.light', 'coral.base'),
     arm(0.6, 'sky.light', 'sky.base'),
     arm(-0.6, 'sky.light', 'sky.base'),
   ],
@@ -445,6 +445,7 @@ const devpost = relay(
   ],
   ['cyl', 0.17, 0.62, 0.68, 6, 'ink.mid'],
   ['cyl', 0.05, 0.68, 0.84, 5, 'lilac.shade'],
+  // The cup is open: its rim, then its inside in shade (a lid on it would make it a bucket).
   [
     'lathe',
     [
@@ -452,17 +453,19 @@ const devpost = relay(
       [0.84, 0.09],
       [0.93, 0.19],
       [1.2, 0.27],
-      [1.2, 0.2],
-      [1.2, 0],
+      [1.2, 0.23],
+      [1.13, 0.23],
+      [1.13, 0],
     ],
     6,
-    ['lilac.shade', 'lilac.base', 'lilac.light', 'lilac.base', 'lilac.base'],
+    ['lilac.shade', 'lilac.base', 'lilac.light', 'lilac.base', 'lilac.shade', 'lilac.shade'],
   ],
+  // The handles touch the bowl (0.23 across at their height).
   [
     'x',
     [
-      [0.31, 1.08, 0],
-      [-0.31, 1.08, 0],
+      [0.27, 1.08, 0],
+      [-0.27, 1.08, 0],
     ],
     ['box', 0.08, 0.2, 0.05, 'lilac.base'],
   ],

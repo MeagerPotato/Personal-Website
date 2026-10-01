@@ -544,6 +544,12 @@ export const tuning = {
   post: {
     /** How much of the blurred glow is added back, and how far it spreads (0 to 1). */
     bloomStrength: 0.9,
+    /**
+     * How much of it is kept off the very thing that glows (0 to 1): at 0 a sun's ball is its
+     * colour plus its own blur, clipped to near white; at 1 exactly its token, with the glow all
+     * round it. A little is left on, so that what glows is a shade brighter than what does not.
+     */
+    selfBloom: 0.85,
     bloomRadius: 0.72,
     /** Halvings of the picture that are blurred and summed: more = a wider, softer glow. */
     bloomLevels: 5,
@@ -720,6 +726,8 @@ export const tuning = {
     ringBloom: 0.18,
     /** The thin circles that show where things orbit. */
     orbitLineOpacity: 0.2,
+    /** A binary's suns' own path round the pair's centre: half as strong, not one more orbit. */
+    sunTrackOpacity: 0.1,
     orbitLineSegments: 128,
     /**
      * Away from every body, the ship is lit by the sun whose family it is in: fully inside

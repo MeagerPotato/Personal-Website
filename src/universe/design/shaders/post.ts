@@ -12,9 +12,14 @@
  * mixing each level into the next. Wide, soft, and cheap, because most of it happens on tiny
  * pictures.
  *
+ * The glow is added back AROUND what glows, and mostly not over it: the composite reads the guest
+ * list again and takes `uSelfBloom` of the glow away where the scene itself glows. Added over the
+ * thing it came from, the blur doubles a sun's ball and clips it to white, and a sun's family
+ * colour (its ball is that colour, token-exact) is gone; around it, it is the halo.
+ *
  * Every pass draws one triangle that covers the screen. Uniform names are the contract with
  * logic: tInput, uTexel (one texel of tInput), tBase, uRadius, tScene, tBloom, uBloomStrength,
- * uVignette, uVignetteRange. Define MASKED: multiply by the guest list.
+ * uSelfBloom, uVignette, uVignetteRange. Define MASKED: multiply by the guest list.
  */
 const fullscreenVertex = /* glsl */ `
   varying vec2 vUv;
@@ -83,6 +88,7 @@ export const composite = {
     uniform sampler2D tScene;
     uniform sampler2D tBloom;
     uniform float uBloomStrength;
+    uniform float uSelfBloom;
     uniform float uVignette;
     uniform vec2 uVignetteRange;
     varying vec2 vUv;
@@ -94,7 +100,10 @@ export const composite = {
     }
 
     void main() {
-      vec3 color = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * uBloomStrength;
+      // The scene's alpha is how much this pixel glows itself: the glow goes round it, not on it.
+      vec4 scene = texture2D(tScene, vUv);
+      float over = 1.0 - uSelfBloom * scene.a;
+      vec3 color = scene.rgb + texture2D(tBloom, vUv).rgb * uBloomStrength * over;
 
       // Measured in screen shares, so the vignette has the shape of the screen: the middle of
       // an edge is 0.5 away, a corner 0.71, on a phone as on a cinema display.

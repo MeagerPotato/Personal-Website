@@ -91,8 +91,13 @@ interface BodyView {
   planet: PlanetMesh | null;
   /** An emblem world, drawn from its rows. */
   world: BodyMesh | null;
-  /** Row of the body it keeps facing away from (a relay's arrow points away from home), or -1. */
+  /**
+   * Row of the body it keeps facing away from, or -1: a relay's arrow and the Contact satellite's
+   * trail point away from home, toward the edge of the map.
+   */
   outward: number;
+  /** Its turn when its own +X points away from that body (radians): where it points out along. */
+  outwardYaw: number;
 }
 
 interface OrbitLine {
@@ -117,6 +122,11 @@ interface OrbitLine {
 interface FamilyLook {
   ring: Material;
   line: Material;
+  /**
+   * The path of a binary's sun round the pair's centre: fainter than a planet's, since it runs
+   * through the rings of the planets it passes and is not one of them.
+   */
+  track: Material;
 }
 
 /** Where the light falls from, for everything lit by it: a sun, or the distant key light. */
@@ -287,7 +297,13 @@ export class Galaxy implements System {
         shared.of.push(this.orbits.indexOf(body.id));
         continue;
       }
-      const line = this.createLine(body, system, this.lookOf(family), circle);
+      const look = this.lookOf(family);
+      const line = this.createLine(
+        body,
+        system,
+        body.kind === 'sun' ? look.track : look.line,
+        circle,
+      );
       paths.set(path, line);
       this.lines.push(line);
     }
@@ -446,6 +462,9 @@ export class Galaxy implements System {
         line: this.scope.track(
           createLineMaterial({ color: colors.shade, opacity: tuning.world.orbitLineOpacity }),
         ),
+        track: this.scope.track(
+          createLineMaterial({ color: colors.shade, opacity: tuning.world.sunTrackOpacity }),
+        ),
       };
       this.looks.set(family, look);
     }
@@ -499,12 +518,13 @@ export class Galaxy implements System {
       const distance = Math.hypot(x - viewer.x, z - viewer.z) / view.body.radius;
       view.planet?.update(distance, dt);
       if (view.world) {
-        // A relay keeps its arrow pointing away from what it circles: its yaw follows its bearing
-        // on the ring. The arrow points along its +x (design/worlds/home.ts).
+        // A relay keeps its arrow pointing away from what it circles, the satellite its trail:
+        // its yaw follows its bearing on the ring (design/worlds/home.ts says which way each
+        // points: `outwardYaw`).
         if (view.outward >= 0) {
           const dx = x - (positions[view.outward * 2] ?? 0);
           const dz = z - (positions[view.outward * 2 + 1] ?? 0);
-          view.world.object.rotation.y = Math.atan2(-dz, dx);
+          view.world.object.rotation.y = Math.atan2(-dz, dx) + view.outwardYaw;
         }
         view.world.update(distance, dt, time, onMap);
       }
@@ -546,6 +566,7 @@ export class Galaxy implements System {
       planet: null,
       world: null,
       outward: -1,
+      outwardYaw: 0,
     };
 
     const shape = lookOf(body, family, this.options.worlds, this.options.bodies);
@@ -581,8 +602,13 @@ export class Galaxy implements System {
       // ring) never turns, and starts unturned.
       view.spinning = world.turning;
       if (world.turning) world.turning.rotation.y = createRng(`${body.seed}/turn`)() * TAU;
-      // A relay faces away from what it circles, whatever it is (home, today).
-      if (body.kind === 'link') view.outward = this.orbits.parent[index] ?? -1;
+      // A relay faces away from what it circles, whatever it is (home, today): its arrow points
+      // along its own +X. So does the Contact satellite, whose letter flies out along its +Z, a
+      // quarter turn further on.
+      if (body.kind === 'link' || body.kind === 'satellite') {
+        view.outward = this.orbits.parent[index] ?? -1;
+        view.outwardYaw = body.kind === 'satellite' ? Math.PI / 2 : 0;
+      }
       return view;
     }
 
@@ -630,10 +656,10 @@ export class Galaxy implements System {
   private createLine(
     body: ManifestBody,
     system: ManifestSystem,
-    look: FamilyLook,
+    material: Material,
     circle: BufferGeometry,
   ): OrbitLine {
-    const line = new LineLoop(circle, look.line);
+    const line = new LineLoop(circle, material);
     line.scale.setScalar(body.orbit?.radius ?? 1);
     line.name = `${body.id}:orbit`;
     this.object.add(line);

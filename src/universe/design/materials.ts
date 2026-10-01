@@ -357,6 +357,7 @@ export type CompositeMaterial = ShaderMaterial & {
     tScene: IUniform<Texture | null>;
     tBloom: IUniform<Texture | null>;
     uBloomStrength: IUniform<number>;
+    uSelfBloom: IUniform<number>;
     uVignette: IUniform<number>;
     uVignetteRange: IUniform<Vector2>;
   };
@@ -367,6 +368,7 @@ export function createCompositeMaterial(): CompositeMaterial {
     tScene: { value: null },
     tBloom: { value: null },
     uBloomStrength: { value: tuning.post.bloomStrength },
+    uSelfBloom: { value: tuning.post.selfBloom },
     uVignette: { value: tuning.post.vignette },
     uVignetteRange: { value: new Vector2(...tuning.post.vignetteRange) },
   }) as CompositeMaterial;
