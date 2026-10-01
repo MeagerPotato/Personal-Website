@@ -331,7 +331,8 @@ of, is in the table under The 3D world.
   a transit map (its tag in line with the body, towards the middle of the view first), and one
   at a screen edge slides along its body, away from the edge, as long as the body stays over its
   tag; names make way for each other where they can, and every system's name shows at the first
-  view, on a phone too. In flight everything drifts, and a name that hopped round its body would
+  view, on a phone too. No planet's or moon's name lies on a sun or the home planet: those are the
+  landmarks the map is read by (a system's name may, as a last resort). In flight everything drifts, and a name that hopped round its body would
   only distract: one place, under it.
 - **A profile elsewhere** (GitHub, LinkedIn) is a relay on the Contact satellite's ring: a small
   buoy (a float in the link colour, `accent`, with a sky band, a thin mast and a coral beacon;

@@ -163,7 +163,7 @@ const ON_MAP: DeclutterRules = {
  * NAMES OVER THE BODIES (docs/PLAN.md §5.5): one real <button> per body, so a name can be tapped,
  * tabbed to and read out, and pressing it flies there like pointing at the body itself. The
  * engine decides where each one is and which may show (sim/declutter.ts: important first, never
- * touching, and steady: tests/map-names/ counts every change over a whole turn); how they LOOK
+ * touching, and steady: tests/map-names/ watches every change, frame by frame); how they LOOK
  * is CSS (`.body-label` in src/styles/global.css).
  *
  * A link's name (a profile elsewhere: GitHub) is a real <a> instead, in a group of its own,

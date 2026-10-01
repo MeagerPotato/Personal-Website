@@ -323,15 +323,20 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   ONE name already placed to another of its places if that alone makes room for one more; the
   systems' names are placed TOGETHER, every way tried before one of them is left out (the
   target's and the keyboard's come first and are never moved). Among names of one rank the map
-  prefers one that shows already (a name that waits takes only the room that is left, and a name
-  that shows keeps its slot in `labels.max`), then the nearest the middle of the view: every body
-  is as far from a camera straight above. And on the map a name that has just appeared, hidden
-  or moved makes no other change of its own accord for `labels.dwellSec` (1 s: `young` in
-  `sim/declutter.ts`), and a place a name is not at must have room to spare from the edges of
-  the view before it takes it, so nothing hops back and forth. What no rule holds off is a
-  change a name MUST make: its place went past the edge of the view, or something more
-  important needs the room (`tests/map-names/` counts the changes over a whole turn, at rest, on
-  two phones and a laptop). Any other name glides a few
+  prefers one that shows already (a name that waits takes only the room that is left), then the
+  nearest the middle of the view: every body is as far from a camera straight above. And on the
+  map a name that has just appeared, hidden or moved makes no other change of its own accord for
+  `labels.dwellSec` (1 s: `young` in `sim/declutter.ts`); while it is young it keeps its slot in
+  `labels.max`, and no name that waits to show, however important, takes its room. A place a name
+  is not at must have room to spare from the edges of the view before it takes it, so nothing
+  hops back and forth (a name with no such place takes one without, unless its body is on its way
+  out). A planet's or a moon's tag never lies on a sun or the home planet, the landmarks the map
+  is read by; a system's only as a last resort (`covers`: what a place lies on, `liesOn`). The
+  map's places start in the frame the camera has ARRIVED (`StarMap.arrived`): on the way up a
+  name keeps its one place under its body, as in flight. What no rule holds off is a change a
+  name MUST make: its place went past the edge of the view, or something more important that
+  shows needs the room (`tests/map-names/` watches every frame: samples in `npm test`, whole
+  turns of every look in `npm run map-names`). Any other name glides a few
   pixels at most and then makes way; the target's and the focused one never do, so the ship
   alone never hides the name of where it is, or takes the keyboard's focus away.
   Whichever side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
