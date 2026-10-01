@@ -17,6 +17,8 @@
 //      those parts, so this is what makes a soft navigation end in the same DOM as a hard one.
 //   8. THE RESUME'S PDF says what the resume page says: it is the file config/resume-pdf.json
 //      describes, printed from this very page and print stylesheet (`npm run resume-pdf`).
+//   9. THE CLOSE-UP CHUNK: the emblem worlds' close-up rows and motions are one chunk of their
+//      own, loaded only through import() and within their budget (scripts/lib/closeup.mjs).
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -34,6 +36,7 @@ import {
   pageSkeleton,
   toSitePath,
 } from './lib/html.mjs';
+import { CLOSE_UP_CHUNK, CLOSE_UP_BUDGET, closeUpProblems } from './lib/closeup.mjs';
 import { REDIRECTS, redirectProblems } from './lib/redirects.mjs';
 import { RESUME_PAGE, RESUME_PDF, RESUME_PDF_LOCK, resumePdfProblems } from './lib/resume-pdf.mjs';
 
@@ -330,6 +333,13 @@ errors.push(
   }),
 );
 
+// 9 --- the close-up chunk ----------------------------------------------------------------------
+// The first frame needs none of it (far away every world is its still), so every visit that never
+// comes near a world is spared it, as long as nothing pulls it into a chunk loaded before.
+const closeUpChunk = [...scriptSource.keys()].find((path) => CLOSE_UP_CHUNK.test(path));
+for (const path of scriptSource.keys()) if (CLOSE_UP_CHUNK.test(path)) await gzipSize(path);
+errors.push(...closeUpProblems(scriptSource, (path) => gzipCache.get(path) ?? Infinity));
+
 // --- report ------------------------------------------------------------------------------------
 if (errors.length > 0) {
   console.error(`verify-dist: ${errors.length} problem(s)\n  - ${errors.join('\n  - ')}`);
@@ -341,6 +351,7 @@ console.log(
     `${swappable.length} page(s) share one skeleton.\n` +
     `  plain mode: heaviest page ${heaviest.pagePath} = ${kib(heaviest.weight)} ` +
     `of ${kib(BUDGET.plainPage)}; lazy JS = ${kib(lazyWeight)} of ${kib(BUDGET.lazyScripts)} (gzip)\n` +
+    `  close-up chunk: ${kib(gzipCache.get(closeUpChunk) ?? 0)} of ${kib(CLOSE_UP_BUDGET)} (gzip)\n` +
     `  fonts: heaviest page ${heaviestFonts.pagePath || '(none)'} preloads ` +
     `${kib(heaviestFonts.weight)} of ${kib(BUDGET.fonts)} (woff2, as sent)`,
 );
