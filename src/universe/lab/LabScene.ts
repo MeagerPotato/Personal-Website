@@ -251,6 +251,8 @@ class Turntable implements System {
   private bodies = new Map<string, WorldBody>();
   /** The close-up chunk, loaded the first time a world is looked at up close. */
   private readonly closeUp = new CloseUpLoader();
+  /** Gone: whatever arrives after (the galaxy's bodies, a rebuild's timer) shows nothing. */
+  private disposed = false;
   private rocket: Rocket | null = null;
   private flame: EngineFlame | null = null;
   private lit: Array<{ uniforms: { uSunPosition: { value: Vector3 } } }> = [];
@@ -270,6 +272,7 @@ class Turntable implements System {
 
   /** The galaxy's bodies have arrived: draw the world on show at its real kind and size. */
   know(bodies: readonly ManifestBody[]): void {
+    if (this.disposed) return;
     this.bodies = new Map(bodies.map((body) => [body.id, body]));
     if (this.state.subject === 'world') this.show();
   }
@@ -300,6 +303,7 @@ class Turntable implements System {
 
   /** Throw away what is on the table and build what `state` asks for. */
   show(): void {
+    if (this.disposed) return;
     this.clear();
     const { state, scope, assets } = this;
     const surface = scope.track(createToonMaterial({ vertexColors: true }));
@@ -433,7 +437,9 @@ class Turntable implements System {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.clear();
+    this.closeUp.dispose();
     this.object.removeFromParent();
   }
 

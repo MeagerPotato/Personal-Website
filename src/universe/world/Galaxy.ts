@@ -13,6 +13,7 @@ import type { JobQueue } from '../core/jobs';
 import { Scope } from '../core/scope';
 import {
   KEY_LIGHT_POSITION,
+  createEdgeMaterial,
   createGlowMaterial,
   createLineMaterial,
   createToonMaterial,
@@ -171,6 +172,8 @@ export class Galaxy implements System {
   private readonly looks = new Map<ThemeKey, FamilyLook>();
   /** The close-up rows and the motion table of the emblem worlds: a chunk of their own. */
   private readonly closeUp: CloseUpLoader;
+  /** The lines of planned work's parts still to come, one material per family they will wear. */
+  private readonly edges = new Map<ThemeKey, Material>();
   private worldCount = 0;
   /** Every sun's light, and the key light for whatever has no sun. */
   private readonly suns: SunLight[] = [];
@@ -460,6 +463,16 @@ export class Galaxy implements System {
     }
   }
 
+  /** The blueprint lines of a family, made the first time a body asks for them. */
+  private edgesOf(family: ThemeKey): Material {
+    let material = this.edges.get(family);
+    if (!material) {
+      material = this.scope.track(createEdgeMaterial({ color: tokens.color.system[family].base }));
+      this.edges.set(family, material);
+    }
+    return material;
+  }
+
   private createView(body: ManifestBody, family: ThemeKey, sunMaterial: Material): BodyView {
     const { assets, jobs, reducedMotion } = this.options;
     const node = new Group();
@@ -497,6 +510,7 @@ export class Galaxy implements System {
         low: this.options.low ?? false,
         reducedMotion,
         closeUp: this.closeUp,
+        edges: (family) => this.edgesOf(family),
       });
       view.world = world;
       this.worldCount += 1;

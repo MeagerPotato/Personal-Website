@@ -1,9 +1,10 @@
 import type { BufferGeometry, LineSegments, Material, Mesh, Object3D } from 'three';
+import { createEdgeMaterial } from '../design/materials';
 import { describe, expect, it, vi } from 'vitest';
 import { JobQueue } from '../core/jobs';
 import type { BodyKind } from '../data/types';
 import { createToonMaterial, type ToonMaterial } from '../design/materials';
-import { tokens } from '../design/tokens';
+import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { BODIES } from '../design/worlds/bodies';
 import { MOTION } from '../design/worlds/motion';
@@ -49,6 +50,7 @@ function make(
     low: boolean;
     reducedMotion: boolean;
     closeUp: Source;
+    edges: (family: ThemeKey) => Material;
   }> = {},
 ): Made {
   const recipe = BODIES[id];
@@ -68,6 +70,7 @@ function make(
     low: over.low ?? false,
     reducedMotion: over.reducedMotion ?? false,
     closeUp,
+    ...(over.edges ? { edges: over.edges } : {}),
   });
   return {
     world,
@@ -128,6 +131,30 @@ describe('BodyMesh', () => {
       expected.map((v) => Number(v.toFixed(6))),
     );
     world.dispose();
+  });
+
+  it('draws its blueprint lines with the material its family shares, when it is given one', () => {
+    const shared = new Map<ThemeKey, Material>();
+    const edges = (family: ThemeKey): Material => {
+      const made =
+        shared.get(family) ?? createEdgeMaterial({ color: tokens.color.system[family].base });
+      shared.set(family, made);
+      return made;
+    };
+    const one = make('project/corgi', 'planet', { planned: true, edges });
+    const two = make('project/corgi', 'planet', { planned: true, edges });
+    for (const made of [one, two]) made.finish();
+    const lines = (made: Made): Material =>
+      ((made.named('far:turn:edges') ?? made.named('far:hold:edges')) as LineSegments)
+        .material as Material;
+    expect(lines(one)).toBe(lines(two));
+    expect(shared.size).toBe(1);
+    // It is the family's, not the body's: a body gone leaves it be.
+    const freed = vi.fn();
+    lines(one).addEventListener('dispose', freed);
+    one.world.dispose();
+    two.world.dispose();
+    expect(freed).not.toHaveBeenCalled();
   });
 
   it('turns what the glue says turns, and nothing on the low tier', () => {
@@ -279,6 +306,31 @@ describe('BodyMesh', () => {
     plain.world.dispose();
   });
 
+  it('shows its still on the map near by too: never the close-up, and nothing moves', () => {
+    // Docked at Hackathons, the map opened: the clock hand and the confetti are close-up movers.
+    const { world, finish, named, shown } = make('system/hackathons', 'sun', { radius: 20 });
+    finish();
+    world.update(NEAR_BY, step, 0);
+    finish();
+    world.update(NEAR_BY, step, 20);
+    const hand = named('near:mover:hand');
+    expect(hand?.visible).toBe(true);
+    const turned = hand?.rotation.y;
+    world.update(NEAR_BY, step, 21, true);
+    expect(shown().length).toBeGreaterThan(0);
+    expect(
+      shown().every((name) => name.startsWith('far:')),
+      shown().join(),
+    ).toBe(true);
+    world.update(NEAR_BY, step, 40, true);
+    expect(hand?.rotation.y).toBe(turned);
+    // Back in flight, the close-up is there still, and moving again.
+    world.update(NEAR_BY, step, 41);
+    expect(shown()).toContain('near:mover:hand');
+    expect(hand?.rotation.y).not.toBe(turned);
+    world.dispose();
+  });
+
   it('gives back every geometry and material it made, and cancels a build still waiting', () => {
     const { world, finish, jobs } = make('page/about', 'home');
     finish();
@@ -341,7 +393,7 @@ describe('CloseUpLoader', () => {
     expect(late.rows).toBeNull();
   });
 
-  it('is its own chunk: the module it loads has both tables', async () => {
+  it('loads a module that has both tables (that it is a chunk of its own, verify-dist checks)', async () => {
     const chunk = await import('../design/worlds/closeup');
     expect(chunk.NEAR).toBe(NEAR);
     expect(chunk.MOTION).toBe(MOTION);

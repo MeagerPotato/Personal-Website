@@ -1,4 +1,4 @@
-import { Vector3, type Mesh, type Object3D } from 'three';
+import { Vector3, type LineSegments, type Material, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { readRealInput } from '../scripts/journeys/galaxies';
 import { AssetStore } from '../src/universe/core/AssetStore';
@@ -201,20 +201,53 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
-  it('gives back everything it built, close-ups included', () => {
-    const { galaxy, viewer, node, finish } = setup();
+  it('draws the blueprint lines with one material per family, and gives each back', () => {
+    const { galaxy, finish } = setup();
+    finish();
+    galaxy.frameUpdate(frame(1));
+    // Planned work's lines, by the family its rows say it will wear (BodyRecipe.ghost).
+    const byFamily = new Map<string, Set<Material>>();
+    galaxy.object.traverse((child) => {
+      if (!child.name.endsWith(':edges')) return;
+      let body: Object3D | null = child;
+      while (body && !body.name.includes('/')) body = body.parent;
+      const family = BODIES[body?.name ?? '']?.ghost ?? '?';
+      const seen = byFamily.get(family) ?? new Set<Material>();
+      seen.add((child as LineSegments).material as Material);
+      byFamily.set(family, seen);
+    });
+    // Kalshi in mint, Corgi in lilac, Fish Online in sky: one each, none shared across families.
+    expect([...byFamily.keys()].sort()).toEqual(['lilac', 'mint', 'sky']);
+    const materials = [...byFamily.values()].flatMap((seen) => [...seen]);
+    expect(materials.length).toBe(byFamily.size);
+    const freed = vi.fn();
+    for (const material of materials) material.addEventListener('dispose', freed);
+    galaxy.dispose();
+    expect(freed).toHaveBeenCalledTimes(materials.length);
+  });
+
+  it('gives back everything it built, close-ups included', async () => {
+    const { galaxy, viewer, closeUp, node, finish } = setup();
     finish();
     viewer.position.copy(node('project/robotics').position);
     galaxy.frameUpdate(frame(1));
+    expect(closeUp).toHaveBeenCalledTimes(1);
+    // The close-up rows arrive a moment later, as a chunk does; then the close-up is built.
+    await Promise.resolve();
+    galaxy.frameUpdate(frame(1));
     finish();
+    galaxy.frameUpdate(frame(1));
     const disposed = vi.fn();
     let made = 0;
+    const near: string[] = [];
     galaxy.object.traverse((child) => {
       const drawn = child as Mesh;
       if (!drawn.geometry || drawn.name.endsWith(':orbit')) return;
       made += 1;
+      if (drawn.name.startsWith('near:')) near.push(drawn.name);
       drawn.geometry.addEventListener('dispose', disposed);
     });
+    expect(near).toContain('near:turn');
     galaxy.dispose();
     expect(made).toBeGreaterThan(real.bodies.length);
     expect(disposed).toHaveBeenCalledTimes(made);

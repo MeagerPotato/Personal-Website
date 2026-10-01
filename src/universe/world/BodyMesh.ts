@@ -14,7 +14,7 @@ import type { JobQueue } from '../core/jobs';
 import { Scope } from '../core/scope';
 import type { BodyKind } from '../data/types';
 import { createEdgeMaterial, createToonMaterial, type ToonMaterial } from '../design/materials';
-import { tokens } from '../design/tokens';
+import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import {
   assembling,
@@ -24,7 +24,7 @@ import {
   type Group as DrawGroup,
   type Packed,
 } from '../sim/world/glue';
-import { drive, type MotionRow } from '../sim/world/motion';
+import { driveValue, type MotionRow } from '../sim/world/motion';
 import { makeBody, type BodyRecipe, type PartRow, type Pivot } from '../sim/world/rows';
 
 /** What the close-up chunk brings (design/worlds/closeup.ts), by manifest id. */
@@ -96,6 +96,12 @@ export interface BodyMeshOptions {
   /** Nothing moves: up close, every part is drawn at its still. */
   readonly reducedMotion: boolean;
   readonly closeUp: CloseUpSource;
+  /**
+   * The lines of the parts still to come in a family (a planned world's blueprint), one material
+   * per family that the caller owns and shares (world/Galaxy.ts). Without it, the body makes its
+   * own.
+   */
+  readonly edges?: (family: ThemeKey) => Material;
 }
 
 /** A part that moves, drawn: the object its rows drive, and a glowing part's own brightness. */
@@ -121,6 +127,7 @@ interface TierView {
  * whose rows ask for one has (About Me's Circle Line, bolder and simpler).
  */
 type TierName = 'far' | 'near' | 'map';
+const TIER_NAMES: readonly TierName[] = ['far', 'near', 'map'];
 
 /**
  * A BODY DRAWN FROM ITS ROWS, an emblem world (sim/world; design/worlds): its ground and its
@@ -139,7 +146,8 @@ type TierName = 'far' | 'near' | 'map';
  * frame by `drive` at the exact time of the frame: motion is a pure function of simulation time,
  * so a rebuilt engine shows the same picture, and nothing of it is a snapshot field. Under
  * reduced motion and on the low tier the close-up is the still (every part at rest, no movers);
- * on the low tier it is one group, which never turns.
+ * on the low tier it is one group, which never turns. The star map shows the still too: the map's
+ * own variant where the rows have one, else the everyday build, never the close-up.
  *
  * Whoever creates one disposes it: every geometry and material it made goes with it.
  */
@@ -150,7 +158,7 @@ export class BodyMesh {
   readonly turning: Group | null;
 
   private readonly scope = new Scope();
-  private readonly tiers = new Map<TierName, TierView>();
+  private readonly tiers: Record<TierName, TierView | null> = { far: null, near: null, map: null };
   private building: { readonly tier: TierName; readonly cancel: () => void } | null = null;
   private readonly edges: Material | null;
   /** The size of the rows' radius 1, as a share of the body's radius (planned work is smaller). */
@@ -171,8 +179,10 @@ export class BodyMesh {
       this.object.add(this.turning);
     }
     // The lines of the parts still to come, in the family the body will wear.
-    this.edges = recipe.ghost
-      ? this.scope.track(createEdgeMaterial({ color: tokens.color.system[recipe.ghost].base }))
+    const family = recipe.ghost;
+    this.edges = family
+      ? (options.edges?.(family) ??
+        this.scope.track(createEdgeMaterial({ color: tokens.color.system[family].base })))
       : null;
     this.scope.onDispose(() => this.object.removeFromParent());
     this.build('far');
@@ -180,12 +190,12 @@ export class BodyMesh {
 
   /** How far the body is drawn from its centre, in its radii (1 until it is built). */
   get reach(): number {
-    return Math.max(1, (this.tiers.get('far')?.reach ?? 1) * this.share);
+    return Math.max(1, (this.tiers.far?.reach ?? 1) * this.share);
   }
 
   /** Is anything drawn yet? */
   get built(): boolean {
-    return this.tiers.has('far');
+    return this.tiers.far !== null;
   }
 
   /**
@@ -198,7 +208,7 @@ export class BodyMesh {
     if (distanceRadii < nearEnterRadii) {
       this.awaySec = 0;
       // One job at a time: the close-up waits for the everyday build to exist.
-      if (!this.tiers.has('near') && !this.building && this.built && this.closer !== false) {
+      if (!this.tiers.near && !this.building && this.built && this.closer !== false) {
         const { closeUp } = this.options;
         const rows = closeUp.rows;
         if (rows === null) closeUp.request();
@@ -207,21 +217,24 @@ export class BodyMesh {
           if (this.closer) this.build('near', rows);
         }
       }
-    } else if (distanceRadii > nearExitRadii && this.tiers.has('near')) {
+    } else if (distanceRadii > nearExitRadii && this.tiers.near) {
       this.awaySec += dt;
       if (this.awaySec > nearLingerSec) this.free('near');
     }
     const variant = typeof this.options.recipe.rows === 'function';
-    if (onMap && variant && !this.tiers.has('map') && !this.building && this.built)
-      this.build('map');
+    if (onMap && variant && !this.tiers.map && !this.building && this.built) this.build('map');
 
+    // On the map, the still: its own variant, or the everyday build until that exists (or when
+    // there is none), and never the close-up, whose parts move and some of which are not in the
+    // still at all.
     const { tiers } = this;
-    const shown: TierName | null =
-      onMap && tiers.has('map') ? 'map' : tiers.has('near') ? 'near' : this.built ? 'far' : null;
-    for (const [name, view] of tiers) {
-      for (const object of view.objects) object.visible = name === shown;
+    let shown: TierName | null = null;
+    if (this.built) shown = onMap ? (tiers.map ? 'map' : 'far') : tiers.near ? 'near' : 'far';
+    for (const name of TIER_NAMES) {
+      const view = tiers[name];
+      if (view) for (const object of view.objects) object.visible = name === shown;
     }
-    if (shown === 'near') for (const mover of tiers.get('near')?.movers ?? []) animate(mover, time);
+    if (shown === 'near') for (const mover of tiers.near?.movers ?? []) animate(mover, time);
   }
 
   dispose(): void {
@@ -267,15 +280,15 @@ export class BodyMesh {
     const cancel = jobs.add(job, (assembly) => {
       this.building = null;
       if (this.disposed) return;
-      this.tiers.set(tier, this.draw(tier, assembly, motion));
+      this.tiers[tier] = this.draw(tier, assembly, motion);
     });
     this.building = { tier, cancel };
   }
 
   private free(tier: TierName): void {
-    const view = this.tiers.get(tier);
+    const view = this.tiers[tier];
     if (!view) return;
-    this.tiers.delete(tier);
+    this.tiers[tier] = null;
     view.scope.dispose();
   }
 
@@ -375,10 +388,15 @@ function reachOf({ positions }: Packed): number {
 /** Below this, a part is not drawn at all: a matrix of no size cannot be undone, which three minds. */
 const NOTHING = 1e-4;
 
-/** Set a mover where its rows say it is at `time`, as the concept set's driver did (T, R, S). */
+/**
+ * Set a mover where its rows say it is at `time`, as the concept set's driver did (T, R, S). Every
+ * frame, so nothing is made here.
+ */
 function animate({ rows, moving, tint }: MoverView, time: number): void {
   for (const row of rows) {
-    const { target, axis, value } = drive(row, time);
+    const target = row[1];
+    const axis = row[2];
+    const value = driveValue(row, time);
     if (target === 'glow') tint?.setScalar(value);
     else if (target === 'scale') {
       if (axis === 'x' || axis === 'y' || axis === 'z') moving.scale[axis] = value;

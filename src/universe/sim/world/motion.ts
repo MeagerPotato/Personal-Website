@@ -90,26 +90,28 @@ export interface Drive {
  * between 0.7 and 1 of full brightness.
  */
 export function drive(row: MotionRow, time: number | 'still'): Drive {
-  const [, target, axis, shape, amount, period, phase = 0, rest = 0] = row;
+  return { target: row[1], axis: row[2], value: driveValue(row, time) };
+}
+
+/**
+ * `drive`'s value alone (the row says what it sets and along which axis), for a caller that sets
+ * it every frame: nothing is made.
+ */
+export function driveValue(row: MotionRow, time: number | 'still'): number {
+  const [, target, , shape, amount, period, phase = 0, rest = 0] = row;
   const f = SHAPES[shape];
   const r = rest + phase;
   const t = time === 'still' ? r : time / period + phase;
-  let value: number;
   switch (target) {
     case 'rot':
-      value = amount * (f(t) - f(r));
-      break;
+      return amount * (f(t) - f(r));
     case 'pos':
-      value = amount * (f(fraction(t)) - f(fraction(r)));
-      break;
+      return amount * (f(fraction(t)) - f(fraction(r)));
     case 'scale':
-      value = f(t) / (f(r) || 1);
-      break;
+      return f(t) / (f(r) || 1);
     case 'glow':
-      value = 0.85 + 0.15 * f(t);
-      break;
+      return 0.85 + 0.15 * f(t);
   }
-  return { target, axis, value };
 }
 
 /**

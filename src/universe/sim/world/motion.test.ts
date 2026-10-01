@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BODIES } from '../../design/worlds/bodies';
 import { MOTION } from '../../design/worlds/motion';
 import { NEAR } from '../../design/worlds/near';
-import { absentAtRest, drive, SHAPES, type MotionRow, type Shape } from './motion';
+import { absentAtRest, drive, driveValue, SHAPES, type MotionRow, type Shape } from './motion';
 import { rowsOf } from './rows';
 
 // Calm first (vocabulary.md, section 7). These rules hold over the WHOLE table, so a row that
@@ -136,6 +136,14 @@ describe('the driver', () => {
     expect([...absentAtRest([['a', 'scale', '*', 'sine', 1, 8]])]).toEqual(['a']);
     expect([...absentAtRest([['a', 'pos', 'x', 'hill', 1, 10]])]).toEqual([]);
     expect([...absentAtRest([['a', 'scale', '*', 'hill', 1, 10, 0, 0.3]])]).toEqual([]);
+  });
+
+  it('gives the same value without making anything, for a caller that sets it every frame', () => {
+    for (const [id, row] of rows) {
+      for (const time of [0, 1.7, 5.3, 9.99, 'still'] as const) {
+        expect(driveValue(row, time), `${id} ${row[0]} ${time}`).toBe(drive(row, time).value);
+      }
+    }
   });
 
   it('has waves that rest where they say', () => {
