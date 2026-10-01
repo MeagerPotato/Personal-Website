@@ -17,19 +17,26 @@ export interface VertexFlags {
  * Non-indexed with per-face normals and colours, which is what the toon shader expects. The arrays
  * are handed over, not copied. The caller owns the geometry: track it in a Scope.
  *
- * A flag that is all zeros is left out: the material's default says the same, for nothing.
+ * Both flags are always there, zeros (a byte a vertex) where nobody set them: a generated planet,
+ * a model. An attribute a geometry left out would read WebGL's generic value at its location,
+ * which is the context's, not the geometry's: three writes the material's default there only when
+ * it first sets up that geometry's vertex array, and any program drawn after may write another
+ * there that nothing puts back (a 1 would draw a planet flat, or pull it toward the camera).
  */
 export function geometryFrom(mesh: MeshData & VertexFlags): BufferGeometry {
   const geometry = new BufferGeometry();
+  const count = mesh.positions.length / 3;
   geometry.setAttribute('position', new BufferAttribute(mesh.positions, 3));
   geometry.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
   geometry.setAttribute('color', new BufferAttribute(mesh.colors, 3));
-  if (mesh.unlit?.some((value) => value !== 0)) {
-    geometry.setAttribute(UNLIT_ATTRIBUTE, new BufferAttribute(mesh.unlit, 1));
-  }
-  if (mesh.decal?.some((value) => value !== 0)) {
-    geometry.setAttribute(DECAL_ATTRIBUTE, new BufferAttribute(mesh.decal, 1));
-  }
+  geometry.setAttribute(
+    UNLIT_ATTRIBUTE,
+    new BufferAttribute(mesh.unlit ?? new Uint8Array(count), 1),
+  );
+  geometry.setAttribute(
+    DECAL_ATTRIBUTE,
+    new BufferAttribute(mesh.decal ?? new Uint8Array(count), 1),
+  );
   geometry.computeBoundingSphere();
   return geometry;
 }

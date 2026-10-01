@@ -11,15 +11,20 @@ const triangle = () => ({
 });
 
 describe('geometryFrom', () => {
-  it('hands the arrays over as they are, and leaves out flags nobody set', () => {
+  it('hands the arrays over as they are, and gives flags nobody set as zeros', () => {
     const mesh = triangle();
     const geometry = geometryFrom(mesh);
     expect(geometry.getAttribute('position').array).toBe(mesh.positions);
     expect(geometry.getAttribute('normal').array).toBe(mesh.normals);
     expect(geometry.getAttribute('color').array).toBe(mesh.colors);
-    // A generated planet or a model: no flags, so the material's defaults (lit, no decal) hold.
-    expect(geometry.getAttribute(UNLIT_ATTRIBUTE)).toBeUndefined();
-    expect(geometry.getAttribute(DECAL_ATTRIBUTE)).toBeUndefined();
+    // A generated planet or a model: lit, and no decal, said by the geometry itself. A missing
+    // attribute would read whatever value another program left at its location.
+    for (const name of [UNLIT_ATTRIBUTE, DECAL_ATTRIBUTE]) {
+      const flag = geometry.getAttribute(name);
+      expect(flag.count, name).toBe(3);
+      expect(flag.itemSize, name).toBe(1);
+      expect([...flag.array], name).toEqual([0, 0, 0]);
+    }
     expect(geometry.boundingSphere?.radius).toBeGreaterThan(0);
   });
 
@@ -31,14 +36,5 @@ describe('geometryFrom', () => {
     expect(flag.array).toBe(unlit);
     expect(flag.itemSize).toBe(1);
     expect(geometry.getAttribute(DECAL_ATTRIBUTE).array).toBe(decal);
-
-    // All zeros says nothing the defaults do not.
-    const plain = geometryFrom({
-      ...triangle(),
-      unlit: new Float32Array(3),
-      decal: new Uint8Array(3),
-    });
-    expect(plain.getAttribute(UNLIT_ATTRIBUTE)).toBeUndefined();
-    expect(plain.getAttribute(DECAL_ATTRIBUTE)).toBeUndefined();
   });
 });

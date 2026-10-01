@@ -13,14 +13,14 @@
  * above; 1 FLAT, its colour as it is, lit or not, like a painted sign; 2 GLOW, its colour as
  * light, blooming as a sun does (shaders/glow.ts writes alpha the same way). So a lamp, a flame or
  * a sun's ball rides in the same buffer as the lit parts round it, and a body is one draw call and
- * not three. Geometry without the attribute reads its default, 0 (design/materials.ts sets it: a
- * missing attribute is otherwise whatever an earlier program left at that location): lit, as
- * everything was before the worlds.
+ * not three. Every geometry carries it (core/geometry.ts), 0 where nobody set it: lit, as
+ * everything was before the worlds. (Not a default: a missing attribute reads WebGL's generic
+ * value at its location, which any program may change.)
  *
  * A DECAL vertex (`aDecal` 1: a grid or a number painted on the ground) is pulled toward the
  * camera by `uDecalPull` of its distance, along its own line of sight: a depth bias that moves
  * nothing on screen and holds at every distance, where the few thousandths of a radius it stands
- * off the ground would not, from the star map. Without the attribute, 0: nothing moves.
+ * off the ground would not, from the star map. Everywhere else, 0: nothing moves.
  *
  * Alpha is the bloom guest list (shaders/post.ts): a lit or flat surface is not on it
  * (`1 - uBloomMask`), a glowing one is, as much as `uGlowBloom` says (`mix(1, uGlowBloom,
@@ -34,8 +34,8 @@
  *                 taken out, 0..1 (the star map: 1 is a uGlowBloom   shared: how much a glowing
  *                 flat disc of pure colour)             vertex blooms, 0..1
  *   uDecalPull    shared: a decal's pull toward the camera, a share of its distance
- * Attributes: position, normal, color (USE_COLOR), aUnlit (0 lit, 1 flat, 2 glow; default 0),
- *   aDecal (1 on a decal; default 0).
+ * Attributes: position (bound to location 0), normal, color (USE_COLOR), aUnlit (0 lit, 1 flat,
+ *   2 glow), aDecal (1 on a decal): every geometry carries both flags.
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
  *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies).
  */

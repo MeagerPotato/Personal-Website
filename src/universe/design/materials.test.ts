@@ -27,7 +27,9 @@ describe('the toon material and its per-vertex flags', () => {
 
   it('lights geometry without the flags as before: lit, and no decal', () => {
     const material = createToonMaterial({ vertexColors: true });
-    // A missing attribute reads the material's default, not whatever another program left there.
+    // Every geometry carries both (core/geometry.ts); these defaults are a backstop for its first
+    // frame only. Position is at location 0, which a driver must never find switched off.
+    expect(material.index0AttributeName).toBe('position');
     expect(material.defaultAttributeValues).toMatchObject({
       [UNLIT_ATTRIBUTE]: [0],
       [DECAL_ATTRIBUTE]: [0],

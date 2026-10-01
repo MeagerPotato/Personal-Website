@@ -115,9 +115,13 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     vertexColors: options.vertexColors ?? false,
     defines: options.instancedSun ? { INSTANCED_SUN: '' } : {},
   });
-  // Geometry without the worlds' flags (every generated planet, every model) reads these: lit,
-  // and no decal. Said here, because a missing attribute otherwise reads whatever an earlier
-  // program left at its location (WebGL's generic vertex attribute), which may be a 1.
+  // Location 0 is always an array that is there (a driver that finds it switched off emulates
+  // it, slowly), whatever order the driver would have put the attributes in. (Set here: three's
+  // setValues passes over a property that starts out undefined.)
+  material.index0AttributeName = 'position';
+  // Every geometry carries the worlds' flags (core/geometry.ts: zeros for a planet or a model).
+  // These are a backstop only: three writes a default when it first sets up a geometry's vertex
+  // array, and WebGL's generic value at that location is the context's, for any program to change.
   Object.assign(material.defaultAttributeValues, {
     [UNLIT_ATTRIBUTE]: [0],
     [DECAL_ATTRIBUTE]: [0],
