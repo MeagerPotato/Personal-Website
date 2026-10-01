@@ -162,45 +162,132 @@ interface NameChange {
 /** What `watchNames` keeps in the page. */
 interface NamesWatch {
   changes: NameChange[];
-  quiet: () => number;
+  /** When the map was first seen open (ms, page time: a frame with `html[data-map]`), or null. */
+  opened: number | null;
+  /** When each frame looked at was (ms, page time). */
+  frames: number[];
 }
 
 /**
  * Every frame from now on (`requestAnimationFrame`), which names show and on which side of their
  * bodies (`data-side`: below, above, left, right), kept in the page: `changes` is each name that
- * came, went or changed sides, and `quiet` how long it has been since the last of them (ms).
+ * came, went or changed sides, `opened` when the map was first open, and `frames` when each frame
+ * was.
  */
 async function watchNames(page: Page): Promise<{
   changes: () => Promise<NameChange[]>;
-  quiet: () => Promise<number>;
+  opened: () => Promise<number>;
+  frames: () => Promise<number[]>;
 }> {
   await page.evaluate(() => {
-    const changes: NameChange[] = [];
+    const watch: NamesWatch = { changes: [], opened: null, frames: [] };
     const seen = new Map<Element, string>();
-    let last = performance.now();
     const look = (): void => {
+      const now = performance.now();
+      watch.frames.push(now);
+      if (watch.opened === null && document.documentElement.hasAttribute('data-map')) {
+        watch.opened = now;
+      }
       for (const name of document.querySelectorAll('.body-label')) {
-        const now = name.hasAttribute('data-shown')
+        const side = name.hasAttribute('data-shown')
           ? (name.getAttribute('data-side') ?? 'below')
           : 'hidden';
         const was = seen.get(name);
-        seen.set(name, now);
-        if (was === undefined || was === now) continue;
-        last = performance.now();
-        changes.push({ name: name.textContent ?? '', now, at: Math.round(last) });
+        seen.set(name, side);
+        if (was === undefined || was === side) continue;
+        watch.changes.push({ name: name.textContent ?? '', now: side, at: Math.round(now) });
       }
       requestAnimationFrame(look);
     };
     look();
-    const watch: NamesWatch = { changes, quiet: () => performance.now() - last };
     Object.assign(window, { e2eNames: watch });
   });
+  const watched = (): Promise<NamesWatch> =>
+    page.evaluate(() => (window as unknown as { e2eNames: NamesWatch }).e2eNames);
   return {
-    changes: () =>
-      page.evaluate(() => [...(window as unknown as { e2eNames: NamesWatch }).e2eNames.changes]),
-    quiet: () =>
-      page.evaluate(() => (window as unknown as { e2eNames: NamesWatch }).e2eNames.quiet()),
+    changes: async () => (await watched()).changes,
+    opened: async () => {
+      await expect.poll(async () => (await watched()).opened).not.toBeNull();
+      return (await watched()).opened ?? Number.NaN;
+    },
+    frames: async () => (await watched()).frames,
   };
+}
+
+/**
+ * How long after the map opens (`html[data-map]`) the camera has pulled all the way out to it,
+ * and its names hold still (ms): its blend, `tuning.map.blendSec` (0.9 s), and a few frames more
+ * for a page that draws slowly.
+ */
+const ARRIVED_MS = 1200;
+
+/** Wait for the page's first frame at or after `ms` (page time). */
+async function frameAt(page: Page, ms: number): Promise<void> {
+  await page.evaluate(
+    (at) =>
+      new Promise<void>((done) => {
+        const step = (): void => {
+          if (performance.now() >= at) done();
+          else requestAnimationFrame(step);
+        };
+        step();
+      }),
+    ms,
+  );
+}
+
+/** The names that show, right now (their text). */
+function shownNames(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('.body-label[data-shown]')].map((name) => name.textContent ?? ''),
+  );
+}
+
+/**
+ * The names of planets and moons whose tag lies on a sun or the home planet, right now: the
+ * landmarks the map is read by, which only a system's name may lie on (and that as a last resort:
+ * ui/Labels.ts). A landmark is where its name says its body is (`bodyOf`), and at least as big as
+ * the map draws it at its smallest (`tuning.map.minRadiusPx`: a sun 9 px, the home planet 8); a
+ * tag is the visible part of a name's 44 px box, at its top below the body, at its bottom above
+ * it, in the middle beside it (global.css).
+ */
+function tagsOnLandmarks(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const names = [...document.querySelectorAll<HTMLElement>('.body-label[data-shown]')];
+    const landmark = (name: HTMLElement): boolean =>
+      name.dataset.kind === 'sun' || name.dataset.kind === 'home';
+    const discs = names.filter(landmark).map((name) => {
+      const [x = Number.NaN, y = Number.NaN] = (name.style.transform.match(/-?[\d.]+/g) ?? []).map(
+        Number,
+      );
+      const origin = name.offsetParent?.getBoundingClientRect();
+      return {
+        title: name.textContent ?? '',
+        x: x + (origin?.left ?? 0),
+        y: y + (origin?.top ?? 0),
+        r: name.dataset.kind === 'sun' ? 9 : 8,
+      };
+    });
+    const lying: string[] = [];
+    for (const name of names) {
+      if (landmark(name)) continue;
+      const box = name.getBoundingClientRect();
+      const tag = Number.parseFloat(window.getComputedStyle(name, '::after').height);
+      const side = name.dataset.side;
+      const top =
+        side === 'above'
+          ? box.bottom - tag
+          : side === 'left' || side === 'right'
+            ? box.top + (box.height - tag) / 2
+            : box.top;
+      for (const disc of discs) {
+        const dx = disc.x - Math.min(Math.max(disc.x, box.left), box.right);
+        const dy = disc.y - Math.min(Math.max(disc.y, top), top + tag);
+        if (dx * dx + dy * dy < disc.r * disc.r) lying.push(`${name.textContent} on ${disc.title}`);
+      }
+    }
+    return lying;
+  });
 }
 
 /** Each name that changed again within a second of its last change, with both changes. */
@@ -269,6 +356,8 @@ async function researchUpClose(page: Page): Promise<void> {
     expect(box.x + box.width).toBeLessThanOrEqual(size.width);
     expect(box.y + box.height).toBeLessThanOrEqual(size.height);
   }
+  // No planet's or moon's name lies on Research's sun, nor on any other, to make room for them.
+  expect(await tagsOnLandmarks(page)).toEqual([]);
   // It was all the map's: nothing set out.
   await expect(html(page)).toHaveAttribute('data-map', 'open');
   await expect(prompt(page)).not.toContainText('Flying to');
@@ -632,29 +721,15 @@ test.describe('on a phone', () => {
     await openUniverse(page, '/');
     const first = await keptNow(page);
     await loadWith(page, { ...first, steps: 1500 * STEPS_PER_SECOND }, '/');
-    await openButton(page).tap();
-    await mapOpen(page, 'Research');
     const names = await watchNames(page);
-    // The map has arrived. A name that moved on the way may go back to its first place once it
-    // has shown a while there (`labels.dwellSec`, 1 s): wait until they have all come to rest...
-    await expect.poll(() => names.quiet(), { timeout: 10_000 }).toBeGreaterThan(1500);
-    // ...and then watch every frame for four seconds (the page counts them, on its own clock).
-    const from = (await names.changes()).length;
-    const frames = await page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          const start = performance.now();
-          let count = 0;
-          const step = (): void => {
-            count += 1;
-            if (performance.now() - start >= 4000) resolve(count);
-            else requestAnimationFrame(step);
-          };
-          requestAnimationFrame(step);
-        }),
-    );
-    expect(frames).toBeGreaterThan(60);
-    expect((await names.changes()).slice(from)).toEqual([]);
+    await openButton(page).tap();
+    // The names hold still from the moment the camera has pulled all the way out to the map: every
+    // frame from then on, for four seconds (the page counts them, on its own clock), none comes,
+    // goes or changes sides.
+    const from = (await names.opened()) + ARRIVED_MS;
+    await frameAt(page, from + 4000);
+    expect((await names.frames()).filter((at) => at >= from).length).toBeGreaterThan(60);
+    expect((await names.changes()).filter((change) => change.at >= from)).toEqual([]);
     for (const name of ['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']) {
       await expect(nameOf(page, name)).toBeVisible();
     }
@@ -679,11 +754,16 @@ test.describe('on a phone 360 px wide', () => {
     // so a page can be loaded at any moment.
     for (const seconds of [0, 1500, 3000]) {
       if (seconds > 0) await loadWith(page, { ...first, steps: seconds * 60 }, '/');
+      const names = await watchNames(page);
       await openButton(page).tap();
-      await mapOpen(page, 'Research');
-      for (const name of ['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']) {
-        await expect(nameOf(page, name)).toBeVisible();
-      }
+      // The moment the map has arrived, not later: every system's name, and no planet's or
+      // moon's on a sun or the home planet.
+      await frameAt(page, (await names.opened()) + ARRIVED_MS);
+      const [shown, lying] = await Promise.all([shownNames(page), tagsOnLandmarks(page)]);
+      expect(shown).toEqual(
+        expect.arrayContaining(['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']),
+      );
+      expect(lying).toEqual([]);
       await closeButton(page).tap();
       await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
     }
