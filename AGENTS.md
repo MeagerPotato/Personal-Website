@@ -335,8 +335,9 @@ if one does. A binary is the one exception to "adding a project moves nothing": 
 one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
 And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a
 content change flips one, run `npm run journeys` before updating its list. `tests/ship-light.test.ts`
-pins how far a ship on each ring near the gap is lit off its own sun (the other sun pulls there
-too): if one moves, look at it in flight before updating that list.
+pins that a ship on every ring is lit by its body's own light, how far the light leans off it
+where each body lets go of the ship (near the gap the other sun pulls too), and how fast it turns
+for a pilot leaving a ring at boost: if one moves, look at it in flight before updating that list.
 
 **Retire a URL** (a renamed system, a moved page). One line in `public/_redirects`,
 `/old/ /new/ 301`, and the same without the slash: exact paths only, never a wildcard. The

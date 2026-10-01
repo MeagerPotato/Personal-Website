@@ -31,8 +31,7 @@
     {
       "binding": "DB",
       "database_name": "allenkh-journal",
-      // Filled in once the database exists (sites/docs/runbooks/cloudflare-setup.md).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "4bb502c3-3e32-4560-af46-cfe2a9dd0302",
     },
   ],
 

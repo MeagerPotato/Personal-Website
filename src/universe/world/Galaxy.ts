@@ -28,6 +28,7 @@ import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapVi
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
 import { createRng } from '../sim/rng';
+import { lightClaims, turnToward, type LitBodies } from '../sim/shipLight';
 import { lookOf } from './looks';
 import { PlanetMesh } from './PlanetMesh';
 
@@ -123,7 +124,8 @@ const LIGHT_DISTANCE = 10000;
  * One lit material per SUN, because a material carries its light, and a sun may move (a sun of a
  * binary circles its partner): each frame its light goes where it is. A body is lit by the first
  * sun up its chain of parents (a moon by its planet's sun); the home system has no sun and keeps
- * the distant key light. How a body LOOKS is world/looks.ts.
+ * the distant key light. The ship, near a body, is lit by that body's light too (lightAt). How a
+ * body LOOKS is world/looks.ts.
  */
 export class Galaxy implements System {
   readonly object = new Group();
@@ -150,10 +152,16 @@ export class Galaxy implements System {
   private readonly suns: SunLight[] = [];
   private readonly sunById = new Map<string, SunLight>();
   private readonly key: SunLight;
+  /** The key light and then every sun: what `lit.light` counts in. */
+  private readonly lights: SunLight[];
+  /** The bodies as the ship's light sees them, near one (sim/shipLight.ts). */
+  private readonly lit: LitBodies;
   private readonly byId: ReadonlyMap<string, ManifestBody>;
   /** Scratch for lightAt. */
   private readonly toward = new Vector3();
   private readonly sum = new Vector3();
+  private readonly near = new Vector3();
+  private readonly claims: Float64Array;
   private readonly mapBodies: MapBodies & { readonly minRadiusPx: Float64Array };
   /** What kind of body each row is: its smallest size on the map goes by that. */
   private readonly kinds: ManifestBody['kind'][];
@@ -219,6 +227,19 @@ export class Galaxy implements System {
       this.sunById.set(id, light);
     });
     this.placeLights();
+    // Near a body, the ship takes that body's own light (lightAt): which one, for every body.
+    this.lights = [this.key, ...this.suns];
+    this.lit = {
+      count: this.orbits.count,
+      positions: this.positions,
+      ringRadius: rings,
+      docks: Uint8Array.from(this.orbits.ids, (id) => (byId.get(id)?.docks === false ? 0 : 1)),
+      light: Int32Array.from(this.orbits.ids, (id) => {
+        const body = byId.get(id);
+        return body ? this.lights.indexOf(this.lightOf(body)) : -1;
+      }),
+    };
+    this.claims = new Float64Array(this.lights.length);
 
     // Nearest first, so that what the visitor looks at is generated first.
     const { viewer } = options;
@@ -268,19 +289,34 @@ export class Galaxy implements System {
   }
 
   /**
-   * Where the ship's light comes from at `position`: the sun whose family it is in, fading over
-   * to the distant key light in the space between them, so that its shading never pops.
+   * Where the ship's light comes from at `position`. Near a body, that body's own light (lightOf:
+   * its sun, or the key light round home), so that a ship on a planet's ring is lit exactly as
+   * the planet is, and the orbit camera, which frames the two together, shows one light. Away
+   * from every body, the sun whose family it is in, fading over to the distant key light in the
+   * space between families, so that its shading never pops.
    *
-   * It blends DIRECTIONS, never places. Each sun pulls toward itself with weight `w (R/d)²`: `w`
-   * is 1 inside `shipLightFullRadii` of its family's reach R and fades to 0 by
-   * `shipLightFadeRadii`, and `(R/d)²` lets the nearer sun lead where two families meet. The key
-   * light takes whatever share the suns leave (`1 - w` of the strongest), and up to
+   * NEAR A BODY, its light claims the ship (sim/shipLight.ts): fully on its docking ring and
+   * inside it, letting go by `shipLightClaimRadii` ring radii, a little past the orbit assist's
+   * sphere. The light turns from the blend below toward the claiming one, by that claim and by
+   * ANGLE (sim/shipLight.ts, turnToward: blending the two directions as vectors would crowd most
+   * of a wide turn into the middle of the way), so a ship arriving or leaving turns with its
+   * distance and never pops, and a docked ship, carried on the ring, is lit by its body's light
+   * alone. Were two bodies of two lights ever that close (none are: the nearest, Days2Meet and
+   * Robotics across the Projects binary's gap, keep at least 9.6 u between the circles where they
+   * let go, when both face the gap at once), the two would share by how firmly each claims. A
+   * body nothing docks at (a relay) claims nothing. Inside a family with one sun this changes
+   * nothing at all: there the blend already is that sun's light.
+   *
+   * AWAY FROM BODIES, the blend. It blends DIRECTIONS, never places. Each sun pulls toward itself
+   * with weight `w (R/d)²`: `w` is 1 inside `shipLightFullRadii` of its family's reach R and fades
+   * to 0 by `shipLightFadeRadii`, and `(R/d)²` lets the nearer sun lead where two families meet.
+   * The key light takes whatever share the suns leave (`1 - w` of the strongest), and up to
    * `shipLightTiebreak` more, as a second sun's pull comes up to the first one's. So:
    * - inside one family, the light falls from its sun and nowhere else, wherever no other sun
    *   pulls. In a binary one does, near the gap: the other sun's pull reaches across it, so a
-   *   ship on the ring of an outer planet is lit from off its own sun, toward the other one and
-   *   the key light (on Robotics' ring, the worst, by up to 57 degrees). tests/ship-light.test.ts
-   *   pins every ring's lean, and docs/PLAN.md §5.4 has the ways out, for the design round;
+   *   ship flying free among the outer planets is lit from off its own sun, toward the other one
+   *   and the key light (in Projects, up to 57 degrees among Hardware's; on their rings their own
+   *   light has taken over, and tests/ship-light.test.ts pins what is left where each lets go);
    * - between two suns that pull equally from opposite sides, their directions cancel and the key
    *   light, from above the plane, is what is left: the light swings over the top from one to the
    *   other, where a nearest-sun rule would flip it round in a single frame (a binary's gap), and
@@ -289,13 +325,36 @@ export class Galaxy implements System {
    * The answer is a point far out in that direction (LIGHT_DISTANCE): the shader aims at a point.
    */
   lightAt(position: Readonly<Vector3>, out: Vector3): Vector3 {
+    const { toward, sum, near, lights, claims } = this;
+    // (Nothing is left of the blend only at the key light itself, where no ship ever is.)
+    if (!this.blendAt(position, sum)) return out.copy(KEY_LIGHT_POSITION);
+    const reach = tuning.world.shipLightClaimRadii;
+    const firmest = lightClaims(this.lit, position.x, position.z, reach, claims);
+    if (firmest > 0) {
+      // Where the claiming light falls from (two, were there two, by how firmly each claims)...
+      near.set(0, 0, 0);
+      for (let i = 0; i < lights.length; i += 1) {
+        const claim = claims[i] ?? 0;
+        const light = lights[i];
+        if (!(claim > 0) || !light) continue;
+        near.addScaledVector(toward.subVectors(light.position, position).normalize(), claim);
+      }
+      // ...and the blend turned toward it by `firmest` of the angle between them. (Two lights
+      // claiming as firmly from opposite sides would cancel out: then the blend stands.)
+      if (near.lengthSq() > 1e-12) turnToward(sum, near.normalize(), firmest, sum);
+    }
+    return out.copy(position).addScaledVector(sum, LIGHT_DISTANCE);
+  }
+
+  /** The blend of lightAt, away from bodies, as a unit direction in `dir`. False at the key light. */
+  private blendAt(position: Readonly<Vector3>, dir: Vector3): boolean {
     const {
       shipLightFullRadii: full,
       shipLightFadeRadii: fade,
       shipLightTiebreak: tiebreak,
     } = tuning.world;
-    const { toward, sum } = this;
-    sum.set(0, 0, 0);
+    const { toward } = this;
+    dir.set(0, 0, 0);
     let strongest = 0;
     let first = 0;
     let second = 0;
@@ -305,7 +364,7 @@ export class Galaxy implements System {
       const w = 1 - smoothstep(full, fade, d / light.reach);
       if (!(w > 0)) continue;
       const pull = w * (light.reach / d) ** 2;
-      sum.addScaledVector(toward, pull / d);
+      dir.addScaledVector(toward, pull / d);
       strongest = Math.max(strongest, w);
       if (pull > first) {
         second = first;
@@ -317,11 +376,11 @@ export class Galaxy implements System {
     const key = 1 - strongest + (first > 0 ? tiebreak * Math.min(1, second / first) : 0);
     if (key > 0) {
       toward.subVectors(KEY_LIGHT_POSITION, position);
-      sum.addScaledVector(toward, key / toward.length());
+      dir.addScaledVector(toward, key / toward.length());
     }
-    // (Nothing is left only at the key light itself, where no ship ever is.)
-    if (!(sum.lengthSq() > 0)) return out.copy(KEY_LIGHT_POSITION);
-    return out.copy(position).addScaledVector(sum.normalize(), LIGHT_DISTANCE);
+    if (!(dir.lengthSq() > 0)) return false;
+    dir.normalize();
+    return true;
   }
 
   /**
