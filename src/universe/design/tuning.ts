@@ -596,17 +596,21 @@ export const tuning = {
    * body's ground shapes the noise, as overrides of `planet` above. A body's rows name one.
    */
   terrain: {
-    /** The home planet: few, large continents in three terraces. */
+    /**
+     * The home planet: few, large continents in three terraces. The cream peak is only the middle
+     * of the top terrace (`peakAt` and the last stop), a summit as in the concept art: lower, and
+     * the close-up's finer facets turned the whole plateau into a white blot.
+     */
     continents: {
       look: {
         reliefShare: 0.045,
         frequency: 1.0,
         octaves: 3,
         seaLevel: 0.02,
-        peakAt: 0.55,
+        peakAt: 0.6,
         terraces: 3,
         terraceStrength: 0.7,
-        bandStops: [0.12, 0.5, 0.85],
+        bandStops: [0.12, 0.5, 0.92],
       },
     },
     /** Rolling ground with few peaks and little sea. */

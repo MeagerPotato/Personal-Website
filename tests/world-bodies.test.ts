@@ -67,7 +67,7 @@ interface Budget {
 
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
-  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '16c77970' },
+  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '533c53d7' },
   'page/resume':                    { everyday: 540,  closeup: 540,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8b35877c' },
   'page/contact':                   { everyday: 218,  closeup: 218,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '56cc4cf2' },
   'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0adc41b2' },
