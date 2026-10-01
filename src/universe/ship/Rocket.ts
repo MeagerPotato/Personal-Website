@@ -58,8 +58,9 @@ export class Rocket {
   }
 
   /**
-   * Where the light that shades the ship falls from (world/Galaxy.ts, lightAt): the sun whose
-   * family it is in, turning toward the distant key light in the space between families.
+   * Where the light that shades the ship falls from (world/Galaxy.ts, lightAt): near a body, that
+   * body's own light; elsewhere the sun whose family it is in, turning toward the distant key
+   * light in the space between families.
    */
   setSun(position: Readonly<Vector3>): void {
     this.material.uniforms.uSunPosition.value.copy(position);
