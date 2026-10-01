@@ -134,9 +134,10 @@ cron drains and retries.
 
 **Known details for D** (noticed while building; none blocks a launch):
 
-- A story-sized snapshot gives its spare room to the photos, but three or four landscape photos
-  in one row are already as tall as their shape allows: they could take two rows instead.
-- The Worker bundle carries all of SimpleWebAuthn; trim it if cold starts show.
+- Both Workers carry all of SimpleWebAuthn; trim it if cold starts show. The baseline, measured
+  locally on 2026-09-30 with `npx wrangler check startup` in each app (a dry-run build and a
+  local profile: nothing is deployed): the journal's Worker is 864 KiB and starts in about 15 ms
+  of CPU, the blog's is 3.0 MB and starts in about 46 ms. Cloudflare's limit is 1 s.
 - The blog's name ("Captain's Log", the main site's working name) and its one-line description
   are placeholders for Allen's words.
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
