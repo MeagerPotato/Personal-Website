@@ -57,7 +57,10 @@ export interface LayoutOverrides {
 
 // --- the real galaxy -----------------------------------------------------------------------------
 
-const CONTENT = new URL('../../src/content/', import.meta.url);
+// Through a variable: Vite rewrites `new URL('...', import.meta.url)` written out for the browser,
+// which a test with a DOM (happy-dom) counts as, and the folder would be looked for on a web page.
+const here = import.meta.url;
+const CONTENT = new URL('../../src/content/', here);
 
 /** image() and reference() as the build resolves them, minus the files: a path, and `{ id }`. */
 const helpers = {

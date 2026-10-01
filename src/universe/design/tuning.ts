@@ -301,12 +301,19 @@ export const tuning = {
      */
     topPx: 84,
     /**
-     * Names keep gapPx apart; one that shows already may stay until it is keepPx closer than that
-     * (so nothing flickers while bodies drift past each other); never more than max at once.
+     * Names keep gapPx apart; one that shows already may stay until it is keepPx closer than that,
+     * and one that waits needs the whole gap, so names do not blink while bodies drift past each
+     * other (on the map, a place a name is not at needs keepPx to spare from the edges of the view
+     * too); never more than max at once.
      */
     gapPx: 4,
     keepPx: 8,
     max: 14,
+    /**
+     * On the map, a name that has just appeared, hidden or moved makes no other change of its own
+     * accord for this long (s); it still makes way where it must (tests/map-names/).
+     */
+    dwellSec: 1,
   } satisfies LabelsParams,
 
   /**
@@ -457,14 +464,18 @@ export const tuning = {
     /** Seconds from the flight view up to the map, and back down. A cut under reduced motion. */
     blendSec: 0.9,
     /**
-     * How close the map zooms: world units across the SHORTER side of the free view. It opens on
-     * everything (the galaxy, and the ship if it is out beyond it), snugly: fitMargin times the
-     * room that needs, plus fitPadPx (CSS px) on every side for the names of the bodies at the
-     * edge. It zooms out no further than zoomOutPastFit times that view (1: not at all), and the
-     * galaxy is never dragged off: zoomed in, the view stays on it (to within fitPadPx of its
-     * edge); further out, all of it stays in view. Past it is only empty space.
+     * How close the map zooms: world units across the SHORTER side of the free view. 200 lets a
+     * phone part the names of close neighbours (Corgi Hackathon's and its neighbours', Canadian
+     * Fish's moons'), which at 400 left one of them unnamed now and then, for up to half a minute
+     * whatever the view, and at 300 still did at up to 5% of moments for a visitor zooming in step
+     * by step (docs/PLAN.md §5.4); a laptop zooms closer too. It opens on everything (the galaxy,
+     * and the ship if it is out beyond it), snugly: fitMargin times the room that needs, plus
+     * fitPadPx (CSS px) on every side for the names of the bodies at the edge. It zooms out no
+     * further than zoomOutPastFit times that view (1: not at all), and the galaxy is never dragged
+     * off: zoomed in, the view stays on it (to within fitPadPx of its edge); further out, all of it
+     * stays in view. Past it is only empty space.
      */
-    spanMin: 400,
+    spanMin: 200,
     zoomOutPastFit: 1,
     fitMargin: 1.05,
     fitPadPx: 44,

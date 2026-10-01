@@ -2368,6 +2368,19 @@ main > .resume-name + .resume-contact {
     bottom: 0;
   }
 
+  /* Beside its body (on the map, where below and above are taken), like a station's name on a
+     transit map: the tag in the middle of the box's height, its near end just off the body, and
+     the touch target's clear rest shared out above and below it. */
+  .body-label:is([data-side='left'], [data-side='right']) {
+    align-items: center;
+    padding-block: 0;
+  }
+
+  .body-label:is([data-side='left'], [data-side='right'])::after {
+    bottom: 0;
+    margin-block: auto;
+  }
+
   /* A sun, or the home planet, names a whole system: set like a district on a map. */
   .body-label[data-kind='sun'],
   .body-label[data-kind='home'] {
@@ -2529,6 +2542,12 @@ main > .resume-name + .resume-contact {
   .body-label[data-state='target'][data-side='above']::before {
     top: auto;
     bottom: calc(var(--space-1) + 0.45em);
+  }
+
+  .body-label[data-state='target']:is([data-side='left'], [data-side='right'])::before {
+    top: 0;
+    bottom: 0;
+    margin-block: auto;
   }
 
   /* Forced colours would drop the dot's fill and leave a gap before the name: the text colour,

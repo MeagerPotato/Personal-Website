@@ -203,13 +203,10 @@ test.describe('the first visit', () => {
 });
 
 test.describe('on a laptop', () => {
-  // On a phone the map gives these names room only part of the time: Research sits at the bottom
-  // edge of the galaxy, and even all the way in, a planet's name there often has the screen's
-  // edge (and the Plain version chip) below it and its sun's name above (measured over a whole
-  // turn: Sports Analysis's name shows from about 70 s to 200 s after the page loads, and not at
-  // all in its first minute). The flight there from a page's link is tree.spec.ts's, on every
+  // The keyboard's way there. On a phone, fingers bring the same names into view (map.spec.ts,
+  // Research all the way in), and the flight there from a page's link is tree.spec.ts's, on every
   // screen.
-  test.skip(({ isMobile }) => isMobile, 'a keyboard, and room on the map for a planet of Research');
+  test.skip(({ isMobile }) => isMobile, 'a keyboard');
 
   test('planned work is flown to like any other, and its one-line page says so', async ({
     page,
@@ -231,10 +228,12 @@ test.describe('on a laptop', () => {
     await page.keyboard.up('ArrowDown');
 
     // Both of Research's bodies are planned: the planet, and Kalshi, its moon. They are on their
-    // way round (the planet in six minutes), and a name hangs below or above its body where there
-    // is room: measured over a whole turn, the planet's gives way to its moon's or its sun's
-    // twice, for up to 36 s, and for a few seconds neither shows. So: whichever shows first,
-    // however long the way here took (a slow machine gets here later in the turn).
+    // way round (the planet in six minutes), and a name goes wherever its body leaves it room
+    // (below it, above it, beside it, slid along it): measured headless, in this view both names
+    // show every second of 400 s (before names had more places than below and above, neither
+    // showed for 23 to 37 s at a time). So: whichever shows first, however long the way here took
+    // (a slow machine gets here later in the turn, and draws its frames on the CPU: it is given
+    // time).
     const planned = [
       { title: 'Sports Analysis', path: '/projects/sports-analysis/' },
       { title: 'Kalshi', path: '/projects/kalshi/' },
