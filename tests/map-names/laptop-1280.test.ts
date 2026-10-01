@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { holdsStill } from './harness';
+import { checks } from './checks';
 
-// The star map's names at 1280x800: tests/map-names/harness.ts.
-holdsStill('1280x800');
+// The star map's names at 1280x800: tests/map-names/checks.ts.
+checks('1280x800');

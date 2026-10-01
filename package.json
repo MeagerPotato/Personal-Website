@@ -20,7 +20,8 @@
     "verify": "npm run format:check && npm run lint && npm run check && npm run test && npm run build && node scripts/verify-dist.mjs",
     "e2e": "npm run build && playwright test",
     "resume-pdf": "npm run build && node scripts/resume-pdf.mjs",
-    "journeys": "vitest run --config scripts/journeys/vitest.config.ts scripts/journeys/journeys.measure.ts"
+    "journeys": "vitest run --config scripts/journeys/vitest.config.ts scripts/journeys/journeys.measure.ts",
+    "map-names": "vitest run --config tests/map-names/vitest.config.ts tests/map-names/sweep.measure.ts"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",

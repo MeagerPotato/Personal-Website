@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { holdsStill } from './harness';
+import { checks } from './checks';
 
-// The star map's names at 360x740: tests/map-names/harness.ts.
-holdsStill('360x740');
+// The star map's names at 360x740: tests/map-names/checks.ts.
+checks('360x740');

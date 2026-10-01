@@ -1,0 +1,51 @@
+name: Map names
+
+# The star map's names over whole turns (tests/map-names/sweep.measure.ts, `npm run map-names`):
+# every look (the phones and the laptop, at rest at the fit and zoomed in, opened with the blend,
+# beside a page, dragged, under the fingers, and in grown galaxies of six and eight systems) watched
+# frame by frame through the real StarMap, camera, Labels and declutter, and held to its rules (no
+# planet's or moon's name on a sun, every system named where it must be, no name changing back and
+# forth). A breach fails the run and is printed in words. `npm test` runs samples of the same looks
+# (tests/map-names/checks.ts); this is the whole of them.
+#
+# It runs only when something the names depend on changes: the content (where the bodies are),
+# src/site (which turns the content into bodies), the site config (whose profiles circle home),
+# the engine, the grown galaxies, or the harness itself. NOT a required
+# check, like Journeys: `verify` (ci.yml) guards `main`, and a red run here is a reason to look
+# before merging.
+
+on:
+  pull_request:
+    paths:
+      - 'src/content/**'
+      - 'src/site/**'
+      - 'src/universe/**'
+      - 'src/config/site.ts'
+      - 'tests/map-names/**'
+      - 'scripts/journeys/galaxies.ts'
+      - '.github/workflows/map-names.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: map-names-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  map-names:
+    runs-on: ubuntu-latest
+    # About two minutes of watching on a laptop; the rest is npm ci.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run map-names
