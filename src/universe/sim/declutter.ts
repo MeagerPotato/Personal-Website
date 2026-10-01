@@ -77,8 +77,16 @@ export interface LabelBoxes {
   /** Scratch for `searchTogether`: the place tried, and the best found, by position in `order`. */
   readonly trial: Uint8Array;
   readonly best: Uint8Array;
-  /** Scratch for `searchTogether`: how many places it has tried, and the most it has shown. */
+  /**
+   * Scratch for `searchTogether`: how many places it has tried this call of `declutter`, and the
+   * most it has shown.
+   */
   readonly tally: Int32Array;
+  /**
+   * Kept from call to call for `searchTogether`: after a search that found no better way, for how
+   * many more calls it rests, and how many of the group showed and how many were missing then.
+   */
+  readonly rest: Int32Array;
 }
 
 /** `at` for a label whose place last time is not among its places now. */
@@ -106,6 +114,7 @@ export function createLabelBoxes(capacity: number, places = 1): LabelBoxes {
     trial: new Uint8Array(capacity),
     best: new Uint8Array(capacity),
     tally: new Int32Array(2),
+    rest: new Int32Array(3),
   };
 }
 
@@ -209,6 +218,8 @@ export function declutter(
   // decided (see the top of this file), so running it on its own answer until nothing changes
   // does in one frame what would otherwise take a few, and no name blinks out for a frame on its
   // way from one place to another.
+  boxes.tally[0] = 0;
+  if ((boxes.rest[0] ?? 0) > 0) boxes.rest[0] = (boxes.rest[0] ?? 0) - 1;
   for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
     for (let row = 0; row < count; row += 1) {
       const last = at[row] ?? NOWHERE;
@@ -256,8 +267,18 @@ function decide(
     group += 1;
   }
   if (missing === 0 || places < 2) return;
-  const most = searchTogether(boxes, params, taken, from, group);
-  if (most <= showing) return;
+  // A search that found no better way is not made again at once, while as many of the group show
+  // and are missing: the bodies have hardly moved since (`SEARCH_REST`).
+  const { rest } = boxes;
+  if ((rest[0] ?? 0) > 0 && rest[1] === showing && rest[2] === missing) return;
+  const most = searchTogether(boxes, params, taken, from, group, showing);
+  if (most <= showing) {
+    rest[0] = SEARCH_REST;
+    rest[1] = showing;
+    rest[2] = missing;
+    return;
+  }
+  rest[0] = 0;
   let placed = most;
   for (let g = 0; g < from; g += 1) placed += shown[order[g] ?? 0] ?? 0;
   for (let g = from; g < group; g += 1) {
@@ -351,18 +372,34 @@ function placeFrom(
 }
 
 /**
- * How many places `searchTogether` tries at most in one frame. A handful of systems with a few
- * places each take a few hundred; past this, the best way found so far stands.
+ * How many places `searchTogether` tries in one call of `declutter` (a frame), all its passes
+ * together: a try is one place of one label held up against those placed so far. Past this (and a
+ * label's worth more, at most, to see whether the rest have room at all) the best way found so
+ * far stands, and the names that show stay where they are if it found none better. Over a whole
+ * turn at rest, today's galaxy searches in fewer than one frame in a hundred, a few dozen tries
+ * at most; one of eight systems, on a phone, some 2,000 a search (tests/map-names/).
  */
 const TOGETHER_TRIES = 4000;
 
 /**
- * Every way of placing the labels from position `from` to `group` in the order (each at one of its
- * places, or left out), the most important first, each where it was last time first, then at its
- * places by how much they lie on (`covers`); a `young` one only where it was, if it has room
- * there, and left out if it was. The first way found that shows the most of them goes into
- * `boxes.best`, by position in the order (NOWHERE: left out), and how many it shows is returned.
- * Only what was there first, and the firm labels before them, are in their way.
+ * A search that found no better way is made again this many calls of `declutter` (frames) later,
+ * or sooner if as many of the group no longer show, or no longer wait: where none more can be named
+ * (nine systems' names on a phone's first view of a galaxy of eight) there is no search every
+ * frame, and where the bodies have since made room, a name comes at most this many frames late.
+ */
+const SEARCH_REST = 10;
+
+/**
+ * The ways of placing the labels from position `from` to `group` in the order (each at one of its
+ * places, or left out) that show more of them than `showing`, the most important first, each where
+ * it was last time first, then at its places by how much they lie on (`covers`); a `young` one
+ * only where it was, if it has room there, and left out if it was. A way is given up as soon as it
+ * cannot show more than the best so far: once those still to be placed that have room anywhere,
+ * round what is placed already, could not make up the difference (so a label with no room at all,
+ * under a button, costs one look, and a search that cannot help ends where it starts). The first
+ * way found that shows the most goes into `boxes.best`, by position in the order (NOWHERE: left
+ * out), and how many it shows is returned (`showing`, if none shows more). Only what was there
+ * first, and the firm labels before them, are in their way.
  */
 function searchTogether(
   boxes: LabelBoxes,
@@ -370,12 +407,12 @@ function searchTogether(
   taken: Readonly<TakenBoxes> | undefined,
   from: number,
   group: number,
+  showing: number,
 ): number {
   const { tally } = boxes;
-  tally[0] = 0;
-  tally[1] = -1;
+  tally[1] = showing;
   dive(boxes, params, taken, from, group, from, 0);
-  return tally[1] ?? -1;
+  return tally[1] ?? showing;
 }
 
 function dive(
@@ -395,8 +432,9 @@ function dive(
     }
     return;
   }
-  // Nothing down this way can beat what has been found, or time is up.
-  if (placed + group - g <= (tally[1] ?? -1) || (tally[0] ?? 0) >= TOGETHER_TRIES) return;
+  // Time is up, or nothing down this way can beat what has been found.
+  if ((tally[0] ?? 0) >= TOGETHER_TRIES) return;
+  if (placed + roomFor(boxes, params, taken, from, g, group) <= (tally[1] ?? -1)) return;
   const row = order[g] ?? 0;
   const base = row * places;
   const last = was[row] ?? NOWHERE;
@@ -419,6 +457,37 @@ function dive(
   }
   trial[g] = NOWHERE;
   dive(boxes, params, taken, from, group, g + 1, placed);
+}
+
+/**
+ * How many of the labels from position `g` to `group` in the order have room at one of their
+ * places (as `dive` would try them: a young label where it was, if it showed), round the labels
+ * `searchTogether` has placed so far: the most a way that has placed those can still add.
+ */
+function roomFor(
+  boxes: LabelBoxes,
+  params: DeclutterParams,
+  taken: Readonly<TakenBoxes> | undefined,
+  from: number,
+  g: number,
+  group: number,
+): number {
+  const { places, order, before, was, young, tally } = boxes;
+  let room = 0;
+  for (let m = g; m < group; m += 1) {
+    const row = order[m] ?? 0;
+    if (young[row] && !before[row]) continue;
+    const last = was[row] ?? NOWHERE;
+    for (let p = 0; p < places; p += 1) {
+      tally[0] = (tally[0] ?? 0) + 1;
+      const pad = p === last ? params.gapPx - params.keepPx : params.gapPx;
+      if (clearOfTrial(boxes, row, p, pad, from, g, taken)) {
+        room += 1;
+        break;
+      }
+    }
+  }
+  return room;
 }
 
 /**

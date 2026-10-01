@@ -445,6 +445,41 @@ describe('declutter, with places', () => {
     expect(where(together)).toEqual([1, 1, 0, 0]);
   });
 
+  it('together, tries some 4,000 places a call at most, and after a search that found nothing rests', () => {
+    // Nine systems' names, eight places each, in five slots that hold one name each: every way of
+    // placing them shows five. The greedy pass shows five, and the search cannot do better.
+    const SLOTS = 5;
+    const rows: Placed[] = Array.from({ length: 9 }, (_, row) => [
+      70,
+      40,
+      row + 1,
+      Array.from({ length: 8 }, (_, place) => [((row + place) % SLOTS) * 100, place] as const),
+    ]);
+    const NINE = { firm: -Infinity, together: 100, keepSlots: false } satisfies DeclutterRules;
+    const boxes = placesOf(rows, 8);
+    declutter(boxes, PARAMS, undefined, NINE);
+    expect(shown(boxes).filter(Boolean)).toHaveLength(SLOTS);
+    // It ran out of tries, all its passes together (and a label's worth more, at most, to see
+    // whether the rest have room at all).
+    expect(boxes.tally[0]).toBeGreaterThan(3500);
+    expect(boxes.tally[0]).toBeLessThanOrEqual(4000 + 9 * 8);
+    // The next nine calls (frames) it does not search again, while as many show and wait...
+    for (let call = 0; call < 9; call += 1) {
+      declutter(boxes, PARAMS, undefined, NINE);
+      expect(boxes.tally[0]).toBe(0);
+    }
+    // ...and the tenth it does.
+    declutter(boxes, PARAMS, undefined, NINE);
+    expect(boxes.tally[0]).toBeGreaterThan(0);
+    // Resting again, it searches at once once fewer wait: the room may have changed.
+    declutter(boxes, PARAMS, undefined, NINE);
+    expect(boxes.tally[0]).toBe(0);
+    const waiting = shown(boxes).indexOf(0);
+    boxes.priority[waiting] = Infinity;
+    declutter(boxes, PARAMS, undefined, NINE);
+    expect(boxes.tally[0]).toBeGreaterThan(0);
+  });
+
   it('together or not, gives way to what was there first', () => {
     const taken = createTakenBoxes(1);
     taken.count = 1;
@@ -1006,8 +1041,9 @@ describe('declutter, at rest', () => {
       latest = Math.max(latest, last);
     }
     // The changes that come once the sky stops are the young labels' last few, held back by the
-    // dwell; then nothing.
-    expect(latest).toBeLessThanOrEqual(DWELL);
+    // dwell, and the group's, where a search that found no better way as the sky drifted rests a
+    // few calls before the next (ten: `SEARCH_REST`); then nothing.
+    expect(latest).toBeLessThanOrEqual(Math.max(DWELL, 10));
   });
 });
 
