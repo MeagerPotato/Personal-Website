@@ -331,7 +331,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   is not at must have room to spare from the edges of the view before it takes it, so nothing
   hops back and forth (a name with no such place takes one without, unless its body is on its way
   out). A planet's or a moon's tag never lies on a sun or the home planet, the landmarks the map
-  is read by; a system's only as a last resort (`covers`: what a place lies on, `liesOn`). The
+  is read by; a system's only as a last resort (`covers`: what a place lies on, `liesOn`), and
+  where one lies on another system's sun the systems' search tries every way of placing them all
+  for one that leaves fewer there (right on a disc counts far worse than a gap off it). The
   map's places start in the frame the camera has ARRIVED (`StarMap.arrived`): on the way up a
   name keeps its one place under its body, as in flight. What no rule holds off is a change a
   name MUST make: its place went past the edge of the view, or something more important that

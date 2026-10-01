@@ -152,7 +152,10 @@ async function drag(page: Page, near: { x: number; y: number }, dx: number, dy: 
   await touch('touchEnd', []);
 }
 
-/** A name coming, going or changing sides: which, what it became, and when (ms, page time). */
+/**
+ * A name coming, going, changing sides or sliding along its body: which, what it became (its side,
+ * "hidden", or its side and "slid"), and when (ms, page time).
+ */
 interface NameChange {
   name: string;
   now: string;
@@ -169,10 +172,12 @@ interface NamesWatch {
 }
 
 /**
- * Every frame from now on (`requestAnimationFrame`), which names show and on which side of their
- * bodies (`data-side`: below, above, left, right), kept in the page: `changes` is each name that
- * came, went or changed sides, `opened` when the map was first open, and `frames` when each frame
- * was.
+ * Every frame from now on (`requestAnimationFrame`), which names show, on which side of their
+ * bodies (`data-side`: below, above, left, right), and where they hang from them (the second move
+ * of the transform Labels writes, `translate(body) translate(place)`), kept in the page: `changes`
+ * is each name that came, went, changed sides, or moved more than `SLID_PX` from one frame to the
+ * next along its body (tests/map-names/ counts the same), `opened` when the map was first open,
+ * and `frames` when each frame was.
  */
 async function watchNames(page: Page): Promise<{
   changes: () => Promise<NameChange[]>;
@@ -180,22 +185,33 @@ async function watchNames(page: Page): Promise<{
   frames: () => Promise<number[]>;
 }> {
   await page.evaluate(() => {
+    const SLID_PX = 10;
     const watch: NamesWatch = { changes: [], opened: null, frames: [] };
-    const seen = new Map<Element, string>();
+    const seen = new Map<Element, { side: string; x: number; y: number }>();
     const look = (): void => {
       const now = performance.now();
       watch.frames.push(now);
       if (watch.opened === null && document.documentElement.hasAttribute('data-map')) {
         watch.opened = now;
       }
-      for (const name of document.querySelectorAll('.body-label')) {
+      for (const name of document.querySelectorAll<HTMLElement>('.body-label')) {
         const side = name.hasAttribute('data-shown')
           ? (name.getAttribute('data-side') ?? 'below')
           : 'hidden';
+        const [, , x = Number.NaN, y = Number.NaN] = (
+          name.style.transform.match(/-?[\d.]+/g) ?? []
+        ).map(Number);
         const was = seen.get(name);
-        seen.set(name, side);
-        if (was === undefined || was === side) continue;
-        watch.changes.push({ name: name.textContent ?? '', now: side, at: Math.round(now) });
+        seen.set(name, { side, x, y });
+        if (was === undefined) continue;
+        const slid =
+          side !== 'hidden' && was.side === side && Math.hypot(x - was.x, y - was.y) > SLID_PX;
+        if (was.side === side && !slid) continue;
+        watch.changes.push({
+          name: name.textContent ?? '',
+          now: slid ? `${side}, slid` : side,
+          at: Math.round(now),
+        });
       }
       requestAnimationFrame(look);
     };

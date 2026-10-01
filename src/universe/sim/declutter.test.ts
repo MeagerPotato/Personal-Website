@@ -508,6 +508,68 @@ describe('declutter, with places', () => {
     expect(where(boxes)).toEqual([1, 1, 2]);
   });
 
+  it('together, moves the group so that none lies where it must not, where one alone cannot', () => {
+    // Two systems' names, both showing. B's place lies on another system's sun (a last resort),
+    // and its only other place is where A is: B alone cannot leave it. Together, A goes to its
+    // second place and B to where A was, and neither lies on a sun.
+    const rows: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [0, 200],
+        ],
+      ],
+      [
+        80,
+        40,
+        2,
+        [
+          [300, 0],
+          [0, 0],
+        ],
+      ],
+    ];
+    const boxes = placesOf(rows, 2);
+    boxes.covers.set([0, 0, 2, 0]);
+    shows(boxes, [0, 0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes), 'placed one by one').toEqual([0, 0]);
+    shows(boxes, [0, 0]);
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 1]);
+    // ...and it holds.
+    declutter(boxes, PARAMS, undefined, TOGETHER_5);
+    expect(where(boxes)).toEqual([1, 1]);
+
+    // Right on a sun's disc (3) is worse than any number merely a gap off one (2): B leaves a place
+    // right on one even where A's then lies a gap off one...
+    const onIt = placesOf(rows, 2);
+    onIt.covers.set([0, 2, 3, 2]);
+    shows(onIt, [0, 0]);
+    declutter(onIt, PARAMS, undefined, TOGETHER_5);
+    expect(where(onIt)).toEqual([1, 1]);
+    // ...and does not leave one a gap off it for a way that puts A right on one.
+    const offIt = placesOf(rows, 2);
+    offIt.covers.set([0, 3, 2, 0]);
+    shows(offIt, [0, 0]);
+    declutter(offIt, PARAMS, undefined, TOGETHER_5);
+    expect(where(offIt)).toEqual([0, 0]);
+
+    // Not while B has only just changed (young): it may not move of its own accord, and no search
+    // is made for it. Nor while A has: the search keeps A where it was, finds no better way, and
+    // moves nothing.
+    for (const young of [[1], [0]]) {
+      const held = placesOf(rows, 2);
+      held.covers.set([0, 0, 2, 0]);
+      shows(held, [0, 0], young);
+      declutter(held, PARAMS, undefined, TOGETHER_5);
+      expect(where(held), `young ${young.join()}`).toEqual([0, 0]);
+    }
+  });
+
   it('together, tries some 4,000 places a call at most, and after a search that found nothing rests', () => {
     // Nine systems' names, eight places each, in five slots that hold one name each: every way of
     // placing them shows five. The greedy pass shows five, and the search cannot do better.
@@ -1103,7 +1165,9 @@ describe('declutter, at rest', () => {
             const at = row * PLACES + p;
             boxes.left[at] = (boxes.left[at] ?? 0) + (rng() - 0.5) * 24;
             boxes.top[at] = (boxes.top[at] ?? 0) + (rng() - 0.5) * 24;
-            boxes.covers[at] = rng() < 0.2 ? 1 : 0;
+            // Now and then on a body, or on what it must not (a sun: as a last resort).
+            const lies = rng();
+            boxes.covers[at] = lies < 0.1 ? 2 : lies < 0.2 ? 1 : 0;
           }
           // A place that is gone (as the caller says: ui/Labels.ts).
           const gone = drifting && rng() < 0.1 ? Math.floor(rng() * PLACES) : -1;

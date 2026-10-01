@@ -46,7 +46,8 @@ export interface LabelBoxes {
    * takes only where it has no place that lies on less and then keeps, whatever drifts under it;
    * 2 something it must not, but as a last resort (a system's name, on another system's sun),
    * which it also leaves once it may (not `young`), for a place that lies on less with room to
-   * spare. A label goes back to its first place only if that lies on no more than where it is.
+   * spare; 3 the same, but right on it (`RIGHT_ON`), which the group's search avoids before all
+   * else. A label goes back to its first place only if that lies on no more than where it is.
    */
   readonly covers: Uint8Array;
   /** The size of each label, wherever it goes. */
@@ -82,13 +83,14 @@ export interface LabelBoxes {
   readonly trial: Uint8Array;
   readonly best: Uint8Array;
   /**
-   * Scratch for `searchTogether`: how many places it has tried this call of `declutter`, and the
-   * most it has shown.
+   * Scratch for `searchTogether`: how many places it has tried this call of `declutter`, the most
+   * it has shown, and how much of those lie on what they must not in that way (`landsOf`).
    */
   readonly tally: Int32Array;
   /**
    * Kept from call to call for `searchTogether`: after a search that found no better way, for how
-   * many more calls it rests, and how many of the group showed and how many were missing then.
+   * many more calls it rests, and how many of the group showed, were missing, and lay on what they
+   * must not and might move then.
    */
   readonly rest: Int32Array;
 }
@@ -117,8 +119,8 @@ export function createLabelBoxes(capacity: number, places = 1): LabelBoxes {
     was: new Uint8Array(capacity),
     trial: new Uint8Array(capacity),
     best: new Uint8Array(capacity),
-    tally: new Int32Array(2),
-    rest: new Int32Array(3),
+    tally: new Int32Array(3),
+    rest: new Int32Array(4),
   };
 }
 
@@ -193,11 +195,12 @@ const ONE_KIND: DeclutterRules = { firm: -Infinity, together: -Infinity, keepSlo
  *   places, where there is real room for it, if that alone makes room (`makeRoom`).
  *
  * The labels between `rules.firm` and `rules.together` are placed as one: should that leave one
- * of them out, every way of placing them is tried (`searchTogether`), the way that shows the most
- * of them wins, and everything after them is then placed round them as above. A `young` label
- * makes none of these changes of its own accord (it does not come back, nor go back to its first
- * place, nor move for another); and the whole is done again on its own answer, up to
- * `SETTLE_PASSES` times, until it stands.
+ * of them out, or one that may move lie on what it must not (a system's name on another system's
+ * sun), every way of placing them is tried (`searchTogether`), the way that shows the most of them
+ * wins (of those, the one where the fewest lie on what they must not), and everything after them
+ * is then placed round them as above. A `young` label makes none of these changes of its own
+ * accord (it does not come back, nor go back to its first place, nor move for another); and the
+ * whole is done again on its own answer, up to `SETTLE_PASSES` times, until it stands.
  */
 export function declutter(
   boxes: LabelBoxes,
@@ -251,36 +254,46 @@ function decide(
   taken: Readonly<TakenBoxes> | undefined,
   rules: DeclutterRules,
 ): void {
-  const { count, places, priority, shown, young, order, at, before, best } = boxes;
+  const { count, places, priority, shown, young, order, at, before, best, covers } = boxes;
   placeFrom(boxes, params, taken, rules, 0, 0);
 
   // The group placed together: after the firm, as far as they are that important. Only one that
-  // is missing, and may show (not one that was hidden and is `young`), is worth a search.
+  // is missing, and may show (not one that was hidden and is `young`), or one that lies on what it
+  // must not, and may move (not `young`), is worth a search.
   let from = 0;
   while (from < count && isBelow(priority[order[from] ?? 0], rules.firm)) from += 1;
   let group = from;
   let missing = 0;
   let showing = 0;
+  let lands = 0;
+  let lying = 0;
   while (
     group < count &&
     group < params.max &&
     isBelow(priority[order[group] ?? 0], rules.together)
   ) {
     const row = order[group] ?? 0;
-    if (shown[row]) showing += 1;
-    else if (!young[row] || before[row]) missing += 1;
+    if (shown[row]) {
+      showing += 1;
+      const level = covers[row * places + (at[row] ?? 0)];
+      lands += landsOf(level);
+      if (coverOf(level) >= MUST_NOT && !young[row]) lying += 1;
+    } else if (!young[row] || before[row]) missing += 1;
     group += 1;
   }
-  if (missing === 0 || places < 2) return;
-  // A search that found no better way is not made again at once, while as many of the group show
-  // and are missing: the bodies have hardly moved since (`SEARCH_REST`).
+  if ((missing === 0 && lying === 0) || places < 2) return;
+  // A search that found no better way is not made again at once, while as many of the group show,
+  // are missing and lie where they must not: the bodies have hardly moved since (`SEARCH_REST`).
   const { rest } = boxes;
-  if ((rest[0] ?? 0) > 0 && rest[1] === showing && rest[2] === missing) return;
-  const most = searchTogether(boxes, params, taken, from, group, showing);
-  if (most <= showing) {
+  if ((rest[0] ?? 0) > 0 && rest[1] === showing && rest[2] === missing && rest[3] === lying) {
+    return;
+  }
+  const most = searchTogether(boxes, params, taken, from, group, showing, lands);
+  if (most === showing && (boxes.tally[2] ?? 0) >= lands) {
     rest[0] = SEARCH_REST;
     rest[1] = showing;
     rest[2] = missing;
+    rest[3] = lying;
     return;
   }
   rest[0] = 0;
@@ -399,15 +412,17 @@ const SEARCH_REST = 10;
 
 /**
  * The ways of placing the labels from position `from` to `group` in the order (each at one of its
- * places, or left out) that show more of them than `showing`, the most important first, each where
- * it was last time first, then at its places by how much they lie on (`covers`); a `young` one
- * only where it was, if it has room there, and left out if it was. A way is given up as soon as it
- * cannot show more than the best so far: once those still to be placed that have room anywhere,
- * round what is placed already, could not make up the difference (so a label with no room at all,
- * under a button, costs one look, and a search that cannot help ends where it starts). The first
- * way found that shows the most goes into `boxes.best`, by position in the order (NOWHERE: left
- * out), and how many it shows is returned (`showing`, if none shows more). Only what was there
- * first, and the firm labels before them, are in their way.
+ * places, or left out) that do better than they do now, where `showing` of them show and `lands`
+ * counts those that lie on what they must not (`landsOf`): that show more of them, or as many with
+ * fewer where they must not (fewest right on it, then fewest beside it). The most important first,
+ * each where it was last time first, then at its places by how much they lie on (`covers`); a
+ * `young` one only where it was, if it has room there, and left out if it was. A way is given up as soon as it cannot do better than the best so
+ * far: once those still to be placed that have room anywhere, round what is placed already, could
+ * not make up the difference (so a label with no room at all, under a button, costs one look, and
+ * a search that cannot help ends where it starts). The first way found that does best goes into
+ * `boxes.best`, by position in the order (NOWHERE: left out); how many it shows is returned
+ * (`showing`, if none does better), and its count of those where they must not is left in
+ * `boxes.tally[2]`. Only what was there first, and the firm labels before them, are in their way.
  */
 function searchTogether(
   boxes: LabelBoxes,
@@ -416,11 +431,22 @@ function searchTogether(
   from: number,
   group: number,
   showing: number,
+  lands: number,
 ): number {
   const { tally } = boxes;
   tally[1] = showing;
-  dive(boxes, params, taken, from, group, from, 0);
+  tally[2] = lands;
+  dive(boxes, params, taken, from, group, from, 0, 0);
   return tally[1] ?? showing;
+}
+
+/**
+ * Does a way that shows `placed` labels, with `lands` counted against it (`landsOf`), do better
+ * than the best found so far (`tally`)?
+ */
+function beats(tally: Int32Array, placed: number, lands: number): boolean {
+  const most = tally[1] ?? -1;
+  return placed > most || (placed === most && lands < (tally[2] ?? 0));
 }
 
 function dive(
@@ -431,18 +457,21 @@ function dive(
   group: number,
   g: number,
   placed: number,
+  lands: number,
 ): void {
   const { places, order, before, was, young, trial, best, covers, tally } = boxes;
   if (g === group) {
-    if (placed > (tally[1] ?? -1)) {
+    if (beats(tally, placed, lands)) {
       tally[1] = placed;
+      tally[2] = lands;
       for (let m = from; m < group; m += 1) best[m] = trial[m] ?? NOWHERE;
     }
     return;
   }
-  // Time is up, or nothing down this way can beat what has been found.
+  // Time is up, or nothing down this way can beat what has been found (those still to be placed
+  // can only add to what lies where it must not).
   if ((tally[0] ?? 0) >= TOGETHER_TRIES) return;
-  if (placed + roomFor(boxes, params, taken, from, g, group) <= (tally[1] ?? -1)) return;
+  if (!beats(tally, placed + roomFor(boxes, params, taken, from, g, group), lands)) return;
   const row = order[g] ?? 0;
   const base = row * places;
   const last = was[row] ?? NOWHERE;
@@ -459,12 +488,22 @@ function dive(
     const pad = i < 0 ? params.gapPx - params.keepPx : params.gapPx;
     if (!clearOfTrial(boxes, row, place, pad, from, g, taken)) continue;
     trial[g] = place;
-    dive(boxes, params, taken, from, group, g + 1, placed + 1);
-    // All of them show, or a young label has stayed where it was: nothing else to try for it.
-    if (tally[1] === group - from || (settling && i < 0)) return;
+    dive(
+      boxes,
+      params,
+      taken,
+      from,
+      group,
+      g + 1,
+      placed + 1,
+      lands + landsOf(covers[base + place]),
+    );
+    // All of them show, none where it must not, or a young label has stayed where it was: nothing
+    // else to try for it.
+    if ((tally[1] === group - from && tally[2] === 0) || (settling && i < 0)) return;
   }
   trial[g] = NOWHERE;
-  dive(boxes, params, taken, from, group, g + 1, placed);
+  dive(boxes, params, taken, from, group, g + 1, placed, lands);
 }
 
 /**
@@ -748,6 +787,22 @@ function clearOfTaken(
  */
 const COVERS = 3;
 const MUST_NOT = 2;
+/**
+ * A place that lies on what it must not, and right on it (ui/Labels.ts: on a sun's disc itself,
+ * not merely within a gap of it). Everywhere but `searchTogether` it is `MUST_NOT`; there, a way
+ * with one label right on what it must not is worse than one with any number merely beside it.
+ */
+const RIGHT_ON = 3;
+const RIGHT_ON_COUNTS = 64;
+
+/**
+ * How much a place counts against a way of placing the group (`searchTogether`, `lands`): one
+ * for each label where it must not, and `RIGHT_ON_COUNTS` for each right on it.
+ */
+function landsOf(level: number | undefined): number {
+  const lies = level ?? 0;
+  return lies >= RIGHT_ON ? RIGHT_ON_COUNTS : lies >= MUST_NOT ? 1 : 0;
+}
 
 /** How much a place lies on: 0 to `COVERS - 1`. */
 function coverOf(level: number | undefined): number {

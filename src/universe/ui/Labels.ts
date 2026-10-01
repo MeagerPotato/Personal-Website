@@ -107,10 +107,14 @@ const PLACES = 8;
 type Reach = -1 | 0 | 1;
 /** Far below anything anyone can see (CSS px), and far above a double's rounding. */
 const HAIR_PX = 1e-3;
-/** What a name's tag would lie on, at one of its places on the map (`liesOn`). */
+/**
+ * What a name's tag would lie on, at one of its places on the map (`liesOn`): nothing, another
+ * body, a gap off a sun or the home planet, or right on one (sim/declutter.ts, `covers`).
+ */
 const CLEAR = 0;
 const ON_A_BODY = 1;
-const ON_A_LANDMARK = 2;
+const BY_A_LANDMARK = 2;
+const ON_A_LANDMARK = 3;
 
 /**
  * Suns and the home planet name a whole system; moons are the small print. A link ranks with the
@@ -637,7 +641,7 @@ export class Labels implements System {
         const placed = placeSide[at] ?? BELOW;
         const here = this.isAt(row, placed, (placeReach[at] ?? 0) as Reach);
         const lies = this.liesOn(row, placeLeft, boxes.top[at] ?? 0, width, placed, here);
-        if (lies === ON_A_LANDMARK && !lastResort) {
+        if (lies >= BY_A_LANDMARK && !lastResort) {
           boxes.left[at] = Number.NaN;
           boxes.top[at] = Number.NaN;
           offered -= 1;
@@ -816,15 +820,15 @@ export class Labels implements System {
 
   /**
    * What a name's tag, its box at (left, top) on `side` of its body, would lie on, on the map:
-   * the disc of a sun or the home planet not its own (`ON_A_LANDMARK`), of any other body that can
-   * be seen, or BESIDE one (`ON_A_BODY`), or nothing (`CLEAR`). A disc counts from a gap off it
-   * (`gapPx`), further than the name's own body is from its tag (`offsetPx`), so that its own
-   * body is always plainly the nearest. Beside: the body level with the tag, less than the tag's
-   * height off one of its ends, where the tag reads as that body's name ("SOFTWARE ( ) HARDWARE").
-   * Where the name is already (`here`) only the disc itself counts, and a body beside it a keep
-   * nearer, so that a body drifting past by a pixel does not send the name back and forth. The
-   * tag is the visible part of the 44 px box: at its top below the body, at its bottom above it,
-   * in the middle beside it (CSS, `data-side`).
+   * the disc of a sun or the home planet not its own (`ON_A_LANDMARK`, or within the gap off it,
+   * `BY_A_LANDMARK`), of any other body that can be seen, or BESIDE one (`ON_A_BODY`), or nothing
+   * (`CLEAR`). A disc counts from a gap off it (`gapPx`), further than the name's own body is from
+   * its tag (`offsetPx`), so that its own body is always plainly the nearest. Beside: the body
+   * level with the tag, less than the tag's height off one of its ends, where the tag reads as
+   * that body's name ("SOFTWARE ( ) HARDWARE"). Where the name is already (`here`) only the disc
+   * itself counts, and a body beside it a keep nearer, so that a body drifting past by a pixel
+   * does not send the name back and forth. The tag is the visible part of the 44 px box: at its
+   * top below the body, at its bottom above it, in the middle beside it (CSS, `data-side`).
    */
   private liesOn(
     row: number,
@@ -855,11 +859,13 @@ export class Labels implements System {
       const dx = x - Math.min(Math.max(x, left), right);
       const dy = y - Math.min(Math.max(y, tagTop), bottom);
       const reach = radius + near;
-      if (dx * dx + dy * dy < reach * reach) {
-        if (RANK[bodies[other]?.kind ?? 'moon'] === RANK.sun) return ON_A_LANDMARK;
-        lies = ON_A_BODY;
+      const apart = dx * dx + dy * dy;
+      if (apart < reach * reach) {
+        if (RANK[bodies[other]?.kind ?? 'moon'] !== RANK.sun) lies = Math.max(lies, ON_A_BODY);
+        else if (apart < radius * radius) return ON_A_LANDMARK;
+        else lies = BY_A_LANDMARK;
       } else if (dy === 0 && Math.abs(dx) - radius < beside) {
-        lies = ON_A_BODY;
+        lies = Math.max(lies, ON_A_BODY);
       }
     }
     return lies;

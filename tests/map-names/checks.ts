@@ -14,9 +14,11 @@ import { spread, watch, type GalaxyKind, type Look, type ScreenSize, type Seen }
 
 /**
  * The most changes a minute at rest, per look, and how many tags of systems may lie on another
- * system's sun, on average, at the fit (a last resort: ui/Labels.ts). About twice what these
- * samples counted on 2026-09-30, so that a change that makes names hop, or lays them over the
- * landmarks, fails by far. Under the fingers, half as much again, and the flickers in the 100 s:
+ * system's sun, on average, at the fit (a last resort: ui/Labels.ts, and the systems' search
+ * tries every way of placing them before it leaves one there: sim/declutter.ts). About twice what
+ * these samples counted on 2026-09-30, so that a change that makes names hop fails by far; and as
+ * for the suns, these samples counted none (0.08 a look at 360 px before that search), so a
+ * little over that. Under the fingers, half as much again, and the flickers in the 100 s:
  * while the view slides past them, names at its edges come and go within a few frames, as many as
  * before the names had places.
  */
@@ -32,9 +34,9 @@ const LIMITS: Readonly<
     }
   >
 > = {
-  '360x740': { fit: 1, zoomed: [1, 6, 11], pan: 2, fingers: [310, 30], landmarks: 0.2 },
-  '412x839': { fit: 1, zoomed: [4, 10, 17], pan: 3, fingers: [330, 30], landmarks: 0.2 },
-  '1280x800': { fit: 9, zoomed: [8, 17, 27], pan: 25, fingers: [320, 66], landmarks: 0.1 },
+  '360x740': { fit: 1, zoomed: [1, 6, 11], pan: 2, fingers: [310, 30], landmarks: 0.05 },
+  '412x839': { fit: 1, zoomed: [4, 10, 17], pan: 3, fingers: [330, 30], landmarks: 0.05 },
+  '1280x800': { fit: 9, zoomed: [8, 17, 27], pan: 25, fingers: [320, 66], landmarks: 0.05 },
 };
 
 /** A page open beside the map: the laptop's side panel, a phone's sheet (as tall as at 60%). */
@@ -138,6 +140,10 @@ export function grownChecks(): void {
       it(`name every system, and hold still: ${name}`, () => {
         const seen = watch(look, spread(6, 20, look.galaxy));
         still(seen, 2);
+        // A system's name on another's sun, a last resort: over a whole turn of a galaxy of six
+        // at 360 px, 1.08 tags a look before the systems' search looked for a way round it, and
+        // 0.02 since (sim/declutter.ts); none in these samples.
+        expect(seen.onLandmarks, "a system's tag on another's sun").toBeLessThanOrEqual(0.15);
         for (const [system, share] of Object.entries(seen.unnamed)) {
           expect(share, `${system} unnamed`).toBeLessThanOrEqual(unnamed);
         }
