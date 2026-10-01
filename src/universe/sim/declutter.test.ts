@@ -817,7 +817,32 @@ describe('declutter, young labels', () => {
     expect(where(grown)).toEqual([1, 0]);
   });
 
-  it('still moves a young label where it must: something more important takes its place', () => {
+  it('still moves a young label where it must: something more important that shows needs its place', () => {
+    // A has only just come, at its first place. B, more important, showed at a place that is gone,
+    // and its only other place is A's: B takes it, and A moves to its second.
+    const boxes = placesOf(
+      [
+        [
+          80,
+          40,
+          2,
+          [
+            [0, 0],
+            [0, 200],
+          ],
+        ],
+        [80, 40, 1, [null, [20, 10]]],
+      ],
+      2,
+    );
+    shows(boxes, [0, NOWHERE], [0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([1, 1]);
+  });
+
+  it('keeps a young label where it is a moment for one that waits to show, however important', () => {
+    // B, more important, waits to show, and its only place is where A has only just come: it
+    // waits a moment, and A does not go again as soon as it came.
     const boxes = placesOf(
       [
         [
@@ -835,7 +860,20 @@ describe('declutter, young labels', () => {
     );
     shows(boxes, [0, null], [0]);
     declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0, null]);
+    // Once A has shown a while, B takes its place, and A moves to its second.
+    shows(boxes, [0, null]);
+    declutter(boxes, PARAMS);
     expect(where(boxes)).toEqual([1, 0]);
+    // Firm, or one of the group, B takes it at once.
+    for (const rules of [
+      { firm: 2, together: -Infinity, keepSlots: false },
+      { firm: -Infinity, together: 2, keepSlots: false },
+    ] satisfies DeclutterRules[]) {
+      shows(boxes, [0, null], [0]);
+      declutter(boxes, PARAMS, undefined, rules);
+      expect(where(boxes)).toEqual([1, 0]);
+    }
   });
 
   it('moves a young label whose place is gone, where one that was hidden stays hidden', () => {

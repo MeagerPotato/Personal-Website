@@ -22,8 +22,11 @@
  * appears only a whole gap clear, or goes back only a gap and a keep clear: nothing hops back and
  * forth on a pixel's difference. And a label that has only just changed (`young`: the caller keeps
  * the time) makes no change of its own accord until it has shown a while: it does not come back,
- * go back, nor move for another. What nothing can hold off is a change a label must make: its
- * place is gone (past the edge of the view), or something more important needs the room.
+ * go back, nor move for another; and one that has just come does not go again at once for one
+ * that only waits to show, however important (`clearOfYoung`): that one waits a moment more.
+ * What nothing can hold off is a change a label must make: its place is gone (past the edge of
+ * the view), or something more important that shows already, or that comes before the rest (a
+ * firm label, or one of the group), needs the room.
  */
 
 export interface LabelBoxes {
@@ -57,7 +60,8 @@ export interface LabelBoxes {
    * In: 1 for a label that appeared, hid or changed places too lately to make another change of
    * its own accord (the caller keeps the time). Such a label does not come back, go back to its
    * first place, nor move to make room for another; it still gives way, or moves, where it must.
-   * A firm label (`DeclutterRules`) is never held back.
+   * One that shows keeps its place from a label placed round the group that waits to show, of
+   * whatever importance (`clearOfYoung`). A firm label (`DeclutterRules`) is never held back.
    */
   readonly young: Uint8Array;
   /**
@@ -183,7 +187,8 @@ const ONE_KIND: DeclutterRules = { firm: -Infinity, together: -Infinity, keepSlo
  *   or else stays where it was while it may (a keep closer than the gap), as a label with one
  *   place always has;
  * - otherwise it takes the first of its places with real room (a gap), of those that lie on
- *   least;
+ *   least; one that did not show last time, placed round the group, none where a `young` label
+ *   that shows is (`clearOfYoung`);
  * - and one that has room nowhere may move one label already placed to another of that label's
  *   places, where there is real room for it, if that alone makes room (`makeRoom`).
  *
@@ -322,6 +327,8 @@ function placeFrom(
     // hidden, and one that shows neither goes back to its first place nor moves for another.
     const settling = young[row] === 1 && !firm;
     if (settling && !showed) continue;
+    // One placed round the group that waits to show takes no room from a young one that shows.
+    const waits = !showed && kindOf(priority[row], rules) === 2;
     const base = row * places;
     let place = -1;
     if (last !== NOWHERE) {
@@ -360,10 +367,11 @@ function placeFrom(
     for (let pass = 0; place < 0 && pass < COVERS; pass += 1) {
       for (let p = 0; place < 0 && p < places; p += 1) {
         if (p === last || coverOf(covers[base + p]) !== pass) continue;
-        if (fits(boxes, row, p, gapPx, k, -1, taken)) place = p;
+        if (!fits(boxes, row, p, gapPx, k, -1, taken)) continue;
+        if (!waits || clearOfYoung(boxes, row, p, gapPx, k)) place = p;
       }
     }
-    if (place < 0) place = makeRoom(boxes, row, k, params, taken, rules);
+    if (place < 0) place = makeRoom(boxes, row, k, params, taken, rules, waits);
     if (place < 0) continue;
     shown[row] = 1;
     at[row] = place;
@@ -531,7 +539,8 @@ function clearOfTrial(
  * kind (`DeclutterRules`) may go to any of its places; one of a more important kind (a system's
  * name, in the way of a planet's) only back to its first place, with room to spare there, as it
  * would by itself; a firm one, or a `young` one, nowhere. Nothing else moves, and nothing that
- * showed is hidden for it. Places that lie on less first, for both. The place, or -1.
+ * showed is hidden for it; and one that `waits` takes no place where a young label after it shows
+ * (`clearOfYoung`). Places that lie on less first, for both. The place, or -1.
  */
 function makeRoom(
   boxes: LabelBoxes,
@@ -540,6 +549,7 @@ function makeRoom(
   params: DeclutterParams,
   taken: Readonly<TakenBoxes> | undefined,
   rules: DeclutterRules,
+  waits: boolean,
 ): number {
   const { places, left, top, width, height, priority, shown, young, order, at, was, covers } =
     boxes;
@@ -556,6 +566,7 @@ function makeRoom(
     if (!Number.isFinite(pl) || !Number.isFinite(pt)) continue;
     const pad = p === was[row] ? gapPx - keepPx : gapPx;
     if (!clearOfTaken(pl - pad, pt - pad, pl + w + pad, pt + h + pad, taken)) continue;
+    if (waits && !clearOfYoung(boxes, row, p, pad, k)) continue;
     // Who is in the way: exactly one label, one that may move, or this place is no good.
     let blocker = -1;
     let blockers = 0;
@@ -663,6 +674,32 @@ function clearOfWaiting(
     const other = order[m] ?? 0;
     const place = was[other] ?? NOWHERE;
     if (place === NOWHERE || other === row || !Number.isFinite(priority[other] ?? Infinity)) {
+      continue;
+    }
+    if (overlaps(boxes, other, place, l, t, r, b)) return false;
+  }
+  return true;
+}
+
+/**
+ * Is place `p` of label `row` clear, `pad` round it, of every label after position `k` in the order
+ * that showed last time where it showed, and is `young`? A label that waits to show takes no room
+ * from one that has only just come, whatever their importance: it waits a moment, and the other
+ * does not go again as soon as it came (as when a planet's name, kept out a moment ago, would
+ * come back over a moon's that took its room meanwhile).
+ */
+function clearOfYoung(boxes: LabelBoxes, row: number, p: number, pad: number, k: number): boolean {
+  const { count, places, left, top, width, height, priority, order, young, was } = boxes;
+  const pl = left[row * places + p] ?? Number.NaN;
+  const pt = top[row * places + p] ?? Number.NaN;
+  const l = pl - pad;
+  const t = pt - pad;
+  const r = pl + (width[row] ?? 0) + pad;
+  const b = pt + (height[row] ?? 0) + pad;
+  for (let m = k + 1; m < count; m += 1) {
+    const other = order[m] ?? 0;
+    const place = was[other] ?? NOWHERE;
+    if (place === NOWHERE || !young[other] || !Number.isFinite(priority[other] ?? Infinity)) {
       continue;
     }
     if (overlaps(boxes, other, place, l, t, r, b)) return false;
