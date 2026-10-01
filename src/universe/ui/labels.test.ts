@@ -925,6 +925,62 @@ describe('Labels', () => {
     expect(drawn(fresh.button('FishAI'))).toMatchObject({ x: 367, y: 744 });
   });
 
+  it('on the map, names a body whose only room is nearer an edge than that, unless it is leaving', () => {
+    // Code's sun is out of view in flight (behind the camera, half over the bottom edge)...
+    const { labels, screen, state, shown, button } = setup([
+      [600, 800, 12, -1],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [200, 300, 30, 300],
+    ]);
+    cleanup = () => labels.dispose();
+    state.onMap = true;
+    // ...and comes into view there on the map, where its name has room only above it, ending
+    // 6 px short of where names may go (at 786, the view ending at 792): not the room to spare a
+    // new name asks for, but it has no place that has. It takes that one.
+    screen.depth[0] = 1000;
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('Code');
+    expect(button('Code').dataset.side).toBe('above');
+    expect(drawn(button('Code'))).toMatchObject({ x: 574, y: 742 });
+    // It keeps it as long as it fits there, as any name keeps its place...
+    screen.y[0] = 806;
+    labels.frameUpdate(tick());
+    expect(drawn(button('Code'))).toMatchObject({ x: 574, y: 748 });
+    // ...goes once it does not, and does not come and go as its sun drifts a pixel back and forth
+    // at the edge: it comes back once it has been gone a while (`dwellSec`).
+    screen.y[0] = 807;
+    labels.frameUpdate(tick());
+    expect(shown()).not.toContain('Code');
+    screen.y[0] = 806;
+    labels.frameUpdate(tick());
+    expect(shown()).not.toContain('Code');
+    labels.frameUpdate(tick(1));
+    expect(shown()).toContain('Code');
+
+    // A name that has no room until its body is on its way out of the view, through that edge,
+    // does not come for the moment it has left: the dock prompt over its only place as the sun
+    // drifts down, gone as the sun gets there. It comes once its sun holds still there.
+    const leaving = setup([
+      [600, 790, 12, 1000],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [200, 300, 30, 300],
+    ]);
+    labels.dispose();
+    cleanup = () => leaving.labels.dispose();
+    leaving.state.onMap = true;
+    leaving.state.prompt = { left: 560, top: 700, width: 80, height: 90 };
+    leaving.labels.frameUpdate(tick());
+    expect(leaving.shown()).not.toContain('Code');
+    leaving.screen.y[0] = 805;
+    leaving.state.prompt = null;
+    leaving.labels.frameUpdate(tick());
+    expect(leaving.shown()).not.toContain('Code');
+    leaving.labels.frameUpdate(tick());
+    expect(leaving.shown()).toContain('Code');
+  });
+
   it('never takes a name away from under the keyboard', () => {
     const { labels, screen, shown, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
