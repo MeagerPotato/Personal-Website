@@ -1,15 +1,5 @@
 import { TAU } from '../../sim/math';
-import {
-  add,
-  brg,
-  cross,
-  norm,
-  ORIGIN,
-  scale,
-  sub,
-  type Vec2,
-  type Vec3,
-} from '../../sim/world/kit';
+import { add, brg, cross, norm, ORIGIN, scale, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
 import { dirOf, shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
@@ -275,119 +265,108 @@ const days2meet: PartRow[] = [
   ],
 ];
 
-// Model Rocketry. Recovery: the parachute and its payload, hanging off the flank (it does not turn
-// with the ground). And Cal Aero SAE, Allen's current aero team: a propeller thrust stand (a jig
-// that measures thrust to choose the RC plane's motor: no flame) and an ESP32 telemetry board.
-const atAngle = (a: number, r: number, y: number): Vec3 => [r * Math.cos(a), y, r * Math.sin(a)];
-const GORES = Array.from({ length: 6 }, (_, i): Item => {
-  const a0 = (i / 6) * TAU;
-  const a1 = ((i + 1) / 6) * TAU;
-  const color: ColorPath = i % 2 ? 'ink.high' : 'coral.base';
+/** A parachute pictogram on a flank: a canopy of three gores, two lines and a payload. */
+const chute = (cx: number, cy: number, r: number, z: number): Item => {
+  const at = (deg: number): [number, number, number] => [
+    cx + r * Math.cos((deg * Math.PI) / 180),
+    cy + r * Math.sin((deg * Math.PI) / 180),
+    z,
+  ];
+  const hang = cy - 1.55 * r;
+  const line = (dx: number): Item => [
+    'quad',
+    [cx + dx * r, cy, z],
+    [cx + dx * r + 0.008, cy, z],
+    [cx + 0.008, hang, z],
+    [cx - 0.008, hang, z],
+    'ink.low',
+    [0, 0, 1],
+  ];
   return [
     'g',
+    ['poly', [[cx, cy, z], at(0), at(30), at(60)], 'coral.base', [0, 0, 1]],
+    ['poly', [[cx, cy, z], at(60), at(90), at(120)], 'coral.light', [0, 0, 1]],
+    ['poly', [[cx, cy, z], at(120), at(150), at(180)], 'coral.base', [0, 0, 1]],
+    line(-1),
+    line(1),
     [
       'quad',
-      atAngle(a0, 0.34, 0),
-      atAngle(a1, 0.34, 0),
-      atAngle(a1, 0.24, 0.13),
-      atAngle(a0, 0.24, 0.13),
-      color,
-      [0, 0.4, 0],
+      [cx - 0.022, hang, z],
+      [cx + 0.022, hang, z],
+      [cx + 0.022, hang - 0.04, z],
+      [cx - 0.022, hang - 0.04, z],
+      'ink.low',
+      [0, 0, 1],
     ],
-    ['tri', atAngle(a0, 0.24, 0.13), atAngle(a1, 0.24, 0.13), [0, 0.2, 0], color, [0, 1, 0]],
   ];
-});
-const SHROUDS = Array.from({ length: 6 }, (_, i): Item => {
-  const a = (i / 6) * TAU;
-  const rim: Vec3 = [0.34 * Math.cos(a), 0, 0.34 * Math.sin(a)];
-  const tangent: Vec3 = [-Math.sin(a) * 0.012, 0, Math.cos(a) * 0.012];
-  return [
-    'quad',
-    add(rim, tangent),
-    sub(rim, tangent),
-    [-0.004, -0.55, 0],
-    [0.004, -0.55, 0],
-    'ink.mid',
-    rim,
-  ];
-});
-const JIG = { spin: 0.6, alt: 0.02 } as const;
-const modelRocketry: PartRow[] = [
+};
+const modelRocketryNear: PartRow[] = [
+  // The launch lug on the back of the payload bay, where the rail would run.
   [
-    'parachute',
-    FLAG.hold,
+    'launch-lug',
+    0,
+    [
+      'cyl',
+      0.026,
+      0.37,
+      0.52,
+      6,
+      'ink.low',
+      'ink.mid',
+      'ink.low',
+      { at: [0, 0.2345, 0], rot: [0, 0, -Math.PI / 2] },
+    ],
+  ],
+  // The altimeter's window on the sunlit flank, with its last reading: 3,200 ft.
+  [
+    'altimeter-window',
+    FLAG.flat | FLAG.decal,
+    [
+      'quad',
+      [0.245, -0.1, -0.2165],
+      [0.715, -0.1, -0.2165],
+      [0.715, 0.1, -0.2165],
+      [0.245, 0.1, -0.2165],
+      'space.900',
+      [0, 0, -1],
+    ],
+  ],
+  [
+    'altimeter-digits',
+    FLAG.glow | FLAG.decal,
+    ['pix', '3200', 0.03, 'star.warm', { at: [0.48, 0, -0.2205], rot: [0, Math.PI, 0] }],
+  ],
+  // The recovery, on the shade flank: a small canopy for the drogue, a large one for the main.
+  ['recovery-badges', FLAG.decal, chute(0.6, 0.04, 0.055, 0.2165), chute(0.4, 0.05, 0.085, 0.2165)],
+  // A streamer tied to the dorsal fin's tip, flying behind it.
+  [
+    'streamer',
+    FLAG.flat,
     [
       'g',
-      ...GORES,
-      ...SHROUDS,
-      ['bead', 0.09, 'ink.high', { at: [0, -0.6, 0], s: [1, 1.3, 1] }],
-      { at: [brg(rad(62), 1.5)[0], 1.15, brg(rad(62), 1.5)[1]] },
-    ],
-  ],
-  [
-    'thrust-stand',
-    0,
-    [
-      's',
-      24,
-      40,
-      JIG,
       [
-        'g',
-        ['box', 0.3, 0.03, 0.2, 'ink.low'],
-        ['box', 0.05, 0.1, 0.05, 'ink.mid', { at: [0, 0.065, 0] }],
-        ['box', 0.09, 0.04, 0.05, 'coral.base', { at: [0, 0.135, 0] }],
-        ['cyl', 0.04, 0.155, 0.27, 8, 'ink.high', 'ink.mid', 'ink.high'],
-        ['cyl', 0.008, 0.27, 0.31, 4, 'ink.mid'],
+        'fin',
+        [
+          [0, 0.035],
+          [-0.28, 0.03],
+          [-0.28, -0.03],
+          [0, -0.035],
+        ],
+        0.01,
+        'ink.high',
       ],
-    ],
-  ],
-  [
-    'propeller',
-    0,
-    [
-      's',
-      24,
-      40,
-      JIG,
       [
-        'g',
-        ['cyl', 0.022, 0, 0.03, 6, 'ink.high'],
-        ['box', 0.3, 0.012, 0.05, 'ink.high', { at: [0.165, 0.015, 0], rot: [0.25, 0, 0] }],
-        ['box', 0.3, 0.012, 0.05, 'ink.high', { at: [-0.165, 0.015, 0], rot: [-0.25, 0, 0] }],
-        { at: [0, 0.31, 0] },
+        'fin',
+        [
+          [-0.28, 0.03],
+          [-0.4, 0.026],
+          [-0.4, -0.026],
+          [-0.28, -0.03],
+        ],
+        0.01,
+        'coral.base',
       ],
-    ],
-  ],
-  [
-    'esp32',
-    0,
-    [
-      's',
-      18,
-      66,
-      { spin: 0.2, alt: 0.02 },
-      [
-        'g',
-        ['box', 0.16, 0.012, 0.1, 'space.600', { at: [0, 0.006, 0] }],
-        ['box', 0.055, 0.016, 0.05, 'ink.mid', { at: [0.01, 0.018, 0] }],
-        ...[-1, 1].map((s): Item => [
-          'box',
-          0.14,
-          0.01,
-          0.008,
-          'ink.high',
-          { at: [0, 0.013, s * 0.04] },
-        ]),
-        ...[0, 1, 2].map((i): Item => [
-          'box',
-          0.02,
-          0.008,
-          0.008,
-          'coral.base',
-          { at: [0.1, 0.013, (i - 1) * 0.022] },
-        ]),
-      ],
+      { at: [-0.795, 0.58, 0] },
     ],
   ],
 ];
@@ -801,7 +780,7 @@ export const NEAR: Readonly<Record<string, readonly PartRow[]>> = {
   'project/hackgt-13': hackgt,
   'project/hackathons-at-berkeley': berkeley,
   'project/cal-hacks-13': calHacks,
-  'project/model-rocketry': modelRocketry,
+  'project/model-rocketry': modelRocketryNear,
   'project/sports-analysis': sportsAnalysis,
   'project/kalshi': kalshi,
   'project/corgi': corgi,

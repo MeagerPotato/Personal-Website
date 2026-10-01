@@ -268,11 +268,9 @@ function capOf(id: string): number {
 
 /**
  * The worlds declared at their cap, though they reach further in the lane (design/worlds/reach.ts
- * says why), and what reaches there.
+ * says why), and what reaches there. None today.
  */
-const AT_CAP: Readonly<Record<string, string>> = {
-  'project/model-rocketry': 'its fins cross the lane obliquely',
-};
+const AT_CAP: Readonly<Record<string, string>> = {};
 
 const MEASURED = new Map(Object.keys(BODIES).map((id) => [id, measure(id)]));
 

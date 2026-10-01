@@ -129,71 +129,107 @@ const robotics: Rows = [
   ],
 ];
 
-/** Model Rocketry: the planet IS the rocket, standing on its nose (see near.ts for recovery). */
-const NOSE: readonly Vec2[] = [
-  [0, 0.34],
-  [0.26, 0.3],
-  [0.5, 0.21],
-  [0.72, 0.1],
-  [0.88, 0],
+/**
+ * Model Rocketry: the planet IS a model rocket, flying its orbit nose first with its flame behind
+ * (the recipe says `faces: 'prograde'`, `still: true`). The ground is a hull, not a ball: the
+ * airframe, a twelve-sided lathe built upright and laid down so that its nose points along +X,
+ * from the motor's bore to the tip of the nose, each band the colour at the same place in the list.
+ */
+const ROCKET: readonly Vec2[] = [
+  [-0.855, 0], // the bore: the dark disc at the nozzle's exit
+  [-0.855, 0.12], // the motor casing's rim...
+  [-0.795, 0.12], // ...and its wall
+  [-0.795, 0.22], // the tail plate, facing back
+  [-0.37, 0.22], // the fin can
+  [-0.35, 0.22], // a seam
+  [0.21, 0.22], // the tube
+  [0.73, 0.22], // the payload bay
+  [0.75, 0.22], // the shoulder of the nose
+  [0.879, 0.212], // the nose: a tangent ogive, 1.5 calibres long
+  [1.021, 0.185],
+  [1.176, 0.13],
+  [1.305, 0.063],
+  [1.395, 0],
 ];
 const modelRocketry: Rows = [
-  {
-    seed: 'model-rocketry',
-    biome: 'chalk',
-    recipe: 'flat',
-    up: 'vertex',
-    paint: [
-      ['grid', 2, 4, ['coral.base', 'ink.high'], 0.14, 0.42],
-      ['band', 0.42, 0.45, 'coral.shade'],
-    ],
-  },
-  // Nose cone on the north pole, stage coupler at its foot, four fins on the flanks.
   [
-    'nose-cone',
-    0,
     [
       'lathe',
-      NOSE,
-      8,
-      ['ink.high', 'coral.base', 'coral.base', 'coral.base'],
-      { at: [0, 0.94, 0] },
+      ROCKET,
+      12,
+      [
+        'space.800',
+        'ink.low',
+        'ink.mid',
+        'coral.base',
+        'coral.shade',
+        'ink.high',
+        'ink.mid',
+        'coral.shade',
+        'coral.base',
+        'coral.base',
+        'coral.base',
+        'coral.base',
+        'coral.base',
+      ],
+      Math.PI / 12,
+      { rot: [0, 0, -Math.PI / 2] },
     ],
-    ['cyl', 0.365, 0.935, 0.985, 8, 'ink.mid'],
   ],
+  // Four swept fins in a plus, on the fin can.
   [
     'fins',
     0,
     [
-      'around',
-      4,
-      rad(77) - Math.PI / 2,
-      0,
-      0,
-      1,
+      'g',
       [
-        'fin',
+        'around',
+        4,
+        0,
+        0,
+        0,
+        1,
         [
-          [0.94, 0.22],
-          [1.6, -0.36],
-          [1.6, -0.84],
-          [0.8, -0.55],
+          'fin',
+          [
+            [0.2, -0.35],
+            [0.58, -0.6],
+            [0.58, -0.795],
+            [0.2, -0.795],
+          ],
+          0.04,
+          'coral.base',
         ],
-        0.075,
-        'coral.base',
       ],
+      { rot: [0, 0, -Math.PI / 2] },
     ],
   ],
-  // The roll number: eleven design iterations, painted big on the belly like a real airframe.
+  // The roll number: eleven design iterations, painted on both flanks like a real airframe.
   [
     'roll-number',
     FLAG.decal,
+    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, 0.2165] }],
+    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, -0.2165], rot: [0, Math.PI, 0] }],
+  ],
+  // The motor's flame, a candy-corn cone that starts inside the casing: it glows (and blooms).
+  [
+    'flame',
+    FLAG.glow,
     [
-      's',
-      -12,
-      -32,
-      { alt: 0.012 },
-      ['pix', '11', 0.075, 'coral.base', { rot: [-Math.PI / 2, 0, 0] }],
+      'g',
+      [
+        'lathe',
+        [
+          [-0.04, 0.1],
+          [0.05, 0.155],
+          [0.2, 0.11],
+          [0.34, 0.06],
+          [0.5, 0],
+        ],
+        8,
+        ['star.warm', 'biome.dune.low', 'coral.base', 'coral.base'],
+      ],
+      { at: [-0.855, 0, 0], rot: [0, 0, Math.PI / 2] },
     ],
   ],
 ];
@@ -530,7 +566,7 @@ const fishOnline: Rows = [
 export const PROJECTS: Readonly<Record<string, BodyRecipe>> = {
   'system/hardware': { rows: hardware },
   'system/software': { rows: software },
-  'project/model-rocketry': { rows: modelRocketry },
+  'project/model-rocketry': { rows: modelRocketry, still: true, faces: 'prograde' },
   'project/robotics': { rows: robotics },
   'project/cyberpatriot': { rows: cyberpatriot },
   'project/canadian-fish-demo': { rows: canadianFish },

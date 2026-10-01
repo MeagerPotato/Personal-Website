@@ -70,6 +70,15 @@ describe('design/worlds/', () => {
     ).toEqual([]);
   });
 
+  it('lets a body face along its orbit only if it circles something and holds still', () => {
+    for (const [id, recipe] of Object.entries(BODIES)) {
+      if (recipe.faces === undefined) continue;
+      const body = real.bodies.find((candidate) => candidate.id === id);
+      expect(body?.parent, `${id} faces ${recipe.faces} but circles nothing`).toBeTruthy();
+      expect(recipe.still, `${id} faces ${recipe.faces}: it must be still`).toBe(true);
+    }
+  });
+
   it('knows which relays are waiting, and would notice a stranger', () => {
     expect([...waiting]).toEqual(ids.has('link/devpost') ? [] : ['link/devpost']);
     expect(orphansOf({ 'link/myspace': 1, 'project/gone': 1, 'page/about': 1 })).toEqual([

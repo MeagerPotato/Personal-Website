@@ -47,7 +47,11 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
     ['hand', 'rot', 'y', 'ramp', -TAU, 60],
     ['confetti', 'scale', '*', 'blip', 1, 60],
   ],
-  'project/model-rocketry': [['parachute', 'rot', 'z', 'sine', 0.08, 6]],
+  'project/model-rocketry': [
+    ['flame', 'pos', 'y', 'sine', 0.04, 6, 0, 0],
+    ['flame', 'glow', '', 'sine', 1, 3, 0, 0.25],
+    ['streamer', 'rot', 'z', 'sine', 0.22, 7],
+  ],
   'project/robotics': [['pose-cloud', 'scale', '*', 'hill', 1, 12, 0, 0.3]],
   'project/cyberpatriot': [['fix-tick', 'scale', '*', 'hill', 1, 20]],
   'project/canadian-fish-demo': [

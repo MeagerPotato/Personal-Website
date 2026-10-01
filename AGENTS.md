@@ -221,7 +221,11 @@ fails on a key that names no body. A new kind of thing a recipe can say is a log
 with rows is drawn by `world/BodyMesh.ts`: the everyday build as a job, the close-up
 (`design/worlds/near.ts` and `motion.ts`, a chunk of their own through `closeup.ts`) within
 `nearEnterRadii`, and its movers driven by the frame's exact time, so nothing of them is a snapshot
-field.
+field. A recipe may also say `still` (it never turns) and `faces: 'prograde'` (its own +X keeps
+pointing the way it goes round its parent, as Model Rocketry flies nose first round the Hardware
+sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
+is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
+on the low tier and on the star map.
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,

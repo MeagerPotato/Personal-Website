@@ -88,7 +88,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0384991d' },
   'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '73711e6b' },
   'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '596eb13a' },
-  'project/model-rocketry':         { everyday: 1776, closeup: 4910, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '404f4e55' },
+  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '501e1105' },
   'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f574d453' },
   'project/fish-onboarding':        { everyday: 462,  closeup: 600,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3602a756' },
 };

@@ -609,6 +609,12 @@ export class Galaxy implements System {
         view.outward = this.orbits.parent[index] ?? -1;
         view.outwardYaw = body.kind === 'satellite' ? Math.PI / 2 : 0;
       }
+      // A rocket that flies its orbit nose first: its +X along the way it is going, which is a
+      // quarter turn on from pointing away from what it circles (as the satellite's +Z points out).
+      if (shape.world.faces === 'prograde') {
+        view.outward = this.orbits.parent[index] ?? -1;
+        view.outwardYaw = Math.PI / 2;
+      }
       return view;
     }
 

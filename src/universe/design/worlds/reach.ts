@@ -16,12 +16,11 @@
  * So does a planned project that is built (its maquette grows to full size) and, in data/build.ts,
  * a body whose kind or size content changes: the room under its ring is its own.
  *
- * One world reaches further in that lane than its docking ring leaves room for (the cushion must
- * fit under the ring: (dockRadius - cushion depth) / radius) and is declared AT that cap: Model
- * Rocketry's fins cross the lane obliquely (1.53 radii at its edges, 1.33 within 1 u of the
- * ship's plane). Where the ship flies (1 u either side of its plane) they reach nowhere near its
- * nose, which the shell keeps at the declared surface at the closest; the test checks that
- * instead and names it, so a change that brings it inside its cap, or takes another out, is seen.
+ * A world that reaches further in that lane than its docking ring leaves room for (the cushion
+ * must fit under the ring: (dockRadius - cushion depth) / radius) is declared AT that cap and
+ * named in AT_CAP (tests/world-reach.test.ts), which then checks that none of it reaches where
+ * the ship can be. None is today: Model Rocketry was one (its fins crossed the lane obliquely)
+ * until it became a rocket that flies nose first, whose farthest point is its nose, 1.395 radii.
  */
 export const REACH: Readonly<Record<string, number>> = {
   'page/about': 1.57,

@@ -199,6 +199,14 @@ export interface BodyRecipe {
   /** It never turns, not even with the planet's slow spin (the Kalshi coin rocks instead). */
   readonly still?: boolean;
   /**
+   * Which way its own +X keeps pointing as it circles its parent: `'prograde'` is along its orbit,
+   * the way it is going (counter-clockwise seen from above), as a rocket flies nose first. It
+   * follows the orbit whatever the visitor's motion setting, as a relay's arrow follows its ring:
+   * that is where the body IS, not an ornament. Needs a parent, and `still`: a body that turned
+   * on its own axis would turn its nose away.
+   */
+  readonly faces?: 'prograde';
+  /**
    * The family its ghost parts (FLAG.ghost) are drawn in: their edge lines take its base colour
    * (vocabulary.md, section 6), over a navy blueprint fill. The family the body WILL wear, as
    * its paint chip shows it. A body with ghost parts must name one; `makeBody` says so.

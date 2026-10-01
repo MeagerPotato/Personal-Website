@@ -144,6 +144,32 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
+  it('flies Model Rocketry nose first: its +x is the way it goes round its sun, at any time', () => {
+    for (const reducedMotion of [false, true]) {
+      const { galaxy, node, world, finish } = setup({ reducedMotion });
+      finish();
+      const rocket = real.bodies.find((body) => body.id === 'project/model-rocketry');
+      if (!rocket) throw new Error('the real galaxy has Model Rocketry');
+      const round = (t: number): Vector3 => {
+        galaxy.frameUpdate(frame(t));
+        return node(rocket.id)
+          .position.clone()
+          .sub(node(rocket.parent ?? '').position);
+      };
+      for (const t of [0, 37, 400, 2235]) {
+        const here = round(t);
+        const nose = new Vector3(1, 0, 0).applyEuler(world(rocket.id).rotation);
+        const going = round(t + 0.01)
+          .sub(here)
+          .normalize();
+        expect(nose.distanceTo(going), `at ${t}, reduced motion ${reducedMotion}`).toBeLessThan(
+          1e-3,
+        );
+      }
+      galaxy.dispose();
+    }
+  });
+
   it('sends the Contact satellite’s mail away from home, toward the edge of the map', () => {
     const { galaxy, node, world, finish } = setup();
     finish();
