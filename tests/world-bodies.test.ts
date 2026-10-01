@@ -73,7 +73,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0adc41b2' },
   'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4c9b505e' },
   'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4da94c42' },
-  'system/hardware':                { everyday: 1316, closeup: 1388, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: 'e4e9d8b7' },
+  'system/hardware':                { everyday: 2084, closeup: 2156, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: 'c63e8f97' },
   'system/software':                { everyday: 552,  closeup: 552,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '5f3841ab' },
   'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b9de84be' },
   'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f5048eb4' },
@@ -88,7 +88,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0384991d' },
   'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '73711e6b' },
   'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '596eb13a' },
-  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '501e1105' },
+  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '03d5ef85' },
   'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f574d453' },
   'project/fish-onboarding':        { everyday: 462,  closeup: 600,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3602a756' },
 };

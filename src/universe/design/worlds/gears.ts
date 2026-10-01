@@ -17,6 +17,17 @@ const W_PITCH = 0.41 * TOOTH_PITCH; // tooth width at the pitch circle (leaves 0
 const W_TIP = 0.3 * TOOTH_PITCH;
 export const CORE = 0.94; // the frame ball under the gears
 
+/**
+ * A point of a gear's own frame (the ball's centre is one radius under the apex), pulled straight
+ * toward the centre until it is inside the frame ball: SUNK from the centre, under the lowest
+ * point of the frame's facets.
+ */
+export const SUNK = CORE - 0.06;
+function sunk([x, y, z]: Vec3): Vec3 {
+  const k = SUNK / Math.hypot(x, y + 1, z);
+  return [x * k, (y + 1) * k - 1, z * k];
+}
+
 // --- one gear, in its own frame: apex at the origin, +Y outward, a shallow cone going down -------------
 function gear(kind: Kind): Item {
   const z = Z[kind];
@@ -48,6 +59,16 @@ function gear(kind: Kind): Item {
   outline.forEach((p, i) =>
     out.push(['tri', [0, 0, 0], p, outline[(i + 1) % outline.length] ?? p, face, [0, 1, 0]]),
   );
+  // the plate's thickness: under every edge of the outline a wall straight down (toward the ball's
+  // centre) into the frame, a step darker than the face. Without it a gear near the limb is a
+  // sheet of paper seen edge-on, with sky between its teeth and the ball; with it, it is a slab.
+  // Straight down, so the walls of two meshing gears can no more cross than their plates can.
+  const wall = kind === 'big' ? 'coral.base' : 'coral.shade';
+  outline.forEach((p, i) => {
+    const q = outline[(i + 1) % outline.length] ?? p;
+    const outward: Vec3 = [q[2] - p[2], 0, p[0] - q[0]];
+    out.push(['quad', p, q, sunk(q), sunk(p), wall, outward]);
+  });
   // a ring of paint on the web of the big cogs, then a hub and an axle: each ring is invariant under
   // one click of its own gear, so the picture after any number of clicks is exactly the still
   if (kind === 'big') {

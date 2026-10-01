@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../src/universe/design/tuning';
 import { BODIES } from '../src/universe/design/worlds/bodies';
-import { GEARS, Z } from '../src/universe/design/worlds/gears';
+import { GEARS, SUNK, Z } from '../src/universe/design/worlds/gears';
 import { MOTION } from '../src/universe/design/worlds/motion';
 import { TAU } from '../src/universe/sim/math';
 import { groundDetail } from '../src/universe/sim/world/glue';
-import { cross, dot, norm, type Vec3 } from '../src/universe/sim/world/kit';
+import { add, cross, dot, norm, scale, sub, type Vec3 } from '../src/universe/sim/world/kit';
 import { fromPivot, make, toPivot, type BuiltPart } from '../src/universe/sim/world/rows';
 
 // THE HARDWARE SUN IS A MACHINE, AND IT MUST NOT JAM. Fourteen gears cover the ball (six cogs on
@@ -195,6 +195,46 @@ describe('the Hardware sun: a ball of gears that mesh', () => {
       toothPhase(cog, touch, cog.click * 0.25) + toothPhase(pinion, touch, -pinion.click * 0.25);
     expect(Math.abs(sum - 0.5 - Math.round(sum - 0.5))).toBeGreaterThan(0.4);
     expect(overlap(cog, { ...pinion, click: -pinion.click }, 0.25)).toBeGreaterThan(1e-3);
+  });
+
+  it('gives every plate a wall into the frame under each edge: no gear is paper at the limb', () => {
+    type Flat = (typeof build.ground)[number];
+    const corner = (tri: Flat, k: number): Vec3 => [
+      tri.p[k * 3] ?? 0,
+      tri.p[k * 3 + 1] ?? 0,
+      tri.p[k * 3 + 2] ?? 0,
+    ];
+    const normal = (tri: Flat): Vec3 =>
+      cross(sub(corner(tri, 1), corner(tri, 0)), sub(corner(tri, 2), corner(tri, 0)));
+    // The frame's facets, at their lowest (the foot of the perpendicular from the centre, which
+    // is inside a facet of a ball), still cover the foot of every wall.
+    const lowest = build.ground.reduce(
+      (low, tri) => Math.min(low, Math.abs(dot(norm(normal(tri)), corner(tri, 0)))),
+      Infinity,
+    );
+    expect(lowest).toBeGreaterThan(SUNK + 0.005);
+    for (const gear of gears) {
+      const edges = 4 * gear.teeth;
+      // after the plate's fan, two triangles of wall for each of its edges, in the same order
+      const walls = gear.part.tris.slice(edges, 3 * edges);
+      expect(walls).toHaveLength(2 * edges);
+      gear.part.tris.slice(0, edges).forEach((tri, i) => {
+        // the plate's outer edge (its second and third corners, whichever way it was wound) is
+        // the top of wall i, and that wall's foot is at SUNK
+        const top = [corner(tri, 1), corner(tri, 2)] as const;
+        const pair = walls.slice(2 * i, 2 * i + 2);
+        const points = pair.flatMap((wall) => [0, 1, 2].map((k) => corner(wall, k)));
+        for (const point of top) {
+          expect(points.some((q) => Math.hypot(...sub(q, point)) < 1e-9)).toBe(true);
+        }
+        expect(Math.min(...points.map((q) => Math.hypot(...q)))).toBeCloseTo(SUNK, 9);
+        // and it faces out of the slab: away from the side of the edge its gear's apex is on
+        const mid = scale(add(top[0], top[1]), 0.5);
+        for (const wall of pair) {
+          expect(dot(normal(wall), sub(gear.axis, mid)), `${gear.name} wall ${i}`).toBeLessThan(0);
+        }
+      });
+    }
   });
 
   it('never puts one plate over its neighbour’s', () => {

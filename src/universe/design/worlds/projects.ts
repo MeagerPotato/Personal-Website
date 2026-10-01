@@ -227,7 +227,7 @@ const modelRocketry: Rows = [
           [0.5, 0],
         ],
         8,
-        ['star.warm', 'biome.dune.low', 'coral.base', 'coral.base'],
+        ['star.warm', 'star.warm', 'biome.dune.low', 'coral.light'],
       ],
       { at: [-0.855, 0, 0], rot: [0, 0, Math.PI / 2] },
     ],
