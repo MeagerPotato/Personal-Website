@@ -2415,6 +2415,15 @@ main > .resume-name + .resume-contact {
     scale: var(--theme-glyph-scale);
   }
 
+  /* On a narrow star map a system's own tag goes without: it is told from the rest by its capitals,
+     the sun beside it wears the family's colour, and the 13 px are what lets the names of systems
+     that stand close together all show (tests/map-names/ reckons its widths so). */
+  @media (max-width: 29.99rem) {
+    html[data-map] .body-label[data-theme]:is([data-kind='sun'], [data-kind='home'])::before {
+      content: none;
+    }
+  }
+
   /* A link leaves the site (a profile elsewhere): an arrow pointing out, after the name, in the
      name's own ink. In the flow, so that the engine measures the name with it; centred on the
      line whichever side of its body the tag is on. Drawn by clip-path: no icon font, no image. A

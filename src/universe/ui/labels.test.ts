@@ -734,6 +734,55 @@ describe('Labels', () => {
     expect(drawn(fresh.button('FishAI'))).toMatchObject({ x: 800 - 40 - 2 - 66, y: 400 - 22 });
   });
 
+  it('on the map, names a system off a corner of its body where it has room nowhere else, and only a system', () => {
+    drawnTags();
+    // The home planet (59 px wide, 30 px in radius) near the left edge of the view: something
+    // that can be pressed stands over it, top to bottom (no room below it or above, centred or
+    // slid along it), and the ship is level with it on the right (none beside it). Off its two
+    // corners on the right, towards the middle of the view, there is room.
+    const squeezed = (row: number) => {
+      const made = setup(SPREAD);
+      made.state.onMap = true;
+      made.screen.x[row] = 60;
+      made.screen.y[row] = 300;
+      made.screen.radius[row] = 30;
+      made.state.prompt = { left: 45, top: 200, width: 30, height: 200 };
+      made.state.ship = { left: 100, top: 290, width: 60, height: 20 };
+      made.labels.frameUpdate(tick());
+      return made;
+    };
+    const { labels, state, button, shown } = squeezed(3);
+    cleanup = () => labels.dispose();
+    expect(shown()).toContain('About');
+    // Below it, as any name below its body is drawn, the corner of its box 2 px off the disc on
+    // the diagonal: 32 px from the planet's centre, 22.6 right and 22.6 down.
+    const off = Math.round(32 * Math.SQRT1_2 * 10) / 10;
+    expect(button('About').dataset.side).toBeUndefined();
+    expect(drawn(button('About')).x).toBeCloseTo(60 + off, 5);
+    expect(drawn(button('About')).y).toBeCloseTo(300 + off, 5);
+    expect(drawn(button('About')).body).toEqual({ x: 60, y: 300 });
+    // Its tag is a gap clear of the ship, and of what can be pressed.
+    const tag = tagOf(button('About'), 26, 0);
+    expect(apart(tag, state.ship as ScreenBox)).toBeGreaterThanOrEqual(PARAMS.gapPx);
+    expect(apart(tag, state.prompt as ScreenBox)).toBeGreaterThanOrEqual(PARAMS.gapPx);
+
+    // The ship longer, level with that corner too: the corner above, the tag at the bottom of its
+    // box (its place is gone, so it moves at once, young or not).
+    state.ship = { left: 100, top: 300, width: 60, height: 40 };
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('About');
+    expect(button('About').dataset.side).toBe('above');
+    expect(drawn(button('About')).x).toBeCloseTo(60 + off, 5);
+    expect(drawn(button('About')).y).toBeCloseTo(300 - off - 44, 5);
+
+    // A planet in the same squeeze has no such place: its name off a corner would read as a
+    // neighbour's too often (tests/map-names/), and it waits.
+    const planet = squeezed(1);
+    labels.dispose();
+    cleanup = () => planet.labels.dispose();
+    expect(planet.shown()).not.toContain('FishAI');
+  });
+
   it('on the map, with room on both sides of a body and nowhere else, names it on the side towards the middle', () => {
     const { labels, state, button, shown } = setup(SPREAD);
     cleanup = () => labels.dispose();

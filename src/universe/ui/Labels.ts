@@ -80,7 +80,8 @@ export interface LabelsOptions {
    * there a name has more than one place: ABOVE its body, where it has no room below (the panel,
    * an edge) or the ship is in its way there; BESIDE it, like a station's name on a transit map;
    * or slid along it, away from a screen edge it would cross, as long as its body stays over its
-   * tag. Where one place is taken it takes another, and names make way for each other where they
+   * tag; and a system's name also off a CORNER of its body, on the side towards the middle of the
+   * view. Where one place is taken it takes another, and names make way for each other where they
    * can (sim/declutter.ts), and a name that has just changed lets that stand a while
    * (`dwellSec`). In flight everything drifts, and a name that hopped round its body would only
    * distract: one place, under it. So too on the way up to the map (its 0.9 s blend), while the
@@ -103,11 +104,26 @@ const SIDE_NAMES = [undefined, 'above', 'right', 'left'] as const;
  * How many places a name has on the map (`onMap`). The first is centred on the side `sideOf`
  * chooses, below or above; then the other of the two, centred; then beside the body, the side
  * towards the middle of the view first; then below and above again, slid along the body, the
- * way away from the nearer screen edge first (the body over the round end of the tag).
+ * way away from the nearer screen edge first (the body over the round end of the tag); and, for
+ * a system's name alone, off the two CORNERS of its body that are towards the middle of the view
+ * (`corner`), below it and above it.
+ *
+ * The corners came with the emblem worlds (2026-10-01), when every tag grew wider by its family's
+ * glyph and the gap after it, 13 px: on a 360 px phone's first view that left Hardware's name no
+ * place but on Software's sun whenever the home planet's, kept from below its planet by the ship,
+ * stood beside it instead (tests/map-names/). Off a corner, the home planet's name
+ * clears the row its neighbour needs. Only a system's name: a planet's or a moon's off a corner
+ * reads as its neighbour's too often (a laptop's first view, tags level with another body a look:
+ * 0.56, and 1.76 with corners for every name). Only the two towards the middle: the other two
+ * changed no count, and every place makes the systems' search dearer (sim/declutter.ts,
+ * `TOGETHER_TRIES`).
  */
-const PLACES = 8;
-/** Which way a tag reaches along its body: centred, or all to one side of it. */
-type Reach = -1 | 0 | 1;
+const PLACES = 10;
+/**
+ * Which way a tag reaches along its body: centred (0), all to one side of it with the body over
+ * its round end (1: to the right), or past the body altogether, off its corner (2).
+ */
+type Reach = -2 | -1 | 0 | 1 | 2;
 /** Far below anything anyone can see (CSS px), and far above a double's rounding. */
 const HAIR_PX = 1e-3;
 /**
@@ -624,7 +640,7 @@ export class Labels implements System {
     if (onMap) {
       // Its other places: the other side, beside the body, then above and below with the tag
       // reaching all one way along the body. Towards the middle of the view first: away from
-      // the nearer screen edge.
+      // the nearer screen edge. Last, a system's name off the two corners of its body that way.
       const inward: Reach = x < middleX ? 1 : -1;
       const other = side === ABOVE ? BELOW : ABOVE;
       const { spot } = this;
@@ -644,6 +660,10 @@ export class Labels implements System {
       offered += this.offer(row, 5, side, -inward as Reach);
       offered += this.offer(row, 6, other, inward);
       offered += this.offer(row, 7, other, -inward as Reach);
+      if (RANK[bodies[row]?.kind ?? 'moon'] === RANK.sun) {
+        offered += this.corner(row, 8, side, inward);
+        offered += this.corner(row, 9, other, inward);
+      }
       // What each of them would lie on: declutter takes a place that lies on another body only
       // where the name has none that lies on less (sim/declutter.ts, `covers`). A sun or the
       // home planet, the landmarks the map is read by, is no place at all for a planet's name
@@ -773,6 +793,34 @@ export class Labels implements System {
         return 0;
       }
     }
+    this.boxes.left[place] = left;
+    this.boxes.top[place] = top;
+    return 1;
+  }
+
+  /**
+   * Offer place `index` of a name on the map: off a CORNER of its body, the tag below it or above
+   * (`side`, drawn as any tag on that side is) and wholly to one side of it (`way` 1: to the
+   * right), the corner of its box nearest the body `offsetPx` off the disc on the diagonal. Only
+   * where the ship is a gap clear of the tag, as beside the body, and the place wholly in the free
+   * view, with room to spare unless the name is there already (`slackAt`). 1 if it is a place,
+   * else 0, and the place is left out (NaN). `spot` says where the name and its body are.
+   */
+  private corner(row: number, index: number, side: number, way: -1 | 1): number {
+    const place = row * PLACES + index;
+    const reach = (2 * way) as Reach;
+    this.placeSide[place] = side;
+    this.placeReach[place] = reach;
+    const { x, y, radius, width, tag, ship } = this.spot;
+    const { gapPx, offsetPx } = this.options.params;
+    const height = this.heights[row] ?? 0;
+    const slack = this.slackAt(row, side, reach);
+    const off = (radius + offsetPx) * Math.SQRT1_2;
+    const left = way > 0 ? x + off : x - off - width;
+    const top = side === ABOVE ? y - off - height : y + off;
+    const tagTop = side === ABOVE ? top + height - tag : top;
+    if (ship && glidePast(left, tagTop, width, tag, ship, gapPx, 1) > 0) return 0;
+    if (!this.fits(row, left, width, top, slack, slack)) return 0;
     this.boxes.left[place] = left;
     this.boxes.top[place] = top;
     return 1;

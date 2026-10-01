@@ -219,7 +219,11 @@ export class Galaxy implements System {
       count: this.orbits.count,
       parent: this.orbits.parent,
       orbitRadius: this.orbits.radius,
-      radius: this.orbits.ids.map((id) => byId.get(id)?.radius ?? 0),
+      // A body's whole solid extent (an emblem world's rings and signs with it), the very radius
+      // the names and the pointer measure (sim/surroundings.ts): the smallest size on the map is
+      // the size of everything that is drawn, so a sun with a long reach is no bigger than one
+      // that is all ball.
+      radius: this.orbits.ids.map((id) => solidOf(byId.get(id))),
       minRadiusPx: new Float64Array(this.orbits.count),
     };
 
@@ -679,6 +683,10 @@ export class Galaxy implements System {
   }
 }
 
+/** How far out a body is solid: its ball, or as far as its emblem world is drawn (the manifest). */
+function solidOf(body: ManifestBody | undefined): number {
+  return body?.solidRadius ?? body?.radius ?? 0;
+}
 function unitCircle(segments: number): BufferGeometry {
   const points = new Float32Array(segments * 3);
   for (let i = 0; i < segments; i += 1) {

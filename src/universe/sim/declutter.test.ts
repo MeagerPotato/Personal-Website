@@ -570,6 +570,119 @@ describe('declutter, with places', () => {
     }
   });
 
+  it('together, sets the group closer than a gap apart before one is left out or lies on a sun', () => {
+    // Two systems' names, neither showing yet. B's place that lies on nothing is 2 px from A:
+    // closer than names go by themselves (the gap, 4), but not so close that one of two that
+    // show would have to give way (a keep closer: they may overlap by 2). Its other place lies
+    // right on a sun. One by one, B takes the sun.
+    const rows: Placed[] = [
+      [
+        80,
+        40,
+        1,
+        [
+          [0, 0],
+          [Number.NaN, Number.NaN],
+        ],
+      ],
+      [
+        80,
+        40,
+        2,
+        [
+          [300, 0],
+          [82, 0],
+        ],
+      ],
+    ];
+    const alone = placesOf(rows, 2);
+    alone.covers.set([0, 0, 3, 0]);
+    declutter(alone, PARAMS);
+    expect(where(alone), 'placed one by one').toEqual([0, 0]);
+    // Together, B stands beside A at once: where the two would end up anyhow, once B was allowed
+    // to move again and A, showing by then, was held to the keep alone.
+    const together = placesOf(rows, 2);
+    together.covers.set([0, 0, 3, 0]);
+    declutter(together, PARAMS, undefined, TOGETHER_5);
+    expect(where(together)).toEqual([0, 1]);
+    declutter(together, PARAMS, undefined, TOGETHER_5);
+    expect(where(together), 'and it holds').toEqual([0, 1]);
+
+    // The same where B's only other choice is not to show at all.
+    const only: Placed[] = [
+      rows[0] as Placed,
+      [
+        80,
+        40,
+        2,
+        [
+          [Number.NaN, Number.NaN],
+          [82, 0],
+        ],
+      ],
+    ];
+    const missing = placesOf(only, 2);
+    declutter(missing, PARAMS);
+    expect(where(missing), 'placed one by one').toEqual([0, null]);
+    const shows = placesOf(only, 2);
+    declutter(shows, PARAMS, undefined, TOGETHER_5);
+    expect(where(shows)).toEqual([0, 1]);
+
+    // Not closer than the keep: 3 px into each other, B stays on the sun.
+    const far: Placed[] = [
+      rows[0] as Placed,
+      [
+        80,
+        40,
+        2,
+        [
+          [300, 0],
+          [77, 0],
+        ],
+      ],
+    ];
+    const apart = placesOf(far, 2);
+    apart.covers.set([0, 0, 3, 0]);
+    declutter(apart, PARAMS, undefined, TOGETHER_5);
+    expect(where(apart)).toEqual([0, 0]);
+  });
+
+  it('together, spends no try on a place that could do no better than the best way found', () => {
+    // Two systems' names, both showing: A where it lies on nothing, B a gap off a sun, its only
+    // place. No way does better, and the search looks at every way to know it. Give each a place
+    // more, RIGHT ON a sun: a way through either is worse than what shows, whatever the rest
+    // does, so neither is held up against anything, and the search costs what it cost without.
+    const tries = (extra: boolean): number => {
+      const rows: Placed[] = [
+        [
+          80,
+          40,
+          1,
+          extra
+            ? [
+                [0, 0],
+                [0, 200],
+                [0, 400],
+              ]
+            : [
+                [0, 0],
+                [0, 200],
+              ],
+        ],
+        [80, 40, 2, extra ? [[300, 0], null, [300, 400]] : [[300, 0]]],
+      ];
+      const boxes = placesOf(rows, extra ? 3 : 2);
+      boxes.covers.set(extra ? [0, 0, 3, 2, 0, 3] : [0, 0, 2, 0]);
+      shows(boxes, [0, 0]);
+      declutter(boxes, PARAMS, undefined, TOGETHER_5);
+      expect(where(boxes), extra ? 'with a place right on a sun' : 'without').toEqual([0, 0]);
+      return boxes.tally[0] ?? 0;
+    };
+    const without = tries(false);
+    expect(without).toBeGreaterThan(0);
+    expect(tries(true)).toBe(without);
+  });
+
   it('together, tries some 4,000 places a call at most, and after a search that found nothing rests', () => {
     // Nine systems' names, eight places each, in five slots that hold one name each: every way of
     // placing them shows five. The greedy pass shows five, and the search cannot do better.
@@ -856,6 +969,63 @@ describe('declutter, young labels', () => {
     boxes.young[0] = 0;
     declutter(boxes, PARAMS);
     expect(where(boxes)).toEqual([0]);
+  });
+
+  it('keeps the place a hidden young label would take from a lesser one that waits to show', () => {
+    // A was hidden a moment ago and is young; B, less important, was hidden two frames before it
+    // and no longer is. B's first place is where A would show: taken now, B would show there for
+    // the two frames until A may, and then have to go. It takes its other place instead...
+    const pair: Placed[] = [
+      [80, 40, 1, [[0, 0]]],
+      [
+        80,
+        40,
+        2,
+        [
+          [20, 10],
+          [20, 200],
+        ],
+      ],
+    ];
+    const boxes = placesOf(pair, 2);
+    shows(boxes, [null, null], [0]);
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([null, 1]);
+    // ...and A comes where it was kept room, and B stays.
+    boxes.young[0] = 0;
+    declutter(boxes, PARAMS);
+    expect(where(boxes)).toEqual([0, 1]);
+
+    // With no other place, B waits for A rather than show for a moment...
+    const only = placesOf([pair[0] as Placed, [80, 40, 2, [[20, 10]]]], 1);
+    shows(only, [null, null], [0]);
+    declutter(only, PARAMS);
+    expect(where(only)).toEqual([null, null]);
+    only.young[0] = 0;
+    declutter(only, PARAMS);
+    expect(where(only)).toEqual([0, null]);
+
+    // ...but one that shows there already keeps its place until A does come: nothing is hidden
+    // for a label that is not there yet.
+    const there = placesOf(pair, 2);
+    shows(there, [null, 0], [0]);
+    declutter(there, PARAMS);
+    expect(where(there)).toEqual([null, 0]);
+
+    // And a hidden young label with no room anywhere keeps none: B is free to show.
+    const taken = createTakenBoxes(1);
+    taken.count = 1;
+    Object.assign(taken.boxes[0] ?? {}, { left: 0, top: 0, width: 10, height: 10 });
+    const none = placesOf(
+      [
+        [80, 40, 1, [[0, 0]]],
+        [80, 40, 2, [[20, 10]]],
+      ],
+      1,
+    );
+    shows(none, [null, null], [0]);
+    declutter(none, PARAMS, taken);
+    expect(where(none)).toEqual([null, 0]);
   });
 
   it('does not send a young label back to its first place, and does once it is not', () => {

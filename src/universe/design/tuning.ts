@@ -499,7 +499,10 @@ export const tuning = {
     starOpacity: 0.3,
     /**
      * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
-     * pixels per hundred units, and a planet at its true size would be a speck.
+     * pixels per hundred units, and a planet at its true size would be a speck. The size of ALL
+     * that is drawn of it (an emblem world's rays, rings and signs with its ball: its solid
+     * extent), which is also the disc its name keeps off and the pointer finds: a sun with a long
+     * reach is no bigger than one that is all ball, its ball smaller in proportion.
      */
     minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4, link: 3.5 },
     /**
