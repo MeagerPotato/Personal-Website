@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { readRealInput } from '../scripts/journeys/galaxies';
 import { buildUniverse } from '../src/universe/data/build';
 import type { BodyKind, ManifestBody } from '../src/universe/data/types';
+import { buildRocket } from '../src/universe/design/models/rocket';
 import { tuning } from '../src/universe/design/tuning';
 import { BODIES } from '../src/universe/design/worlds/bodies';
 import { MOTION } from '../src/universe/design/worlds/motion';
@@ -17,20 +18,31 @@ import { FLAG, make, type Build, type Pivot } from '../src/universe/sim/world/ro
 // and an emblem world stands out past its radius there: a sign on a mast, a ring, a crane. The
 // collision field (sim/surroundings.ts) takes each body's declared reach (design/worlds/reach.ts)
 // as its surface, so the ship cannot fly into what is drawn. This measures, headless, the solid
-// triangles of every world in the LANE (|y| < 0.3 radii: the ship's own size and a margin)
-// everywhere they are ever drawn: far and near, at rest and at every moment of every motion,
-// planned work at its maquette's scale; ghost parts (planned work still to come, a blueprint) are
-// not solid and are left out. What is measured must be inside what is declared, and what is
-// declared must leave the cushion room under the docking ring: (dockRadius - cushion depth) /
-// radius, or the cushion would push a ship off its ring.
+// triangles of every world in the LANE (|y| < 0.3 radii: the ship's own size and a margin; on a
+// body so small that this is less than the ship's own band, the band) everywhere they are ever
+// drawn: far and near, at rest and at every moment of every motion (at the frame cadence, and
+// just before every period ends, where a slide that starts over is furthest out), planned work at
+// its maquette's scale; ghost parts (planned work still to come, a blueprint) are not solid and
+// are left out. What is measured must be inside what is declared, and what is declared must leave
+// the cushion room under the docking ring: (dockRadius - cushion depth) / radius, or the cushion
+// would push a ship off its ring.
 
 const LANE = 0.3;
-/** A motion is sampled this often (s) over its longest period. */
-const SAMPLE_SEC = 0.25;
+/** The ship's own band: 1 u either side of the plane it flies in (it is 2 u long, and banks). */
+const SHIP_BAND_U = 1;
+/** A motion is sampled this often (s): a frame at 120 Hz... */
+const SAMPLE_SEC = 1 / 120;
+/** ...and this long (s) before each of its periods ends. */
+const BEFORE_END_SEC = 1e-6;
 const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+/** How far the rocket's nose is ahead of its centre, u: what of it meets a part first. */
+const NOSE_U = Math.max(...buildRocket().mesh.positions.filter((_, index) => index % 3 === 2));
 
 const real = buildUniverse(readRealInput(true));
 const relay = real.bodies.find((body) => body.kind === 'link');
+
+/** The lane, in radii of a body of `radius` u: 0.3 radii, or the ship's own band where wider. */
+const laneOfBody = (radius: number): number => Math.max(LANE, SHIP_BAND_U / radius);
 
 /** A body of the real galaxy (a relay still waiting for its URL is sized as the others are). */
 function bodyOf(id: string): ManifestBody {
@@ -40,8 +52,17 @@ function bodyOf(id: string): ManifestBody {
   throw new Error(`${id} is no body of the real galaxy`);
 }
 
-/** How far out (in radii of the rows) a triangle reaches within the lane, or 0 if it misses it. */
-function laneReachOf(p: readonly number[], share: number, lane: number): number {
+/**
+ * How far out (in radii of the rows) a triangle reaches within the lane, or 0 if it misses it. A
+ * triangle that reaches no further than `beyond` anywhere is not clipped at all: on a segment, the
+ * point furthest from an axis is one of its ends.
+ */
+function laneReachOf(p: readonly number[], share: number, lane: number, beyond: number): number {
+  let most = 0;
+  for (let v = 0; v < 3; v += 1) {
+    most = Math.max(most, Math.hypot(p[v * 3] ?? NaN, p[v * 3 + 2] ?? NaN) * share);
+  }
+  if (!(most > beyond)) return 0;
   // Sutherland-Hodgman against y <= lane, then y >= -lane.
   let poly: Vector3[] = [0, 1, 2].map((v) =>
     new Vector3(p[v * 3] ?? NaN, p[v * 3 + 1] ?? NaN, p[v * 3 + 2] ?? NaN).multiplyScalar(share),
@@ -94,6 +115,32 @@ function moverAt(rows: readonly MotionRow[], time: number): Matrix4 | null {
   return new Matrix4().compose(position, new Quaternion().setFromEuler(rotation), scale);
 }
 
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/**
+ * When to look at a part that `rows` move: every SAMPLE_SEC until they all start over together
+ * (the least common multiple of their periods), and just before each of their periods ends.
+ */
+function momentsOf(rows: readonly MotionRow[]): number[] {
+  const quarters = rows.map((row) => {
+    const period = row[5];
+    if (!Number.isInteger(period * 4)) throw new Error(`${row[0]}: a period of ${period} s`);
+    return period * 4;
+  });
+  const together = quarters.reduce((a, b) => (a * b) / gcd(a, b), 1) / 4;
+  const moments: number[] = [];
+  for (let k = 0; k * SAMPLE_SEC <= together; k += 1) moments.push(k * SAMPLE_SEC);
+  for (const row of rows) {
+    const [, , , , , period, phase = 0] = row;
+    for (let k = 1; ; k += 1) {
+      const end = (k - (phase - Math.floor(phase))) * period;
+      if (end > together + 1e-9) break;
+      if (end > 0) moments.push(end - BEFORE_END_SEC);
+    }
+  }
+  return moments;
+}
+
 interface Reach {
   /** The worst reach in the lane anywhere, in the body's radii. */
   readonly worst: number;
@@ -111,7 +158,7 @@ function solidParts(build: Build): Map<string, (readonly number[])[]> {
   return parts;
 }
 
-function measure(id: string, laneOf: (radius: number) => number = () => LANE): Reach {
+function measure(id: string, laneOf: (radius: number) => number = laneOfBody): Reach {
   const recipe = BODIES[id];
   if (!recipe) throw new Error(`no rows for ${id}`);
   const body = bodyOf(id);
@@ -131,18 +178,24 @@ function measure(id: string, laneOf: (radius: number) => number = () => LANE): R
   const absent = absentAtRest(motion);
   let worst = 0;
   let by = '';
-  const see = (tris: Iterable<readonly number[]>, name: string, at = new Matrix4()): void => {
-    const v = new Vector3();
+  const moved = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const v = new Vector3();
+  const see = (tris: Iterable<readonly number[]>, name: () => string, at?: Matrix4): void => {
     for (const p of tris) {
-      const moved: number[] = [];
-      for (let k = 0; k < 3; k += 1) {
-        v.set(p[k * 3] ?? NaN, p[k * 3 + 1] ?? NaN, p[k * 3 + 2] ?? NaN).applyMatrix4(at);
-        moved.push(v.x, v.y, v.z);
+      let points: readonly number[] = p;
+      if (at) {
+        for (let k = 0; k < 3; k += 1) {
+          v.set(p[k * 3] ?? NaN, p[k * 3 + 1] ?? NaN, p[k * 3 + 2] ?? NaN).applyMatrix4(at);
+          moved[k * 3] = v.x;
+          moved[k * 3 + 1] = v.y;
+          moved[k * 3 + 2] = v.z;
+        }
+        points = moved;
       }
-      const reach = laneReachOf(moved, share, lane);
+      const reach = laneReachOf(points, share, lane, worst);
       if (reach > worst) {
         worst = reach;
-        by = name;
+        by = name();
       }
     }
   };
@@ -150,11 +203,13 @@ function measure(id: string, laneOf: (radius: number) => number = () => LANE): R
   // At rest, far and near: everything but what only exists while it plays.
   for (const build of [far, near]) {
     for (const [name, tris] of solidParts(build))
-      if (!absent.has(name)) see(tris, name || 'ground');
+      if (!absent.has(name)) see(tris, () => name || 'ground');
   }
 
   // Moving, near by (and far off under reduced motion and on the low tier it is the still, above).
-  if (motion.length > 0) {
+  // A glow moves nothing.
+  const moving = motion.filter(([, target]) => target !== 'glow');
+  if (moving.length > 0) {
     const { movers } = assemble(near, {
       kind,
       still: recipe.still ?? false,
@@ -164,43 +219,41 @@ function measure(id: string, laneOf: (radius: number) => number = () => LANE): R
     });
     const parts = solidParts(near);
     const whole = movers[0]?.name === '*' ? movers[0] : undefined;
+    const wholeRows = moving.filter(([part]) => part === '*');
     const own = new Set(movers.map((m) => m.name));
-    const longest = Math.max(...motion.map((row) => row[5]));
-    for (let time = 0; time <= longest; time += SAMPLE_SEC) {
-      const inWhole = whole
-        ? moverAt(
-            motion.filter(([part]) => part === '*'),
-            time,
-          )
-        : null;
-      const wholeFrame =
-        whole && inWhole
-          ? matrixOf(whole.pivot).multiply(inWhole).multiply(matrixOf(whole.pivot).invert())
-          : new Matrix4();
-      if (whole && !inWhole) continue;
-      for (const mover of movers) {
-        if (mover === whole) {
-          // Everything of the body that is not a mover of its own rides the whole.
+    /** The whole body's own transform at `time` (none without one), or null: not drawn then. */
+    const wholeAt = (time: number): Matrix4 | null => {
+      if (!whole) return new Matrix4();
+      const at = moverAt(wholeRows, time);
+      if (!at) return null;
+      const pivot = matrixOf(whole.pivot);
+      return pivot.clone().multiply(at).multiply(pivot.invert());
+    };
+    for (const mover of movers) {
+      if (mover === whole) {
+        // Everything of the body that is not a mover of its own rides the whole.
+        for (const time of momentsOf(wholeRows)) {
+          const frame = wholeAt(time);
+          if (!frame) continue;
           for (const [name, tris] of parts) {
-            if (!own.has(name) && !absent.has(name)) see(tris, `* ${name || 'ground'}`, wholeFrame);
+            if (own.has(name) || absent.has(name)) continue;
+            see(tris, () => `* ${name || 'ground'} at ${time.toFixed(3)} s`, frame);
           }
-          continue;
         }
-        const tris = parts.get(mover.name);
-        if (!tris) continue; // a ghost
-        const at = moverAt(
-          motion.filter(([part]) => part === mover.name),
-          time,
-        );
-        if (!at) continue;
-        const pivot = matrixOf(mover.pivot);
-        // A part's triangles are in the body's frame: into its pivot's, moved, and back.
-        const frame = wholeFrame
-          .clone()
-          .multiply(pivot)
-          .multiply(at)
-          .multiply(pivot.clone().invert());
-        see(tris, `${mover.name} at ${time} s`, frame);
+        continue;
+      }
+      const tris = parts.get(mover.name);
+      if (!tris) continue; // a ghost
+      const rows = moving.filter(([part]) => part === mover.name);
+      const pivot = matrixOf(mover.pivot);
+      const back = pivot.clone().invert();
+      // A part's triangles are in the body's frame: into its pivot's, moved, and back.
+      for (const time of momentsOf([...rows, ...wholeRows])) {
+        const wholeFrame = wholeAt(time);
+        const at = moverAt(rows, time);
+        if (!wholeFrame || !at) continue;
+        const frame = wholeFrame.multiply(pivot).multiply(at).multiply(back);
+        see(tris, () => `${mover.name} at ${time.toFixed(3)} s`, frame);
       }
     }
   }
@@ -215,14 +268,11 @@ function capOf(id: string): number {
 
 /**
  * The worlds declared at their cap, though they reach further in the lane (design/worlds/reach.ts
- * says why), and what they reach there.
+ * says why), and what reaches there.
  */
 const AT_CAP: Readonly<Record<string, string>> = {
   'project/model-rocketry': 'its fins cross the lane obliquely',
-  'project/fishai': 'its Athena loop swings out as it turns',
 };
-/** The ship's own band: 1 u either side of the plane it flies in (it is 2 u long, and banks). */
-const SHIP_BAND_U = 1;
 
 const MEASURED = new Map(Object.keys(BODIES).map((id) => [id, measure(id)]));
 
@@ -247,27 +297,30 @@ describe('the reach of the emblem worlds', () => {
   });
 
   it.each(Object.entries(AT_CAP))(
-    'declares %s at its cap, where %s, and keeps the ship’s own band clear',
+    'declares %s at its cap, where %s, and keeps all of the ship clear of it',
     (id) => {
       const declared = REACH[id] ?? NaN;
       expect(declared).toBe(Math.floor(capOf(id) * 100 + 1e-9) / 100);
       // Still further in the lane than its cap (or it belongs with the others)...
       expect(MEASURED.get(id)?.worst).toBeGreaterThan(declared);
-      // ...but never where the ship can be: in its own band, nothing reaches past the shell,
-      // which keeps the ship's centre shellGap outside the declared surface (sim/collide.ts).
-      const band = measure(id, (radius) => SHIP_BAND_U / radius);
-      const shell = declared + tuning.cushion.shellGap / bodyOf(id).radius;
-      expect(band.worst, band.by).toBeLessThan(shell);
+      // ...but never where any of the ship can be. Its centre is held shellGap outside the
+      // declared surface (sim/collide.ts) and its nose is NOSE_U ahead of that, so in the ship's
+      // own band nothing may reach past where the nose can come.
+      const { radius } = bodyOf(id);
+      const band = measure(id, () => SHIP_BAND_U / radius);
+      const nose = declared + (tuning.cushion.shellGap - NOSE_U) / radius;
+      expect(band.worst, band.by).toBeLessThanOrEqual(nose);
     },
   );
 
-  it('sizes the collision field by the declared reach', () => {
+  it('sizes the collision field by the declared reach, rounded up', () => {
     for (const body of real.bodies) {
       const declared = REACH[body.id];
       if (declared === undefined || declared === 1) {
         expect(body.solidRadius, body.id).toBeUndefined();
       } else {
-        expect(body.solidRadius, body.id).toBeCloseTo(body.radius * declared, 2);
+        expect(body.solidRadius, body.id).toBeGreaterThanOrEqual(body.radius * declared - 1e-9);
+        expect(body.solidRadius, body.id).toBeLessThan(body.radius * declared + 0.01);
       }
     }
   });

@@ -82,6 +82,12 @@ describe('the reflex', () => {
     out.fill(Infinity);
     ownLimits(field(8, 0, 2), ship(80, 0, 0.5), 0, 0, GAIN, out);
     expect(out[0]).toBe(Infinity);
+    // An emblem world's solid may reach out until its cushion touches its ring (data/build.ts),
+    // so the ring is the cushion's depth above the surface: still beyond the berth. Model
+    // Rocketry's: a solid of 11.2 u, the ring at 15.2 u, the nose 0.3 rad in.
+    expect(tuning.cushion.depth).toBeGreaterThan(REFLEX_CLEAR);
+    ownLimits(field(15.2, 0, 11.2), ship(80, 0, 0.3), 0, 0, GAIN, out);
+    expect(out[0]).toBe(Infinity);
     // No body, no limit.
     ownLimits(field(0, 100, 2), ship(400, 0), -1, 0, GAIN, out);
     expect(out[0]).toBe(Infinity);

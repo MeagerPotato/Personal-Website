@@ -192,9 +192,9 @@ describe('buildUniverse', () => {
     const reach = { 'page/about': 1.57, 'project/days2meet': 1.19, 'page/resume': 1 };
     const drawn = byId(buildWithReach(v01(), reach));
     const about = drawn.get('page/about');
-    expect(about?.solidRadius).toBe(Math.round(L.home.planetRadius * 1.57 * 100) / 100);
+    expect(about?.solidRadius).toBe(Math.ceil(L.home.planetRadius * 1.57 * 100 - 1e-6) / 100);
     expect(drawn.get('project/days2meet')?.solidRadius).toBe(
-      Math.round(L.planetRadius.m * 1.19 * 100) / 100,
+      Math.ceil(L.planetRadius.m * 1.19 * 100 - 1e-6) / 100,
     );
     // A reach of 1 is its radius: nothing to say. And nothing else moves.
     expect(drawn.get('page/resume')).not.toHaveProperty('solidRadius');
@@ -206,10 +206,26 @@ describe('buildUniverse', () => {
     }
   });
 
-  it('refuses a reach whose cushion would not fit under the docking ring', () => {
+  it('rounds a solid UP to the hundredth, never inside what is drawn', () => {
+    // The station: 2.2 u x 1.12 is 2.464 u, which the nearest hundredth would put inside it.
+    const drawn = byId(buildWithReach(v01(), { 'page/resume': 1.12 }));
+    expect(drawn.get('page/resume')?.solidRadius).toBe(2.47);
+    expect(L.home.stationRadius * 1.12).toBeCloseTo(2.464, 9);
+  });
+
+  it('gives a body that a recipe takes off its rows no reach of theirs', () => {
+    // design/worlds.ts comes first (world/looks.ts, lookOf): drawn as the recipe says, its
+    // surface is its radius, and the ship does not bounce off the rows it no longer wears.
+    const reach = { 'page/about': 1.57, 'project/days2meet': 1.19 };
+    const drawn = byId(buildWithReach(v01(), reach, { 'page/about': { biome: 'frost' } }));
+    expect(drawn.get('page/about')).not.toHaveProperty('solidRadius');
+    expect(drawn.get('project/days2meet')?.solidRadius).toBeGreaterThan(L.planetRadius.m);
+  });
+
+  it('refuses a reach whose cushion would not fit under the docking ring, and says what to do', () => {
     // A planet's ring is 1.4 radii and the cushion's depth out: no room for 1.5.
     expect(() => buildWithReach(v01(), { 'project/days2meet': 1.5 })).toThrow(
-      /"project\/days2meet" reaches 1\.5 radii .*its docking ring/,
+      /"project\/days2meet" reaches 1\.5 radii .*has room for 1\.4.*its docking ring.*recipe/,
     );
     expect(() => buildWithReach(v01(), { 'project/days2meet': 1.4 })).not.toThrow();
   });

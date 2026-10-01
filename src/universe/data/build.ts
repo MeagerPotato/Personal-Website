@@ -1,5 +1,6 @@
 import type { ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { worlds, type WorldRecipe } from '../design/worlds';
 import { REACH } from '../design/worlds/reach';
 import {
   RELAY_SLOTS,
@@ -532,10 +533,13 @@ function buildBinary(
 /**
  * `reach`: how far each emblem world's solid reaches, in radii, by body id (design/worlds/reach.ts
  * unless a test says otherwise: its made-up galaxies reuse real ids for bodies of other sizes).
+ * `recipes`: the worlds of their own (design/worlds.ts); a body with one is not drawn from its
+ * rows, so it has no reach of theirs.
  */
 export function buildUniverse(
   input: UniverseInput,
   reach: Readonly<Partial<Record<string, number>>> = REACH,
+  recipes: Readonly<Partial<Record<string, WorldRecipe>>> = worlds,
 ): UniverseManifest {
   const problems = validate(input);
   if (problems.length > 0) throw new UniverseDataError(problems);
@@ -600,16 +604,26 @@ export function buildUniverse(
   }
 
   // An emblem world's solid reaches past its radius (design/worlds/reach.ts): the collision field
-  // takes that as its surface. Its cushion must still fit under its docking ring.
+  // takes that as its surface, rounded UP to the hundredth (rounded to the nearest, a surface
+  // could sit a few thousandths inside what is drawn). Its cushion must still fit under its
+  // docking ring, and that room depends on the body's kind and size, which content chooses: a
+  // moon made a planet, or a size changed, can leave a world too big for its ring. A body that a
+  // recipe in design/worlds.ts takes off its rows is drawn as the recipe says (world/looks.ts,
+  // lookOf), so the reach of its rows is not its own.
+  const { depth } = tuning.cushion;
   const solid = bodies.map((body) => {
-    const declared = reach[body.id] ?? 1;
+    const declared = recipes[body.id] === undefined ? (reach[body.id] ?? 1) : 1;
     if (!(declared > 1)) return body;
-    const solidRadius = round(body.radius * declared);
-    if (solidRadius + tuning.cushion.depth > body.dockRadius + 1e-9) {
+    const solidRadius = Math.ceil(body.radius * declared * 100 - 1e-6) / 100;
+    if (solidRadius + depth > body.dockRadius + 1e-9) {
+      const room = Math.floor(((body.dockRadius - depth) / body.radius) * 100 + 1e-6) / 100;
       problems.push(
-        `"${body.id}" reaches ${declared} radii (design/worlds/reach.ts): its cushion ` +
-          `(${tuning.cushion.depth} u) needs its docking ring at ${round(solidRadius + tuning.cushion.depth)} u, ` +
-          `not ${body.dockRadius} u`,
+        `"${body.id}" reaches ${declared} radii (design/worlds/reach.ts), but a ${body.kind} ` +
+          `of radius ${body.radius} u has room for ${room}: its cushion (${depth} u) needs its ` +
+          `docking ring at ${round(solidRadius + depth)} u, not ${body.dockRadius} u. Bring in ` +
+          `what stands out in its rows (design/worlds/) and measure it again ` +
+          `(tests/world-reach.test.ts), give it a size with room for it, or take it off its ` +
+          `rows with a recipe in design/worlds.ts`,
       );
     }
     return { ...body, solidRadius };

@@ -73,7 +73,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '459f62ac' },
   'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c4a93309' },
   'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '68fa7212' },
-  'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'c4961422' },
+  'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0dbd5fa6' },
   'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'cbe065ad' },
   'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 1, print: '17f8bd67' },
   'project/hackathons-at-berkeley': { everyday: 2006, closeup: 5060, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'de046325' },

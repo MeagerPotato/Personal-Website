@@ -141,7 +141,10 @@ const canadianFish: PartRow[] = [
 
 // FishAI: ATHENA in training, a bead running a dashed outer loop; the solver board, 54 cells (nine
 // half-suits of six cards) all settled; and a scan bar that sweeps across it: the constraint
-// solver propagating to its fixed point.
+// solver propagating to its fixed point. The loop runs at 1.715 radii, 0.03 inside the concept
+// set's 1.745: there its bead stood 1.82 radii out as the tilted loop turned, past the 1.8 its
+// docking ring leaves room for (design/worlds/reach.ts), and the ship's nose could touch it.
+const LOOP = 1.715;
 const BOARD = dirOf(64, 20);
 const EAST = norm(cross([0, 1, 0], BOARD));
 const SOUTH = cross(EAST, BOARD);
@@ -178,7 +181,7 @@ const fishai: PartRow[] = [
       'g',
       ...Array.from({ length: 16 }, (_, i): Item => [
         'ring',
-        [1.72, 1.77],
+        [LOOP - 0.025, LOOP + 0.025],
         (i / 16) * TAU,
         (i / 16) * TAU + 0.26,
         1,
@@ -186,7 +189,7 @@ const fishai: PartRow[] = [
         0,
         'sky.light',
       ]),
-      ['bead', 0.09, 'ink.high', { at: [brg(rad(120), 1.745)[0], 0, brg(rad(120), 1.745)[1]] }],
+      ['bead', 0.09, 'ink.high', { at: [brg(rad(120), LOOP)[0], 0, brg(rad(120), LOOP)[1]] }],
       { rot: [rad(14), 0, rad(-6)] },
     ],
   ],
