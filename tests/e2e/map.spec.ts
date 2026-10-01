@@ -154,12 +154,14 @@ async function drag(page: Page, near: { x: number; y: number }, dx: number, dy: 
 
 /**
  * A name coming, going, changing sides or sliding along its body: which, what it became (its side,
- * "hidden", or its side and "slid"), and when (ms, page time).
+ * "hidden", or its side and "slid"), when (ms, the time of the frame: the clock the engine counts
+ * a name's dwell on), and whether the map itself moved in that frame (a finger on it).
  */
 interface NameChange {
   name: string;
   now: string;
   at: number;
+  moved: boolean;
 }
 
 /** What `watchNames` keeps in the page. */
@@ -167,8 +169,13 @@ interface NamesWatch {
   changes: NameChange[];
   /** When the map was first seen open (ms, page time: a frame with `html[data-map]`), or null. */
   opened: number | null;
+  /** The frame from which the map has ARRIVED, and its names hold still (`ARRIVAL`), or null. */
+  arrived: number | null;
   /** When each frame looked at was (ms, page time). */
   frames: number[];
+  /** How many frames the map itself moved in, and how many in a row, up to now, it has not. */
+  moved: number;
+  still: number;
 }
 
 /**
@@ -176,66 +183,133 @@ interface NamesWatch {
  * bodies (`data-side`: below, above, left, right), and where they hang from them (the second move
  * of the transform Labels writes, `translate(body) translate(place)`), kept in the page: `changes`
  * is each name that came, went, changed sides, or moved more than `SLID_PX` from one frame to the
- * next along its body (tests/map-names/ counts the same), `opened` when the map was first open,
- * and `frames` when each frame was.
+ * next along its body (tests/map-names/ counts the same), `arrived` when the map, once opened,
+ * had arrived (`ARRIVAL`), and `frames` when each frame was. Time is the frame's own (what `requestAnimationFrame` hands
+ * over, which is what the engine counts a name's dwell from), not the moment this got its turn in
+ * the frame: two changes the engine made a second apart are a second apart here too, however long
+ * the frames between them took to draw.
+ *
+ * It also sees whether the MAP moved in a frame (a finger dragging it), from where the names say
+ * their bodies are: under a finger every body goes along, and at rest the slowest of those named
+ * (a sun, the home planet) hardly moves from one frame to the next. `drawn` waits for more than
+ * so many frames from a moment on, and `rested` for the map to have moved and then held still so
+ * many frames in a row: a number of FRAMES, since how many a page draws in a second is the
+ * machine's business (60 on a GPU, 10 where CI draws in software).
  */
 async function watchNames(page: Page): Promise<{
   changes: () => Promise<NameChange[]>;
-  opened: () => Promise<number>;
+  arrived: () => Promise<number>;
   frames: () => Promise<number[]>;
+  drawn: (from: number, frames: number) => Promise<void>;
+  rested: (frames: number) => Promise<void>;
 }> {
-  await page.evaluate(() => {
+  await page.evaluate((arrival) => {
     const SLID_PX = 10;
-    const watch: NamesWatch = { changes: [], opened: null, frames: [] };
-    const seen = new Map<Element, { side: string; x: number; y: number }>();
-    const look = (): void => {
-      const now = performance.now();
+    const STILL_PX = 0.5;
+    const watch: NamesWatch = {
+      changes: [],
+      opened: null,
+      arrived: null,
+      frames: [],
+      moved: 0,
+      still: 0,
+    };
+    // The engine's clock since the map opened (ms), the frame before this one, and how many
+    // frames it is since the blend was over by that clock.
+    let blend = 0;
+    let last = Number.NaN;
+    let since = 0;
+    const seen = new Map<
+      Element,
+      { side: string; x: number; y: number; bodyX: number; bodyY: number }
+    >();
+    const look = (now: number): void => {
       watch.frames.push(now);
       if (watch.opened === null && document.documentElement.hasAttribute('data-map')) {
         watch.opened = now;
       }
+      if (watch.opened !== null && watch.arrived === null) {
+        blend += Math.min(now - last || 0, arrival.frameMs);
+        if (blend >= arrival.blendMs) since += 1;
+        if (since > arrival.frames && now >= watch.opened + arrival.ms) watch.arrived = now;
+      }
+      last = now;
+      const changes: Omit<NameChange, 'moved'>[] = [];
+      // How far the stillest body went, of those named in this frame and in the one before.
+      let least = Infinity;
       for (const name of document.querySelectorAll<HTMLElement>('.body-label')) {
         const side = name.hasAttribute('data-shown')
           ? (name.getAttribute('data-side') ?? 'below')
           : 'hidden';
-        const [, , x = Number.NaN, y = Number.NaN] = (
+        const [bodyX = Number.NaN, bodyY = Number.NaN, x = Number.NaN, y = Number.NaN] = (
           name.style.transform.match(/-?[\d.]+/g) ?? []
         ).map(Number);
         const was = seen.get(name);
-        seen.set(name, { side, x, y });
+        seen.set(name, { side, x, y, bodyX, bodyY });
         if (was === undefined) continue;
+        if (side !== 'hidden' && was.side !== 'hidden') {
+          const went = Math.hypot(bodyX - was.bodyX, bodyY - was.bodyY);
+          if (Number.isFinite(went)) least = Math.min(least, went);
+        }
         const slid =
           side !== 'hidden' && was.side === side && Math.hypot(x - was.x, y - was.y) > SLID_PX;
         if (was.side === side && !slid) continue;
-        watch.changes.push({
+        changes.push({
           name: name.textContent ?? '',
           now: slid ? `${side}, slid` : side,
           at: Math.round(now),
         });
       }
+      // (With no name to tell by, the map is taken to be at rest: nothing is let off unseen.)
+      const moved = Number.isFinite(least) && least > STILL_PX;
+      watch.moved += moved ? 1 : 0;
+      watch.still = moved ? 0 : watch.still + 1;
+      for (const change of changes) watch.changes.push({ ...change, moved });
       requestAnimationFrame(look);
     };
-    look();
+    look(performance.now());
     Object.assign(window, { e2eNames: watch });
-  });
+  }, ARRIVAL);
   const watched = (): Promise<NamesWatch> =>
     page.evaluate(() => (window as unknown as { e2eNames: NamesWatch }).e2eNames);
   return {
     changes: async () => (await watched()).changes,
-    opened: async () => {
-      await expect.poll(async () => (await watched()).opened).not.toBeNull();
-      return (await watched()).opened ?? Number.NaN;
+    arrived: async () => {
+      await expect.poll(async () => (await watched()).arrived, { timeout: 45_000 }).not.toBeNull();
+      return (await watched()).arrived ?? Number.NaN;
     },
     frames: async () => (await watched()).frames,
+    drawn: async (from, frames) => {
+      await expect
+        .poll(async () => (await watched()).frames.filter((at) => at >= from).length, {
+          timeout: 45_000,
+        })
+        .toBeGreaterThan(frames);
+    },
+    rested: async (frames) => {
+      await expect
+        .poll(
+          async () => {
+            const { moved, still } = await watched();
+            return moved > 0 ? still : -1;
+          },
+          { timeout: 45_000 },
+        )
+        .toBeGreaterThanOrEqual(frames);
+    },
   };
 }
 
 /**
- * How long after the map opens (`html[data-map]`) the camera has pulled all the way out to it,
- * and its names hold still (ms): its blend, `tuning.map.blendSec` (0.9 s), and a few frames more
- * for a page that draws slowly.
+ * When the camera has pulled all the way out to the map, and its names hold still: 1.2 s after it
+ * opens (`html[data-map]`), which is its blend (`tuning.map.blendSec`, 0.9 s) and a few frames
+ * more. The blend runs on the ENGINE's clock, on which a frame counts for a tenth of a second at
+ * most however long it took to draw (`tuning.loop.maxFrameSec`): a page that draws fewer than ten
+ * frames a second (in software, with a busy CPU; a slow phone) is still on its way after 0.9 s
+ * by the wall. So the blend is counted as the engine counts it, frame by frame, and the map has
+ * arrived three frames after that is over, and not before the 1.2 s.
  */
-const ARRIVED_MS = 1200;
+const ARRIVAL = { ms: 1200, blendMs: 900, frameMs: 100, frames: 3 };
 
 /** Wait for the page's first frame at or after `ms` (page time). */
 async function frameAt(page: Page, ms: number): Promise<void> {
@@ -306,13 +380,25 @@ function tagsOnLandmarks(page: Page): Promise<string[]> {
   });
 }
 
-/** Each name that changed again within a second of its last change, with both changes. */
-function twiceWithinASecond(changes: readonly NameChange[]): string[] {
+/**
+ * Each name that changed, with the map at rest, within a second of its last change (whenever that
+ * was: under the finger too), with both changes. A name lets a change stand for a second
+ * (`tuning.labels.dwellSec`) before it makes another OF ITS OWN ACCORD; one it must make, it makes
+ * (ui/Labels.ts: its place gone past the edge of the view, or the room needed by a system's name
+ * that has come into it). While a finger moves the map those come as the finger brings them, two
+ * to a name within a second now and then (tests/map-names/ counts them: a hundred and more in 200 s of fingers
+ * on a phone this far in, and it holds a moving map to no such rule): whether ONE drag has such a
+ * pair is a matter of how long after the pinch it comes and how many frames it is seen in, which
+ * is the machine's business. (Where CI draws in software, Days2Meet's name went above its planet
+ * in one frame of the drag and, the finger still moving, had to leave that room 600 ms later to
+ * Software's, whose sun had come into view.) At rest nothing brings them, and the second holds.
+ */
+function againAtRest(changes: readonly NameChange[]): string[] {
   const last = new Map<string, NameChange>();
   const twice: string[] = [];
   for (const change of changes) {
     const before = last.get(change.name);
-    if (before && change.at - before.at < 1000) {
+    if (before && !change.moved && change.at - before.at < 1000) {
       twice.push(
         `${change.name}: ${before.now}, then ${change.now} ${change.at - before.at} ms later`,
       );
@@ -635,13 +721,15 @@ test.describe('on a phone', () => {
     const zoomed = await bodyOf(nameOf(page, 'About Me'));
 
     // One finger, from empty space, down and to the left: the map goes along, by as much both
-    // ways, and the home planet with it. Every frame of it, the names are watched: some must
-    // move as their bodies near the edge of the view, but none comes and goes, or changes sides
-    // and back, within a second.
+    // ways, and the home planet with it. Every frame of it, the names are watched, and a dozen
+    // frames more once it holds still (the finger stops before it lifts): some must change as
+    // the map moves, their bodies nearing the edge of the view, but once it is at rest none
+    // comes, goes or changes places within a second of its last change, the drag's included.
     const names = await watchNames(page);
     await drag(page, { x: 300, y: 650 }, -42, 42);
+    await names.rested(12);
     const dragged = await bodyOf(nameOf(page, 'About Me'));
-    expect(twiceWithinASecond(await names.changes())).toEqual([]);
+    expect(againAtRest(await names.changes())).toEqual([]);
     expect(dragged.x - zoomed.x).toBeGreaterThan(-48);
     expect(dragged.x - zoomed.x).toBeLessThan(-36);
     expect(dragged.y - zoomed.y).toBeGreaterThan(36);
@@ -741,9 +829,11 @@ test.describe('on a phone', () => {
     await openButton(page).tap();
     // The names hold still from the moment the camera has pulled all the way out to the map: every
     // frame from then on, for four seconds (the page counts them, on its own clock), none comes,
-    // goes or changes sides.
-    const from = (await names.opened()) + ARRIVED_MS;
+    // goes or changes sides. And for more than 60 frames, however long the page takes to draw
+    // them: a second's worth on a GPU, six where it draws in software (CI, or a slow phone).
+    const from = await names.arrived();
     await frameAt(page, from + 4000);
+    await names.drawn(from, 60);
     expect((await names.frames()).filter((at) => at >= from).length).toBeGreaterThan(60);
     expect((await names.changes()).filter((change) => change.at >= from)).toEqual([]);
     for (const name of ['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']) {
@@ -774,7 +864,7 @@ test.describe('on a phone 360 px wide', () => {
       await openButton(page).tap();
       // The moment the map has arrived, not later: every system's name, and no planet's or
       // moon's on a sun or the home planet.
-      await frameAt(page, (await names.opened()) + ARRIVED_MS);
+      await names.arrived();
       const [shown, lying] = await Promise.all([shownNames(page), tagsOnLandmarks(page)]);
       expect(shown).toEqual(
         expect.arrayContaining(['About Me', 'Software', 'Hardware', 'Research', 'Hackathons']),

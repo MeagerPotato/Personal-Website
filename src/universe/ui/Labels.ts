@@ -224,7 +224,7 @@ export class Labels implements System {
   private readonly lastY: Float64Array;
   private readonly lastBodyX: Float64Array;
   private readonly lastBodyY: Float64Array;
-  /** Where each body was on screen the frame before (CSS px): which way it is going. */
+  /** Where each body was on screen the frame before (CSS px): which way the view takes it. */
   private readonly seenX: Float64Array;
   private readonly seenY: Float64Array;
   private width = 1;
@@ -372,7 +372,12 @@ export class Labels implements System {
       const radius = screen.radius[row] ?? 0;
       const x = screen.x[row] ?? 0;
       const y = screen.y[row] ?? 0;
-      const leaving = this.leaving(x, y, x - (this.seenX[row] ?? x), y - (this.seenY[row] ?? y));
+      // On its way out of the view: as it goes on screen, or as it goes by itself. They are the
+      // same thing until a finger drags the map: then every body goes the finger's way on screen,
+      // for as long as the drag lasts, and its own way again the moment the finger stops.
+      const leaving =
+        this.leaving(x, y, x - (this.seenX[row] ?? x), y - (this.seenY[row] ?? y)) ||
+        this.leaving(x, y, screen.ownX[row] ?? 0, screen.ownY[row] ?? 0);
       this.seenX[row] = x;
       this.seenY[row] = y;
       if (!(depth > 0) || radius < params.minVisiblePx || (docked && row === target)) {
@@ -385,7 +390,9 @@ export class Labels implements System {
       // body drifts past one by a pixel. That is to keep a name steady, never to keep it out for
       // good: one with no room to spare at any of its places (a sun half over the bottom of a
       // phone) takes any place it fits, and keeps it as any name keeps the place it has; unless its
-      // body is on its way out of the view, where it would only come and go.
+      // body is on its way out of the view, where it would only come and go. (Its own way counts
+      // as much as the way a finger is taking it: a body dragged IN from the edge while its orbit
+      // takes it OUT would get its name for the drag, and lose it half a second after.)
       const preferred = this.prefer[row] ?? 0;
       let offered = this.placesOf(row, target, ship, onMap, middleX);
       if (offered === 0 && onMap && !leaving) {
@@ -517,8 +524,9 @@ export class Labels implements System {
   }
 
   /**
-   * Is a body at (x, y) on screen, having moved (dx, dy) since the frame before, on its way out of
-   * where names may go, through the edge of it (or the top bar) that it is nearest?
+   * Is a body at (x, y) on screen, having moved (dx, dy) since the frame before (on screen, or by
+   * itself: `ScreenMap.ownX`), on its way out of where names may go, through the edge of it (or
+   * the top bar) that it is nearest?
    */
   private leaving(x: number, y: number, dx: number, dy: number): boolean {
     const { room } = this;

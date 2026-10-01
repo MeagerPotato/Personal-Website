@@ -16,6 +16,15 @@ export interface ScreenMap {
   readonly radius: Float64Array;
   /** Units in front of the camera. Zero or less: beside it or behind it. */
   readonly depth: Float64Array;
+  /**
+   * How far the body ITSELF has gone on screen since the frame before, in CSS px: where it is,
+   * less where it was as this frame's camera sees that. Its orbit's doing alone, whatever the
+   * camera did meanwhile: a finger that drags the star map moves every body on screen and none of
+   * them in the world. Zero where nobody says where the bodies were (`before`), and for a body
+   * that is not in front of the camera now, or was not then.
+   */
+  readonly ownX: Float64Array;
+  readonly ownY: Float64Array;
 }
 
 export function createScreenMap(capacity: number): ScreenMap {
@@ -25,6 +34,8 @@ export function createScreenMap(capacity: number): ScreenMap {
     y: new Float64Array(capacity),
     radius: new Float64Array(capacity),
     depth: new Float64Array(capacity),
+    ownX: new Float64Array(capacity),
+    ownY: new Float64Array(capacity),
   };
 }
 
@@ -36,6 +47,8 @@ export function createScreenMap(capacity: number): ScreenMap {
  * unit. `positions` is [x0, z0, x1, z1, ...] in world units, `radii` likewise by row. `scales`,
  * when given, is how big each body is DRAWN as a factor on its radius (the star map draws small
  * bodies big, and some not at all: sim/mapView.ts), and a body is measured as it is drawn.
+ * `before`, when given, is where the bodies were the frame before, like `positions`: what
+ * `ownX` and `ownY` are measured from.
  */
 export function projectBodies(
   viewProjection: ArrayLike<number>,
@@ -47,6 +60,7 @@ export function projectBodies(
   count: number,
   out: ScreenMap,
   scales?: ArrayLike<number>,
+  before?: ArrayLike<number>,
 ): ScreenMap {
   const m = viewProjection;
   const rows = Math.min(count, out.x.length);
@@ -58,6 +72,8 @@ export function projectBodies(
     // distance in front of it.
     const cw = (m[3] ?? 0) * x + (m[11] ?? 0) * z + (m[15] ?? 0);
     out.depth[i] = cw;
+    out.ownX[i] = 0;
+    out.ownY[i] = 0;
     if (!(cw > 0)) {
       out.radius[i] = 0;
       continue;
@@ -67,6 +83,16 @@ export function projectBodies(
     out.x[i] = (cx / cw / 2 + 0.5) * width;
     out.y[i] = (0.5 - cy / cw / 2) * height;
     out.radius[i] = ((radii[i] ?? 0) * (scales?.[i] ?? 1) * focal * height) / 2 / cw;
+    if (!before) continue;
+    // Where it was, through the same camera.
+    const bx = before[i * 2] ?? x;
+    const bz = before[i * 2 + 1] ?? z;
+    const bw = (m[3] ?? 0) * bx + (m[11] ?? 0) * bz + (m[15] ?? 0);
+    if (!(bw > 0)) continue;
+    const wasX = (m[0] ?? 0) * bx + (m[8] ?? 0) * bz + (m[12] ?? 0);
+    const wasY = (m[1] ?? 0) * bx + (m[9] ?? 0) * bz + (m[13] ?? 0);
+    out.ownX[i] = (out.x[i] ?? 0) - (wasX / bw / 2 + 0.5) * width;
+    out.ownY[i] = (out.y[i] ?? 0) - (0.5 - wasY / bw / 2) * height;
   }
   return out;
 }

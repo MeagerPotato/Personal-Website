@@ -1021,6 +1021,47 @@ describe('Labels', () => {
     expect(leaving.shown()).toContain('Code');
   });
 
+  it('on the map, a finger that drags a body in from the edge brings no name its orbit is about to take away', () => {
+    // Code's sun past the bottom edge of the map, where its name fits nowhere...
+    const rows: readonly Row[] = [
+      [600, 812, 12, 1000],
+      [400, 400, 40, 120],
+      [600, 380, 6, -1],
+      [200, 300, 30, 300],
+    ];
+    const out = setup(rows);
+    cleanup = () => out.labels.dispose();
+    out.state.onMap = true;
+    out.labels.frameUpdate(tick());
+    expect(out.shown()).not.toContain('Code');
+    // ...and a finger drags the map up. On screen the sun comes IN, to where its name fits above
+    // it with no room to spare; by itself it is on its way OUT, down its orbit (`ownY`), which
+    // is where it goes on screen too the moment the finger stops. No name for the drag, to be
+    // taken away half a second after it: not as the finger moves, nor once it holds still.
+    out.screen.y[0] = 806;
+    out.screen.ownY[0] = 0.02;
+    out.labels.frameUpdate(tick());
+    expect(out.shown()).not.toContain('Code');
+    out.screen.y[0] = 806.02;
+    out.labels.frameUpdate(tick());
+    expect(out.shown()).not.toContain('Code');
+
+    // One that holds still in the world, or is on its way in, has its name as the finger brings
+    // it into view, and keeps it.
+    out.labels.dispose();
+    const still = setup(rows);
+    cleanup = () => still.labels.dispose();
+    still.state.onMap = true;
+    still.labels.frameUpdate(tick());
+    still.screen.y[0] = 806;
+    still.screen.ownY[0] = -0.02;
+    still.labels.frameUpdate(tick());
+    expect(still.shown()).toContain('Code');
+    still.screen.y[0] = 805.98;
+    still.labels.frameUpdate(tick());
+    expect(still.shown()).toContain('Code');
+  });
+
   it('never takes a name away from under the keyboard', () => {
     const { labels, screen, shown, button } = setup(SPREAD);
     cleanup = () => labels.dispose();
