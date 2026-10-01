@@ -9,9 +9,9 @@ export type DockKind = 'home' | 'station' | 'satellite';
 /**
  * One of three shapes, told apart by which keys are set (buildUniverse checks the combination):
  * a SYSTEM with one sun (`order`, `theme`: its sun is itself), a BINARY STAR (`order`, `theme`,
- * `suns`: two suns circling one centre, and no sun of its own), or a SUN OF A BINARY (neither:
- * it goes where its binary goes and wears its binary's family). Planets name a sun, never a
- * binary.
+ * `suns`: two suns circling one centre, and no sun of its own), or a SUN OF A BINARY (no
+ * `order`: it goes where its binary goes, and wears its own `theme` if it has one, else its
+ * binary's). Planets name a sun, never a binary.
  */
 export interface SystemInput {
   id: string;

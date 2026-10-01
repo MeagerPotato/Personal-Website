@@ -117,8 +117,15 @@ describe('every colour family', () => {
         expect(contrast(family.light, plate)).toBeGreaterThanOrEqual(TEXT);
       }
       // Route lines, stations, glyphs and the panel's band are marks: 3:1 against what they cross,
-      // on the page, on a plate, on the panel over the world, and on a raised plate in the panel.
-      for (const ground of [color.space[900], color.surface.panel, PANEL, color.surface.raised]) {
+      // on the page, on a plate, on the panel over the world, on a raised plate in the panel, and
+      // on the HUD plate over the world (the glyph before a body's name, on its tag).
+      for (const ground of [
+        color.space[900],
+        color.surface.panel,
+        PANEL,
+        color.surface.raised,
+        HUD,
+      ]) {
         expect(contrast(family.base, ground)).toBeGreaterThanOrEqual(MARK);
       }
     });

@@ -53,7 +53,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.space` | `950 900 800 700 600` | backdrop ramp, deepest to lightest; page background is `900`, the map grid's dots `700`; `950` is the focus ring's rim and a key's ledge |
 | `color.ink` | `high mid low` | text: `high` leads (headings, values, every chip over the world), `mid` is running text, `low` draws edges and marks and is never text on a chip over the world. Every pairing: the contrast table below |
 | `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a raised key (one whose face is already `raised`, or one on a raised plate) |
-| `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
+| `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system (a sun of a binary may wear one of its own: Software sky, Hardware coral), worn by its sun, its planets and their moons: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
 | `color.star` | `warm cool white` | starfield tints |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
@@ -131,7 +131,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | butter on the page / the panel / the HUD plate | 13.9 / 11.3 / 9.3 | the ring where it meets the ground outside it; the current page's bar under its word (plain / universe) |
 | `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
-| a family's base on the page / `surface.panel` / the panel / `surface.raised` | 6.3 / 5.6 / 5.1 / 5.0 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill; lilac is the lowest |
+| a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
 | `surface.line` hairline on the page / the panel | 1.7 / 1.4 | decoration, not a boundary: the rules between legend rows, a status or date chip's outline, the resume's rail. Nothing is found by them alone |
 
@@ -327,10 +327,12 @@ of, is in the table under The 3D world.
   from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
   control). Where the ship is going, and a name the keyboard is on, never hide for the ship: with
   no room past it they stay where they would have been, even on it.
-- **A profile elsewhere** (GitHub, LinkedIn) is a relay on the Contact satellite's ring: a small
-  buoy (a float in the link colour, `accent`, with a sky band, a thin mast and a coral beacon;
-  never butter or the cream face), so it never reads as the satellite beside it, which a visitor
-  can dock at and a relay cannot. Its name is a real
+- **A profile elsewhere** (GitHub, LinkedIn, Devpost) is a relay on the Contact satellite's
+  ring, drawn as an emblem world of its own (`design/worlds/home.ts`): a plinth, a mast with the
+  network's mark, and an exit arrow flat on the plane that always points away from home (never
+  butter or the cream face), each with a footprint of its own (GitHub's arrow forks, LinkedIn's
+  ends in a bar, Devpost's plinth has two ears), so it never reads as the satellite beside it,
+  which a visitor can dock at and a relay cannot. Its name is a real
   link, in a group of its own ("Elsewhere"), with an outward arrow after the name in the name's
   own ink (a clip-path, no icon font); the site it opens is heard, not shown ("GitHub, on
   github.com"). Pointing at the relay never leaves the site: its name comes forward, focused and
@@ -409,7 +411,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems | `tuning.world` |
-| The station, the satellite, a profile's relay, the planet ring | `design/models/docks.ts` |
+| Every body's emblem world: its ground and parts (`bodies.ts` and the files it gathers: `home.ts`, `projects.ts`, `research.ts`, `hackathons.ts`), what it adds up close (`near.ts`), how its parts move (`motion.ts`), and how far its solid reaches (`reach.ts`, measured by `tests/world-reach.test.ts`) | `design/worlds/` |
+| The planet ring; the station, the satellite and a relay as models, for a recipe in `design/worlds.ts` that asks for one, or a body of that kind with no rows | `design/models/docks.ts` |
 | Where a visitor starts, and what they see first | `tuning.ship.spawn` |
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
@@ -445,7 +448,8 @@ that line is on screen. It belongs about a third of the way down: higher and the
 the top bar, with three quarters of the screen empty below them.
 
 **Judge one thing at a time in the lab.** With `npm run dev` running,
-`http://localhost:4321/lab/` puts a single planet (any biome, any seed, with or without rings,
+`http://localhost:4321/lab/` puts a single body's emblem world (by its id: far, up close, moving
+or still, or its star map variant), a planet (any biome, any seed, with or without rings,
 everyday or close-up detail), moon, sun, the rocket, the station, the satellite or a relay on a
 turntable in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
 for `shading`, `planet`, `world`, `post` and `ship`; "copy tuning as JSON" gives you what to paste

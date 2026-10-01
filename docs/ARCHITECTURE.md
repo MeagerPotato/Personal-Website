@@ -17,13 +17,16 @@ two ways:
 The content is written once, the URL is the same, and search engines, link previews, screen
 readers and recruiters in a hurry all get the plain truth. `scripts/verify-dist.mjs` fails the
 build if three.js ever becomes reachable without a dynamic `import()`, or if a page outgrows its
-weight budget (30 KiB for a plain page, 220 KiB for everything lazy, gzip).
+weight budget (30 KiB for a plain page, 220 KiB for everything lazy, gzip, the close-up chunk
+included, which has its own 4.5 KiB as well).
 
 ```
 mode.inline.js        the only inline script; sets html[data-mode] before first paint
   -> boot.ts          tiny, loaded by every page; acts only in universe mode
      -> universe-shell.ts   router, panel, watchdog, quality memory      (dynamic import)
         -> universe/api.ts  the engine, and the only door into it         (dynamic import)
+           -> design/worlds/closeup.ts  the emblem worlds' close-up rows and motions,
+                              when a world is first seen up close, or at idle   (dynamic import)
 ```
 
 Mode is chosen in this order: a plain-only page (the 404) → no WebGL2 → `?plain` (sticky for the

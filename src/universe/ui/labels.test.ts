@@ -89,8 +89,11 @@ afterEach(() => {
 });
 
 /**
- * Names as the stylesheet draws them (happy-dom lays nothing out): a 26 px tag at the top of the
- * 44 px box, and the target's tag 12 px longer to the left, to hold its dot.
+ * Names drawn as a stylesheet may draw them (happy-dom lays nothing out): a 26 px tag at the top
+ * of the 44 px box, and the target's tag 12 px longer to the left. Today's stylesheet keeps the
+ * target's tag its size (its glyph turns navy in place of the old dot), but it may grow one to the
+ * left again, so the engine reads how far (the tag's `left`) and keeps that clear too: the harder
+ * case is the one held here.
  */
 function drawnTags(): void {
   const real = window.getComputedStyle.bind(window);

@@ -19,8 +19,10 @@ mode. In universe mode the **router** keeps the canvas alive across pages (soft 
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
 narrow ones). **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
-**galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
-and the satellite, all moving on their orbits. Let go of the controls near a planet and the
+**galaxy is built from the real `/universe.json`**: every body (the planets and moons, the suns,
+home, the station, the satellite and the relays) drawn as its **emblem world** (`design/worlds/`:
+a ground and the parts that tell its story, finer and moving up close), all moving on their
+orbits, and none of what is drawn can be flown into. Let go of the controls near a planet and the
 **orbit assist** eases the ship onto a ring around it; planets cannot be crashed into, and space
 has a soft edge. Three **quality tiers** (anti-aliasing everywhere, bloom and a vignette where the
 device can afford them) and a lost WebGL context is survived. **Docking** works inside the world:
@@ -322,6 +324,10 @@ commit one good source image, at least 1200 px wide, and let the build do the re
 
 **Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
 Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.
+One thing may not follow: a body drawn from rows has the room under its docking ring of its kind
+and size, so a world that fits as a moon can be too big for a planet's ring (FishAI's would be),
+and the build says so (see "What checks content"). So can a planned project's world once it is
+built: its maquette grows to full size, and `tests/world-reach.test.ts` gives its new reach.
 
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
 (a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
@@ -366,8 +372,11 @@ anywhere in `dist/` fails the build.
 
 **What checks content.** Schemas catch shape. `buildUniverse()` (`src/universe/data/build.ts`)
 catches what a schema cannot: a missing `system`/`parent`/`related` target, a moon of a moon, a
-published moon under a draft planet, two systems claiming one `order`, a system grown too large.
-It lists every problem at once, and its output is the static `/universe.json` the engine reads.
+published moon under a draft planet, two systems claiming one `order`, a system grown too large,
+an emblem world that reaches further than its docking ring leaves room for (its declared reach,
+`design/worlds/reach.ts`, against the ring its kind and size give it: the message says what to
+do). It lists every problem at once, and its output is the static `/universe.json` the engine
+reads.
 
 **Add a log post.** The blog is its own site at `blog.allenkh.com` (`sites/blog`, planned in
 sites/docs/PLAN.md), and posts are written in its studio in the browser, not in this repository;

@@ -179,8 +179,8 @@ export interface ProjectCard {
   pictured: boolean;
   biome: BiomeKey;
   /**
-   * The colour family the card wears: its system's, and for a moon its planet's system's. A list
-   * can mix systems (the home page's "Start here", "Connected by motorway"), and every planet
+   * The colour family the card wears: its sun's, and for a moon its planet's sun's (a sun of a
+   * binary wears its own, or else its binary's). A list can mix systems (the home page's "Start here", "Connected by motorway"), and every planet
    * keeps its own colour in it. Missing only for a project whose system is gone.
    */
   theme: ThemeKey | undefined;
@@ -274,8 +274,8 @@ export interface SunNode {
   name: string;
   tagline: string;
   /**
-   * Its system's colour family (for a sun of a binary, the binary's). Missing only in content the
-   * build refuses.
+   * Its colour family: its system's, and for a sun of a binary its own, or else the binary's.
+   * Missing only in content the build refuses.
    */
   theme: ThemeKey | undefined;
   planets: PlanetNode[];
