@@ -193,6 +193,24 @@ export async function settled(target: Locator): Promise<{ x: number; y: number }
 }
 
 /**
+ * Where the BODY under a name is on the screen, once the name shows and holds still (`settled`,
+ * and only for what that is for). On the star map a name hangs wherever its body leaves it room:
+ * below it, above it, beside it, or slid along it (ui/Labels.ts), so the name's own box says only
+ * roughly where its body is. The engine moves each name to its body and from there to its place,
+ * `translate(body) translate(place)`: the first move says exactly.
+ */
+export async function bodyOf(target: Locator): Promise<{ x: number; y: number }> {
+  await settled(target);
+  return target.evaluate((name) => {
+    const [x = Number.NaN, y = Number.NaN] = (
+      (name as HTMLElement).style.transform.match(/-?[\d.]+/g) ?? []
+    ).map(Number);
+    const origin = (name as HTMLElement).offsetParent?.getBoundingClientRect();
+    return { x: x + (origin?.left ?? 0), y: y + (origin?.top ?? 0) };
+  });
+}
+
+/**
  * Go to another page the way a link does, without needing one on screen: the router takes any
  * plain click on a same-site link. One booted engine can then visit every page.
  */

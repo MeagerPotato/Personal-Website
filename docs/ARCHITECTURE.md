@@ -305,9 +305,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   never leaves the site either: it beckons the name (`Labels.beckon`: shown, focused and lit
   with the next frame), and leaving is a second, explicit press. They read the same map of the screen as the picker. Which names may show
   is `sim/declutter.ts` (pure): where the ship is going first, then systems, planets, moons, the
-  nearer first; never touching, never under the panel or the top bar, and steady (a name that
-  shows stays until it is really in the way, a hidden one waits for real room, so nothing flickers
-  while bodies drift past each other). The name of the body the ship is docked at is on the page
+  nearer first; never touching, never under the panel or the top bar, and steady: a name that
+  shows stays until it is really in the way, and a hidden one waits for real room, so names do
+  not blink while bodies drift past each other. The name of the body the ship is docked at is on the page
   already, so it is not shown, and no other name lies on its face. Names also keep off whatever
   else can be pressed out there: the dock prompt, the boost pad and the Map button are
   `obstacles`, room that is taken before the first name is placed (on a phone with the sheet up,
@@ -318,16 +318,40 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   the obstacles, because it is most often right beside the very body whose name it is: a name it
   would lie under glides just past it, away from its body (`glidePast` in `sim/declutter.ts`), or
   goes ABOVE its body, with the same patience as declutter, so a name does not hop about while
-  the ship circles its body. Only on the map (`eitherSide`, which holds still) may a name sit
-  above its body, and there one with no room below (the sheet, an edge, a control) goes above
-  too. Any other name glides a few pixels at most and then makes way; the target's and the
-  focused one never do, so the ship alone never hides the name of where it is, or takes the
-  keyboard's focus away.
-  Either side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
+  the ship circles its body. Only on the map (`onMap`, which holds still) does a name have more
+  than one PLACE: below its body or above it (one with no room below, the sheet, an edge, a
+  control, goes above too), BESIDE it like a station's name on a transit map (the side towards
+  the middle of the view first), or slid along it, away from a screen edge it would cross, as
+  long as its body stays over its tag. Declutter tries a name's places in turn, keeps it where
+  it was while it may, brings it back to its first place once that has room to spare, and moves
+  ONE name already placed to another of its places if that alone makes room for one more; the
+  systems' names are placed TOGETHER, every way tried before one of them is left out (the
+  target's and the keyboard's come first and are never moved). Among names of one rank the map
+  prefers one that shows already (a name that waits takes only the room that is left), then the
+  nearest the middle of the view: every body is as far from a camera straight above. And on the
+  map a name that has just appeared, hidden or moved makes no other change of its own accord for
+  `labels.dwellSec` (1 s: `young` in `sim/declutter.ts`); while it is young it keeps its slot in
+  `labels.max`, and no name that waits to show, however important, takes its room. A place a name
+  is not at must have room to spare from the edges of the view before it takes it, so nothing
+  hops back and forth (a name with no such place takes one without, unless its body is on its way
+  out). A planet's or a moon's tag never lies on a sun or the home planet, the landmarks the map
+  is read by; a system's only as a last resort (`covers`: what a place lies on, `liesOn`), and
+  where one lies on another system's sun the systems' search tries every way of placing them all
+  for one that leaves fewer there (right on a disc counts far worse than a gap off it). The
+  map's places start in the frame the camera has ARRIVED (`StarMap.arrived`): on the way up a
+  name keeps its one place under its body, as in flight. What no rule holds off is a change a
+  name MUST make: its place went past the edge of the view, or something more important that
+  shows needs the room (`tests/map-names/` watches every frame: samples in `npm test`, whole
+  turns of every look in `npm run map-names`). Any other name glides a few
+  pixels at most and then makes way; the target's and the focused one never do, so the ship
+  alone never hides the name of where it is, or takes the keyboard's focus away.
+  Whichever side, it is the name's visible tag that sits `offsetPx` off the disc and keeps a gap
   from the ship (its height, and how far the target's tag reaches left for its dot, are read
   from the stylesheet when the names are measured); the rest of the 44 px box, a clear touch
-  target, lies beyond the tag, away from the body (`data-side='above'` tells CSS to draw the tag
-  at the bottom of the box).
+  target, lies beyond the tag, away from the body (`data-side` tells CSS where the body is:
+  `above` draws the tag at the bottom of the box, `left` and `right` in its middle). Each name's
+  `transform` moves it to its body and from there to its place, so the page says where every
+  named body is (the end-to-end tests read it: `bodyOf`).
   The top bar is the web layer's, so the web layer measures it: `shell/panel-inset.ts` reports
   how far down its links reach as `top` of `setPanelInset`, which the names respect (the bar is
   two rows tall on a phone); the camera goes by `frameTop` instead (above). Per frame that is a

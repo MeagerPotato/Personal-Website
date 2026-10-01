@@ -143,6 +143,36 @@ describe('projectBodies', () => {
     ).toBe(1);
   });
 
+  it('says how far each body went by itself since the frame before, whatever the camera did', () => {
+    // From straight above, 4 px to the unit. Since the frame before, a finger has dragged the
+    // map: the camera is 10 u further right, and on screen everything went 40 px left. By itself
+    // the first body went half a unit right and a quarter up the screen (-Z); the second held
+    // still; the third was behind the camera's plane then and now, which is nowhere on screen.
+    const { viewProjection, focal } = camera([10, 100, 0], [10, 0, 0], [0, 0, -1], 90, 1.5);
+    const map = createScreenMap(2);
+    projectBodies(
+      viewProjection,
+      focal,
+      WIDTH,
+      HEIGHT,
+      [0.5, -0.25, 20, 0],
+      [5, 5],
+      2,
+      map,
+      undefined,
+      [0, 0, 20, 0],
+    );
+    expect(map.x[0]).toBeCloseTo(562, 9);
+    expect(map.ownX[0]).toBeCloseTo(2, 9);
+    expect(map.ownY[0]).toBeCloseTo(-1, 9);
+    expect(map.ownX[1]).toBe(0);
+    expect(map.ownY[1]).toBe(0);
+    // Nobody says where they were (the first frame): no way of their own.
+    projectBodies(viewProjection, focal, WIDTH, HEIGHT, [0.5, -0.25, 20, 0], [5, 5], 2, map);
+    expect(map.ownX[0]).toBe(0);
+    expect(map.ownY[0]).toBe(0);
+  });
+
   it('fills no more rows than the map has', () => {
     const { viewProjection, focal } = camera([0, 100, 0], [0, 0, 0], [0, 0, -1], 90, 1.5);
     const map = projectBodies(

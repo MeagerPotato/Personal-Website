@@ -23,11 +23,15 @@ export class BodiesOnScreen implements System {
   readonly map: ScreenMap;
 
   private readonly viewProjection = new Matrix4();
+  /** Where every body was the frame before, like `positions`: none of them, before the first. */
+  private readonly before: Float64Array;
+  private seen = false;
   private width = 1;
   private height = 1;
 
   constructor(private readonly options: BodiesOnScreenOptions) {
     this.map = createScreenMap(options.count);
+    this.before = new Float64Array(options.count * 2);
   }
 
   frameUpdate(): void {
@@ -45,7 +49,11 @@ export class BodiesOnScreen implements System {
       count,
       this.map,
       scales,
+      // Which way each body is going by itself (`ownX`, `ownY`), whatever the camera does.
+      this.seen ? this.before : undefined,
     );
+    for (let i = 0; i < this.before.length; i += 1) this.before[i] = positions[i] ?? 0;
+    this.seen = true;
   }
 
   /**
