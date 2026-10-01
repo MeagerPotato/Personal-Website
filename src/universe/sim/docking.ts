@@ -88,10 +88,11 @@ export interface DockState {
   halting: boolean;
   /**
    * A journey was handed back by a turn or the throttle (pilotLeaves), or a STOP was steered out
-   * of while the ship was still fast (haltingInput): the pilot flies, but until the ship is slow
-   * enough for the cushions to stop (GUARD_SPEED), or the pilot opens the throttle afresh with
-   * nothing left to guard, the reflex still brakes it for whatever lies on its course
-   * (guardInput). Never with `halting`. Survives a rebuilt engine (core/snapshot.ts).
+   * of while the ship was still fast (haltingInput): the pilot flies, but until there is nothing
+   * left to guard (the ship is slow enough for the cushions, GUARD_SPEED, or the pilot opens the
+   * throttle afresh at their own pace, and either way it would coast to rest short of everything
+   * on its course), the reflex still brakes it for whatever lies on its course (guardInput).
+   * Never with `halting`. Survives a rebuilt engine (core/snapshot.ts).
    */
   guarding: boolean;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
@@ -246,9 +247,11 @@ function atRest(field: BodyField, state: Readonly<ShipState>): boolean {
 }
 
 /**
- * u/s. A ship handed back to its pilot is guarded (DockState.guarding) until it is this slow: the
- * cushions stop a ship that meets them head on at about 30 u/s by themselves (sim/collide.ts), and
- * below freeSpeeds the orbit assist is there too.
+ * u/s. A ship handed back to its pilot is guarded (DockState.guarding) until it is this slow, and
+ * would coast to rest short of everything on its course (guardInput): the cushions stop a ship
+ * that meets them head on at about 30 u/s by themselves (sim/collide.ts), short of the shell, and
+ * below freeSpeeds the orbit assist is there too. Only short of the shell: one that meets a
+ * cushion head on at 20 u/s is stopped half way down it.
  */
 export const GUARD_SPEED = 25;
 /**
@@ -282,11 +285,14 @@ const guarded: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: false };
  * way it goes, or the way its nose points, sim/reflex.ts): taken back from a journey among the
  * target's moons at 200 u/s, a ship would otherwise coast on into one of them at the pilot's own
  * top speed, more than a cushion stops. Nothing is on its course in open space, and there it is
- * the pilot's input exactly. The guard ends once the ship is slow (GUARD_SPEED): someone flying at
- * a planet on purpose is then left to fly at it. It ends at a fresh press of the throttle too,
- * once there is nothing left to guard: the speed is what the pilot's own drive could have given
- * it (OWN_PACE_SHARE), and let go of there, the ship would coast to rest short of everything on
- * its course. (A second tap at 40 u/s beside a moon, hands off, grazed its cushion otherwise.)
+ * the pilot's input exactly. The guard ends once there is nothing left to guard: the ship is slow
+ * (GUARD_SPEED), or the pilot pressed the throttle afresh at a speed their own drive could have
+ * given it (OWN_PACE_SHARE), and let go of there, it would coast to rest short of everything on
+ * its course. Someone flying at a planet on purpose is braked only as far as the reflex asks, and
+ * then left to fly at it. (A second tap at 40 u/s beside a moon, hands off, grazed its cushion otherwise;
+ * and a tap of the throttle leaving the Resume station at 26 u/s, straight at About's world 12 u
+ * away, ended the guard as the speed fell under GUARD_SPEED, and coasted half way down its
+ * cushion: scripts/journeys, stress.)
  */
 export function guardInput(
   field: BodyField,
@@ -302,8 +308,8 @@ export function guardInput(
   const speed = speedOf(state);
   if (
     dock.phase !== 'free' ||
-    speed < GUARD_SPEED ||
-    (dock.armed && thrusting && idle(field, state, speed, pilot.boost, flight))
+    ((speed < GUARD_SPEED || (dock.armed && thrusting)) &&
+      idle(field, state, speed, pilot.boost, flight))
   ) {
     dock.guarding = false;
     return pilot;

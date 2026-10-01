@@ -220,11 +220,12 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   of the brake mid-journey is a Stop too (`pilotLeaves`). A turn or the throttle is the pilot
   flying again, but the pilot's own top speed (81 u/s) is still more than a cushion stops, and a
   journey ends among its target's moons: so the reflex (below) stays on for them, with the
-  pilot's own brake, until the ship is slow enough for the cushions or they open the throttle
-  afresh with nothing left to guard: at a speed their own drive gives (with boost, if they
-  boost), and where the ship would
+  pilot's own brake, until there is nothing left to guard: the ship is slow enough for the
+  cushions (25 u/s), or they open the throttle afresh at a speed their own drive gives (with
+  boost, if they boost), and either way the ship would
   coast to rest short of everything on its course (`guardInput`, `DockState.guarding`: a second
-  tap of W while the speed is still the autopilot's is not that); steering out of a Stop while
+  tap of W while the speed is still the autopilot's is not that, nor is 25 u/s straight at a
+  world a few units off, which the cushion stops only half way down); steering out of a Stop while
   still fast does the same. The web layer letting go of a journey (`undock`: the route moved to a
   page with no body) is a Stop too (`Navigator.release` on the way somewhere), and so is a page
   load that does not take the journey up (`startingFrom`, below). An orbit a journey has only

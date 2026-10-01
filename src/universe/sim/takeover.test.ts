@@ -379,6 +379,45 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(watch(bare, 3).touches).toBeGreaterThan(0);
   });
 
+  it('stays on under GUARD_SPEED while the ship would still coast into something on its course', () => {
+    // A tap of the throttle leaving the Resume station at 26 u/s, straight at About's world 12 u
+    // away (the journey harness's stress, once the emblem worlds reached out): the speed fell
+    // under GUARD_SPEED in a step, the guard ended there, and the ship coasted half way down
+    // About's cushion, 2.0 u from its surface. The cushions stop a ship that slow short of the
+    // shell, not short of that.
+    const { flight } = tuning;
+    let flights = 0;
+    let least = Infinity;
+    let leastAt = '';
+    for (const id of ['page/about', 'project/fishai', 'project/days2meet']) {
+      for (const gap of [10, 12, 16, 20]) {
+        for (const speed of [25.5, 30, 40]) {
+          // Only from where the full brake could stop the ship above half the cushion.
+          const stopping = speed / (flight.brakeDrag + flight.forwardDrag);
+          if (gap - tuning.cushion.depth * 0.5 < stopping) continue;
+          for (const off of [0, 0.15, -0.3]) {
+            const run = diving(gap, speed, id, off);
+            guardDock(run.world.dock, THRUST, tuning.dock.leaveDeadZone);
+            tap(run, THRUST, 5);
+            const seen = watch(run, 6);
+            const label = `${id} from ${gap} u at ${speed} u/s, ${off} rad off`;
+            expect(seen.touches, label).toBe(0);
+            expect(run.world.dock.guarding, label).toBe(false);
+            if (seen.gap < least) {
+              least = seen.gap;
+              leastAt = label;
+            }
+            flights += 1;
+          }
+        }
+      }
+    }
+    // 81 dives: the closest came 3.2 u above a surface (About, from 10 u at 25.5 u/s, head on).
+    // With the guard ending under GUARD_SPEED whatever lay ahead: 1.9 u, the same dive. Measured.
+    expect(flights).toBe(81);
+    expect(least, leastAt).toBeGreaterThan(tuning.cushion.depth * 0.5);
+  });
+
   it('ends once the ship is slow, or at a fresh press of the throttle at the pilot’s own pace, and never with Stop', () => {
     const slow = diving(200);
     slow.state.vx = 20;
