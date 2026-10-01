@@ -14,12 +14,31 @@ const rows = Object.entries(MOTION).flatMap(([id, list]) => list.map((row) => [i
 
 /**
  * Parts that do ONE motion together, said here rather than guessed: the twin rocket hops with its
- * flame, the Cal Hacks stands do one wave between them, and HackGT's magnifier rides its wave
- * ring. Rows of one part are one motion too (the letter slides and swells). The planned kit's
- * crane is not counted: it is the kit's.
+ * flame, the Cal Hacks stands do one wave between them, Hardware's fourteen gears click together
+ * (a whole tooth each), and HackGT's magnifier rides its wave ring. Rows of one part are one
+ * motion too (the letter slides and swells). The planned kit's crane is not counted: it is the
+ * kit's.
  */
 const TOGETHER: Readonly<Record<string, readonly (readonly string[])[]>> = {
   'page/about': [['twin-rocket', 'twin-flame']],
+  'system/hardware': [
+    [
+      'big-yp',
+      'big-yn',
+      'big-xp',
+      'big-xn',
+      'big-zp',
+      'big-zn',
+      'pin-ppp',
+      'pin-ppn',
+      'pin-pnp',
+      'pin-pnn',
+      'pin-npp',
+      'pin-npn',
+      'pin-nnp',
+      'pin-nnn',
+    ],
+  ],
   'project/cal-hacks-13': [['stands-1', 'stands-2', 'stands-3', 'stands-4']],
   'project/hackgt-13': [['wave-ring', 'magnifier']],
 };

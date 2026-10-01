@@ -170,8 +170,9 @@ describe('the real galaxy, drawn from its rows', () => {
       expect(material.uniforms.uSunPosition.value.equals(KEY_LIGHT_POSITION), sun.id).toBe(true);
       const unlit = mesh.geometry.getAttribute('aUnlit');
       const kinds = new Set(Array.from(unlit.array));
-      // Nothing of it is lit: the ball glows (2), the rest is flat (1).
-      expect([...kinds].sort(), sun.id).toEqual([1, 2]);
+      // Nothing of it is lit: the ball glows (2), the rest is flat (1). Except Hardware's gears
+      // (design/worlds/gears.ts), which glow too: flat beside the ball's halo they would wash out.
+      expect([...kinds].sort(), sun.id).toEqual(sun.id === 'system/hardware' ? [2] : [1, 2]);
     }
     galaxy.dispose();
   });

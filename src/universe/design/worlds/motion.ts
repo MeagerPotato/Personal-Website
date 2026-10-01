@@ -1,5 +1,6 @@
 import { TAU } from '../../sim/math';
 import type { MotionRow } from '../../sim/world/motion';
+import { GEARS, Z } from './gears';
 
 /**
  * THE ACTS: each body's one small, slow motion (at most two, plus a planned body's crane), keyed
@@ -31,7 +32,15 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
   'link/github': [EXIT],
   'link/linkedin': [EXIT],
   'link/devpost': [EXIT],
-  'system/hardware': [['cog', 'rot', 'y', 'step', Math.PI / 6, 12]],
+  // One click every 12 s, a whole tooth each: the cogs one way, the pinions the other.
+  'system/hardware': GEARS.map(([name, kind]): MotionRow => [
+    name,
+    'rot',
+    'y',
+    'step',
+    kind === 'big' ? TAU / Z.big : -TAU / Z.pin,
+    12,
+  ]),
   'system/software': [['caret', 'glow', '', 'sine', 1, 2.4, 0, 0.25]],
   'system/research': [['cursor', 'rot', 'y', 'ramp', TAU, 12]],
   'system/hackathons': [

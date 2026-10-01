@@ -14,6 +14,7 @@ import type { ColorPath } from '../../sim/world/palette';
 import { dirOf, shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
+import { CORE } from './gears';
 import { BUS, LOAF, WAVE } from './hackathons';
 import { rocket } from './home';
 import { D2M, SCR, SHAPE_FISH, tilted, yTop } from './projects';
@@ -753,9 +754,44 @@ const corgi: PartRow[] = [
   ],
 ];
 
+// A stud in each of the twelve dark gaps between the gears (the cube's edge midpoints).
+const stud: Item = [
+  'g',
+  ...Array.from({ length: 6 }, (_, i): Item => {
+    const at = (k: number): Vec3 => [
+      0.06 * Math.sin((k / 6) * TAU),
+      0,
+      -0.06 * Math.cos((k / 6) * TAU),
+    ];
+    return ['tri', [0, 0, 0], at(i), at(i + 1), 'coral.light', [0, 1, 0]];
+  }),
+];
+const GAPS: readonly (readonly [lat: number, lon: number])[] = [
+  [0, 45],
+  [0, 135],
+  [0, -45],
+  [0, -135],
+  [45, 0],
+  [45, 90],
+  [45, 180],
+  [45, -90],
+  [-45, 0],
+  [-45, 90],
+  [-45, 180],
+  [-45, -90],
+];
+
 /** Every body's close-up parts, by manifest id. */
 export const NEAR: Readonly<Record<string, readonly PartRow[]>> = {
   'page/about': about,
+  // Hardware's studs stand 0.015 above the frame (0.955 from the centre).
+  'system/hardware': [
+    [
+      'studs',
+      FLAG.hold | FLAG.glow,
+      ...GAPS.map(([lat, lon]): Item => ['s', lat, lon, { alt: CORE + 0.015 - 1 }, stud]),
+    ],
+  ],
   'system/research': researchSun,
   'system/hackathons': hackathonsSun,
   'project/robotics': robotics,

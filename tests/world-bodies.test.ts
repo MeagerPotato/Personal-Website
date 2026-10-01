@@ -73,7 +73,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0adc41b2' },
   'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4c9b505e' },
   'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4da94c42' },
-  'system/hardware':                { everyday: 812,  closeup: 812,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '9dd2c1e4' },
+  'system/hardware':                { everyday: 1316, closeup: 1388, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: 'e4e9d8b7' },
   'system/software':                { everyday: 552,  closeup: 552,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '5f3841ab' },
   'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b9de84be' },
   'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f5048eb4' },

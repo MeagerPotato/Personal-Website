@@ -5,6 +5,7 @@ import { colorOf } from '../../sim/world/palette';
 import { shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { planned } from '../../sim/world/planned';
 import { FLAG, type BodyRecipe, type Item, type Rows } from '../../sim/world/rows';
+import { hardware } from './gears';
 import { cutRect, rad, sunGround } from './shared';
 
 /**
@@ -18,25 +19,6 @@ import { cutRect, rad, sunGround } from './shared';
  */
 
 // --- the suns ------------------------------------------------------------------------------------
-
-const hardware: Rows = [
-  sunGround('coral'),
-  // The cog: a ring with twelve teeth. It ratchets one tooth every twelve seconds.
-  [
-    'cog',
-    FLAG.hold | FLAG.flat,
-    ['ring', [1.02, 1.2], 0, TAU, 24, -0.035, 0.035, 'coral.light', 'coral.shade'],
-    [
-      'around',
-      12,
-      0.13,
-      0,
-      0,
-      1,
-      ['rq', 0, 1.16, 1.56, 0.17, 0.1, -0.035, 0.035, 'coral.light', 'coral.shade'],
-    ],
-  ],
-];
 
 /** One arm of a chevron, a flat slab from one point to another. */
 const bracketArm = (x0: number, z0: number, x1: number, z1: number): Item => {

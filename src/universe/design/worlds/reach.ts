@@ -30,7 +30,7 @@ export const REACH: Readonly<Record<string, number>> = {
   'link/github': 1.72,
   'link/linkedin': 1.4,
   'link/devpost': 1.48,
-  'system/hardware': 1.57,
+  'system/hardware': 1.03,
   'system/software': 1.69,
   'system/research': 1.67,
   'system/hackathons': 1.68,
