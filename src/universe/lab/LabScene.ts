@@ -18,7 +18,7 @@ import {
 } from '../design/materials';
 import type { StarClass } from '../design/lookTypes';
 import { skyColours } from '../design/skyRecipe';
-import { tokens, type BiomeKey, type StarKey, type ThemeKey } from '../design/tokens';
+import { tokens, type AirKey, type BiomeKey, type StarKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { BODIES } from '../design/worlds/bodies';
 import { readManifest, type ManifestBody } from '../manifest';
@@ -33,13 +33,14 @@ import { sunSeed } from '../sim/sunSurface';
 import { isLivingSun, type GroundSpec } from '../sim/world/ground';
 import { rowsOf, type BodyRecipe } from '../sim/world/rows';
 import { buildStarList, STAR_KINDS, type StarKind, type StarList } from '../sim/starList';
+import { AirShells } from '../world/AirShells';
 import { Backdrop } from '../world/Backdrop';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { SkyBake } from '../world/SkyBake';
 import { starGeometry, Starfield } from '../world/Starfield';
 import { SunCorona } from '../world/SunCorona';
-import { lookOf, type LookedAt } from '../world/looks';
+import { airOf, lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
 const SUBJECTS = [
@@ -163,6 +164,10 @@ const KIND_OF = {
   Exclude<Subject, 'rocket' | 'world' | 'sun' | 'sky' | 'stars'>,
   LookedAt['kind']
 >;
+
+/** Whose air the thing on show wears: what the galaxy gives it, none, or one of the tokens'. */
+const AIR_CHOICES = ['galaxy', 'none', ...(Object.keys(tokens.color.air) as AirKey[])] as const;
+type AirChoice = (typeof AIR_CHOICES)[number];
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -314,6 +319,14 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   world.add(state, 'seed').onFinishChange(rebuild);
   world.add(state, 'rings').onChange(rebuild);
   world.add(state, 'closeUp').name('close-up detail').onChange(rebuild);
+  // Air (a world's, or a generated planet's): whichever the galaxy gives the body on show, any
+  // one of the tokens', or none; its clouds (not on the low tier) and, up close, its lamps. Turn
+  // the light round with the two sliders under "light" to see the dusk and the night.
+  const airFolder = gui.addFolder('air (world, planet)');
+  airFolder.add(state, 'air', AIR_CHOICES).onChange(rebuild);
+  airFolder.add(state, 'clouds').onChange(rebuild);
+  airFolder.add(state, 'cloudShare', 0, 1, 0.05).name('cloud share (no row)').onChange(rebuild);
+  airFolder.add(state, 'windows').name('lamps (close-up)').onChange(rebuild);
   // The sky alone, looked OUT at from the middle: the seven views it is judged from
   // (sim/skyDirections.ts), or wherever a drag leaves it.
   const skyFolder = gui.addFolder('sky (subject: sky)');
@@ -525,6 +538,10 @@ class Turntable implements System {
     boost: false,
     lightAzimuthDeg: -55,
     lightElevationDeg: 35,
+    air: 'galaxy' as AirChoice,
+    clouds: true,
+    cloudShare: 0.55,
+    windows: true,
     sky: true,
     docked: false,
     pose: 'first' as SkyPoseName,
@@ -541,6 +558,10 @@ class Turntable implements System {
   private world: BodyMesh | null = null;
   /** The light round the sun on show, and where it is told the sun is (the middle, at its size). */
   private corona: SunCorona | null = null;
+  /** The air of the world on show, if it has any. */
+  private air: AirShells | null = null;
+  /** Where the thing on show is: the middle of the table. */
+  private readonly center = new Vector3();
   /** The radius of the body on show (u). */
   private shownRadius = 1;
   /** Has the camera been framed on the world's built reach yet? */
@@ -684,6 +705,12 @@ class Turntable implements System {
       {},
     );
     if (shape.world) return;
+    const body = { kind: KIND_OF[subject], radius: state.radius, seed: state.seed };
+    const air = this.airOn(
+      'lab',
+      { ...body, biome: state.biome, ...(this.isPlanned() ? { planned: true as const } : {}) },
+      shape.model === null,
+    );
     if (shape.model !== null) {
       const handle = assets.acquire(shape.model, surface);
       scope.onDispose(() => handle.release());
@@ -703,7 +730,7 @@ class Turntable implements System {
       look: shape.look,
       detail,
       nearDetail: null,
-      material: surface,
+      material: air ? scope.track(air()) : surface,
       jobs: this.jobs,
     });
     this.object.add(this.planet.mesh);
@@ -748,6 +775,8 @@ class Turntable implements System {
     setToonFlatness(state.onMap && this.world ? tuning.map.flatness : 0);
     this.corona?.setCalm(state.onMap ? 1 : 0);
     this.corona?.frameUpdate(frame);
+    this.air?.setCalm(state.onMap ? 1 : 0);
+    this.air?.frameUpdate(frame);
     if (this.world && !this.framed && this.world.built) {
       this.framed = true;
       // A sun is framed with the nearer steps of its halo.
@@ -767,12 +796,78 @@ class Turntable implements System {
     this.showBody(state.world, this.bodyOf(state.world), recipe, surface);
   }
 
+  /** Has the world on show lamps on its night side? */
+  private lamps = false;
+
+  /**
+   * The air of the thing on show, as the galaxy would give it one (world/looks.ts, `airOf`) or
+   * as the panel asks: its shell and its clouds are put on the table, and what makes the
+   * material its ground is to wear comes back (null: no air).
+   */
+  private airOn(
+    id: string,
+    body: WorldBody & { biome?: BiomeKey },
+    globe: boolean,
+  ): (() => ToonMaterial) | null {
+    const { state } = this;
+    const own = airOf(
+      {
+        id,
+        kind: body.kind,
+        ...(body.biome ? { biome: body.biome } : {}),
+        ...(body.planned ? { planned: true as const } : {}),
+      },
+      globe,
+    );
+    const air =
+      state.air === 'galaxy'
+        ? own
+        : state.air === 'none' || body.kind === 'sun'
+          ? undefined
+          : {
+              air: state.air,
+              cloud: own?.cloud ?? { share: state.cloudShare, peak: 'frost' as BiomeKey },
+              windows: own?.windows ?? false,
+            };
+    this.lamps = air?.windows === true && state.windows;
+    if (!air) return null;
+    const { center } = this;
+    const make = (): ToonMaterial => {
+      const material = createToonMaterial({
+        vertexColors: true,
+        air: { key: air.air, center },
+      });
+      this.lit.push(material);
+      return material;
+    };
+    this.air = new AirShells({
+      worlds: [
+        {
+          id,
+          row: 0,
+          radius: body.radius,
+          air: air.air,
+          light: this.light,
+          // The tiers' own rule (main.ts) would hide them on low; the lab shows what is asked for.
+          cloud: state.clouds && !this.low ? air.cloud : undefined,
+        },
+      ],
+      positions: [0, 0],
+      scales: [1],
+      low: this.low,
+      reducedMotion: !state.moving,
+    });
+    this.object.add(this.air.object);
+    return make;
+  }
+
   /** A body drawn from rows; a sun in its own material (its ball's tones), with its corona. */
   private showBody(id: string, body: WorldBody, recipe: BodyRecipe, surface: ToonMaterial): void {
     const { state } = this;
     const [ground] = rowsOf(recipe, { map: false });
     const family = Array.isArray(ground) ? undefined : (ground as GroundSpec).sun;
-    let material = surface;
+    const air = this.airOn(id, body, false);
+    let material = air ? this.scope.track(air()) : surface;
     if (body.kind === 'sun' && family !== undefined) {
       material = this.scope.track(createToonMaterial({ vertexColors: true, sun: family }));
       this.lit.push(material);
@@ -806,6 +901,8 @@ class Turntable implements System {
       low: this.low,
       reducedMotion: !state.moving,
       closeUp: this.closeUp,
+      lamps: this.lamps,
+      ...(air ? { another: air } : {}),
     });
     this.object.add(this.world.object);
     this.framed = false;
@@ -823,6 +920,9 @@ class Turntable implements System {
   private clear(): void {
     this.corona?.dispose();
     this.corona = null;
+    this.air?.dispose();
+    this.air = null;
+    this.lamps = false;
     setToonFlatness(0);
     this.planet?.dispose();
     this.planet = null;

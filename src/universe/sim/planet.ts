@@ -181,6 +181,23 @@ const BEND_MOST = 0.6;
 /** The middle of a facet. */
 const MIDDLE: Flat = [1 / 3, 1 / 3];
 
+/**
+ * How high a generated ground is in a unit direction, before the terraces: 0 the sea's edge, 1
+ * the highest peak, below 0 under the sea. The generator's own heights (so whoever asks, a lamp
+ * looking for a coast, finds the land where the planet has it).
+ */
+export function groundHeight(
+  seed: string,
+  look: PlanetLook,
+  noise = createNoise3(seed),
+): (dx: number, dy: number, dz: number) => number {
+  return (dx, dy, dz) => {
+    const f = look.frequency;
+    const raw = fbm(noise, dx * f, dy * f, dz * f, look.octaves);
+    return (raw - look.seaLevel) / (look.peakAt - look.seaLevel);
+  };
+}
+
 export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<void, MeshData> {
   const noise = createNoise3(spec.seed);
   const paint = createRng(`${spec.seed}/paint`);
@@ -190,11 +207,7 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
   const corners = spec.up === 'vertex' ? VERTEX_UP : CORNERS;
 
   /** How high the ground is in a unit direction (`Corner.h`). */
-  const heightAt = (dx: number, dy: number, dz: number): number => {
-    const f = look.frequency;
-    const raw = fbm(noise, dx * f, dy * f, dz * f, look.octaves);
-    return (raw - look.seaLevel) / (look.peakAt - look.seaLevel);
-  };
+  const heightAt = groundHeight(spec.seed, look, noise);
 
   const corner = (x: number, y: number, z: number): Corner => {
     const length = Math.hypot(x, y, z);

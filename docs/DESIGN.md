@@ -411,7 +411,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
@@ -769,6 +769,54 @@ successor, "noise only baked, limited and lit" (above; still Allen's to sign).
   four old glows are retired once the preview has been flown (decision D3). **Not yet measured
   on a phone:** the bake's time, its memory and the stair on low. Until two real phones have
   run it, this stays on the preview.
+
+**As built: worlds with air (step 4).** A world with a sea has air now, and its day ends in a
+dusk. Everything of it is round: the day after it was first drawn, Allen asked for "the planets
+too, make everything round and smooth", so nothing of the air follows a facet.
+
+- **Which worlds.** The five globes with a sea, by name (`look.air.worlds`): home, CyberPatriot,
+  Robotics, HackGT 13 and Cal Hacks 13.0, each in the air of its biome (`color.air.<biome>`).
+  A generated planet of a biome with a sea would get its biome's air too; clay (planned work),
+  suns, the station, the satellite, the bus and the relays have none.
+- **Three bands, warm and cool.** The ground keeps its three bands of light, and on a world with
+  air the middle band is a **warm dusk** and the shade a **cool night** (`color.shading.dusk`
+  and `night`) instead of the plain shadow: the dusk at 0.6 of its full colour (`duskShare`;
+  at 1 the belt was an orange stripe and the ring road went salmon), and the night is never black: the
+  shapes of the land still read in it. A lit place seen straight on is exactly its token, as ever.
+  **What stands above the air** (the top of a tower, a ring road's far side: beyond 1.24 radii)
+  is lit as everything without air is.
+- **The limb takes the air's colour**, in three flat round steps toward the outline, strong
+  where the ball faces its light (0.62) and faint at night (0.07). It follows the ball, not the
+  mesh.
+- **The shell**: four flat rings of the air's colour outside the outline (0.50, 0.26, 0.12,
+  0.05, out to 1.3 radii), bright toward the light and a sixth of that on the night side, and a
+  **hairline** on the outline: near white toward the light, the dusk colour on the terminator,
+  nearly gone at night. One draw call for every world. Painted, like the corona, as paint over
+  the navy, so the low tier (three rings) shows the same air.
+- **Clouds** are drawn on a round skin just above the ground: flat shapes with round outlines,
+  in two levels (a thin edge, a body), stretched along the latitudes, in the world's peak colour
+  mixed a little toward its air, in the same three bands of light. Each world's are cut from its
+  own place in the noise. They turn once in about nine minutes and hold still under reduced
+  motion. One draw call for every world. **High: all five worlds; medium: home alone; low:
+  none.** (First drawn as facets of a second ball; that was a ball of triangles.)
+- **Home's lit windows.** Up close, the night side of home shows 150 small round lamps in
+  `color.window`, gathered into towns on the low land near the coasts; they are there only
+  where the ball has turned well away from its light, and on every tier. They do not bloom: a
+  window is lit, it is not a light (rule 6).
+- **Lamps on what is built** (decision D9, kept): the bus's side windows are lit panes (its
+  windshield is dark glass: a lit windshield read as a second sign), the station's four pods
+  have a lit pane each, and the station's mast, the satellite's dish and the bus's sign carry a
+  small flat **beacon**. Flat colour, no bloom.
+- **The star map stays flat** (rule 8): no shell, no clouds, no lamps, no dusk; a world is its
+  tokens.
+- **Cost**, on the desktop it was measured on (1280 x 800, uncapped): one more draw call on the
+  low tier and two on medium and high; the frame stayed at 0.1 to 0.2 ms.
+- **Still to judge in the lab** (`world` and `planet` subjects, the folder "air": any air on any
+  globe, clouds on or off and how much sky they take, windows, and the light's direction for
+  dusk and night): how strong the limb is (`look.air.limb.lit`), how wide the dusk
+  (`duskShare`), how much cloud each world wears (`worlds.<id>.cloud.share`), and whether a
+  generated planet with relief should keep its hairline (its mountains stand through it).
+  **Not yet measured on a phone.**
 
 ## Accessibility bar (non-negotiable)
 

@@ -16,6 +16,8 @@ import type { BodyKind } from '../data/types';
 import { createEdgeMaterial, createToonMaterial, type ToonMaterial } from '../design/materials';
 import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { groundHeight } from '../sim/planet';
+import { windowLamps } from '../sim/windows';
 import {
   assembling,
   fineOf,
@@ -26,8 +28,17 @@ import {
   type Group as DrawGroup,
   type Packed,
 } from '../sim/world/glue';
+import { groundLook, type GroundSpec } from '../sim/world/ground';
 import { driveValue, type MotionRow } from '../sim/world/motion';
-import { makeBody, type BodyRecipe, type PartRow, type Pivot } from '../sim/world/rows';
+import { colorOf } from '../sim/world/palette';
+import {
+  makeBody,
+  rowsOf,
+  type BodyRecipe,
+  type Build,
+  type PartRow,
+  type Pivot,
+} from '../sim/world/rows';
 
 /** What the close-up chunk brings (design/worlds/closeup.ts), by manifest id. */
 export interface CloseUpRows {
@@ -108,6 +119,17 @@ export interface BodyMeshOptions {
    * own.
    */
   readonly edges?: (family: ThemeKey) => Material;
+  /**
+   * Another material like `material`, in the same light, for a part whose brightness swells (it
+   * needs one of its own). The body owns what it is handed, and frees it. Without it, a plain
+   * toon material in `material`'s light: right for every world but one with air.
+   */
+  readonly another?: () => ToonMaterial;
+  /**
+   * Lit windows on its night side, up close (sim/windows.ts): for a world with air whose ground
+   * is generated (`material` must be the AIR variant, which knows a lamp from a light).
+   */
+  readonly lamps?: boolean;
 }
 
 /** A part that moves, drawn: the object its rows drive, and a glowing part's own brightness. */
@@ -263,10 +285,11 @@ export class BodyMesh {
   private build(tier: TierName, rows?: CloseUpRows): void {
     const { id, kind, planned, seed, recipe, low, reducedMotion, jobs } = this.options;
     const near = tier === 'near';
+    const lamps = near && this.options.lamps === true;
     const motion = (near && rows?.MOTION[id]) || [];
     const closeUpRows = (near && rows?.NEAR[id]) || [];
     const job = (function* (): Generator<void, Assembly> {
-      const build = yield* makeBody(id, recipe, {
+      const made = yield* makeBody(id, recipe, {
         detail: groundDetail(kind, planned, near, detailsOf(low)),
         looks: { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun },
         seed,
@@ -274,6 +297,7 @@ export class BodyMesh {
         near: closeUpRows,
         fine: fineOf(near, low, tuning.world.round),
       });
+      const build = lamps ? withLamps(made, recipe, seed) : made;
       yield;
       return yield* assembling(build, {
         kind,
@@ -342,7 +366,7 @@ export class BodyMesh {
       const rows = motion.filter(([part]) => part === mover.name);
       // A part whose brightness swells has a material of its own, lit by the same light.
       const own = rows.some((row) => row[1] === 'glow')
-        ? scope.track(createToonMaterial({ vertexColors: true }))
+        ? scope.track(this.options.another?.() ?? createToonMaterial({ vertexColors: true }))
         : null;
       if (own) own.uniforms.uSunPosition.value = material.uniforms.uSunPosition.value;
       const moving = mesh(mover.mesh, `${tier}:mover:${mover.name}`, own ?? material);
@@ -365,6 +389,30 @@ export class BodyMesh {
       reach: Math.max(reachOf(assembly.turn), reachOf(assembly.hold)),
     };
   }
+}
+
+/**
+ * A build with the lamps of its night side (sim/windows.ts): on its generated ground, where the
+ * land meets the sea. A body whose ground is a hull has none.
+ */
+function withLamps(build: Build, recipe: BodyRecipe, seed: string): Build {
+  const [ground] = rowsOf(recipe, { map: false });
+  if (Array.isArray(ground)) return build;
+  const spec = ground as GroundSpec;
+  const { look } = groundLook(spec, {
+    planet: tuning.planet,
+    terrain: tuning.terrain,
+    sun: tuning.look.sun,
+  });
+  const own = spec.seed ?? seed;
+  const lamps = windowLamps(
+    build.ground,
+    groundHeight(own, look),
+    own,
+    tuning.look.air.windows,
+    colorOf('lamp.window'),
+  );
+  return { ...build, parts: [...build.parts, lamps] };
 }
 
 /** A pivot (rows.ts) as a matrix: its axes are the columns, its origin the translation. */

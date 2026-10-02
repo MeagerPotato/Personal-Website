@@ -17,17 +17,25 @@ import {
 } from 'three';
 import { hexToLinear } from '../sim/color';
 import { sunLadder } from '../sim/sunSurface';
+import {
+  AIR_MASK_STOPS,
+  AIR_RIM_STOPS,
+  AIR_RINGS,
+  CLOUD_OCTAVES,
+  airCloud,
+  airShell,
+} from './shaders/air';
 import { corona } from './shaders/corona';
 import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
-import type { SkyTier, StarClass, SunTone } from './lookTypes';
+import type { RimTone, SkyTier, StarClass, SunTone } from './lookTypes';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { skyBake } from './shaders/skyBake';
 import { skyConstants, skyLoops, skyRamps } from './skyRecipe';
-import { SUN_SPOTS, toonFlat } from './shaders/toonFlat';
-import { tokens, type ThemeKey } from './tokens';
+import { AIR_LIMB_STEPS, SUN_SPOTS, toonFlat } from './shaders/toonFlat';
+import { tokens, type AirKey, type BiomeKey, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
 /**
@@ -130,6 +138,12 @@ export interface ToonOptions {
   instancedSun?: boolean;
   /** A sun's own material, in this family: its ball is a living surface (shaders/toonFlat.ts, SUN). */
   sun?: ThemeKey;
+  /**
+   * A world with air's own material (shaders/toonFlat.ts, AIR): which air, and where the world's
+   * centre is. `center` is READ every frame and never copied: hand over the very vector that
+   * moves with the world.
+   */
+  air?: { key: AirKey; center: Vector3 };
 }
 
 /**
@@ -160,11 +174,13 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
       uSunPosition: { value: KEY_LIGHT_POSITION.clone() },
       uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
       ...(options.sun ? sunSurfaceUniforms(options.sun) : {}),
+      ...(options.air ? airUniforms(options.air.key, options.air.center) : {}),
     },
     vertexColors: options.vertexColors ?? false,
     defines: {
       ...(options.instancedSun ? { INSTANCED_SUN: '' } : {}),
       ...(options.sun ? { SUN: '' } : {}),
+      ...(options.air ? { AIR: '' } : {}),
     },
   });
   // Location 0 is always an array that is there (a driver that finds it switched off emulates
@@ -204,6 +220,36 @@ function sunSurfaceUniforms(family: ThemeKey): Record<string, IUniform> {
         return new Vector4(n.x, n.y, n.z, radius);
       }),
     },
+  };
+}
+
+/**
+ * The multipliers of a world with air's middle and shade bands (linear): the dusk (as much of it
+ * as `bands.duskShare` says: the rest is the colour as lit) and the night.
+ */
+export function airBands(): { uDusk: IUniform<Color>; uNight: IUniform<Color> } {
+  const { shading, star } = tokens.color;
+  const { dusk, night, duskShare } = tuning.look.air.bands;
+  return {
+    uDusk: {
+      value: new Color(star.white).lerp(new Color(shading.dusk).multiplyScalar(dusk), duskShare),
+    },
+    uNight: { value: new Color(shading.night).multiplyScalar(night) },
+  };
+}
+
+/** A world's air as the toon shader's uniforms (shaders/toonFlat.ts, AIR): `tuning.look.air`. */
+function airUniforms(key: AirKey, center: Vector3): Record<string, IUniform> {
+  const { limb, windows } = tuning.look.air;
+  if (limb.steps > AIR_LIMB_STEPS)
+    throw new RangeError(`a limb has at most ${AIR_LIMB_STEPS} levels`);
+  return {
+    uAirCenter: { value: center },
+    uAir: { value: new Color(tokens.color.air[key]) },
+    ...airBands(),
+    uAirLimb: { value: new Vector4(limb.power, limb.lit, limb.always, limb.steps) },
+    uAirLit: { value: new Vector4(...limb.litEdges, ...limb.topRadii) },
+    uLampNight: { value: windows.night },
   };
 }
 
@@ -484,6 +530,104 @@ export function createCoronaMaterial(options: { low: boolean }): CoronaMaterial 
   keepBloomMask(material, false);
   material.blendSrc = OneFactor;
   return material as CoronaMaterial;
+}
+
+export type AirShellMaterial = ShaderMaterial & { uniforms: { uCalm: IUniform<number> } };
+
+/** A colour of the hairline as the shell's shader counts them. */
+const RIM_TONE: Record<RimTone, number> = { air: 0, airLight: 1, dusk: 2 };
+
+/**
+ * The air round the worlds that have it (shaders/air.ts, the shell): `tuning.look.air.shell` and
+ * `rim` laid out as the shader's tables. `low`: the low tier keeps fewer rings. Premultiplied
+ * colour over what is behind it, and not on the bloom guest list. The tables are as long as the
+ * shader's: materials.test.ts holds them equal.
+ */
+export function createAirShellMaterial(options: { low: boolean }): AirShellMaterial {
+  const { shell, rim } = tuning.look.air;
+  if (
+    shell.rings.length !== AIR_RINGS ||
+    shell.mask.length !== AIR_MASK_STOPS ||
+    rim.stops.length !== AIR_RIM_STOPS
+  ) {
+    throw new RangeError('air: the shell’s tables are not the size its shader loops over');
+  }
+  const material = new ShaderMaterial({
+    name: 'air-shell',
+    vertexShader: airShell.vertexShader,
+    fragmentShader: airShell.fragmentShader,
+    uniforms: {
+      uCalm: { value: 0 },
+      uBloomMask: bloomMask,
+      // Display space: the parts are laid over each other as paint is.
+      uUnder: { value: new Color(tokens.color.space[900]).convertLinearToSRGB() },
+      uDusk: { value: new Color(tokens.color.shading.dusk).convertLinearToSRGB() },
+      uReach: { value: new Vector2(shell.half, shell.pull) },
+      uRings: { value: shell.rings.map((ring) => new Vector3(...ring)) },
+      uRingCount: { value: options.low ? shell.lowRings : shell.rings.length },
+      uMask: { value: shell.mask.map((stop) => new Vector2(...stop)) },
+      uRim: { value: new Vector3(rim.radius, rim.widthPx, rim.widthR) },
+      uRimStops: {
+        value: rim.stops.map(([deg, tone, alpha]) => new Vector3(deg, RIM_TONE[tone], alpha)),
+      },
+      uRimMix: { value: new Vector2(rim.whiten, rim.duskAir) },
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  keepBloomMask(material, false);
+  material.blendSrc = OneFactor;
+  return material as AirShellMaterial;
+}
+
+export type CloudMaterial = ShaderMaterial & {
+  uniforms: { uTime: IUniform<number>; uCalm: IUniform<number> };
+};
+
+/**
+ * The clouds of the worlds that have them (shaders/air.ts, the clouds): `tuning.look.air.cloud`
+ * as the shader reads it. `motion`: do they drift? (Not under reduced motion.) Paint over what
+ * is behind it, and not on the bloom guest list.
+ */
+export function createCloudMaterial(options: { motion: boolean }): CloudMaterial {
+  const { cloud } = tuning.look.air;
+  if (cloud.octaves > CLOUD_OCTAVES)
+    throw new RangeError(`clouds: at most ${CLOUD_OCTAVES} octaves`);
+  const material = new ShaderMaterial({
+    name: 'air-cloud',
+    vertexShader: airCloud.vertexShader,
+    fragmentShader: airCloud.fragmentShader,
+    uniforms: {
+      uTime: { value: 0 },
+      uCalm: { value: 0 },
+      uSkin: { value: new Vector2(cloud.skin, options.motion ? cloud.driftRadPerSec : 0) },
+      uField: {
+        value: new Vector4(cloud.noiseWeight, cloud.bandWeight, cloud.bandFreq, cloud.core),
+      },
+      uFreq: { value: new Vector3(...cloud.freq) },
+      uOctaves: { value: cloud.octaves },
+      uSoft: { value: cloud.softness },
+      uAlpha: { value: new Vector2(...cloud.alpha) },
+      ...airBands(),
+      uBandEdges: toonLook.uBandEdges,
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, false) as CloudMaterial;
+}
+
+/** A cloud's lit colour (linear): its world's peak, toned down and mixed a little toward its air. */
+export function cloudColor(air: AirKey, peak: BiomeKey): Color {
+  const { tone, mix } = tuning.look.air.cloud;
+  return new Color(tokens.color.biome[peak].peak)
+    .lerp(new Color(tokens.color.air[air]), mix)
+    .multiplyScalar(tone);
+}
+
+/** A world's air in display space, as the shell's shader lays it over the sky. */
+export function airColor(air: AirKey): Color {
+  return new Color(tokens.color.air[air]).convertLinearToSRGB();
 }
 
 export type DustMaterial = ShaderMaterial & {

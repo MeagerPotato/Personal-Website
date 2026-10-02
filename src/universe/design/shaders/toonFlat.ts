@@ -54,6 +54,21 @@ import { gradientNoise } from './noise';
  * star map a sun is a flat disc of its token. A glowing vertex with no such flag (a plain 2: a
  * lamp, a gear) is untouched.
  *
+ * A WORLD WITH AIR (the AIR variant: that world's own material; the twin of this on the CPU is
+ * sim/air.ts, which the tests hold) keeps its lit side exactly its colours and trades the other
+ * two bands: the middle one is the colour times `uDusk`, a warm belt where day meets night, and
+ * the shade is the colour times `uNight`, cool and never black. Then its AIR: near the outline of
+ * its ball a place takes the air's colour, in a few flat round levels, strongly toward its light
+ * and faintly at night. That is decided by where a place is on the BALL (`vAir`: from the
+ * world's centre to it), not by which way its own face looks, so a wall standing on the ground is
+ * in the same air as the ground under it, and what stands high above the ground is above the air
+ * (and takes the plain bands of everything without air).
+ * Straight on, the ball faces the camera and the tint is nothing: a lit place seen straight on
+ * is exactly its token. A flat or glowing vertex takes neither band nor air. A LAMP (`aUnlit` 3:
+ * a lit window, sim/windows.ts) is its colour as it is, drawn only where its place on the ball
+ * is in the night, and never on the bloom guest list. `uFlatness` takes all of it back: on the
+ * star map a world with air is its colours, with no lamp.
+ *
  * Alpha is the bloom guest list (shaders/post.ts): a lit or flat surface is not on it
  * (`1 - uBloomMask`), a glowing one is, as much as `uGlowBloom` says (`mix(1, uGlowBloom,
  * uBloomMask)`, as shaders/glow.ts).
@@ -71,18 +86,27 @@ import { gradientNoise } from './noise';
  *   thresholds; uSunLimb (the two facings of the limb, x < y, half the soft edge of a limb band,
  *   half the soft rim of a spot in radians); uSunSpot[3] (a spot's unit normal on the ball, and
  *   its radius in radians)
+ *   AIR only: uAirCenter (the world's centre, world space); uAir (the air's colour, linear);
+ *   uDusk and uNight (the multipliers of the middle and the shade band, linear); uAirLimb (the
+ *   limb's power, how much of the air a lit limb takes, how much any limb takes, how many flat
+ *   levels: at most AIR_LIMB_STEPS); uAirLit (the two facings between which the ball counts as
+ *   lit, x < y; the two distances from the centre, in radii, between which what stands on the
+ *   world leaves its air); uLampNight (a lamp shows where its ball faces the light less than this)
  * Attributes: position (bound to location 0), normal, color (USE_COLOR), aSide and aOver (each a
  *   further colour, and where the vertex stands on its line), aBend (how those two lines bend),
  *   aUnlit (0 lit, 1 flat, 2 glow,
+ *   3 a lamp,
  *   above 4 a sun's surface), aDecal (1 on a decal): every geometry carries all five.
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
  *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies),
- *   SUN (a sun's living surface).
+ *   SUN (a sun's living surface), AIR (a world with air).
  */
 /** How many tones a sun's ladder has (sim/sunSurface.ts, SUN_TONE_COUNT: a test holds them equal). */
 export const SUN_TONES = 6;
 /** How many spots a sun has (design/tuning.ts, `look.sun.spots`: a test holds them equal). */
 export const SUN_SPOTS = 3;
+/** The most flat levels the tint of a world's limb is cut into (design/tuning.ts, `look.air.limb.steps`). */
+export const AIR_LIMB_STEPS = 4;
 
 export const toonFlat = {
   vertexShader: /* glsl */ `
@@ -111,6 +135,11 @@ export const toonFlat = {
     #ifdef SUN
       varying vec3 vBall;
       varying float vLimb;
+    #endif
+    #ifdef AIR
+      uniform vec3 uAirCenter;
+      varying vec4 vAir;
+      varying vec3 vView;
     #endif
 
     void main() {
@@ -147,6 +176,13 @@ export const toonFlat = {
       #ifdef SUN
         vBall = position;
         vLimb = dot(worldNormal, normalize(cameraPosition - worldPosition.xyz));
+      #endif
+      #ifdef AIR
+        // From the world's centre to here, and how far that is in the world's radii (its rows are
+        // modelled at radius 1, so the size of its matrix is its radius as drawn).
+        vec3 from = worldPosition.xyz - uAirCenter;
+        vAir = vec4(from, length(from) / length(world[0].xyz));
+        vView = cameraPosition - worldPosition.xyz;
       #endif
 
       vec4 view = viewMatrix * worldPosition;
@@ -233,6 +269,17 @@ export const toonFlat = {
       }
     #endif
 
+    #ifdef AIR
+      uniform vec3 uAir;
+      uniform vec3 uDusk;
+      uniform vec3 uNight;
+      uniform vec4 uAirLimb;
+      uniform vec4 uAirLit;
+      uniform float uLampNight;
+      varying vec4 vAir;
+      varying vec3 vView;
+    #endif
+
     void main() {
       vec3 base = mix(
         mix(vColor, vSide, past(vEdge.x + arc(vBend.xy), 0.5)),
@@ -248,18 +295,53 @@ export const toonFlat = {
       // Asked of every pixel, from the normal of the curve at that pixel: between the corners of a
       // long facet the facing itself does not run straight, and a band's edge would show its corners.
       float facing = dot(normalize(vNormal), normalize(vToSun));
-      float level = mix(uMidLevel * past(facing, uBandEdges.x), 1.0, past(facing, uBandEdges.y));
-      // On the star map everything is lit: a map shows what is where, not what time of day it is.
-      level = mix(level, 1.0, uFlatness);
-      // A flat or glowing vertex takes no light: it is its colour. (The tests are halfway between
-      // the whole numbers the attribute holds.)
-      if (vUnlit > 0.5) level = 1.0;
-
+      float dusk = past(facing, uBandEdges.x);
+      float day = past(facing, uBandEdges.y);
       // Alpha is the bloom guest list (shaders/post.ts), and a lit surface is not on it: 0 when
       // somebody reads the list, plain opaque 1 when the picture goes straight to the canvas. A
       // glowing one is, as shaders/glow.ts writes it.
       float bloom = vUnlit > 1.5 ? uGlowBloom : 0.0;
-      gl_FragColor = vec4(mix(base * uShadowTint, base, level), mix(1.0, bloom, uBloomMask));
+      #ifdef AIR
+        // The three bands: lit is the colour itself, then a warm dusk and a cool night. What
+        // stands above the air is lit as everything without air is.
+        float inAir = 1.0 - smoothstep(uAirLit.z, uAirLit.w, vAir.w);
+        vec3 lit = mix(
+          mix(base * uShadowTint, base, mix(uMidLevel * dusk, 1.0, day)),
+          mix(mix(base * uNight, base * uDusk, dusk), base, day),
+          inAir
+        );
+        // The air, by where this is on the ball: asked of every pixel, as the bands are.
+        vec3 ball = normalize(vAir.xyz);
+        float limb = pow(1.0 - clamp(dot(ball, normalize(vView)), 0.0, 1.0), uAirLimb.x);
+        float air = 0.0;
+        for (int i = 0; i < ${AIR_LIMB_STEPS}; i += 1) {
+          if (float(i) < uAirLimb.w) air += past(limb, (float(i) + 0.5) / uAirLimb.w) / uAirLimb.w;
+        }
+        float ballFacing = dot(ball, normalize(vToSun));
+        air *= (uAirLimb.y * smoothstep(uAirLit.x, uAirLit.y, ballFacing) + uAirLimb.z) * inAir;
+        // On the star map everything is lit, and nothing is in air.
+        lit = mix(lit, base, uFlatness);
+        air *= 1.0 - uFlatness;
+        // A flat or glowing vertex takes neither light nor air: it is its colour.
+        if (vUnlit > 0.5) {
+          lit = base;
+          air = 0.0;
+        }
+        // A lamp is lit where its place is in the night, and is not there at all by day.
+        if (vUnlit > 2.5 && vUnlit < 3.5) {
+          if (ballFacing > uLampNight || uFlatness > 0.5) discard;
+          bloom = 0.0;
+        }
+        gl_FragColor = vec4(mix(lit, uAir, clamp(air, 0.0, 1.0)), mix(1.0, bloom, uBloomMask));
+      #else
+        float level = mix(uMidLevel * dusk, 1.0, day);
+        // On the star map everything is lit: a map shows what is where, not what time of day it is.
+        level = mix(level, 1.0, uFlatness);
+        // A flat or glowing vertex takes no light: it is its colour. (The tests are halfway
+        // between the whole numbers the attribute holds.)
+        if (vUnlit > 0.5) level = 1.0;
+        gl_FragColor = vec4(mix(base * uShadowTint, base, level), mix(1.0, bloom, uBloomMask));
+      #endif
       #include <colorspace_fragment>
     }
   `,

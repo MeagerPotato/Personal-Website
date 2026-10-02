@@ -1428,23 +1428,44 @@ export const tuning = {
       promBreathSec: [11, 17],
     },
 
-    /** Air: a shell, a tint on the limb and a hairline of sunset, on the worlds that have a sea. */
+    /**
+     * Air: a tint on the limb, a shell, a hairline of sunset, clouds and (on home) lamps, on the
+     * worlds that have a sea. Air is light, so all of it is round and none of it is on the bloom
+     * guest list; on the star map all of it is gone.
+     */
     air: {
-      /** A world with air multiplies its middle band by shading.dusk and its shade band by shading.night, times these. */
-      bands: { dusk: 0.95, night: 0.9 },
       /**
-       * The tint on the limb's facets: limb = (1 - nz)^power, and its amount is
-       * limb * lit * smoothstep(litEdges, facing the light) + limb * always.
+       * A world with air multiplies its shade band by shading.night times `night`, and its middle
+       * band by shading.dusk times `dusk`, as far as `duskShare` says (1: all of it, a deep sunset
+       * belt; 0: the middle band is as lit as the day).
        */
-      limb: { power: 2.2, lit: 0.62, always: 0.07, litEdges: [-0.25, 0.45] },
+      bands: { dusk: 0.95, night: 0.9, duskShare: 0.6 },
       /**
-       * The shell, a billboard `half` world radii across pulled `pull` toward the camera: flat
-       * rings [inner, outer, alpha] in world radii (the low tier keeps the first `lowRings`),
-       * dimmed toward the night by `mask`, [degrees from the light, value].
+       * The tint toward the air's colour near the limb (shaders/toonFlat.ts, AIR; its twin is
+       * sim/air.ts): limb = (1 - nz)^power, where nz is how squarely the BALL faces the camera
+       * there (1 in the middle of the disc, 0 on its outline), cut into `steps` flat levels; its
+       * amount is that * (lit * smoothstep(litEdges, how the ball faces its light) + always).
+       * What stands on the world is in its air too, fading out between `topRadii` (world radii
+       * from the centre): the top of a tower is above it.
+       */
+      limb: {
+        power: 2.2,
+        lit: 0.62,
+        always: 0.07,
+        litEdges: [-0.25, 0.45],
+        steps: 3,
+        topRadii: [1.04, 1.24],
+      },
+      /**
+       * The shell, a billboard `half` world radii across, standing `pull` world radii toward the
+       * camera from the world's centre (in front of its outline and whatever rises on it, behind
+       * what stands out toward the camera: a ring road's near side): flat rings
+       * [inner, outer, alpha] in world radii (the low tier keeps the first `lowRings`), dimmed
+       * toward the night by `mask`, [degrees from the light, value].
        */
       shell: {
         half: 1.4,
-        pull: 1.01,
+        pull: 0.5,
         rings: [
           [1, 1.05, 0.5],
           [1.05, 1.1, 0.26],
@@ -1462,11 +1483,15 @@ export const tuning = {
        * The hairline where the air ends: its radius (world radii), its width (px, and in world
        * radii where that is wider), and its colour round the limb as stops
        * [degrees from the light, colour, alpha]. The dusk sits at 90 degrees: the terminator.
+       * `whiten`: how far 'airLight' is from the air toward white; `duskAir`: how far 'dusk' is
+       * from shading.dusk toward the air.
        */
       rim: {
         radius: 1.006,
         widthPx: 1.4,
         widthR: 0.016,
+        whiten: 0.4,
+        duskAir: 0.2,
         stops: [
           [0, 'airLight', 0.95],
           [61, 'airLight', 0.8],
@@ -1476,10 +1501,16 @@ export const tuning = {
         ] satisfies ReadonlyArray<readonly [number, RimTone, number]>,
       },
       /**
-       * Clouds, a skin of flat facets at `skin` world radii: a facet is cloud where a noise
-       * (frequencies `freq`, plus a latitude band of `bandFreq` weighted `bandWeight`) passes
-       * `threshold - shareGain * share`; its colour is the world's peak at `tone`, mixed `mix`
-       * toward its air.
+       * Clouds: a round skin at `skin` world radii on which the clouds are DRAWN, pixel by pixel
+       * (shaders/air.ts; the twin is sim/clouds.ts). A place is cloud where a field passes
+       * `threshold - shareGain * share`: the field is `noiseWeight` of a fractal noise (`octaves`
+       * layers, frequencies `freq` on the unit ball: stretched along the latitudes) plus
+       * `bandWeight` of a latitude band of frequency `bandFreq`. A cloud is a flat shape with a
+       * round outline, `softness` soft (in the field, never thinner than a pixel), in two flat
+       * levels: its thin edge at alpha[0], and its body, `core` further into the field, at
+       * alpha[1]. Its colour is the world's peak at `tone`, mixed `mix` toward its air, in the
+       * same three bands of light as the ground. The whole skin turns `driftRadPerSec` (rad/s;
+       * still under reduced motion). `detail`: the skin's ball has 20 * (detail + 1)^2 facets.
        */
       cloud: {
         skin: 1.018,
@@ -1490,22 +1521,35 @@ export const tuning = {
         bandFreq: 9,
         freq: [2.3, 6.2, 2.3],
         bandWeight: 0.18,
+        noiseWeight: 0.8,
+        octaves: 4,
+        softness: 0.006,
+        core: 0.03,
+        alpha: [0.55, 0.94],
+        driftRadPerSec: 0.012,
+        detail: 8,
       },
       /**
-       * Lit windows on a night side: on land between heights `h`, where a noise of frequency
-       * `qFreq` passes `q`, on facets darker than `night` (facing the light) and turned toward
-       * the camera by `facing`. Each a point of `sizePx` (or `sizeR` world radii), alpha from `alpha`.
+       * Lit windows on a night side, up close: lamps on the land between heights `h` (0 the
+       * sea's edge, 1 the highest peak), the `most` places that a noise of frequency `qFreq`
+       * favours most (so they gather into towns, and a world never has more). A lamp is a small round dot lying on the ground, `sizeR` across
+       * (radius in world radii: the faintest and the brightest), `lift` above it, in
+       * color.window, shown where the ball faces its light less than `night`. Never on the bloom
+       * guest list: a window is lit, it is not a light.
        */
       windows: {
-        h: [0.505, 0.66],
-        q: 0.6,
+        h: [0.02, 0.55],
         qFreq: 7.1,
         night: -0.16,
-        facing: 0.08,
-        sizePx: 1.4,
-        sizeR: 0.011,
-        alpha: [0.5, 1],
+        most: 150,
+        sizeR: [0.006, 0.012],
+        lift: 0.002,
       },
+      /** Which worlds wear their clouds, by quality tier: none, home alone, or every one with air. */
+      cloudTiers: { low: 'none', medium: 'home', high: 'all' } satisfies Record<
+        QualityTier,
+        'none' | 'home' | 'all'
+      >,
       /**
        * Which worlds have air, by manifest id: the five globes with a sea. `air` is a key of
        * color.air; `cloud.share` how much of the sky is cloud and `cloud.peak` the biome whose
@@ -1553,14 +1597,14 @@ export const tuning = {
     },
 
     /**
-     * Lamps on the emblem worlds: a lit window's token and a beacon's (paths under color), and
-     * the beacon's radius in u.
+     * Lamps on the emblem worlds (design/worlds/shared.ts): a lit window's token and a beacon's
+     * (paths under color), and the beacon's radius in the rows' own unit (its body's radius is 1).
      */
     lamps: {
       windowToken: 'window',
       beaconToken: 'star.hot',
-      beaconRadiusU: 0.035,
-    } satisfies { windowToken: LampToken; beaconToken: LampToken; beaconRadiusU: number },
+      beaconRadius: 0.04,
+    } satisfies { windowToken: LampToken; beaconToken: LampToken; beaconRadius: number },
   },
 
   /**

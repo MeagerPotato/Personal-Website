@@ -1,5 +1,6 @@
 import type { AssetId } from '../design/assets';
-import { tokens, type BiomeKey, type ThemeKey } from '../design/tokens';
+import type { AirWorld } from '../design/lookTypes';
+import { tokens, type AirKey, type BiomeKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { worlds as recipes, type WorldRecipe } from '../design/worlds';
 import { BODIES } from '../design/worlds/bodies';
@@ -142,6 +143,32 @@ export function lookOf(
     nearDetail: isSun || isMoon ? null : detailNear,
     rings,
   };
+}
+
+/** Which worlds have air, by body id (design/tuning.ts, `look.air.worlds`). */
+export type AirTable = Readonly<Partial<Record<string, AirWorld>>>;
+
+const isAir = (biome: string): biome is AirKey => Object.hasOwn(tokens.color.air, biome);
+
+/**
+ * THE AIR OF A BODY, decided in one place (world/Galaxy.ts asks, and so does the lab):
+ * 1. A row of the table, by its id: that air, those clouds, and lamps if it says so.
+ * 2. A generated globe (`globe`: no rows and no model: world/looks.ts, `lookOf`) that is a planet
+ *    or home, and not planned work: the air of its biome, with neither clouds nor lamps. Primer,
+ *    the clay of planned work, has no air. Nobody is one today: every body has rows.
+ * 3. Everything else has none: a sun, a moon, a station, a model, an emblem that is not a globe.
+ */
+export function airOf(
+  body: Pick<LookedAt, 'id' | 'kind' | 'biome' | 'planned'>,
+  globe: boolean,
+  table: AirTable = tuning.look.air.worlds,
+): AirWorld | undefined {
+  if (body.kind === 'sun') return undefined;
+  const row = table[body.id];
+  if (row) return row;
+  if (!globe || body.planned || (body.kind !== 'planet' && body.kind !== 'home')) return undefined;
+  const biome = body.biome ?? 'terra';
+  return isAir(biome) ? { air: biome } : undefined;
 }
 
 /**

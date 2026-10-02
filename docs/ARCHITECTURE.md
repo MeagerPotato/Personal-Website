@@ -623,6 +623,23 @@ placed each frame from the galaxy's positions and display scales, so it is added
 galaxy. It is its sun's seed, the tokens, the tuning and the simulation time, so nothing of it
 is a snapshot field.
 
+**A world with air is a variant of the toon shader, and two instanced draws.** Which worlds
+have air is `world/looks.ts` (`airOf`: the table `tuning.look.air.worlds`, else a generated
+globe's biome). The galaxy gives such a world its own material, the toon shader's AIR variant
+(`createToonMaterial({ air: { key, center } })`, `center` being the body's own position vector,
+read live): per pixel it finds the direction from the world's centre, so the dusk and night
+bands, the stepped tint on the limb and how far above the air a place stands all follow the
+BALL and never a facet; `sim/air.ts` is the same arithmetic on the CPU, for the tests. A body's
+moving parts get their material from the same factory (`BodyMesh`'s `another`). Home's lit
+windows are a part the galaxy adds to its close-up (`sim/windows.ts`: pure, ranked by a seeded
+noise; flag 3 in `aUnlit`, which only the AIR variant reads, and which it discards by day and
+on the map). Round the worlds, `world/AirShells.ts` (added after the coronas, in `main.ts`):
+one instanced draw of quads for the shells and hairlines and one of unit balls for the clouds
+(`design/shaders/air.ts`; the clouds' twin is `sim/clouds.ts`), placed each frame from the
+galaxy's positions and display scales and each world's light. Which worlds wear clouds is the
+tier's (`look.air.cloudTiers`). Air is the world's id, the tokens, the tuning and the simulation
+time: nothing of it is a snapshot field.
+
 **The sky is baked once, on the GPU, after the first frame** (`world/SkyBake.ts`). What the sky
 adds to the navy (the Milky Way, the massifs of gas at the systems' bearings, far galaxies) is
 one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it

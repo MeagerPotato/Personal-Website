@@ -1,10 +1,12 @@
 import {
   OneFactor,
   OneMinusSrcAlphaFactor,
+  SrcAlphaFactor,
   Texture,
+  Vector3,
   ZeroFactor,
   type Color,
-  type Vector3,
+  type Vector2,
   type Vector4,
 } from 'three';
 import { describe, expect, it } from 'vitest';
@@ -14,7 +16,12 @@ import {
   OVER_ATTRIBUTE,
   SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
+  airBands,
+  airColor,
+  cloudColor,
+  createAirShellMaterial,
   createBackdropMaterial,
+  createCloudMaterial,
   createCoronaMaterial,
   createEdgeMaterial,
   createGlowMaterial,
@@ -24,9 +31,17 @@ import {
   refreshToonLook,
   setSky,
 } from './materials';
+import {
+  AIR_MASK_STOPS,
+  AIR_RIM_STOPS,
+  AIR_RINGS,
+  CLOUD_OCTAVES,
+  airCloud,
+  airShell,
+} from './shaders/air';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
-import { SUN_SPOTS, SUN_TONES, toonFlat } from './shaders/toonFlat';
+import { AIR_LIMB_STEPS, SUN_SPOTS, SUN_TONES, toonFlat } from './shaders/toonFlat';
 import {
   CORONA_GLOW_STOPS,
   CORONA_PROMS,
@@ -64,9 +79,9 @@ describe('the toon material and its per-vertex flags', () => {
     expect(vertexShader).toContain('varying vec3 vNormal;');
     expect(vertexShader).not.toContain('flat varying vec3 vNormal');
     expect(fragmentShader).toContain('float facing = dot(normalize(vNormal), normalize(vToSun));');
-    expect(fragmentShader).toContain(
-      'float level = mix(uMidLevel * past(facing, uBandEdges.x), 1.0, past(facing, uBandEdges.y));',
-    );
+    expect(fragmentShader).toContain('float dusk = past(facing, uBandEdges.x);');
+    expect(fragmentShader).toContain('float day = past(facing, uBandEdges.y);');
+    expect(fragmentShader).toContain('float level = mix(uMidLevel * dusk, 1.0, day);');
     expect(fragmentShader).toContain(
       'return clamp((value - edge) / max(fwidth(value), 1e-6) + 0.5, 0.0, 1.0);',
     );
@@ -239,6 +254,157 @@ describe('a sun’s material and its corona', () => {
     // On the map (uCalm 1) only the halo's steps are left: everything else is times its `live`.
     expect(corona.fragmentShader).toContain('float live = 1.0 - uCalm;');
     expect(corona.fragmentShader).toContain('over(vBase, halo);');
+  });
+});
+
+describe('a world with air: its material, its shell and its clouds', () => {
+  const { air: look } = tuning.look;
+
+  it('gives a world its air, its dusk and its night, and reads where its centre is', () => {
+    const center = new Vector3(3, 0, -4);
+    const material = createToonMaterial({ vertexColors: true, air: { key: 'tide', center } });
+    expect(material.defines).toEqual({ AIR: '' });
+    const { uniforms } = material;
+    // The very vector: the world moves, and its air with it.
+    expect(uniforms.uAirCenter?.value).toBe(center);
+    const tide = hexToLinear(tokens.color.air.tide);
+    (uniforms.uAir?.value as Color).toArray().forEach((value, k) => {
+      expect(value).toBeCloseTo(tide[k] ?? NaN, 6);
+    });
+    // The night is its token times its strength; the dusk is as much of its token as the look
+    // says, and the rest is the colour as lit. Neither is ever black.
+    const night = hexToLinear(tokens.color.shading.night);
+    const dusk = hexToLinear(tokens.color.shading.dusk);
+    const { duskShare } = look.bands;
+    (uniforms.uNight?.value as Color).toArray().forEach((value, k) => {
+      expect(value).toBeCloseTo((night[k] ?? NaN) * look.bands.night, 6);
+      expect(value).toBeGreaterThan(0.04);
+    });
+    (uniforms.uDusk?.value as Color).toArray().forEach((value, k) => {
+      expect(value).toBeCloseTo(1 + ((dusk[k] ?? NaN) * look.bands.dusk - 1) * duskShare, 6);
+    });
+    // The limb's numbers, as the shader reads them.
+    const { limb } = look;
+    expect(limb.steps).toBeLessThanOrEqual(AIR_LIMB_STEPS);
+    expect((uniforms.uAirLimb?.value as Vector4).toArray()).toEqual([
+      limb.power,
+      limb.lit,
+      limb.always,
+      limb.steps,
+    ]);
+    expect((uniforms.uAirLit?.value as Vector4).toArray()).toEqual([
+      ...limb.litEdges,
+      ...limb.topRadii,
+    ]);
+    expect(uniforms.uLampNight?.value).toBe(look.windows.night);
+    // It shares the look of every lit surface, and no other material pays for the air.
+    const plain = createToonMaterial();
+    expect(uniforms.uBandEdges).toBe(plain.uniforms.uBandEdges);
+    expect(uniforms.uFlatness).toBe(plain.uniforms.uFlatness);
+    for (const name of ['uAir', 'uDusk', 'uNight', 'uAirLimb', 'uAirLit', 'uAirCenter']) {
+      expect(plain.uniforms).not.toHaveProperty(name);
+    }
+    expect(plain.defines).toEqual({});
+    plain.dispose();
+    material.dispose();
+  });
+
+  it('keeps a lit place its colour, flattens on the star map, and never lets a lamp bloom', () => {
+    const { fragmentShader, vertexShader } = toonFlat;
+    // The three bands: the colour itself where it is lit (`day` 1), then the dusk, then the night.
+    expect(fragmentShader).toContain('mix(mix(base * uNight, base * uDusk, dusk), base, day),');
+    // Where a place is in the air is asked of the BALL, from the world's centre, at the pixel.
+    expect(vertexShader).toContain('vec3 from = worldPosition.xyz - uAirCenter;');
+    expect(fragmentShader).toContain('vec3 ball = normalize(vAir.xyz);');
+    // Straight on (the ball faces the camera) the limb is nothing, so the tint is nothing.
+    expect(fragmentShader).toContain(
+      'float limb = pow(1.0 - clamp(dot(ball, normalize(vView)), 0.0, 1.0), uAirLimb.x);',
+    );
+    // The star map: every band is the colour, and there is no air.
+    expect(fragmentShader).toContain('lit = mix(lit, base, uFlatness);');
+    expect(fragmentShader).toContain('air *= 1.0 - uFlatness;');
+    // A lamp (3) is there only at night, and is never on the bloom guest list.
+    expect(fragmentShader).toContain('if (ballFacing > uLampNight || uFlatness > 0.5) discard;');
+    expect(fragmentShader.indexOf('bloom = 0.0;')).toBeGreaterThan(
+      fragmentShader.indexOf('vUnlit > 2.5 && vUnlit < 3.5'),
+    );
+  });
+
+  it('lays the shell’s tables out as its shader reads them, and never on the bloom guest list', () => {
+    const full = createAirShellMaterial({ low: false });
+    const low = createAirShellMaterial({ low: true });
+    const { uniforms } = full;
+    expect(uniforms.uRings?.value).toHaveLength(AIR_RINGS);
+    expect(uniforms.uMask?.value).toHaveLength(AIR_MASK_STOPS);
+    expect(uniforms.uRimStops?.value).toHaveLength(AIR_RIM_STOPS);
+    expect([uniforms.uRingCount?.value, low.uniforms.uRingCount?.value]).toEqual([
+      look.shell.rings.length,
+      look.shell.lowRings,
+    ]);
+    // A tone of the hairline: the air 0, the air toward white 1, the dusk 2 (at the terminator).
+    expect((uniforms.uRimStops?.value as Vector3[]).map((stop) => stop.y)).toEqual([1, 1, 2, 0, 0]);
+    expect((uniforms.uRimStops?.value as Vector3[])[2]?.x).toBe(90);
+    expect((uniforms.uReach?.value as Vector2).toArray()).toEqual([
+      look.shell.half,
+      look.shell.pull,
+    ]);
+    // The outermost ring fits on the quad.
+    expect(look.shell.rings.at(-1)?.[1]).toBeLessThanOrEqual(look.shell.half);
+    for (const material of [full, low]) {
+      // Premultiplied colour over what is behind, and alpha left as it was found.
+      expect(material.blendSrc).toBe(OneFactor);
+      expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
+      expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+      expect(material.depthWrite).toBe(false);
+      expect(material.uniforms.uBloomMask).toBe(createToonMaterial().uniforms.uBloomMask);
+      material.dispose();
+    }
+    // On the map (uCalm 1) nothing is left of it.
+    expect(airShell.fragmentShader).toContain('float live = 1.0 - uCalm;');
+    expect(airShell.fragmentShader).toContain('over(vAir, shell * mask * live);');
+    // The air's colour in display space, where the shader lays its paint.
+    const sea = Number.parseInt(tokens.color.air.terra.slice(1, 3), 16) / 255;
+    expect(airColor('terra').r).toBeCloseTo(sea, 4);
+  });
+
+  it('draws clouds in the ground’s own bands, drifting unless asked not to, never blooming', () => {
+    const { cloud } = look;
+    const drifting = createCloudMaterial({ motion: true });
+    const still = createCloudMaterial({ motion: false });
+    expect(cloud.octaves).toBeLessThanOrEqual(CLOUD_OCTAVES);
+    expect((drifting.uniforms.uSkin?.value as Vector2).toArray()).toEqual([
+      cloud.skin,
+      cloud.driftRadPerSec,
+    ]);
+    expect((still.uniforms.uSkin?.value as Vector2).y).toBe(0);
+    // The same dusk and night as the ground's material, and the same band edges (by reference).
+    const bands = airBands();
+    expect((drifting.uniforms.uDusk?.value as Color).toArray()).toEqual(
+      bands.uDusk.value.toArray(),
+    );
+    expect((drifting.uniforms.uNight?.value as Color).toArray()).toEqual(
+      bands.uNight.value.toArray(),
+    );
+    expect(drifting.uniforms.uBandEdges).toBe(createToonMaterial().uniforms.uBandEdges);
+    for (const material of [drifting, still]) {
+      // Paint over what is behind, and alpha left as it was found.
+      expect(material.blendSrc).toBe(SrcAlphaFactor);
+      expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
+      expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+      expect(material.depthWrite).toBe(false);
+      material.dispose();
+    }
+    // A cloud is a flat shape: two levels, each with a soft edge never thinner than a pixel.
+    expect(airCloud.fragmentShader).toContain('float reach = max(uSoft, fwidth(value));');
+    expect(airCloud.fragmentShader).toContain('alpha * (1.0 - uCalm)');
+    // Its colour: the peak, toned down, a little toward the air. Brighter than the air is dark.
+    const lit = cloudColor('terra', 'frost');
+    const peak = hexToLinear(tokens.color.biome.frost.peak);
+    const air = hexToLinear(tokens.color.air.terra);
+    lit.toArray().forEach((value, k) => {
+      const mixed = (peak[k] ?? NaN) + ((air[k] ?? NaN) - (peak[k] ?? NaN)) * cloud.mix;
+      expect(value).toBeCloseTo(mixed * cloud.tone, 6);
+    });
   });
 });
 

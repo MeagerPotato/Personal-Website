@@ -30,6 +30,7 @@ import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
 import { sunSeed } from './sim/sunSurface';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
+import { AirShells } from './world/AirShells';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
 import { livingSun, lookOf } from './world/looks';
@@ -376,12 +377,29 @@ export function boot(
       reducedMotion,
     }),
   );
+  // The air of the worlds that have it. After the galaxy too. Which of them wear clouds is the
+  // tier's to say: none on low, home alone on medium (where phones start), every one on high.
+  const cloudy = tuning.look.air.cloudTiers[quality.tier];
+  const homeId = manifest.bodies.find((body) => body.kind === 'home')?.id;
+  const air = engine.add(
+    new AirShells({
+      worlds: galaxy.airWorlds.map((world) => {
+        const clouds = cloudy === 'all' || (cloudy === 'home' && world.id === homeId);
+        return clouds ? world : { ...world, cloud: undefined };
+      }),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      low: quality.tier === 'low',
+      reducedMotion,
+    }),
+  );
   engine.scene.add(
     backdrop.object,
     starfield.object,
     dust.object,
     galaxy.object,
     coronas.object,
+    air.object,
     ship.object,
   );
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
@@ -392,6 +410,7 @@ export function boot(
       setToonFlatness(weight * tuning.map.flatness);
       starfield.setCalm(weight, tuning.map.starOpacity);
       coronas.setCalm(weight);
+      air.setCalm(weight);
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));

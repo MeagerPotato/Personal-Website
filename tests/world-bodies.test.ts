@@ -74,6 +74,13 @@ import {
 // is 40,434 triangles every day (it was 32,538). The ceilings rose with it, on purpose and once:
 // 2400 to 2800 every day, 5600 to 6600 up close (the most any body has: 2746 and 6176). What
 // they protect is a frame's cost, which did not move (the commit has the frame times).
+//
+// Then on purpose again ("Deep light" step 4, worlds with air): the station's pods got a lit pane
+// each and the station, the satellite and the bus's sign a beacon; the bus's windows became lit
+// side panes and a dark windshield. The galaxy is 40,566 triangles every day. Home's lit windows
+// (600 triangles of lamps, sim/windows.ts) are added to its close-up by the galaxy, after these
+// rows are built, so they are not in these counts: home is 5,982 up close with them, under the
+// same ceiling.
 
 interface Budget {
   readonly everyday: number;
@@ -92,8 +99,8 @@ interface Budget {
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
   'page/about':                     { everyday: 2136, closeup: 5382, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '26d94d60' },
-  'page/resume':                    { everyday: 772,  closeup: 1094, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'd8c984b6' },
-  'page/contact':                   { everyday: 292,  closeup: 404,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c1c9a6b8' },
+  'page/resume':                    { everyday: 856,  closeup: 1226, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7f1d4ef4' },
+  'page/contact':                   { everyday: 316,  closeup: 476,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'a8dbc6eb' },
   'link/github':                    { everyday: 420,  closeup: 908,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '944ba5be' },
   'link/linkedin':                  { everyday: 148,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92009a0f' },
   'link/devpost':                   { everyday: 598,  closeup: 912,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3146ad73' },
@@ -106,7 +113,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'project/fishai':                 { everyday: 1722, closeup: 2030, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '44eadb4c' },
   'project/days2meet':              { everyday: 1706, closeup: 4762, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '13445590' },
   'project/hackgt-13':              { everyday: 1908, closeup: 6156, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '50d29a94' },
-  'project/hackathons-at-berkeley': { everyday: 2474, closeup: 6016, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'aeaecea5' },
+  'project/hackathons-at-berkeley': { everyday: 2498, closeup: 6088, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c94123a3' },
   'project/cal-hacks-13':           { everyday: 1950, closeup: 4980, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: 'f71727c0' },
   'project/fish-online':            { everyday: 2084, closeup: 2676, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'ff1e7ca6' },
   'project/sports-analysis':        { everyday: 2340, closeup: 3016, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '2eb57b5b' },

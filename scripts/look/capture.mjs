@@ -4,14 +4,18 @@
 //
 //   on the site   the first frame at home on each quality tier, the same under reduced motion,
 //                 flying between systems, docked at home, at a planet, at a globe with a sea,
-//                 at an emblem world and beside a sun, and the star map: on a desktop
-//                 (1280 x 800) and on a narrow phone (360 x 780, touch, the bottom sheet)
+//                 at an emblem world and beside a sun, at each world with air (and home's on
+//                 every tier: what a world wears differs by tier), at the bodies with lamps,
+//                 and the star map: on a desktop (1280 x 800) and on a narrow phone (360 x 780,
+//                 touch, the bottom sheet; `--phone 412x839` for another size)
 //   in the lab    the sky alone from the seven views it is judged from (sim/skyDirections.ts),
 //                 with no twinkle and no drift, so two runs give the same picture; and the
 //                 stars: a sheet of each kind at 1:1, the heroes as a short and as a tall view
 //                 draws them, and the sky's stars as the star map shows them; and the suns: a
 //                 living sun of each family, one on the low tier and one as the star map shows
-//                 it, and the Hardware sun, whose gears must stay readable in its halo
+//                 it, and the Hardware sun, whose gears must stay readable in its halo; and
+//                 the worlds with air: each by day, home at dusk, by night (its lamps) and as
+//                 the star map shows it, on each tier, and the bodies with lamps
 //   --perf        instead of pictures: what `?perf` reads on each tier, at home and docked
 //
 // It starts no server and never more than one browser. Start what it should look at, on ports
@@ -44,6 +48,7 @@ const { values: args } = parseArgs({
     site: { type: 'string' },
     lab: { type: 'string' },
     only: { type: 'string' },
+    phone: { type: 'string' },
     perf: { type: 'boolean', default: false },
     uncapped: { type: 'boolean', default: false },
   },
@@ -71,6 +76,14 @@ const SIZES = {
   // narrowest width the site is checked at: 360 CSS px.
   phone: { ...devices['Pixel 7'], viewport: { width: 360, height: 780 } },
 };
+if (args.phone) {
+  const [width, height] = args.phone.split('x').map(Number);
+  if (!(width > 0) || !(height > 0)) {
+    console.error('--phone takes a size, as 412x839');
+    process.exit(2);
+  }
+  SIZES.phone.viewport = { width, height };
+}
 /** After the first frame: the planets are still being built, a slice a frame. */
 const SETTLE_MS = 3000;
 
@@ -103,6 +116,15 @@ const SITE_VIEWS = [
   ['docked-planet-high', '/projects/days2meet/', 'high', still, false],
   ['docked-emblem-high', '/projects/cal-hacks-13/', 'high', still, false],
   ['docked-planet-low', '/projects/days2meet/', 'low', still, false],
+  // The worlds with air: home on the tier with no clouds, and the other three.
+  ['docked-home-low', '/about/', 'low', still, false],
+  ['docked-home-high-reduced', '/about/', 'high', still, true],
+  ['docked-tide-high', '/projects/hackgt-13/', 'high', still, false],
+  ['docked-rover-high', '/projects/robotics/', 'high', still, false],
+  ['docked-emblem-medium', '/projects/cal-hacks-13/', 'medium', still, false],
+  // The bodies with lamps: the bus's lit panes, the station's pods.
+  ['docked-bus-high', '/projects/hackathons-at-berkeley/', 'high', still, false],
+  ['docked-station-high', '/resume/', 'high', still, false],
   ['sun-high', '/systems/software/', 'high', still, false],
   ['sun-low', '/systems/software/', 'low', still, false],
   // The other suns: each its own family and signs, and the Hardware sun, a ball of gears.
@@ -120,6 +142,17 @@ const SITE_VIEWS = [
  * from the first on the other tiers; then the stars.
  */
 const STAR_KINDS = ['dust', 'field', 'bright', 'mid', 'hero'];
+/** The worlds with air (design/tuning.ts, `look.air.worlds`). */
+const AIR_WORLDS = [
+  'page/about',
+  'project/cyberpatriot',
+  'project/robotics',
+  'project/hackgt-13',
+  'project/cal-hacks-13',
+];
+/** The lab's light, low and from the side (the terminator down the middle), and from behind. */
+const DUSK = 'lightAzimuthDeg=80&lightElevationDeg=8';
+const NIGHT = 'lightAzimuthDeg=150&lightElevationDeg=10';
 const LAB_VIEWS = [
   ...POSES.map((pose) => [`sky-${pose}-high`, `subject=sky&pose=${pose}`, 'high']),
   ['sky-first-medium', 'subject=sky&pose=first', 'medium'],
@@ -144,6 +177,33 @@ const LAB_VIEWS = [
   ['lab-sun-sky-map-low', 'subject=sun&theme=sky&radius=20&turn=0&onMap=1', 'low'],
   ['lab-sun-gear-high', 'subject=world&world=system/hardware&turn=0', 'high'],
   ['lab-sun-software-high', 'subject=world&world=system/software&turn=0', 'high'],
+  // The worlds with air, each by day; home at dusk, by night up close (its lamps), on the
+  // other tiers, and as the star map shows it: flat, with no air.
+  ...AIR_WORLDS.map((id) => [
+    `lab-air-${id.split('/')[1]}-high`,
+    `subject=world&world=${id}&turn=0`,
+    'high',
+  ]),
+  ['lab-air-about-dusk-high', `subject=world&world=page/about&turn=0&${DUSK}`, 'high'],
+  ['lab-air-about-night-high', `subject=world&world=page/about&turn=0&near=1&${NIGHT}`, 'high'],
+  ['lab-air-about-medium', 'subject=world&world=page/about&turn=0', 'medium'],
+  ['lab-air-about-low', 'subject=world&world=page/about&turn=0', 'low'],
+  ['lab-air-about-night-low', `subject=world&world=page/about&turn=0&near=1&${NIGHT}`, 'low'],
+  ['lab-air-about-map-high', 'subject=world&world=page/about&turn=0&onMap=1', 'high'],
+  [
+    'lab-air-cal-hacks-13-night-high',
+    `subject=world&world=project/cal-hacks-13&turn=0&${NIGHT}`,
+    'high',
+  ],
+  // A generated planet in each air the tokens have (its biome's).
+  ...['tide', 'dune', 'frost', 'ember', 'bloom'].map((biome) => [
+    `lab-air-planet-${biome}-high`,
+    `subject=planet&biome=${biome}&turn=0`,
+    'high',
+  ]),
+  ['lab-lamps-bus-high', 'subject=world&world=project/hackathons-at-berkeley&turn=0', 'high'],
+  ['lab-lamps-station-high', 'subject=world&world=page/resume&turn=0&near=1', 'high'],
+  ['lab-lamps-satellite-high', 'subject=world&world=page/contact&turn=0&near=1', 'high'],
 ];
 
 const browser = await chromium.launch({

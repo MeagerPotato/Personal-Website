@@ -19,7 +19,7 @@ import {
   createToonMaterial,
   type ToonMaterial,
 } from '../design/materials';
-import { tokens, type ThemeKey } from '../design/tokens';
+import { tokens, type AirKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import type { WorldRecipe } from '../design/worlds';
 import type { OrbitSubject } from '../camera/OrbitCam';
@@ -37,7 +37,8 @@ import { createRng } from '../sim/rng';
 import { lightClaims, turnToward, type LitBodies } from '../sim/shipLight';
 import type { BodyRecipe } from '../sim/world/rows';
 import { BodyMesh, CloseUpLoader, type CloseUpRows } from './BodyMesh';
-import { lookOf } from './looks';
+import { airOf, lookOf, type AirTable } from './looks';
+import type { AirWorldView } from './AirShells';
 import { PlanetMesh } from './PlanetMesh';
 
 /** How the galaxy is drawn on the star map (`tuning.map`). */
@@ -79,6 +80,8 @@ export interface GalaxyOptions {
   bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
   /** How the close-up rows and the motion table arrive: their chunk's import(), unless a test says. */
   closeUp?: () => Promise<CloseUpRows>;
+  /** Which worlds have air, by body id. `tuning.look.air.worlds` when not given (a test gives its own). */
+  air?: AirTable;
 }
 
 interface BodyView {
@@ -189,6 +192,8 @@ export class Galaxy implements System {
   private worldCount = 0;
   /** A sun's own material (its ball is a living surface), by family, made once a sun wears it. */
   private readonly sunSurfaces = new Map<ThemeKey, ToonMaterial>();
+  /** The worlds that have air (world/looks.ts, `airOf`), as their shells and clouds know them. */
+  private readonly airs: AirWorldView[] = [];
   /** Every sun's light, and the key light for whatever has no sun. */
   private readonly suns: SunLight[] = [];
   private readonly sunById = new Map<string, SunLight>();
@@ -487,6 +492,33 @@ export class Galaxy implements System {
     return surface;
   }
 
+  /**
+   * The worlds that have air, for whoever draws their shells and clouds (world/AirShells.ts):
+   * each with its light as a LIVE position (a sun of a binary moves).
+   */
+  get airWorlds(): readonly AirWorldView[] {
+    return this.airs;
+  }
+
+  /**
+   * The lit material of a body: its light's, which everything that light shines on shares; or,
+   * for a world with air, one of its own in that light (the toon shader's AIR variant: a
+   * material carries its world's air and its centre). `center`: the world's own position, the
+   * very vector that moves with it.
+   */
+  private surfaceOf(body: ManifestBody, air: AirKey | undefined, center: Vector3): ToonMaterial {
+    if (air === undefined) return this.lightOf(body).surface;
+    return this.scope.track(this.airSurface(body, air, center));
+  }
+
+  /** A material of a world with air, in its light. Whoever asks owns it. */
+  private airSurface(body: ManifestBody, air: AirKey, center: Vector3): ToonMaterial {
+    const surface = createToonMaterial({ vertexColors: true, air: { key: air, center } });
+    // The very object its light's own material reads: the light moves for both at once.
+    surface.uniforms.uSunPosition.value = this.lightOf(body).position;
+    return surface;
+  }
+
   /** What lights `body`: the first sun up its chain of parents, or, with none, the key light. */
   private lightOf(body: ManifestBody): SunLight {
     for (let at: ManifestBody | undefined = body; at; at = this.byId.get(at.parent ?? '')) {
@@ -586,6 +618,18 @@ export class Galaxy implements System {
     };
 
     const shape = lookOf(body, family, this.options.worlds, this.options.bodies);
+    // Its air, if it has any (world/looks.ts): a material of its own, a shell, clouds, lamps.
+    const air = airOf(body, shape.model === null && !shape.world, this.options.air);
+    if (air) {
+      this.airs.push({
+        id: body.id,
+        row: index,
+        radius: body.radius,
+        air: air.air,
+        light: this.lightOf(body).position,
+        cloud: air.cloud,
+      });
+    }
     if (shape.world) {
       // An emblem world. A SUN'S is drawn with a toon material of its own, lit by the distant
       // key light, not with the glow material of a generated sun: its ball is flagged to glow
@@ -594,7 +638,8 @@ export class Galaxy implements System {
       // sun's rows might one day leave lit is shaded by the far key light, as anything in space
       // is, where its family's material would light it from the sun's centre, from inside. Its
       // own, because its ball is a living surface in its family's tones (sunSurfaceOf).
-      // Everything else is lit by its own sun, or by the key light.
+      // Everything else is lit by its own sun, or by the key light; a world with air by a
+      // material of its own in that light, and with lamps on its night side if it has them.
       const world = new BodyMesh({
         id: body.id,
         kind: body.kind,
@@ -602,7 +647,12 @@ export class Galaxy implements System {
         radius: body.radius,
         seed: body.seed,
         recipe: shape.world,
-        material: body.kind === 'sun' ? this.sunSurfaceOf(family) : this.lightOf(body).surface,
+        material:
+          body.kind === 'sun'
+            ? this.sunSurfaceOf(family)
+            : this.surfaceOf(body, air?.air, node.position),
+        ...(air ? { another: () => this.airSurface(body, air.air, node.position) } : {}),
+        lamps: air?.windows === true,
         jobs,
         low: this.options.low ?? false,
         reducedMotion,
@@ -636,7 +686,8 @@ export class Galaxy implements System {
     }
 
     // A sun is light itself; everything else is lit by its own sun, or by the key light.
-    const material = body.kind === 'sun' ? sunMaterial : this.lightOf(body).surface;
+    const material =
+      body.kind === 'sun' ? sunMaterial : this.surfaceOf(body, air?.air, node.position);
     let object: Object3D;
     if (shape.model !== null) {
       const handle = assets.acquire(shape.model, material);
