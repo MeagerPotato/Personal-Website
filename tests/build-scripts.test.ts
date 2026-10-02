@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalUrl,
@@ -24,6 +25,14 @@ import {
 } from '../scripts/lib/closeup.mjs';
 import { isShaderModule, squeezeGlsl, squeezeTemplates } from '../scripts/lib/glsl-squeeze.mjs';
 import { parseRedirects, redirectProblems } from '../scripts/lib/redirects.mjs';
+import {
+  ENGINE_INCLUDES,
+  KEEP_MATERIALS,
+  dietThree,
+  isThreeBuild,
+  keptChunks,
+  readChunks,
+} from '../scripts/lib/three-diet.mjs';
 import {
   RESUME_PDF,
   printSection,
@@ -642,5 +651,100 @@ describe('squeezeTemplates', () => {
     }
     // Squeezing what is squeezed changes nothing.
     expect(squeezeTemplates(squeezeTemplates(source))).toBe(squeezeTemplates(source));
+  });
+});
+
+// THE THREE.JS DIET (scripts/lib/three-diet.mjs): builds ship three without the GLSL of the
+// materials nobody uses. What it must never do is take away something the engine compiles.
+describe('dietThree', () => {
+  const ROOT = join(import.meta.dirname, '..');
+  // Wherever three is installed (a worktree finds the main checkout's): its build folder.
+  const build = dirname(createRequire(import.meta.url).resolve('three'));
+  const three = readFileSync(join(build, 'three.module.js'), 'utf8');
+  const { chunks } = readChunks(three);
+  const kept = keptChunks(chunks);
+  const dieted = dietThree(three);
+
+  /** Every module of the engine and the shell that ships (no tests). */
+  const sources = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      return /\.ts$/.test(entry.name) && !/\.test\.ts$/.test(entry.name) ? [path] : [];
+    });
+  const engine = [...sources(join(ROOT, 'src/universe')), ...sources(join(ROOT, 'src/shell'))].map(
+    (path) => ({ path, text: readFileSync(path, 'utf8') }),
+  );
+
+  it('only reads the one file', () => {
+    expect(isThreeBuild('C:\\repo\\node_modules\\three\\build\\three.module.js')).toBe(true);
+    expect(isThreeBuild('/repo/node_modules/three/build/three.module.js?v=1')).toBe(true);
+    expect(isThreeBuild('/repo/node_modules/three/build/three.core.js')).toBe(false);
+    expect(isThreeBuild('/repo/src/universe/main.ts')).toBe(false);
+  });
+
+  it('keeps the basic program whole, and what the renderer and the engine paste in', () => {
+    expect(chunks.size).toBeGreaterThan(120);
+    // The basic program and everything it includes: a new three.js that includes more shows here.
+    expect(kept.size).toBe(64);
+    for (const name of ['meshbasic_vert', 'meshbasic_frag', 'common', 'project_vertex']) {
+      expect(kept.has(name), name).toBe(true);
+    }
+    for (const name of kept) {
+      const text = chunks.get(name)?.text ?? '';
+      expect(text.length, name).toBeGreaterThan(0);
+      expect(dieted.includes(JSON.stringify(text)), name).toBe(true);
+    }
+  });
+
+  it('empties the rest, and leaves an #error where a dropped program was', () => {
+    const after = readChunks(dieted).chunks;
+    expect(after.size).toBe(chunks.size);
+    let saved = 0;
+    for (const [name, chunk] of chunks) {
+      if (kept.has(name)) continue;
+      const text = after.get(name)?.text ?? 'missing';
+      if (/_(vert|frag)$/.test(name)) expect(text).toMatch(/^#error \w+: dropped by scripts/);
+      else expect(text).toBe('');
+      saved += chunk.text.length - text.length;
+    }
+    expect(saved).toBeGreaterThan(100_000);
+    // Nothing else moved: the same lines, and only chunk lines differ.
+    const before = three.split('\n');
+    const lines = dieted.split('\n');
+    expect(lines).toHaveLength(before.length);
+    const changed = lines.filter((line, index) => line !== before[index]);
+    expect(changed).toHaveLength(chunks.size - kept.size);
+    for (const line of changed) expect(line).toMatch(/^(var|const) [\w$]+ = "[^"]*";$/);
+  });
+
+  it('refuses a three.js it cannot read', () => {
+    expect(() => dietThree('export const nothing = 1;')).toThrow(/no `const ShaderChunk/);
+    expect(() => dietThree('const ShaderChunk = {\n\tcommon: common,\n};')).toThrow(/no text/);
+  });
+
+  it('the engine uses no built-in material but the kept ones', () => {
+    const imported = new Set<string>();
+    for (const { text } of engine) {
+      for (const match of text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from 'three'/g)) {
+        for (const name of (match[1] ?? '').split(','))
+          imported.add(name.replace(/\btype\b/, '').trim());
+      }
+    }
+    const materials = [...imported].filter((name) => /Material$/.test(name)).sort();
+    const allowed = ['Material', 'ShaderMaterial', ...KEEP_MATERIALS];
+    expect(materials.filter((name) => !allowed.includes(name))).toEqual([]);
+    expect(materials).toContain('ShaderMaterial');
+  });
+
+  it('the engine includes no chunk but the kept ones, and asks three for no shadow or background', () => {
+    const included = new Set<string>();
+    for (const { path, text } of engine) {
+      for (const match of text.matchAll(/#include <(\w+)>/g)) included.add(match[1] ?? '');
+      // Shadows compile the depth program; a texture as the scene's background compiles its own.
+      expect(text, path).not.toMatch(/shadowMap\.enabled|castShadow|\.background\s*=\s*[a-z]/);
+    }
+    expect([...included].sort()).toEqual([...ENGINE_INCLUDES].sort());
+    for (const name of included) expect(kept.has(name), name).toBe(true);
   });
 });
