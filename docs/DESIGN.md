@@ -474,6 +474,65 @@ line if you rewrite the shader. **A big warm glow on navy reads as brown:** the 
 down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part cool, and warm
 colours small and high.
 
+## Deep light _(a preview: branch `claude/deep-space`, not on `main`)_
+
+On 2026-10-01 Allen asked for "higher fidelity art styles across the board, instead of just
+plain, muted glows", "more hifi and in depth", keeping "the feeling of that simplicity but with a
+lot more details", and pointed at space photographs (the Carina cliffs, the Pillars, Jupiter,
+Earthrise, deep fields). The answer that was chosen is **flat worlds, deep light**: matter
+(planets, ships, signs) stays faceted and token-exact, and what is around matter (gas, stars,
+coronas, air) becomes light with structure. It is built in steps on a preview branch that Allen
+flies before any of it reaches `main`.
+
+**DRAFT, NOT SIGNED: what this would change in the principles above.** These are Allen's to
+accept, change or refuse once he has flown the preview; until then the principles stand as
+written, and nothing on `main` follows the drafts.
+
+- Principle 2 would read: **Matter is flat, light may be soft.** Surfaces keep their two or three
+  bands and never get a gradient; light and air (gas, halos, coronas, shells, spikes) may be
+  soft, and are still cut into a few flat steps wherever they sit beside facets.
+- Principle 3 would add: **and the sky, never brighter than luminance 0.19** (where the butter
+  focus ring still reads 3:1 over it), with a strip along the horizon left near today's navy,
+  because that is where planets and orbit lines sit.
+- The lesson "the sky uses glows, not noise clouds" (below, under the 3D world) would become
+  **noise only baked, limited and lit**: never at run time, never without a ceiling, never
+  without a light it faces.
+
+**Eight rules a change to the look is checked against.** (1) Matter is flat, light may be smooth.
+(2) Every colour is a token; shaders receive colours as uniforms. (3) Light is added, never
+replaced: the sky is today's navy plus added light, and a strength of 0 skips the pass. (4) Depth
+is layering: flats at different distances, never volumetric noise at run time. (5) One lens for
+every bright point: the same spike profile on hero stars and on a sun's glint. (6) Only what
+already glows may bloom: nothing new joins the bloom guest list, so nothing depends on bloom and
+the low tier loses nothing but seasoning. (7) Calm where the work is: the horizon strip stays
+dark, the sky is halved while docked, and the whole sky has a ceiling. (8) The star map stays
+flat.
+
+**As built so far: the groundwork (step 0). Nothing looks different yet.**
+
+- **36 tokens**, all engine only: three more star temperatures (`color.star.hot`, `amber`,
+  `ember`), the gas (`color.nebula.<family>.{deep,mid,lit,rim}` for the five families and `band`
+  for the Milky Way), the air of worlds (`color.air.<biome>`, every biome with a sea),
+  `color.shading.dusk` and `night`, and `color.window`. `deep` and `mid` are the body of the gas
+  and sit barely above space (under 1.4:1 and about 2:1); `lit` is where gas faces its light;
+  `rim` is for hairlines and hot cores, never an area. They are **left out of the CSS mirror**
+  (`ENGINE_ONLY` in `src/site/tokens-css.ts`): no stylesheet reads them, and plain pages do not
+  carry them.
+- **What the palette promises** (`src/site/look-colours.test.ts`): every `deep` under 1.4:1 on
+  `space.900` and every `rim` at 6:1 or more; the families of gas told apart by their `lit` (the
+  closest pair 7.1 CIEDE2000, sky and lilac under deuteranopia) and their `rim` (8.5), under
+  normal vision and each simulated deficiency (`src/site/colour-vision.ts`); `deep` and `mid`
+  carry shape, not identity, and are nearly one colour under deuteranopia on purpose; no star
+  tint within 10 of butter ("here") or of coral.
+- **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
+  the star classes in `tuning.starfield`, with the shapes of their tables in
+  `design/lookTypes.ts`. **Nothing reads them yet**: each block is switched on by the step that
+  builds its system. `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits
+  at the bearing of its system from home, in its system's family; butter has no pool; air only
+  on bodies that exist).
+- **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
+  lab's `sky` subject looks out from each of them.
+
 ## Accessibility bar (non-negotiable)
 
 Contrast AA. Touch targets 44×44 px. Works at 360 px with no horizontal scroll. Visible focus ring

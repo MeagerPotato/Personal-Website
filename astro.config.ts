@@ -1,6 +1,7 @@
 import type { AstroIntegration } from 'astro';
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
+import { glslSqueeze } from './scripts/vite-glsl-squeeze.mjs';
 
 /**
  * DEV ONLY: the asset lab at /lab/ (docs/PLAN.md §5.6). Its page starts with an underscore, so
@@ -36,6 +37,8 @@ export default defineConfig({
   integrations: [sitemap(), lab],
 
   vite: {
+    // Builds ship the shaders without their comments and indentation (scripts/lib/glsl-squeeze.mjs).
+    plugins: [glslSqueeze()],
     build: {
       // Never inline scripts or assets as data: keeps "one inline script" true for the CSP.
       assetsInlineLimit: 0,

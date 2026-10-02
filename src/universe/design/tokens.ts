@@ -3,7 +3,9 @@
  *
  * Pure data with NO imports, so everything can read it: the engine, the Astro shell, the content
  * schemas, and tests. `src/site/tokens-css.ts` mirrors it into CSS custom properties
- * (`color.ink.high` -> `--color-ink-high`), so the 3D world and the DOM always share one palette.
+ * (`color.ink.high` -> `--color-ink-high`), so the 3D world and the DOM always share one palette;
+ * the keys marked ENGINE ONLY are the ones it leaves out (`ENGINE_ONLY` there), because only the
+ * 3D world paints with them and every plain page would carry them for nothing.
  * The engine renders with NoToneMapping, so a fully lit facet shows EXACTLY the hex written here.
  *
  * DESIGN SURFACE (docs/PLAN.md §5.6): values are free to change. Keys are API: renaming one is a
@@ -88,18 +90,59 @@ export const tokens = {
      */
     shading: {
       shadow: '#bbbfdd',
+      /**
+       * ENGINE ONLY (src/site/tokens-css.ts leaves them out). `dusk` and `night` multiply the
+       * middle and the shade band of a world WITH AIR instead (its lit band stays its token):
+       * a warm sunset belt, and a night that is cool and never black.
+       */
+      dusk: '#eebeae',
+      night: '#7a83b1',
     },
+    /** ENGINE ONLY. A lit window: a lamp on home's night side, in the bus and the station. */
+    window: '#febe8e',
     /**
      * Interactive text (the sky base), and BUTTER, WHICH MEANS "HERE": the focus ring, the current
      * page's marker, the name the ship is headed for (the butter base).
      */
     accent: '#8bc0f2',
     focus: '#f8d98c',
-    /** Starfield tints. */
+    /**
+     * Starfield tints. warm, cool and white are the old three and reach the CSS; hot (blue-white),
+     * amber and ember (a red giant) complete six temperatures and are ENGINE ONLY
+     * (src/site/tokens-css.ts leaves them out).
+     */
     star: {
       warm: '#fff1d6',
       cool: '#d6e4ff',
       white: '#ffffff',
+      hot: '#c5d9f9',
+      amber: '#f8bc90',
+      ember: '#d68960',
+    },
+    /**
+     * ENGINE ONLY. The painted gas of the sky: one four-tone ramp per colour family, and `band`
+     * for the Milky Way. deep and mid are the BODY of the gas (they hold the shapes, barely above
+     * space: under 1.4:1 and about 2:1 on space.900); lit is where it faces its light; rim is for
+     * hairlines and hot cores, never an area. deep and mid carry shape, not identity, and are
+     * nearly the same under deuteranopia on purpose: a family is told apart by its lit and its
+     * rim (design/tokens.test.ts), and always by where it sits and by the names.
+     */
+    nebula: {
+      coral: { deep: '#26223a', mid: '#4d3651', lit: '#975851', rim: '#dc918a' },
+      butter: { deep: '#232a45', mid: '#484b69', lit: '#b4a272', rim: '#eedfb0' },
+      mint: { deep: '#122a3a', mid: '#1f4a52', lit: '#4d8f7b', rim: '#a8d7c4' },
+      sky: { deep: '#172546', mid: '#244172', lit: '#41709b', rim: '#88b5dd' },
+      lilac: { deep: '#1d1e40', mid: '#373062', lit: '#6c4c7c', rim: '#a588b6' },
+      band: { deep: '#111836', mid: '#2a3358', lit: '#575b84', rim: '#e6d5b4' },
+    },
+    /** ENGINE ONLY. The air of a world, by biome. Primer (planned clay) has none. */
+    air: {
+      terra: '#a3d9fd',
+      tide: '#8fe6e2',
+      dune: '#fdce9b',
+      frost: '#d1edfb',
+      ember: '#feb0ac',
+      bloom: '#d4baf4',
     },
   },
 
@@ -189,3 +232,12 @@ export const THEME_KEYS = Object.keys(tokens.color.system) as [ThemeKey, ...Them
  */
 export type BiomeKey = keyof Tokens['color']['biome'];
 export const BIOME_KEYS = Object.keys(tokens.color.biome) as [BiomeKey, ...BiomeKey[]];
+
+/** The sky's gas ramps (`color.nebula`): the five families, and `band` for the Milky Way. */
+export type NebulaKey = keyof Tokens['color']['nebula'];
+/** The four stops of a gas ramp, darkest to lightest. */
+export type NebulaTone = keyof Tokens['color']['nebula'][NebulaKey];
+/** Star tints (`color.star`). */
+export type StarKey = keyof Tokens['color']['star'];
+/** Biomes whose worlds have air (`color.air`): every one with a sea, so never `primer`. */
+export type AirKey = keyof Tokens['color']['air'];

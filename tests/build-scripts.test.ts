@@ -22,6 +22,7 @@ import {
   CLOSE_UP_MARKERS,
   closeUpProblems,
 } from '../scripts/lib/closeup.mjs';
+import { isShaderModule, squeezeGlsl, squeezeTemplates } from '../scripts/lib/glsl-squeeze.mjs';
 import { parseRedirects, redirectProblems } from '../scripts/lib/redirects.mjs';
 import {
   RESUME_PDF,
@@ -480,3 +481,159 @@ function sourceFiles(dir: string): string[] {
     return /\.(ts|astro)$/.test(entry.name) ? [path] : [];
   });
 }
+
+// THE GLSL SQUEEZE (scripts/lib/glsl-squeeze.mjs): builds ship the shaders without their comments
+// and indentation. What it must never do is change the program.
+describe('squeezeGlsl', () => {
+  it('drops comments and the whitespace that separates nothing', () => {
+    const squeezed = squeezeGlsl(`
+      // The header says what the uniforms are.
+      uniform float uTime; /* seconds */
+      void main() {
+        float wave = 0.5 + 0.5 * sin( uTime );
+        gl_FragColor = vec4( wave, 0.0, 0.0, 1.0 );
+      }
+    `);
+    expect(squeezed).toBe(
+      'uniform float uTime;void main(){float wave=0.5+0.5*sin(uTime);' +
+        'gl_FragColor=vec4(wave,0.0,0.0,1.0);}',
+    );
+  });
+
+  it('keeps the space between two words, and between signs that would join', () => {
+    expect(squeezeGlsl('uniform   vec3\n uColor ;')).toBe('uniform vec3 uColor;');
+    expect(squeezeGlsl('float a = b - -c;')).toBe('float a=b- -c;');
+    expect(squeezeGlsl('float a = b + +c;')).toBe('float a=b+ +c;');
+    expect(squeezeGlsl('float a = b\n  - -c;')).toBe('float a=b- -c;');
+    // A block comment separates two words as a space does.
+    expect(squeezeGlsl('return/* the lit side */color;')).toBe('return color;');
+    expect(squeezeGlsl('float x = 1. - .5;')).toBe('float x=1.-.5;');
+  });
+
+  it('gives every preprocessor line a line of its own, as written', () => {
+    const squeezed = squeezeGlsl(`
+      #define GLOW_COUNT 4
+      uniform vec3 uGlow[GLOW_COUNT];
+      vec3 tap() {
+        #ifdef MASKED
+          return a * b;
+        #else
+          return a;
+        #endif
+      }
+      void main() {
+        gl_FragColor = vec4(tap(), 1.0);
+        #include <colorspace_fragment>
+      }
+    `);
+    expect(squeezed).toBe(
+      [
+        '',
+        '#define GLOW_COUNT 4',
+        'uniform vec3 uGlow[GLOW_COUNT];vec3 tap(){',
+        '#ifdef MASKED',
+        'return a*b;',
+        '#else',
+        'return a;',
+        '#endif',
+        '}void main(){gl_FragColor=vec4(tap(),1.0);',
+        '#include <colorspace_fragment>',
+        '}',
+      ].join('\n'),
+    );
+    // A macro with arguments is not a macro without them: the space in a directive stays.
+    expect(squeezeGlsl('#define sq (x)')).toBe('\n#define sq (x)\n');
+  });
+
+  it('leaves an interpolation alone: in its line when inside one, on its own line when it had one', () => {
+    const count = '$' + '{GLOW_COUNT}';
+    expect(squeezeGlsl(`  #define GLOW_COUNT ${count}\n  float a;`)).toBe(
+      `\n#define GLOW_COUNT ${count}\nfloat a;`,
+    );
+    // What a lone one puts there is not known: it may end in a comment or a directive.
+    const noise = '$' + '{ noise }';
+    expect(squeezeGlsl(`float a;\n  ${noise}\n  float b;`)).toBe(`float a;\n${noise}\nfloat b;`);
+    const twice = '$' + '{ scale * 2 }';
+    expect(squeezeGlsl(`float a = ${twice} + 1.0; // twice`)).toBe(`float a=${twice}+1.0;`);
+    // Braces, quotes and templates inside one are JavaScript, and none of the shader's business.
+    const nested = '$' + '{ pick({ a: "}" }, `$' + '{b} // not a comment`) }';
+    expect(squeezeGlsl(`x = ${nested};`)).toBe(`x=${nested};`);
+  });
+
+  it('refuses what it cannot keep whole', () => {
+    expect(() => squeezeGlsl('#define TWO \\\n  lines')).toThrow(/backslash/);
+    expect(() => squeezeGlsl('float a = $' + '{ never;')).toThrow(/never closes/);
+  });
+});
+
+describe('squeezeTemplates', () => {
+  it('squeezes the template literals tagged glsl, and nothing else in the module', () => {
+    const module = [
+      '/** Uniforms: uTime. */',
+      'export const COUNT = 4;',
+      'export const sky = {',
+      '  vertexShader: /* glsl */ `',
+      '    void main() {',
+      '      gl_Position = vec4( position, 1.0 ); // far away',
+      '    }',
+      '  `,',
+      '  note: `  not   a shader  // and not a comment `,',
+      '};',
+    ].join('\n');
+    expect(squeezeTemplates(module)).toBe(
+      [
+        '/** Uniforms: uTime. */',
+        'export const COUNT = 4;',
+        'export const sky = {',
+        '  vertexShader: /* glsl */ `void main(){gl_Position=vec4(position,1.0);}`,',
+        '  note: `  not   a shader  // and not a comment `,',
+        '};',
+      ].join('\n'),
+    );
+  });
+
+  it('only applies to the shader modules', () => {
+    expect(isShaderModule('C:\\repo\\src\\universe\\design\\shaders\\sky.ts')).toBe(true);
+    expect(isShaderModule('/repo/src/universe/design/shaders/toonFlat.ts?v=1')).toBe(true);
+    expect(isShaderModule('/repo/src/universe/design/shaders/sky.test.ts')).toBe(false);
+    expect(isShaderModule('/repo/src/universe/design/materials.ts')).toBe(false);
+    expect(isShaderModule('/repo/src/universe/design/shaders/deep/sky.ts')).toBe(false);
+  });
+
+  // The real shaders: whatever is written there, the squeeze must give back the same program.
+  const SHADERS = join(import.meta.dirname, '../src/universe/design/shaders');
+  const modules = readdirSync(SHADERS).filter((name) => isShaderModule(`/${SHADERS}/${name}`));
+  /** Every tagged literal's text in a module. (No shader holds a backtick of its own.) */
+  const literals = (source: string): string[] =>
+    [...source.matchAll(/\/\*\s*glsl\s*\*\/\s*`([^`]*)`/g)].map((match) => match[1] ?? '');
+  const uncommented = (glsl: string): string =>
+    glsl.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, '');
+  const words = (glsl: string): string[] => glsl.match(/[A-Za-z_]\w*/g) ?? [];
+
+  it('finds the shaders', () => {
+    expect(modules.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it.each(modules)('%s: the same program, without its comments', (name) => {
+    const source = readFileSync(join(SHADERS, name), 'utf8');
+    const before = literals(source);
+    const after = literals(squeezeTemplates(source));
+    expect(before.length).toBeGreaterThan(0);
+    expect(after).toHaveLength(before.length);
+    for (const [i, squeezed] of after.entries()) {
+      const written = uncommented(before[i] ?? '');
+      // Nothing but whitespace and comments went: character for character, the rest is there...
+      expect(squeezed.replace(/\s+/g, '')).toBe(written.replace(/\s+/g, ''));
+      // ...and two words that were apart are still apart: the same words, in the same order.
+      expect(words(squeezed)).toEqual(words(written));
+      expect(squeezed).not.toMatch(/\/\/|\/\*/);
+      expect(squeezed.length).toBeLessThan((before[i] ?? '').length);
+      // A directive has its line to itself (three.js resolves an include only at a line's start).
+      for (const line of squeezed.split('\n')) {
+        if (line.includes('#')) expect(line).toMatch(/^#\w+( [^;]*)?$/);
+      }
+    }
+    // Squeezing what is squeezed changes nothing.
+    expect(squeezeTemplates(squeezeTemplates(source))).toBe(squeezeTemplates(source));
+  });
+});

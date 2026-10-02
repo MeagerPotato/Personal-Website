@@ -23,6 +23,7 @@ import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
 import { planetTriangleCount } from '../sim/planet';
+import { SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
 import { Backdrop } from '../world/Backdrop';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
@@ -39,6 +40,7 @@ const SUBJECTS = [
   'station',
   'satellite',
   'relay',
+  'sky',
 ] as const;
 type Subject = (typeof SUBJECTS)[number];
 
@@ -86,7 +88,7 @@ const KIND_OF = {
   station: 'station',
   satellite: 'satellite',
   relay: 'link',
-} as const satisfies Record<Exclude<Subject, 'rocket' | 'world'>, LookedAt['kind']>;
+} as const satisfies Record<Exclude<Subject, 'rocket' | 'world' | 'sky'>, LookedAt['kind']>;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -102,6 +104,26 @@ export interface LabOptions {
   tier: QualityTier;
   /** The visitor picked another tier. A tier is a property of the canvas, so the owner reboots. */
   onTier(tier: QualityTier): void;
+  /**
+   * What to show, from the page's address, so that a view can be linked to and photographed
+   * (scripts/look/capture.mjs): any key of the table's state (`subject=sky`, `pose=first`,
+   * `theme=mint`, `world=page/about`, `near=1`...), and three of the lab's own: `turn` (the
+   * turntable's rad/s), `still=1` (the sky as under reduced motion: no twinkle, no drift) and
+   * `ui=0` (no panel and no read-out: only the picture).
+   */
+  query?: ReadonlyMap<string, string>;
+  /** The first frame is on the screen. */
+  onReady?(): void;
+}
+
+/** Write what the address asks for into the table's state, each value as the kind it replaces. */
+function applyQuery(state: Record<string, unknown>, query: ReadonlyMap<string, string>): void {
+  for (const [key, value] of query) {
+    const now = state[key];
+    if (typeof now === 'number' && Number.isFinite(Number(value))) state[key] = Number(value);
+    else if (typeof now === 'boolean') state[key] = value !== '0' && value !== 'false';
+    else if (typeof now === 'string') state[key] = value;
+  }
 }
 
 /**
@@ -113,6 +135,9 @@ export interface LabOptions {
  */
 export function bootLab(options: LabOptions): { dispose(): void } {
   const { mount } = options;
+  const query = options.query ?? new Map<string, string>();
+  const bare = query.get('ui') === '0';
+  const still = query.get('still') === '1';
   const tier = tuning.quality.tiers[options.tier];
   setBloomMask(tier.post);
 
@@ -122,7 +147,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
     pipeline: (renderer, samples) => new PostFX(renderer, samples),
     coarsePointer: false,
     canDemote: false,
-    onFirstFrame: () => undefined,
+    onFirstFrame: () => options.onReady?.(),
     onDemote: () => undefined,
     onContextLost: () => console.warn('[lab] WebGL context lost: reload the page'),
   });
@@ -130,7 +155,9 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const assets = engine.add(new AssetStore());
   const jobs = new JobQueue(tuning.world.jobBudget);
   const camera = new TurntableCam(engine.canvas);
-  const table = engine.add(new Turntable(assets, jobs, camera, options.tier === 'low'));
+  const turn = Number(query.get('turn'));
+  if (query.has('turn') && Number.isFinite(turn)) camera.turnRate = turn;
+  const table = engine.add(new Turntable(assets, jobs, camera, options.tier === 'low', query));
   // The worlds' kinds and sizes, as the galaxy has them; until then, and without it, a guess.
   void fetch('/universe.json')
     .then((response) => response.json())
@@ -139,17 +166,20 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   engine.add(new CameraRig(engine.camera, camera, tuning.cameraRig));
 
   const backdrop = engine.add(new Backdrop());
-  const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: false }));
+  const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: still }));
   engine.scene.add(backdrop.object, starfield.object, table.object);
   engine.add(jobs);
-  engine.add(
-    new PerfHud(mount, engine.renderer, () => [
-      `tier  ${options.tier} x${engine.resolutionScale.toFixed(2)}`,
-      `shows ${table.describe()}`,
-    ]),
-  );
+  if (!bare) {
+    engine.add(
+      new PerfHud(mount, engine.renderer, () => [
+        `tier  ${options.tier} x${engine.resolutionScale.toFixed(2)}`,
+        `shows ${table.describe()}`,
+      ]),
+    );
+  }
 
   const gui = new GUI({ title: 'universe-lab (dev only)' });
+  if (bare) gui.hide();
   const { state } = table;
   let timer = 0;
   const rebuild = (): void => {
@@ -177,6 +207,10 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   world.add(state, 'seed').onFinishChange(rebuild);
   world.add(state, 'rings').onChange(rebuild);
   world.add(state, 'closeUp').name('close-up detail').onChange(rebuild);
+  // The sky alone, looked OUT at from the middle: the seven views it is judged from
+  // (sim/skyDirections.ts), or wherever a drag leaves it.
+  const skyFolder = gui.addFolder('sky (subject: sky)');
+  skyFolder.add(state, 'pose', SKY_POSE_NAMES).onChange(rebuild);
   const rocket = gui.addFolder('rocket');
   rocket.add(state, 'thrust', 0, 1, 0.01);
   rocket.add(state, 'boost');
@@ -241,6 +275,7 @@ class Turntable implements System {
     lightAzimuthDeg: -55,
     lightElevationDeg: 35,
     sky: true,
+    pose: 'first' as SkyPoseName,
   };
 
   private scope = new Scope();
@@ -265,8 +300,10 @@ class Turntable implements System {
     private readonly jobs: JobQueue,
     private readonly camera: TurntableCam,
     private readonly low: boolean,
+    query: ReadonlyMap<string, string>,
   ) {
     this.object.name = 'universe-lab';
+    applyQuery(this.state, query);
     this.show();
   }
 
@@ -279,6 +316,13 @@ class Turntable implements System {
 
   describe(): string {
     const { subject, biome, theme } = this.state;
+    if (subject === 'sky') {
+      const gaze = this.camera.gaze;
+      const at = gaze
+        ? `yaw ${gaze.yawDeg.toFixed(1)} pitch ${gaze.pitchDeg.toFixed(1)} fov ${gaze.fovDeg.toFixed(0)}`
+        : '';
+      return `sky from "${this.state.pose}", ${at}`;
+    }
     if (subject === 'world') {
       const { world, near, moving, onMap } = this.state;
       const how = onMap ? 'map' : near ? (moving ? 'close-up, moving' : 'close-up') : 'far';
@@ -306,6 +350,13 @@ class Turntable implements System {
     if (this.disposed) return;
     this.clear();
     const { state, scope, assets } = this;
+    if (state.subject === 'sky') {
+      // Nothing on the table: the camera turns round and looks out.
+      const pose = SKY_POSES[state.pose] ?? SKY_POSES.first;
+      this.camera.gaze = { yawDeg: pose.yawDeg, pitchDeg: pose.pitchDeg, fovDeg: pose.fovDeg };
+      return;
+    }
+    this.camera.gaze = null;
     const surface = scope.track(createToonMaterial({ vertexColors: true }));
     this.lit.push(surface);
     this.triangles = 0;

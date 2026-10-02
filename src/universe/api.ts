@@ -30,6 +30,10 @@ export async function createLab(options: {
   mount: HTMLElement;
   quality?: QualityTier;
   onQuality(tier: QualityTier): void;
+  /** What to show, from the page's address (lab/LabScene.ts, `LabOptions.query`). */
+  query?: ReadonlyMap<string, string>;
+  /** The lab's first frame is on the screen. */
+  onReady?(): void;
 }): Promise<{ dispose(): void }> {
   if (import.meta.env.DEV) {
     const { bootLab } = await import('./lab/LabScene');
@@ -37,6 +41,8 @@ export async function createLab(options: {
       mount: options.mount,
       tier: isTier(options.quality) ? options.quality : 'high',
       onTier: options.onQuality,
+      ...(options.query ? { query: options.query } : {}),
+      ...(options.onReady ? { onReady: options.onReady } : {}),
     });
   }
   throw new Error('the lab exists in development only');

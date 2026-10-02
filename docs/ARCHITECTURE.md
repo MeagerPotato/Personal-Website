@@ -529,11 +529,29 @@ run there is a reason to look, not a locked door.
 | Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
-| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |
+| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it. The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
+| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and a sun, the star map; and the lab's sky from the seven views. `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
 The lab and the tuning panel are imported behind `import.meta.env.DEV`. A production build drops
 them and lil-gui with them, and `verify-dist` fails the build if either ever shows up.
+
+**Shaders ship squeezed.** The GLSL in `design/shaders/*.ts` is written to be read (a header of
+uniforms, a comment on every trick), and a minifier leaves a template literal alone, so all of
+it used to ship. A Vite plugin (`scripts/vite-glsl-squeeze.mjs`, in `astro.config.ts`) takes the
+comments and the needless whitespace out of every literal tagged `/* glsl */` in that folder, at
+build time only: the dev server and the lab keep the shaders as written, so a compile error
+there names a line a person can find. It is the same program, token for token
+(`scripts/lib/glsl-squeeze.mjs` is pure, and `tests/build-scripts.test.ts` runs it over every
+real shader). Three rules follow for whoever writes one: tag the literal `/* glsl */`; no
+backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
+that brings in a block of GLSL stands alone on its line, which it then keeps.
+
+**Tokens only the engine paints with** (the sky's gas, air, the extra star temperatures, dusk
+and night, a lit window) are left out of the CSS mirror: `ENGINE_ONLY` in
+`src/site/tokens-css.ts`, passed by `Head.astro`. The engine reads `tokens` itself, never the
+CSS, so a plain page does not carry custom properties that no stylesheet reads. A new token that
+the DOM never uses joins that list; one the DOM does use must not.
 
 ## 10. Adding things
 
