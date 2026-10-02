@@ -859,37 +859,55 @@ export const tuning = {
   starfield: {
     /** Changing the seed reshuffles the whole sky; keep it stable so screenshots stay comparable. */
     seed: 'allenkh-starfield',
-    count: 4000,
-    countCoarse: 2000,
-    /** Point size in CSS px. Sizes are cubed-random: many small stars, few large ones. */
+    /**
+     * How many of the faintest stars (the dust class, below) there are, with a mouse and with a
+     * finger. Every other class follows in proportion, and the low tier draws half of each.
+     */
+    count: 4200,
+    countCoarse: 2100,
+    /** @deprecated The classes below size the stars: nothing reads this (the old points did). */
     sizeMin: 1.1,
+    /** @deprecated As sizeMin. */
     sizeMax: 3.4,
-    /** Palette weights: [token name under color.star, share]. */
+    /** Six temperatures: [token name under color.star, share of the stars]. */
     palette: [
-      ['white', 0.6],
-      ['cool', 0.25],
+      ['white', 0.3],
+      ['cool', 0.2],
+      ['hot', 0.17],
       ['warm', 0.15],
+      ['amber', 0.12],
+      ['ember', 0.06],
     ],
+    /** @deprecated Each class has its own brightness range: nothing reads this. */
     brightnessMin: 0.45,
+    /** This share of the dust, field and bright stars dims and comes back, by up to twinkleDepth. */
     twinkleShare: 0.2,
     twinkleDepth: 0.55,
     /** Whole-sky drift, radians per second. Off under reduced motion. */
     driftRadPerSec: 0.004,
 
-    // --- "Deep light" (docs/DESIGN.md): the star classes. NOTHING READS THESE YET: the list of
-    // stars that does arrives with its step, and until then the sky is the points above. ---
+    // --- "Deep light" (docs/DESIGN.md): the star classes. sim/starList.ts makes the list of
+    // stars from these, design/shaders/sky.ts draws it. ---
     /**
      * Five kinds of star, faintest to brightest: dust, field, bright, mid, and the eight heroes
      * below. `yRange` is the peak brightness (linear luminance) and `yExp` how it is spread
-     * across the range (higher = more faint ones); `sigmaPx` the Gaussian core, `haloSigmaPx` and
-     * `haloGain` a wider, fainter one round it, `spikeLenPx`, `spikeGain` and `spikeThicknessPx`
-     * a four-armed plus (mid only); every size is CSS px in a view `scaleRows` high.
-     * `bandShare` is the share of the class drawn along the Milky Way. Dust has no count of its
-     * own: it takes `count` (and `countCoarse`) above.
+     * across the range (higher = more faint ones); `sigmaPx` the Gaussian core (at `coreGain` of
+     * that brightness, 1 when left out), `haloSigmaPx` and `haloGain` a wider, fainter one round
+     * it, `spikeLenPx`, `spikeGain` and `spikeThicknessPx` a four-armed plus (mid only); every
+     * size is CSS px in a view `scaleRows` high. `bandShare` is the share of the class drawn
+     * along the Milky Way. Dust has no count of its own: it takes `count` (and `countCoarse`)
+     * above.
      */
     classes: {
-      dust: { yRange: [0.1, 0.34], yExp: 2.2, sigmaPx: 0.55, bandShare: 0.5 },
-      field: { count: 700, yRange: [0.3, 0.65], yExp: 1.6, sigmaPx: 0.75, bandShare: 0.3 },
+      dust: { yRange: [0.1, 0.34], yExp: 2.2, sigmaPx: 0.55, coreGain: 0.9, bandShare: 0.5 },
+      field: {
+        count: 700,
+        yRange: [0.3, 0.65],
+        yExp: 1.6,
+        sigmaPx: 0.75,
+        coreGain: 0.9,
+        bandShare: 0.3,
+      },
       bright: {
         count: 110,
         yRange: [0.7, 1],
@@ -952,12 +970,22 @@ export const tuning = {
       { azDeg: 146, elDeg: 20, sigmaDeg: 0.9, count: 55, tint: 'amber' },
       { azDeg: 30, elDeg: 9, sigmaDeg: 1.3, count: 80, tint: 'white' },
     ] satisfies readonly StarCluster[],
+    /**
+     * A star of a cluster: its brightness is yBase + yGain * random^yExp * exp(-falloff * r), r
+     * its distance from the middle in sigmas; `tintShare` of them wear the cluster's tint, the
+     * rest any; the first `fieldCount` are drawn as field stars, the rest as dust.
+     */
+    cluster: { yBase: 0.22, yGain: 0.5, yExp: 3, falloff: 0.5, tintShare: 0.6, fieldCount: 5 },
     /** Spread of the Milky Way's stars round its great circle, degrees (the circle: look.sky.band). */
     bandSigmaDeg: 8.5,
     /** The profile along a spike, t from 0 at the star to 1 at its tip: (1 - t)^exponent / (1 + taper t). */
     spike: { exponent: 2.4, taper: 5 },
-    /** The view height, CSS px, the pixel sizes above are written for (they scale by 0.6 to 1.2). */
+    /** The view height, CSS px, the pixel sizes above are written for... */
     scaleRows: 1080,
+    /** ...and how far a shorter or a taller view may scale them: [least, most]. */
+    scaleRange: [0.6, 1.2],
+    /** A star's core never scales below this, or the faintest would fall between the pixels. */
+    coreScaleMin: 0.8,
   },
 
   /**

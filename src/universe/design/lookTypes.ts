@@ -189,6 +189,8 @@ export interface StarClass {
   readonly yExp: number;
   /** The Gaussian core. */
   readonly sigmaPx: number;
+  /** The core's peak, as a share of the star's brightness. 1 when left out. */
+  readonly coreGain?: number;
   readonly haloSigmaPx?: number;
   readonly haloGain?: number;
   readonly spikeLenPx?: number;

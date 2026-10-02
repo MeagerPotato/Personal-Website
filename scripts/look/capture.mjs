@@ -7,7 +7,9 @@
 //                 at an emblem world and beside a sun, and the star map: on a desktop
 //                 (1280 x 800) and on a narrow phone (360 x 780, touch, the bottom sheet)
 //   in the lab    the sky alone from the seven views it is judged from (sim/skyDirections.ts),
-//                 with no twinkle and no drift, so two runs give the same picture
+//                 with no twinkle and no drift, so two runs give the same picture; and the
+//                 stars: a sheet of each kind at 1:1, the heroes as a short and as a tall view
+//                 draws them, and the sky's stars as the star map shows them
 //   --perf        instead of pictures: what `?perf` reads on each tier, at home and docked
 //
 // It starts no server and never more than one browser. Start what it should look at, on ports
@@ -106,11 +108,24 @@ const SITE_VIEWS = [
   ['map-high-reduced', '/', 'high', openMap, true],
 ];
 
-/** The lab's views: the sky from each pose on high, and from the first on the other tiers. */
+/**
+ * The lab's views, [name, what the lab is asked for, tier]: the sky from each pose on high, and
+ * from the first on the other tiers; then the stars.
+ */
+const STAR_KINDS = ['dust', 'field', 'bright', 'mid', 'hero'];
 const LAB_VIEWS = [
-  ...POSES.map((pose) => [`sky-${pose}-high`, pose, 'high']),
-  ['sky-first-medium', 'first', 'medium'],
-  ['sky-first-low', 'first', 'low'],
+  ...POSES.map((pose) => [`sky-${pose}-high`, `subject=sky&pose=${pose}`, 'high']),
+  ['sky-first-medium', 'subject=sky&pose=first', 'medium'],
+  ['sky-first-low', 'subject=sky&pose=first', 'low'],
+  ...STAR_KINDS.map((kind) => [
+    `stars-${kind}-high`,
+    `subject=stars&pose=band&starKind=${kind}`,
+    'high',
+  ]),
+  ['stars-hero-600-high', 'subject=stars&pose=band&starKind=hero&starRows=600', 'high'],
+  ['stars-hero-1080-high', 'subject=stars&pose=band&starKind=hero&starRows=1080', 'high'],
+  ['stars-hero-low', 'subject=stars&pose=band&starKind=hero', 'low'],
+  ['stars-map-high', 'subject=stars&pose=band&starMap=1', 'high'],
 ];
 
 const browser = await chromium.launch({
@@ -236,11 +251,12 @@ try {
       }
     }
     if (args.lab) {
-      for (const [name, pose, tier] of LAB_VIEWS) {
+      for (const [name, what, tier] of LAB_VIEWS) {
         if (!wanted(name)) continue;
-        const url = `${args.lab}/lab/?subject=sky&pose=${pose}&q=${tier}&ui=0&still=1`;
+        const url = `${args.lab}/lab/?${what}&q=${tier}&ui=0&still=1`;
         await shoot(name, 'desktop', false, url, still);
-        if (pose === 'first' && tier === 'high') await shoot(name, 'phone', false, url, still);
+        if (name === 'sky-first-high' || name === 'stars-hero-high')
+          await shoot(name, 'phone', false, url, still);
       }
     }
     writeFileSync(join(args.out, 'capture.json'), `${JSON.stringify(report, null, 2)}\n`);

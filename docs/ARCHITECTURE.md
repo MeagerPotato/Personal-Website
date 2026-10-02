@@ -529,8 +529,8 @@ run there is a reason to look, not a locked door.
 | Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
-| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it. The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
-| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and a sun, the star map; and the lab's sky from the seven views. `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
+| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it. The `stars` subject looks out the same way at the stars: the sky's own, or a sheet of one class (`starKind`) in one tint or the mix, drawn as a view of another height would draw them (`starRows`), or as the star map shows them (`starMap`). The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
+| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and a sun, the star map; and the lab's sky from the seven views, and its stars (a sheet of each class, the heroes at two view heights and on the low tier, the stars as the map shows them). `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
 The lab and the tuning panel are imported behind `import.meta.env.DEV`. A production build drops
@@ -546,6 +546,16 @@ there names a line a person can find. It is the same program, token for token
 real shader). Three rules follow for whoever writes one: tag the literal `/* glsl */`; no
 backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
 that brings in a block of GLSL stands alone on its line, which it then keeps.
+
+**The stars are a list, then one draw.** `sim/starList.ts` (pure, seeded) turns the star
+classes of `tuning.starfield` into parallel arrays: a direction, a class, a tint, a brightness,
+a phase. How many depends on the pointer and the tier, which are known before the renderer
+exists, so the list is built once in the constructor of `world/Starfield.ts` and nothing about
+it is state: a rebuilt engine makes the same sky. It is drawn as one instanced quad a star
+(`stars` in `design/shaders/sky.ts`): the vertex shader puts the quad at the star's direction
+on the far plane and sizes it in CSS px by class; the fragment shader sums a core, halos and
+spikes. `createStarMaterial` lays the classes out as the shader's tables, a row a class. Points
+could not do it: a point's size is capped by the GPU and a point has no angle.
 
 **Tokens only the engine paints with** (the sky's gas, air, the extra star temperatures, dusk
 and night, a lit window) are left out of the CSS mirror: `ENGINE_ONLY` in

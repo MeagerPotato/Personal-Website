@@ -345,7 +345,9 @@ export function boot(
   }
 
   const backdrop = engine.add(new Backdrop());
-  const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
+  const starfield = engine.add(
+    new Starfield({ coarsePointer, reducedMotion, low: quality.tier === 'low' }),
+  );
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
   engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm

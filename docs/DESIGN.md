@@ -55,7 +55,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a raised key (one whose face is already `raised`, or one on a raised plate) |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system (a sun of a binary may wear one of its own: Software sky, Hardware coral), worn by its sun, its planets and their moons: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
-| `color.star` | `warm cool white` | starfield tints |
+| `color.star` | `white cool hot warm amber ember` | the stars' six temperatures (`hot`, `amber` and `ember` are engine only: "Deep light", below) |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
 
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
@@ -414,7 +414,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
 | The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
-| Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
+| Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`), the five classes (`classes`, `hero`: brightness, core, halos, spikes), where the eight heroes and the three clusters are, twinkle, a hero's breath, drift | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
@@ -526,12 +526,44 @@ flat.
   tint within 10 of butter ("here") or of coral.
 - **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
   the star classes in `tuning.starfield`, with the shapes of their tables in
-  `design/lookTypes.ts`. **Nothing reads them yet**: each block is switched on by the step that
-  builds its system. `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits
-  at the bearing of its system from home, in its system's family; butter has no pool; air only
-  on bodies that exist).
+  `design/lookTypes.ts`. **Nothing reads `tuning.look` yet** but the stars, which take the
+  Milky Way's great circle from it: each block is switched on by the step that builds its
+  system. `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits at the
+  bearing of its system from home, in its system's family; butter has no pool; air only on
+  bodies that exist).
 - **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
   lab's `sky` subject looks out from each of them.
+
+**As built: the stars (step 1).** The first thing that looks different, over the old backdrop.
+
+- **Five classes, six temperatures.** 5,249 stars with a mouse on the medium and high tiers
+  (4,200 dust, 700 field, 110 bright, 26 mid, 205 in three clusters, 8 heroes); half of each but
+  the heroes on a phone, half again on the low tier, which also has no mid class. The ordinary
+  star is far fainter than the old points were (a dust star peaks at 0.10 to 0.34 of its tint,
+  where every old point was 0.45 to 1) and a few are much brighter: the sky gets a range. Half
+  the dust lies along the Milky Way (a Gaussian round the great circle the baked sky will
+  share), so the band is there before its haze is. Tints by weight: white 30, cool 20, hot 17,
+  warm 15, amber 12, ember 6 percent. No star wears a family colour.
+- **How a star is drawn.** A Gaussian core; the bright, mid and hero classes add a wider, fainter
+  halo (a hero two); a mid star has a small plus; a **hero has six diffraction spikes** (three
+  lines 60 degrees apart, one upright) and a short faint line across. Along a spike the light
+  falls as `(1 - t)^2.4 / (1 + 5t)`: a fast fall and a long thin tail, which is what reads as
+  diffraction and not as a plus sign. This is the "one lens" of rule 5: a sun's glint uses the
+  same profile. Sizes are CSS px written for a view 1080 px high and scale with the view's
+  height (0.6 to 1.2), so a hero's arm is 78 px there, 58 px at 800, and never dominates a phone.
+- **Calm.** A fifth of the dust, field and bright stars twinkle as before; a hero breathes by 6
+  percent over 5 to 9 seconds, each at its own pace. Under reduced motion neither happens. On
+  the star map the stars dim to `map.starOpacity` as before and **lose their spikes** (rule 8).
+- **Not on the bloom guest list** (rule 6): a star's glow is its own halo, drawn, so the low tier
+  shows the same stars. Light is added in linear light; where the picture goes straight to the
+  canvas (the low tier) the shader corrects for the canvas blending after encoding, or every
+  star there would be fatter.
+- **Still to judge in the lab** (the `stars` subject: a sheet of each class at 1:1, one tint or
+  the mix, the heroes as a view of another height draws them, and the stars as the map shows
+  them): whether two heroes should come down toward the horizon. Two of the eight are in the
+  first frame at home; two (at azimuth 8 and 112) are above every view the chase camera takes.
+  The star drift stays until the baked sky arrives (a painted sky cannot be drifted against),
+  so until then the heroes wander slowly off the places the table gives.
 
 ## Accessibility bar (non-negotiable)
 

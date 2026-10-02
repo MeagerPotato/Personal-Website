@@ -9,6 +9,7 @@ import {
   SrcAlphaFactor,
   Vector2,
   Vector3,
+  Vector4,
   ZeroFactor,
   type IUniform,
   type Material,
@@ -18,6 +19,7 @@ import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
+import type { StarClass } from './lookTypes';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
 import { tokens } from './tokens';
@@ -245,22 +247,69 @@ export function createBackdropMaterial(): ShaderMaterial {
 export type StarMaterial = ShaderMaterial & {
   uniforms: {
     uTime: IUniform<number>;
-    uPixelRatio: IUniform<number>;
-    uTwinkleDepth: IUniform<number>;
+    uView: IUniform<Vector2>;
+    uScale: IUniform<Vector2>;
     uOpacity: IUniform<number>;
+    uSpikes: IUniform<number>;
   };
 };
 
-export function createStarMaterial(options: { twinkle: boolean }): StarMaterial {
+/**
+ * The stars (shaders/sky.ts): the star classes of tuning.starfield, laid out as the shader's
+ * tables, a row a kind in the order of STAR_KINDS (sim/starList.ts; STAR_KIND_COUNT rows, which a test holds). `motion`: do some twinkle
+ * and the heroes breathe? (Not under reduced motion.) Additive, and not on the bloom guest list.
+ */
+export function createStarMaterial(options: { motion: boolean }): StarMaterial {
+  const { classes, hero, spike, twinkleDepth } = tuning.starfield;
+  const kinds: readonly StarClass[] = [classes.dust, classes.field, classes.bright, classes.mid];
+  // A kind without a halo or a spike gets one that gives no light, of size 1: the shader divides
+  // by these sizes.
+  const [near, far] = hero.halos;
   const material = new ShaderMaterial({
     name: 'stars',
     vertexShader: stars.vertexShader,
     fragmentShader: stars.fragmentShader,
     uniforms: {
       uTime: { value: 0 },
-      uPixelRatio: { value: 1 },
-      uTwinkleDepth: { value: options.twinkle ? tuning.starfield.twinkleDepth : 0 },
+      uView: { value: new Vector2(1, 1) },
+      uScale: { value: new Vector2(1, 1) },
+      uTwinkleDepth: { value: options.motion ? twinkleDepth : 0 },
       uOpacity: { value: 1 },
+      uSpikes: { value: 1 },
+      uBreath: { value: options.motion ? hero.breath : 0 },
+      uBreathSec: { value: new Vector2(...hero.breathSec) },
+      uCore: { value: [...kinds.map((kind) => kind.sigmaPx), hero.sigmaPx] },
+      uHalo: {
+        value: [
+          ...kinds.map((kind) => new Vector4(kind.haloSigmaPx ?? 1, kind.haloGain ?? 0, 1, 0)),
+          new Vector4(...near, ...far),
+        ],
+      },
+      uArm: {
+        value: [
+          // A mid star's plus: the line across is as long and as bright as the upright one.
+          ...kinds.map((kind) => {
+            const [length, gain] = [kind.spikeLenPx ?? 1, kind.spikeGain ?? 0];
+            return new Vector4(length, gain, length, gain);
+          }),
+          new Vector4(
+            hero.spikeLenPx,
+            hero.spikeGain,
+            hero.spikeLenPx * hero.crossLen,
+            hero.crossGain,
+          ),
+        ],
+      },
+      uThick: {
+        value: [
+          ...kinds.map((kind) => new Vector2().setScalar(kind.spikeThicknessPx ?? 1)),
+          // A hero's faint line across is as thin as a mid star's plus.
+          new Vector2(hero.spikeThicknessPx, classes.mid.spikeThicknessPx),
+        ],
+      },
+      uProfile: { value: new Vector2(spike.exponent, spike.taper) },
+      uBloomMask: bloomMask,
+      uUnder: { value: new Color(tokens.color.space[900]) },
     },
     transparent: true,
     depthWrite: false,

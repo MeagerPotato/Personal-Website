@@ -2,7 +2,7 @@ import GUI from 'lil-gui';
 import { Group, Vector3 } from 'three';
 import { CameraRig } from '../camera/CameraRig';
 import { AssetStore } from '../core/AssetStore';
-import { Engine, type Frame, type System } from '../core/Engine';
+import { Engine, type Frame, type System, type Viewport } from '../core/Engine';
 import { PerfHud } from '../core/debug/PerfHud';
 import { addControls, copyText } from '../core/debug/guiControls';
 import { JobQueue } from '../core/jobs';
@@ -15,7 +15,8 @@ import {
   setBloomMask,
   type ToonMaterial,
 } from '../design/materials';
-import { tokens, type BiomeKey, type ThemeKey } from '../design/tokens';
+import type { StarClass } from '../design/lookTypes';
+import { tokens, type BiomeKey, type StarKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { BODIES } from '../design/worlds/bodies';
 import { readManifest, type ManifestBody } from '../manifest';
@@ -23,11 +24,13 @@ import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
 import { planetTriangleCount } from '../sim/planet';
-import { SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
+import { createRng, pickWeighted } from '../sim/rng';
+import { directionOf, SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
+import { buildStarList, STAR_KINDS, type StarKind, type StarList } from '../sim/starList';
 import { Backdrop } from '../world/Backdrop';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
-import { Starfield } from '../world/Starfield';
+import { starGeometry, Starfield } from '../world/Starfield';
 import { lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
@@ -41,8 +44,69 @@ const SUBJECTS = [
   'satellite',
   'relay',
   'sky',
+  'stars',
 ] as const;
 type Subject = (typeof SUBJECTS)[number];
+
+/** What the `stars` subject shows: the sky's own stars, or a sheet of one kind of them. */
+const STAR_SHEETS = ['sky', ...STAR_KINDS] as const;
+type StarSheet = (typeof STAR_SHEETS)[number];
+const STAR_TINTS = ['mixed', ...(Object.keys(tokens.color.star) as StarKey[])] as const;
+type StarTint = (typeof STAR_TINTS)[number];
+/** View heights, CSS px, a star's sizes can be judged at (0: this window's own). */
+const STAR_ROWS = [0, 600, 800, 1080];
+/** A sheet: this many stars across and down, this many degrees apart. */
+const SHEET: Record<StarKind, readonly [across: number, down: number, stepDeg: number]> = {
+  dust: [40, 24, 1.6],
+  field: [24, 14, 2.6],
+  bright: [12, 7, 5],
+  mid: [8, 5, 7],
+  hero: [4, 2, 14],
+};
+
+/**
+ * A sheet of one kind of star, laid out in front of a view of the sky: a grid, each star nudged
+ * off its place (a star field in rows reads as a pattern, not as stars), across the kind's whole
+ * range of brightness, in one tint or in the sky's mix of them.
+ */
+function starSheet(kind: StarKind, tint: StarTint, pose: SkyPoseName): StarList<StarKey> {
+  const { classes, palette, heroes, twinkleShare } = tuning.starfield;
+  const [across, down, stepDeg] = SHEET[kind];
+  const count = across * down;
+  const view = SKY_POSES[pose] ?? SKY_POSES.first;
+  const rng = createRng(`lab-stars-${kind}`);
+  const cls: StarClass | null = kind === 'hero' ? null : classes[kind];
+  const list = {
+    count,
+    directions: new Float32Array(count * 3),
+    brightness: new Float32Array(count),
+    kinds: new Uint8Array(count).fill(STAR_KINDS.indexOf(kind)),
+    tints: [] as StarKey[],
+    sizes: new Float32Array(count).fill(1),
+    phases: new Float32Array(count),
+    twinkles: new Uint8Array(count),
+  };
+  for (let i = 0; i < count; i += 1) {
+    const nudge = kind === 'hero' ? 0 : 0.7;
+    const column = (i % across) - (across - 1) / 2 + (rng() - 0.5) * nudge;
+    const row = Math.floor(i / across) - (down - 1) / 2 + (rng() - 0.5) * nudge;
+    list.directions.set(
+      directionOf(view.yawDeg + column * stepDeg, view.pitchDeg + row * stepDeg),
+      i * 3,
+    );
+    const [lo, hi] = cls ? cls.yRange : [1, 1];
+    list.brightness[i] = lo + (hi - lo) * rng() ** (cls?.yExp ?? 1);
+    const any = pickWeighted(rng, palette);
+    // The heroes of the sheet are the sky's eight: their sizes, and (mixed) their tints.
+    const hero = kind === 'hero' ? heroes[i % heroes.length] : undefined;
+    list.tints.push(tint !== 'mixed' ? tint : (hero?.tint ?? any));
+    if (hero) list.sizes[i] = hero.size;
+    list.phases[i] = rng();
+    const twinkles = kind !== 'hero' && kind !== 'mid' && rng() < twinkleShare;
+    list.twinkles[i] = twinkles ? 1 : 0;
+  }
+  return list;
+}
 
 /** The emblem worlds, by manifest id (design/worlds/): the `world` subject shows any of them. */
 const WORLD_IDS = Object.keys(BODIES).sort();
@@ -88,7 +152,10 @@ const KIND_OF = {
   station: 'station',
   satellite: 'satellite',
   relay: 'link',
-} as const satisfies Record<Exclude<Subject, 'rocket' | 'world' | 'sky'>, LookedAt['kind']>;
+} as const satisfies Record<
+  Exclude<Subject, 'rocket' | 'world' | 'sky' | 'stars'>,
+  LookedAt['kind']
+>;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -157,7 +224,15 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const camera = new TurntableCam(engine.canvas);
   const turn = Number(query.get('turn'));
   if (query.has('turn') && Number.isFinite(turn)) camera.turnRate = turn;
-  const table = engine.add(new Turntable(assets, jobs, camera, options.tier === 'low', query));
+  const low = options.tier === 'low';
+  // The view as the stars are told of it (they size themselves in CSS px, by its height).
+  const viewport = (): Viewport => ({
+    width: mount.clientWidth || 1,
+    height: mount.clientHeight || 1,
+    pixelRatio: 1,
+  });
+  const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: still, low }));
+  const table = engine.add(new Turntable(assets, jobs, camera, starfield, low, viewport, query));
   // The worlds' kinds and sizes, as the galaxy has them; until then, and without it, a guess.
   void fetch('/universe.json')
     .then((response) => response.json())
@@ -166,7 +241,6 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   engine.add(new CameraRig(engine.camera, camera, tuning.cameraRig));
 
   const backdrop = engine.add(new Backdrop());
-  const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: still }));
   engine.scene.add(backdrop.object, starfield.object, table.object);
   engine.add(jobs);
   if (!bare) {
@@ -174,6 +248,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
       new PerfHud(mount, engine.renderer, () => [
         `tier  ${options.tier} x${engine.resolutionScale.toFixed(2)}`,
         `shows ${table.describe()}`,
+        `stars ${starfield.object.geometry.instanceCount}`,
       ]),
     );
   }
@@ -211,6 +286,17 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // (sim/skyDirections.ts), or wherever a drag leaves it.
   const skyFolder = gui.addFolder('sky (subject: sky)');
   skyFolder.add(state, 'pose', SKY_POSE_NAMES).onChange(rebuild);
+  // The stars alone, from the same views: the sky's own, or a sheet of one kind at 1:1, in one
+  // tint or the mix, and drawn as a view of another height would draw them (a hero's spikes
+  // follow the view's height).
+  const starFolder = gui.addFolder('stars (subject: stars)');
+  starFolder.add(state, 'starKind', STAR_SHEETS).name('kind').onChange(rebuild);
+  starFolder.add(state, 'starTint', STAR_TINTS).name('tint').onChange(rebuild);
+  starFolder.add(state, 'starRows', STAR_ROWS).name('as a view this high, px').onChange(rebuild);
+  starFolder
+    .add(state, 'starMap', 0, 1, 0.01)
+    .name('on the star map')
+    .onChange((calm: number) => starfield.setCalm(calm, tuning.map.starOpacity));
   const rocket = gui.addFolder('rocket');
   rocket.add(state, 'thrust', 0, 1, 0.01);
   rocket.add(state, 'boost');
@@ -276,9 +362,15 @@ class Turntable implements System {
     lightElevationDeg: 35,
     sky: true,
     pose: 'first' as SkyPoseName,
+    starKind: 'sky' as StarSheet,
+    starTint: 'mixed' as StarTint,
+    starRows: 0,
+    starMap: 0,
   };
 
   private scope = new Scope();
+  /** The sheet of stars on show in place of the sky's own, if one is. */
+  private sheet: StarKind | null = null;
   private planet: PlanetMesh | null = null;
   private world: BodyMesh | null = null;
   /** Has the camera been framed on the world's built reach yet? */
@@ -299,11 +391,14 @@ class Turntable implements System {
     private readonly assets: AssetStore,
     private readonly jobs: JobQueue,
     private readonly camera: TurntableCam,
+    private readonly stars: Starfield,
     private readonly low: boolean,
+    private readonly viewport: () => Viewport,
     query: ReadonlyMap<string, string>,
   ) {
     this.object.name = 'universe-lab';
     applyQuery(this.state, query);
+    this.stars.setCalm(this.state.starMap, tuning.map.starOpacity);
     this.show();
   }
 
@@ -316,12 +411,13 @@ class Turntable implements System {
 
   describe(): string {
     const { subject, biome, theme } = this.state;
-    if (subject === 'sky') {
+    if (subject === 'sky' || subject === 'stars') {
       const gaze = this.camera.gaze;
       const at = gaze
         ? `yaw ${gaze.yawDeg.toFixed(1)} pitch ${gaze.pitchDeg.toFixed(1)} fov ${gaze.fovDeg.toFixed(0)}`
         : '';
-      return `sky from "${this.state.pose}", ${at}`;
+      const what = subject === 'sky' ? 'sky' : `stars (${this.state.starKind})`;
+      return `${what} from "${this.state.pose}", ${at}`;
     }
     if (subject === 'world') {
       const { world, near, moving, onMap } = this.state;
@@ -350,7 +446,20 @@ class Turntable implements System {
     if (this.disposed) return;
     this.clear();
     const { state, scope, assets } = this;
-    if (state.subject === 'sky') {
+    // The sky's own stars, unless a sheet of one kind is asked for.
+    const sheet = state.subject === 'stars' && state.starKind !== 'sky' ? state.starKind : null;
+    if (sheet !== null || this.sheet !== null) {
+      this.sheet = sheet;
+      this.stars.object.geometry.dispose();
+      this.stars.object.geometry = starGeometry(
+        sheet
+          ? starSheet(sheet, state.starTint, state.pose)
+          : buildStarList(tuning.starfield, tuning.look.sky.band, { coarse: false, low: this.low }),
+      );
+    }
+    this.stars.rows = state.subject === 'stars' && state.starRows > 0 ? state.starRows : null;
+    this.stars.resize(this.viewport());
+    if (state.subject === 'sky' || state.subject === 'stars') {
       // Nothing on the table: the camera turns round and looks out.
       const pose = SKY_POSES[state.pose] ?? SKY_POSES.first;
       this.camera.gaze = { yawDeg: pose.yawDeg, pitchDeg: pose.pitchDeg, fovDeg: pose.fovDeg };
