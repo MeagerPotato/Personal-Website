@@ -50,6 +50,11 @@ import {
 // stop (a rose bookmark) waits for the Blog; there is no rose family yet. Since the judges' pass,
 // Devpost's cup is open (12 more), the bus's windows and belt are skins of small quads that
 // follow its curve (84 more), and Cal Hacks' scoreboard has its digits on both faces (38 more).
+// Since the look pass ("Deep light", step 2, 2026-10-01) the three living suns' balls are 2000
+// facets and not 500 (1500 more each: granulation needs facets), each facet in one of six tones
+// with its tone in its lighting flag, so their prints moved with their counts. That is as fine
+// as the everyday ceiling allows (the design drew 2880); the Hardware sun's frame ball, hidden
+// under its gears, keeps its 500 and its print.
 
 interface Budget {
   readonly everyday: number;
@@ -74,9 +79,9 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4c9b505e' },
   'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4da94c42' },
   'system/hardware':                { everyday: 2084, closeup: 2156, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: 'c63e8f97' },
-  'system/software':                { everyday: 552,  closeup: 552,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '5f3841ab' },
-  'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b9de84be' },
-  'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f5048eb4' },
+  'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '33952ecb' },
+  'system/research':                { everyday: 2290, closeup: 2314, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7074b31c' },
+  'system/hackathons':              { everyday: 2314, closeup: 2334, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '67caf718' },
   'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c4a93309' },
   'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '17985b9c' },
   'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'e060fe48' },
@@ -102,7 +107,7 @@ const CEILING = {
 } as const;
 
 const real = buildUniverse(readRealInput(true));
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 
 /** A body's kind and state from the real galaxy; Devpost's relay waits for its URL (site.socials). */
 function bodyOf(id: string): { kind: BodyKind; planned: boolean; seed: string } {

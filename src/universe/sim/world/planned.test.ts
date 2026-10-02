@@ -8,7 +8,7 @@ import { FLAG, make, mk } from './rows';
 
 // The planned kit's parts and their counts are the vocabulary's (section 6).
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 
 describe('the planned kit', () => {
   it.each(THEME_KEYS.map((family) => [family]))('builds its parts in %s', (family) => {

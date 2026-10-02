@@ -34,7 +34,7 @@ const SHIP_BAND_U = 1;
 const SAMPLE_SEC = 1 / 120;
 /** ...and this long (s) before each of its periods ends. */
 const BEFORE_END_SEC = 1e-6;
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 /** How far the rocket's nose is ahead of its centre, u: what of it meets a part first. */
 const NOSE_U = Math.max(...buildRocket().mesh.positions.filter((_, index) => index % 3 === 2));
 

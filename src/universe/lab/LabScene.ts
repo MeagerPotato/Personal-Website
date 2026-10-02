@@ -13,6 +13,7 @@ import {
   createToonMaterial,
   refreshToonLook,
   setBloomMask,
+  setToonFlatness,
   type ToonMaterial,
 } from '../design/materials';
 import type { StarClass } from '../design/lookTypes';
@@ -26,11 +27,15 @@ import { Rocket } from '../ship/Rocket';
 import { planetTriangleCount } from '../sim/planet';
 import { createRng, pickWeighted } from '../sim/rng';
 import { directionOf, SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
+import { sunSeed } from '../sim/sunSurface';
+import { isLivingSun, type GroundSpec } from '../sim/world/ground';
+import { rowsOf, type BodyRecipe } from '../sim/world/rows';
 import { buildStarList, STAR_KINDS, type StarKind, type StarList } from '../sim/starList';
 import { Backdrop } from '../world/Backdrop';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { starGeometry, Starfield } from '../world/Starfield';
+import { SunCorona } from '../world/SunCorona';
 import { lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
@@ -148,12 +153,11 @@ function guessBody(id: string): WorldBody {
 const KIND_OF = {
   planet: 'planet',
   moon: 'moon',
-  sun: 'sun',
   station: 'station',
   satellite: 'satellite',
   relay: 'link',
 } as const satisfies Record<
-  Exclude<Subject, 'rocket' | 'world' | 'sky' | 'stars'>,
+  Exclude<Subject, 'rocket' | 'world' | 'sun' | 'sky' | 'stars'>,
   LookedAt['kind']
 >;
 
@@ -269,7 +273,9 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   emblem.add(state, 'world', WORLD_IDS).name('body').onChange(rebuild);
   emblem.add(state, 'near').name('close-up');
   emblem.add(state, 'moving').name('moving (close-up)').onChange(rebuild);
-  emblem.add(state, 'onMap').name('star map variant');
+  // As the star map draws it: its map variant if it has one, flat, a sun's corona down to its halo.
+  emblem.add(state, 'onMap').name('as on the star map');
+  // A sun is the family's living sun: its surface and its corona (the system theme picks it).
   const world = gui.addFolder('planet, moon, sun');
   world.add(state, 'biome', Object.keys(tokens.color.biome)).onChange(rebuild);
   world
@@ -373,6 +379,10 @@ class Turntable implements System {
   private sheet: StarKind | null = null;
   private planet: PlanetMesh | null = null;
   private world: BodyMesh | null = null;
+  /** The light round the sun on show, and where it is told the sun is (the middle, at its size). */
+  private corona: SunCorona | null = null;
+  /** The radius of the body on show (u). */
+  private shownRadius = 1;
   /** Has the camera been framed on the world's built reach yet? */
   private framed = false;
   private bodies = new Map<string, WorldBody>();
@@ -426,7 +436,7 @@ class Turntable implements System {
     }
     const what =
       subject === 'sun'
-        ? `${theme} sun`
+        ? `${theme} sun, ${this.low ? 'low tier' : 'full'} corona`
         : subject === 'rocket'
           ? subject
           : this.isPlanned()
@@ -483,14 +493,27 @@ class Turntable implements System {
       return;
     }
 
+    if (subject === 'sun') {
+      // A living sun of the family, as the galaxy draws one: its ball's tones, and its corona.
+      this.showBody(
+        'lab/sun',
+        { kind: 'sun', radius: state.radius, seed: state.seed },
+        { rows: [{ sun: state.theme, recipe: 'sun', seed: state.seed }] },
+        surface,
+      );
+      this.triangles = planetTriangleCount(
+        this.low ? tuning.look.sun.detailLow : tuning.world.detailSun,
+      );
+      return;
+    }
+
     // Looked at exactly as the galaxy looks at a body of this kind (world/looks.ts).
-    const isSun = subject === 'sun';
     const shape = lookOf(
       {
         id: 'lab',
         kind: KIND_OF[subject],
         biome: state.biome,
-        rings: state.rings && !isSun,
+        rings: state.rings,
         ...(this.isPlanned() ? { planned: true as const } : {}),
       },
       state.theme,
@@ -518,9 +541,7 @@ class Turntable implements System {
       look: shape.look,
       detail,
       nearDetail: null,
-      material: isSun
-        ? scope.track(createGlowMaterial({ intensity: 1, bloom: tuning.world.sunBloom }))
-        : surface,
+      material: surface,
       jobs: this.jobs,
     });
     this.object.add(this.planet.mesh);
@@ -561,9 +582,14 @@ class Turntable implements System {
     this.flame?.update(this.input, frame);
     // Up close as if the ship were at its surface; far as if across its system.
     this.world?.update(state.near ? 0 : 1000, frame.dt, frame.simTime, state.onMap);
+    // On the star map every surface is flat colour, and a corona is only its halo (main.ts).
+    setToonFlatness(state.onMap && this.world ? tuning.map.flatness : 0);
+    this.corona?.setCalm(state.onMap ? 1 : 0);
+    this.corona?.frameUpdate(frame);
     if (this.world && !this.framed && this.world.built) {
       this.framed = true;
-      this.camera.frame(this.bodyOf(state.world).radius * this.world.reach);
+      // A sun is framed with the nearer steps of its halo.
+      this.camera.frame(this.shownRadius * Math.max(this.world.reach, this.corona ? 1.7 : 1));
     }
   }
 
@@ -576,15 +602,44 @@ class Turntable implements System {
     const { state } = this;
     const recipe = BODIES[state.world];
     if (!recipe) return;
-    const body = this.bodyOf(state.world);
+    this.showBody(state.world, this.bodyOf(state.world), recipe, surface);
+  }
+
+  /** A body drawn from rows; a sun in its own material (its ball's tones), with its corona. */
+  private showBody(id: string, body: WorldBody, recipe: BodyRecipe, surface: ToonMaterial): void {
+    const { state } = this;
+    const [ground] = rowsOf(recipe, { map: false });
+    const family = Array.isArray(ground) ? undefined : (ground as GroundSpec).sun;
+    let material = surface;
+    if (body.kind === 'sun' && family !== undefined) {
+      material = this.scope.track(createToonMaterial({ vertexColors: true, sun: family }));
+      this.lit.push(material);
+      this.corona = new SunCorona({
+        suns: [
+          {
+            row: 0,
+            family,
+            radius: body.radius,
+            seed: sunSeed(id),
+            living: isLivingSun(ground as GroundSpec),
+          },
+        ],
+        positions: [0, 0],
+        scales: [1],
+        low: this.low,
+        reducedMotion: !state.moving,
+      });
+      this.object.add(this.corona.object);
+    }
+    this.shownRadius = body.radius;
     this.world = new BodyMesh({
-      id: state.world,
+      id,
       kind: body.kind,
       planned: body.planned === true,
       radius: body.radius,
       seed: body.seed,
       recipe,
-      material: surface,
+      material,
       jobs: this.jobs,
       low: this.low,
       reducedMotion: !state.moving,
@@ -604,6 +659,9 @@ class Turntable implements System {
   }
 
   private clear(): void {
+    this.corona?.dispose();
+    this.corona = null;
+    setToonFlatness(0);
     this.planet?.dispose();
     this.planet = null;
     this.world?.dispose();

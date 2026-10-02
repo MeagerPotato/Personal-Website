@@ -160,7 +160,13 @@ describe('the suns’ and the worlds’ tables', () => {
     const { count, lowIndices } = sun.corona.rays;
     expect(lowIndices.every((index) => index < count)).toBe(true);
     expect(new Set(lowIndices).size).toBe(lowIndices.length);
-    expect(sun.detailLow).toBeLessThan(11);
+    expect(sun.detailLow).toBeLessThan(tuning.world.detailSun);
+    // The corona's light lies behind everything a sun wears, its lens in front of its ball.
+    const [light, lens] = sun.corona.pull;
+    expect(light).toBeLessThan(-1.7);
+    expect(lens).toBeGreaterThan(1);
+    expect(sun.corona.lensHalf).toBeGreaterThan(1);
+    expect(sun.corona.rayBase).toBeLessThan(1);
   });
 
   it('gives air only to bodies that exist, in airs and peaks that exist', () => {

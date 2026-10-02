@@ -47,7 +47,7 @@ import {
 const close = (a: readonly number[], b: readonly number[], digits = 9): void =>
   a.forEach((v, i) => expect(v, `component ${i}`).toBeCloseTo(b[i] ?? NaN, digits));
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 const BOX: Item = ['box', 0.1, 0.1, 0.1, 'ink.high'];
 const partOf = (build: ReturnType<typeof make>, name: string) => {
   const part = build.parts.find((p) => p.name === name);

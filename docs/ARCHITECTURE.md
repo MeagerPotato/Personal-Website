@@ -530,7 +530,7 @@ run there is a reason to look, not a locked door.
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
 | **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it. The `stars` subject looks out the same way at the stars: the sky's own, or a sheet of one class (`starKind`) in one tint or the mix, drawn as a view of another height would draw them (`starRows`), or as the star map shows them (`starMap`). The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
-| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and a sun, the star map; and the lab's sky from the seven views, and its stars (a sheet of each class, the heroes at two view heights and on the low tier, the stars as the map shows them). `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
+| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and each sun, the star map; and the lab's sky from the seven views, and its stars (a sheet of each class, the heroes at two view heights and on the low tier, the stars as the map shows them), and its suns (a living sun of each family, on the low tier and as the map shows it, and the Hardware sun). `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
 The lab and the tuning panel are imported behind `import.meta.env.DEV`. A production build drops
@@ -546,6 +546,22 @@ there names a line a person can find. It is the same program, token for token
 real shader). Three rules follow for whoever writes one: tag the literal `/* glsl */`; no
 backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
 that brings in a block of GLSL stands alone on its line, which it then keeps.
+
+**A sun is a tone a facet, and a corona.** A sun's ball is generated like any ground
+(`sim/world/ground.ts`), but each facet is given a TONE (`sim/sunSurface.ts`, pure: two layers
+of the sun's own seeded noise cut by three thresholds, and three spots at fixed places) and
+carries it in the lighting flag every vertex already has: `aUnlit` is `2 + 4 * (tone + 1)`, so
+6 to 26, which every reader of the flag still sees as "glows" (above one and a half). Only the
+toon shader's SUN variant (a material a sun family, `Galaxy.sunSurfaceOf`) reads the tone back,
+steps it down its ladder of six colours toward the limb, and takes it to the base by
+`uFlatness`. No new attribute, no noise at run time, and a plain glow (a lamp, a gear of the
+Hardware sun, whose painted frame ball is no living surface) is left alone. The light round the
+suns is `world/SunCorona.ts`: one instanced draw (`design/shaders/corona.ts`), two quads a
+living sun (its light behind what it wears, its lens in front of its ball) and one a plain sun,
+placed each frame from the galaxy's positions and display scales, so it is added after the
+galaxy. It is its sun's seed, the tokens, the tuning and the simulation time, so nothing of it
+is a snapshot field. `sim/skyNoise.ts` is the sky recipe's own noise, for the baked sky's tests
+(step 3): nothing the engine ships imports it.
 
 **The stars are a list, then one draw.** `sim/starList.ts` (pure, seeded) turns the star
 classes of `tuning.starfield` into parallel arrays: a direction, a class, a tint, a brightness,

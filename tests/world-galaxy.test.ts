@@ -186,7 +186,7 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
-  it('draws a sun’s world with the key light’s material: its ball glows, its signs are flat', () => {
+  it('draws a sun’s world in a material of its own, lit by the key light: its ball glows in tones, its signs are flat', () => {
     const { galaxy, world, finish } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
@@ -194,12 +194,23 @@ describe('the real galaxy, drawn from its rows', () => {
       const mesh = world(sun.id).getObjectByName('far:hold') as Mesh;
       const material = mesh.material as ToonMaterial;
       expect(material.uniforms.uSunPosition.value.equals(KEY_LIGHT_POSITION), sun.id).toBe(true);
+      // The SUN variant, with the ladder of its own family: no planet shares it.
+      expect(material.defines).toHaveProperty('SUN');
+      expect(material.uniforms).toHaveProperty('uSunTone');
       const unlit = mesh.geometry.getAttribute('aUnlit');
-      const kinds = new Set(Array.from(unlit.array));
-      // Nothing of it is lit: the ball glows (2), the rest is flat (1). Except Hardware's gears
-      // (design/worlds/gears.ts), which glow too: flat beside the ball's halo they would wash out.
-      expect([...kinds].sort(), sun.id).toEqual(sun.id === 'system/hardware' ? [2] : [1, 2]);
+      const kinds = [...new Set(Array.from(unlit.array))].sort((a, b) => a - b);
+      // Nothing of it is lit: the ball glows, each facet with its tone above the flag (6 to 26:
+      // sim/sunSurface.ts), and the rest is flat (1). Except Hardware: its frame ball and its
+      // gears (design/worlds/gears.ts) are plain glow (2); flat beside the halo they would wash out.
+      expect(kinds, sun.id).toEqual(
+        sun.id === 'system/hardware' ? [2] : [1, 6, 10, 14, 18, 22, 26],
+      );
     }
+    // Two suns of one family would share a material; these four are four families.
+    const materials = withRows
+      .filter((body) => body.kind === 'sun')
+      .map((sun) => (world(sun.id).getObjectByName('far:hold') as Mesh).material);
+    expect(new Set(materials).size).toBe(materials.length);
     galaxy.dispose();
   });
 

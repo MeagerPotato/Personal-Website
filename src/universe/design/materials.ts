@@ -15,14 +15,17 @@ import {
   type Material,
   type Texture,
 } from 'three';
+import { hexToLinear } from '../sim/color';
+import { sunLadder } from '../sim/sunSurface';
+import { corona } from './shaders/corona';
 import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
-import type { StarClass } from './lookTypes';
+import type { StarClass, SunTone } from './lookTypes';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
-import { tokens } from './tokens';
+import { tokens, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
 /**
@@ -97,6 +100,21 @@ export interface ToonOptions {
   tint?: string;
   /** Each instance carries its own sun in an `aSunPosition` attribute. */
   instancedSun?: boolean;
+  /** A sun's own material, in this family: its ball is a living surface (shaders/toonFlat.ts, SUN). */
+  sun?: ThemeKey;
+}
+
+/**
+ * A sun's six tones (sim/sunSurface.ts; as many as the shader's SUN_TONES, which a test holds),
+ * darkest first, from its family's three tokens: linear.
+ */
+export function sunTones(family: ThemeKey): Vector3[] {
+  const { shade, base, light } = tokens.color.system[family];
+  const ladder = sunLadder(
+    { shade: hexToLinear(shade), base: hexToLinear(base), light: hexToLinear(light) },
+    tuning.look.sun.hotMix,
+  );
+  return ladder.map((tone) => new Vector3(...tone));
 }
 
 export type ToonMaterial = ShaderMaterial & {
@@ -113,9 +131,18 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
       uBloomMask: bloomMask,
       uSunPosition: { value: KEY_LIGHT_POSITION.clone() },
       uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
+      ...(options.sun
+        ? {
+            uSunTone: { value: sunTones(options.sun) },
+            uSunLimb: { value: new Vector2(...tuning.look.sun.limbNz) },
+          }
+        : {}),
     },
     vertexColors: options.vertexColors ?? false,
-    defines: options.instancedSun ? { INSTANCED_SUN: '' } : {},
+    defines: {
+      ...(options.instancedSun ? { INSTANCED_SUN: '' } : {}),
+      ...(options.sun ? { SUN: '' } : {}),
+    },
   });
   // Location 0 is always an array that is there (a driver that finds it switched off emulates
   // it, slowly), whatever order the driver would have put the attributes in. (Set here: three's
@@ -315,6 +342,72 @@ export function createStarMaterial(options: { motion: boolean }): StarMaterial {
     depthWrite: false,
   });
   return keepBloomMask(material, true) as StarMaterial;
+}
+
+export type CoronaMaterial = ShaderMaterial & {
+  uniforms: { uTime: IUniform<number>; uCalm: IUniform<number> };
+};
+
+/** A tone of a sun's family as the corona's shader counts them. */
+const CORONA_TONE: Record<SunTone, number> = { shade: 0, base: 1, light: 2 };
+
+/**
+ * The light round the suns (shaders/corona.ts): `tuning.look.sun.corona` laid out as the
+ * shader's tables. `low`: the low tier keeps fewer rays, and neither prominences nor the glint.
+ * Premultiplied colour over what is behind it, and not on the bloom guest list. The tables are
+ * as long as the shader's (CORONA_STEPS and the rest): materials.test.ts holds them equal.
+ */
+export function createCoronaMaterial(options: { low: boolean }): CoronaMaterial {
+  const { corona: look, rayBreath, rayBreathSec, promBreath, promBreathSec } = tuning.look.sun;
+  const { steps, glow, rays, prominences, glint, edge, half, pull, lensHalf, rayBase } = look;
+  const stops = (list: ReadonlyArray<readonly [number, SunTone, number]>): Vector3[] =>
+    list.map(([at, tone, alpha]) => new Vector3(at, CORONA_TONE[tone], alpha));
+  // A loop is a quadratic arch from limb to limb: its apex is halfway to its control point.
+  const proms = prominences.angles.map((angle, i) => {
+    const span = prominences.halfSpan[i] ?? 0;
+    return new Vector3(angle, span, 0.5 * (Math.cos(span) + (prominences.control[i] ?? 1)));
+  });
+  const all = (1 << rays.count) - 1;
+  const kept = rays.lowIndices.reduce<number>((mask, index) => mask | (1 << index), 0);
+  const material = new ShaderMaterial({
+    name: 'corona',
+    vertexShader: corona.vertexShader,
+    fragmentShader: corona.fragmentShader,
+    uniforms: {
+      uTime: { value: 0 },
+      uCalm: { value: 0 },
+      uFull: { value: options.low ? 0 : 1 },
+      uRayMask: { value: options.low ? kept : all },
+      uBloomMask: bloomMask,
+      // Display space: the parts are laid over each other as paint is.
+      uUnder: { value: new Color(tokens.color.space[900]).convertLinearToSRGB() },
+      uReach: { value: new Vector2(half, lensHalf) },
+      uPull: { value: new Vector2(...pull) },
+      uSteps: { value: steps.map((ring) => new Vector3(...ring)) },
+      uGlow: { value: new Vector2(glow.from, glow.to) },
+      uGlowStops: { value: stops(glow.stops) },
+      uRay: { value: new Vector4(rays.count, rays.reach, rayBreath, rayBase) },
+      uRayShape: { value: new Vector4(...rays.length, ...rays.halfAngle) },
+      uRaySec: { value: new Vector2(...rayBreathSec) },
+      uRayStops: { value: stops(rays.alphas) },
+      uProm: { value: proms },
+      uPromStroke: {
+        value: prominences.strokes.map(
+          ([tone, alpha, width]) => new Vector3(CORONA_TONE[tone], alpha, width),
+        ),
+      },
+      uPromBreath: { value: new Vector3(promBreath, ...promBreathSec) },
+      uEdge: { value: new Vector3(edge.from, edge.alpha, edge.widthR) },
+      // The design's glint is written with the screen's y down: here it is up.
+      uGlint: { value: new Vector4(glint.at[0], -glint.at[1], glint.length, glint.alpha) },
+      uGlintSize: { value: new Vector2(glint.widthR, glint.dotR) },
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  keepBloomMask(material, false);
+  material.blendSrc = OneFactor;
+  return material as CoronaMaterial;
 }
 
 export type DustMaterial = ShaderMaterial & {

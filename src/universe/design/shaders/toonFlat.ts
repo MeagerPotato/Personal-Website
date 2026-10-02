@@ -22,6 +22,15 @@
  * nothing on screen and holds at every distance, where the few thousandths of a radius it stands
  * off the ground would not, from the star map. Everywhere else, 0: nothing moves.
  *
+ * A SUN (the SUN variant: a sun's own material) is a living surface. Each facet of its ball
+ * carries a TONE above its glow in `aUnlit` (sim/sunSurface.ts: `2 + 4 * (tone + 1)`, so it still
+ * reads as glow to the two tests below, and blooms as a sun always has) and takes the colour of
+ * that tone from a ladder of six, darkest first: shade, base, light, hot, then a spot's ring and
+ * core. Toward the LIMB a facet steps down the ladder (one tone where it is turned more than
+ * `uSunLimb.y` from the camera, two past `uSunLimb.x`), which is limb darkening in flat steps; a
+ * spot keeps its shade. `uFlatness` takes all of it back to the base: on the star map a sun is a
+ * flat disc of its token. A glowing vertex with no tone (a plain 2: a lamp, a gear) is untouched.
+ *
  * Alpha is the bloom guest list (shaders/post.ts): a lit or flat surface is not on it
  * (`1 - uBloomMask`), a glowing one is, as much as `uGlowBloom` says (`mix(1, uGlowBloom,
  * uBloomMask)`, as shaders/glow.ts).
@@ -34,11 +43,16 @@
  *                 taken out, 0..1 (the star map: 1 is a uGlowBloom   shared: how much a glowing
  *                 flat disc of pure colour)             vertex blooms, 0..1
  *   uDecalPull    shared: a decal's pull toward the camera, a share of its distance
+ *   SUN only: uSunTone[6] the ladder (linear), uSunLimb the two facings of the limb (x < y)
  * Attributes: position (bound to location 0), normal, color (USE_COLOR), aUnlit (0 lit, 1 flat,
  *   2 glow), aDecal (1 on a decal): every geometry carries both flags.
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
- *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies).
+ *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies),
+ *   SUN (a sun's living surface).
  */
+/** How many tones a sun's ladder has (sim/sunSurface.ts, SUN_TONE_COUNT: a test holds them equal). */
+export const SUN_TONES = 6;
+
 export const toonFlat = {
   vertexShader: /* glsl */ `
     uniform vec3 uSunPosition;
@@ -54,6 +68,10 @@ export const toonFlat = {
 
     #ifdef INSTANCED_SUN
       attribute vec3 aSunPosition;
+    #endif
+    #ifdef SUN
+      uniform vec3 uSunTone[${SUN_TONES}];
+      uniform vec2 uSunLimb;
     #endif
 
     flat varying vec3 vColor;
@@ -87,6 +105,17 @@ export const toonFlat = {
       #endif
       #ifdef USE_INSTANCING_COLOR
         base *= instanceColor;
+      #endif
+
+      #ifdef SUN
+        float tone = floor(aUnlit * 0.25) - 1.0;
+        if (tone > -0.5) {
+          if (tone < 3.5) {
+            float limb = dot(worldNormal, normalize(cameraPosition - worldPosition.xyz));
+            tone = max(tone - step(limb, uSunLimb.x) - step(limb, uSunLimb.y), 0.0);
+          }
+          base = uTint * mix(uSunTone[int(tone)], uSunTone[1], uFlatness);
+        }
       #endif
 
       vColor = mix(base * uShadowTint, base, level);

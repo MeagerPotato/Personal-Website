@@ -187,6 +187,8 @@ export class Galaxy implements System {
   /** The lines of planned work's parts still to come, one material per family they will wear. */
   private readonly edges = new Map<ThemeKey, Material>();
   private worldCount = 0;
+  /** A sun's own material (its ball is a living surface), by family, made once a sun wears it. */
+  private readonly sunSurfaces = new Map<ThemeKey, ToonMaterial>();
   /** Every sun's light, and the key light for whatever has no sun. */
   private readonly suns: SunLight[] = [];
   private readonly sunById = new Map<string, SunLight>();
@@ -475,6 +477,16 @@ export class Galaxy implements System {
     return look;
   }
 
+  /** The material of a sun of a family: the toon shader's SUN variant, lit by the key light. */
+  private sunSurfaceOf(family: ThemeKey): ToonMaterial {
+    let surface = this.sunSurfaces.get(family);
+    if (!surface) {
+      surface = this.scope.track(createToonMaterial({ vertexColors: true, sun: family }));
+      this.sunSurfaces.set(family, surface);
+    }
+    return surface;
+  }
+
   /** What lights `body`: the first sun up its chain of parents, or, with none, the key light. */
   private lightOf(body: ManifestBody): SunLight {
     for (let at: ManifestBody | undefined = body; at; at = this.byId.get(at.parent ?? '')) {
@@ -575,13 +587,14 @@ export class Galaxy implements System {
 
     const shape = lookOf(body, family, this.options.worlds, this.options.bodies);
     if (shape.world) {
-      // An emblem world. A SUN'S is drawn with the distant key light's toon material, not with
-      // the glow material of a generated sun: its ball is flagged to glow (sim/world/ground.ts)
-      // and its signs are flat, so neither takes any light, and the ball blooms as a sun always
-      // has (the toon shader's glow is the glow material's); and a part a sun's rows might one day
-      // leave lit is shaded by the far key light, as anything in space is, where the sun's own
-      // material would light it from the sun's centre, from inside. Everything else is lit by its
-      // own sun, or by the key light.
+      // An emblem world. A SUN'S is drawn with a toon material of its own, lit by the distant
+      // key light, not with the glow material of a generated sun: its ball is flagged to glow
+      // (sim/world/ground.ts) and its signs are flat, so neither takes any light, and the ball
+      // blooms as a sun always has (the toon shader's glow is the glow material's); and a part a
+      // sun's rows might one day leave lit is shaded by the far key light, as anything in space
+      // is, where its family's material would light it from the sun's centre, from inside. Its
+      // own, because its ball is a living surface in its family's tones (sunSurfaceOf).
+      // Everything else is lit by its own sun, or by the key light.
       const world = new BodyMesh({
         id: body.id,
         kind: body.kind,
@@ -589,7 +602,7 @@ export class Galaxy implements System {
         radius: body.radius,
         seed: body.seed,
         recipe: shape.world,
-        material: body.kind === 'sun' ? this.key.surface : this.lightOf(body).surface,
+        material: body.kind === 'sun' ? this.sunSurfaceOf(family) : this.lightOf(body).surface,
         jobs,
         low: this.options.low ?? false,
         reducedMotion,

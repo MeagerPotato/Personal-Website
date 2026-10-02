@@ -9,7 +9,9 @@
 //   in the lab    the sky alone from the seven views it is judged from (sim/skyDirections.ts),
 //                 with no twinkle and no drift, so two runs give the same picture; and the
 //                 stars: a sheet of each kind at 1:1, the heroes as a short and as a tall view
-//                 draws them, and the sky's stars as the star map shows them
+//                 draws them, and the sky's stars as the star map shows them; and the suns: a
+//                 living sun of each family, one on the low tier and one as the star map shows
+//                 it, and the Hardware sun, whose gears must stay readable in its halo
 //   --perf        instead of pictures: what `?perf` reads on each tier, at home and docked
 //
 // It starts no server and never more than one browser. Start what it should look at, on ports
@@ -103,6 +105,11 @@ const SITE_VIEWS = [
   ['docked-planet-low', '/projects/days2meet/', 'low', still, false],
   ['sun-high', '/systems/software/', 'high', still, false],
   ['sun-low', '/systems/software/', 'low', still, false],
+  // The other suns: each its own family and signs, and the Hardware sun, a ball of gears.
+  ['sun-gear-high', '/systems/hardware/', 'high', still, false],
+  ['sun-research-high', '/systems/research/', 'high', still, false],
+  ['sun-hackathons-medium', '/systems/hackathons/', 'medium', still, false],
+  ['sun-high-reduced', '/systems/software/', 'high', still, true],
   ['map-high', '/', 'high', openMap, false],
   ['map-low', '/', 'low', openMap, false],
   ['map-high-reduced', '/', 'high', openMap, true],
@@ -126,6 +133,17 @@ const LAB_VIEWS = [
   ['stars-hero-1080-high', 'subject=stars&pose=band&starKind=hero&starRows=1080', 'high'],
   ['stars-hero-low', 'subject=stars&pose=band&starKind=hero', 'low'],
   ['stars-map-high', 'subject=stars&pose=band&starMap=1', 'high'],
+  ...['sky', 'mint', 'lilac', 'coral', 'butter'].map((family) => [
+    `lab-sun-${family}-high`,
+    `subject=sun&theme=${family}&radius=20&turn=0`,
+    'high',
+  ]),
+  ['lab-sun-sky-low', 'subject=sun&theme=sky&radius=20&turn=0', 'low'],
+  ['lab-sun-sky-map-high', 'subject=sun&theme=sky&radius=20&turn=0&onMap=1', 'high'],
+  // Straight to the canvas, with no bloom on top: the disc is exactly its token.
+  ['lab-sun-sky-map-low', 'subject=sun&theme=sky&radius=20&turn=0&onMap=1', 'low'],
+  ['lab-sun-gear-high', 'subject=world&world=system/hardware&turn=0', 'high'],
+  ['lab-sun-software-high', 'subject=world&world=system/software&turn=0', 'high'],
 ];
 
 const browser = await chromium.launch({
@@ -255,7 +273,7 @@ try {
         if (!wanted(name)) continue;
         const url = `${args.lab}/lab/?${what}&q=${tier}&ui=0&still=1`;
         await shoot(name, 'desktop', false, url, still);
-        if (name === 'sky-first-high' || name === 'stars-hero-high')
+        if (name === 'sky-first-high' || name === 'stars-hero-high' || name === 'lab-sun-sky-high')
           await shoot(name, 'phone', false, url, still);
       }
     }

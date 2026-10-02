@@ -25,8 +25,13 @@ export type Mat3 = readonly [Vec3, Vec3, Vec3];
 /** A point on a plane, or a [radius, height] pair of a profile: two numbers. */
 export type Vec2 = readonly [number, number];
 
-/** How a triangle is lit: 0 by its sun (the toon bands), 1 flat and unlit, 2 unlit and glowing. */
-export type Unlit = 0 | 1 | 2;
+/**
+ * How a triangle is lit: 0 by its sun (the toon bands), 1 flat and unlit, 2 unlit and glowing. A
+ * facet of a sun's living surface glows too, and carries its tone above that (6, 10, 14...:
+ * sim/sunSurface.ts, `toneUnlit`), so every reader's "above a half" and "above one and a half"
+ * still hold.
+ */
+export type Unlit = number;
 
 /** One triangle: its corners (nine numbers, a b c), its colour (linear RGB) and its lighting. */
 export interface Tri {

@@ -20,7 +20,7 @@ import { FLAG, fromPivot, make, pivotOf, toPivot, type BodyRecipe, type Item } f
 // The glue turns a build into its draw groups: at most two calls for a body at rest, plus the
 // edge lines of its ghosts, each riding with what it outlines.
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 const BOX: Item = ['box', 0.2, 0.2, 0.2, 'ink.high'];
 const RAISED: Item = ['s', 30, 60, { alt: 0.1 }, BOX];
 const PLAN: Item = ['g', BOX, { at: [1.5, 0, 0] }];

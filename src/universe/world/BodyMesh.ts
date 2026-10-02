@@ -21,6 +21,7 @@ import {
   groundDetail,
   turnsOf,
   type Assembly,
+  type GroundDetails,
   type Group as DrawGroup,
   type Packed,
 } from '../sim/world/glue';
@@ -40,6 +41,10 @@ export interface CloseUpSource {
   /** Ask for the chunk. Asking again changes nothing. */
   request(): void;
 }
+
+/** A ground's detail by kind: the tuning's, with a sun's coarser ball on the low tier. */
+const detailsOf = (low: boolean): GroundDetails =>
+  low ? { ...tuning.world, detailSun: tuning.look.sun.detailLow } : tuning.world;
 
 /** The close-up chunk. Its only import, and a dynamic one: the chunk is a file of its own. */
 const loadCloseUp = (): Promise<CloseUpRows> => import('../design/worlds/closeup');
@@ -248,7 +253,7 @@ export class BodyMesh {
   /** Does the close-up add anything: its own rows, a finer ground, or (moving) parts that move? */
   private looksCloser(rows: CloseUpRows): boolean {
     const { id, kind, planned, low, reducedMotion } = this.options;
-    const detail = (near: boolean): number => groundDetail(kind, planned, near, tuning.world);
+    const detail = (near: boolean): number => groundDetail(kind, planned, near, detailsOf(low));
     const moves = !low && !reducedMotion && (rows.MOTION[id]?.length ?? 0) > 0;
     return (rows.NEAR[id]?.length ?? 0) > 0 || detail(true) !== detail(false) || moves;
   }
@@ -261,8 +266,8 @@ export class BodyMesh {
     const closeUpRows = (near && rows?.NEAR[id]) || [];
     const job = (function* (): Generator<void, Assembly> {
       const build = yield* makeBody(id, recipe, {
-        detail: groundDetail(kind, planned, near, tuning.world),
-        looks: { planet: tuning.planet, terrain: tuning.terrain },
+        detail: groundDetail(kind, planned, near, detailsOf(low)),
+        looks: { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun },
         seed,
         map: tier === 'map',
         near: closeUpRows,

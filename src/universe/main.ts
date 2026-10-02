@@ -28,11 +28,14 @@ import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
 import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
+import { sunSeed } from './sim/sunSurface';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
+import { livingSun, lookOf } from './world/looks';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
+import { SunCorona } from './world/SunCorona';
 
 /**
  * Composition root: builds the engine and adds systems in an explicit order, because the order
@@ -349,7 +352,35 @@ export function boot(
     new Starfield({ coarsePointer, reducedMotion, low: quality.tier === 'low' }),
   );
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
-  engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
+  // The light round every sun. After the galaxy: it reads where the suns are this frame.
+  const sunFamilies = familiesOf(manifest);
+  const coronas = engine.add(
+    new SunCorona({
+      suns: manifest.bodies.flatMap((body) => {
+        const family = sunFamilies.get(body.id);
+        if (body.kind !== 'sun' || family === undefined) return [];
+        return {
+          row: surroundings.orbits.indexOf(body.id),
+          family,
+          radius: body.radius,
+          seed: sunSeed(body.id),
+          living: livingSun(lookOf(body, family)),
+        };
+      }),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      low: quality.tier === 'low',
+      reducedMotion,
+    }),
+  );
+  engine.scene.add(
+    backdrop.object,
+    starfield.object,
+    dust.object,
+    galaxy.object,
+    coronas.object,
+    ship.object,
+  );
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
   // sky, no dust, and the ship as a marker big enough to find, lying on top of what it is beside.
   engine.add({
@@ -357,6 +388,7 @@ export function boot(
       const { weight } = starMap;
       setToonFlatness(weight * tuning.map.flatness);
       starfield.setCalm(weight, tuning.map.starOpacity);
+      coronas.setCalm(weight);
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));

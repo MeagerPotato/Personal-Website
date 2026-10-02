@@ -7,7 +7,7 @@ import { colorOf } from './palette';
 // The ground is the engine's own generator with a world's options: it must count, colour and
 // seed exactly as a body's rows say.
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 const ground = (spec: GroundSpec, seed = 'body', detail = 3) =>
   finish(groundOf(spec, seed, detail, LOOKS));
 /** A colour as the generator's buffers hold it: float32. */
@@ -36,12 +36,22 @@ describe('the ground', () => {
     expect(ground({ recipe: 'continents' }, 'page/about')).not.toEqual(named);
   });
 
-  it('paints a sun in its family, unlit and glowing, with no nudge', () => {
+  it('makes a sun a smooth, glowing ball in tones of its family (sim/sunSurface.test.ts)', () => {
     const tris = ground({ sun: 'mint', recipe: 'sun' }, 'sun', 4);
     expect(tris).toHaveLength(500);
-    expect(tris.every((t) => t.g === 2)).toBe(true);
-    const allowed = [f32('mint.base'), f32('mint.light'), f32('mint.shade')];
-    expect(tris.every((t) => allowed.includes(String(t.c)))).toBe(true);
+    expect(tris.every((t) => [0, 1, 2].every((i) => Math.abs(radiusOf(t.p, i) - 1) < 1e-6))).toBe(
+      true,
+    );
+    // Glowing, with its tone above the flag; the family's three tokens are among its colours.
+    expect(tris.every((t) => t.g > 1.5 && (t.g - 2) % 4 === 0)).toBe(true);
+    const colours = new Set(tris.map((t) => String(Array.from(new Float32Array(t.c)))));
+    for (const path of ['mint.base', 'mint.light', 'mint.shade']) {
+      expect(colours.has(f32(path)), path).toBe(true);
+    }
+  });
+
+  it('takes a detail of its own over its kind’s', () => {
+    expect(ground({ biome: 'dune', detail: 1 }, 'x', 6)).toHaveLength(80);
   });
 
   it('paints its ops over the bands, exactly', () => {

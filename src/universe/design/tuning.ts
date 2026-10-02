@@ -686,7 +686,10 @@ export const tuning = {
      * generated planets must not repaint these worlds.
      */
     flat: { look: { bandStops: [0.1, 0.46, 0.8] }, flat: 0.3 },
-    /** A sun's smooth ball: mostly its base, with lighter and darker patches, and no nudge at all. */
+    /**
+     * A sun's smooth ball, with no nudge at all. A living sun's tones are `look.sun`'s; this is
+     * what is left for a sun that is painted over (the Hardware sun's frame ball).
+     */
     sun: {
       look: {
         reliefShare: 0,
@@ -708,7 +711,12 @@ export const tuning = {
     detailPlanet: 8,
     detailNear: 14,
     detailMoon: 3,
-    detailSun: 4,
+    /**
+     * A sun's ball: 2000 facets, fine enough for its granulation (`look.sun`; the low tier:
+     * `detailLow`). The look was drawn at 11 (2880), which the worlds' budget has no room for:
+     * a body is at most 2400 triangles every day, its signs included (tests/world-bodies.test.ts).
+     */
+    detailSun: 9,
     /**
      * Planned work, not built yet: an unpainted maquette in its family's pale colours, as coarse
      * as a model before the detail goes on (1 is 80 facets), with no close-up (world/looks.ts).
@@ -1277,9 +1285,12 @@ export const tuning = {
       /**
        * Granulation: two noise frequencies on the unit sphere, the weight of the coarse one, and
        * the three thresholds that cut it into four tones (about 15 / 45 / 30 / 10 percent, so
-       * that the median facet is the family's base).
+       * that the median facet is the family's base). The thresholds are the 15th, 60th and 90th
+       * percentiles of THIS noise (sim/noise.ts, about -1 to 1), measured over sixteen suns: a
+       * change to the frequencies or the weight wants them measured again
+       * (sim/sunSurface.test.ts holds the shares).
        */
-      granulation: { freq: 2.5, weight: 0.72, freq2: 6, thresholds: [0.41, 0.515, 0.6] },
+      granulation: { freq: 2.5, weight: 0.72, freq2: 6, thresholds: [-0.23, 0.061, 0.286] },
       /** Limb darkening: a facet turned this far from the camera is two, then one, tone darker. */
       limbNz: [0.2, 0.42],
       /** Three spots: unit normals in the sun's own space, and angular radii in radians. */
@@ -1297,9 +1308,17 @@ export const tuning = {
        * the low tier keeps. `prominences`: loops on the limb, at these angles, this wide
        * (half-span), their control point this far out, drawn as strokes [tone, alpha, width].
        * `glint`: a four-point sparkle fixed on the screen. `edge`: the hot hairline of the limb.
+       * The corona is two layers (shaders/corona.ts): the LIGHT (steps, glow, rays, prominences)
+       * and the LENS (edge, glint). `pull`: how far each stands toward the camera from the sun's
+       * centre, [light, lens]: the light behind everything a sun wears (its signs reach 1.7
+       * radii), the lens just in front of its ball. `lensHalf`: the half-extent of the lens's
+       * quad. `rayBase`: where a ray's base is, just under the limb.
        */
       corona: {
         half: 3.4,
+        lensHalf: 1.08,
+        pull: [-1.8, 1.01],
+        rayBase: 0.98,
         steps: [
           [1, 1.1, 0.4],
           [1.1, 1.28, 0.2],

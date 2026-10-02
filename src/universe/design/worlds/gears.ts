@@ -124,6 +124,9 @@ export const GEARS: readonly (readonly [name: string, kind: Kind, lat: number, l
 export const hardware: Rows = [
   {
     ...sunGround('coral'),
+    // The frame is all but hidden under the gears, whose walls were sunk for these 500 facets
+    // (SUNK): it stays as coarse as it was when the other suns' balls grew fine.
+    detail: 4,
     shape: { p: 2, s: [CORE, CORE, CORE] },
     paint: [['band', 0, 1.01, 'coral.shade']],
   },

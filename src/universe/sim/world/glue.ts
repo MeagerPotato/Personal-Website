@@ -311,9 +311,9 @@ export interface GroundDetails {
 
 /**
  * The detail of a body's ground for its kind, as the worlds' budget was drawn up (vocabulary.md,
- * 10.4): a planet 8 and 14 up close, a moon 3, a sun 4, and planned work a maquette that does not
- * sharpen up close (6 for a planet, 3 for a moon). A station, a satellite and a relay are hulls,
- * which have no detail.
+ * 10.4): a planet 8 and 14 up close, a moon 3, a sun 9 (it was 4: its living surface needs the
+ * facets), and planned work a maquette that does not sharpen up close (6 for a planet, 3 for a
+ * moon). A station, a satellite and a relay are hulls, which have no detail.
  */
 export function groundDetail(
   kind: BodyKind,

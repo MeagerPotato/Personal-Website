@@ -409,7 +409,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (suns, the flame, rings), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
@@ -502,7 +502,7 @@ written, and nothing on `main` follows the drafts.
 (2) Every colour is a token; shaders receive colours as uniforms. (3) Light is added, never
 replaced: the sky is today's navy plus added light, and a strength of 0 skips the pass. (4) Depth
 is layering: flats at different distances, never volumetric noise at run time. (5) One lens for
-every bright point: the same spike profile on hero stars and on a sun's glint. (6) Only what
+every bright point: spikes on the hero stars, a four-point sparkle on a sun's limb. (6) Only what
 already glows may bloom: nothing new joins the bloom guest list, so nothing depends on bloom and
 the low tier loses nothing but seasoning. (7) Calm where the work is: the horizon strip stays
 dark, the sky is halved while docked, and the whole sky has a ceiling. (8) The star map stays
@@ -548,8 +548,8 @@ flat.
   halo (a hero two); a mid star has a small plus; a **hero has six diffraction spikes** (three
   lines 60 degrees apart, one upright) and a short faint line across. Along a spike the light
   falls as `(1 - t)^2.4 / (1 + 5t)`: a fast fall and a long thin tail, which is what reads as
-  diffraction and not as a plus sign. This is the "one lens" of rule 5: a sun's glint uses the
-  same profile. Sizes are CSS px written for a view 1080 px high and scale with the view's
+  diffraction and not as a plus sign. This is the "one lens" of rule 5: a sun's glint is the
+  same artefact, with arms so short that they fade evenly. Sizes are CSS px written for a view 1080 px high and scale with the view's
   height (0.6 to 1.2), so a hero's arm is 78 px there, 58 px at 800, and never dominates a phone.
 - **Calm.** A fifth of the dust, field and bright stars twinkle as before; a hero breathes by 6
   percent over 5 to 9 seconds, each at its own pace. Under reduced motion neither happens. On
@@ -564,6 +564,43 @@ flat.
   first frame at home; two (at azimuth 8 and 112) are above every view the chase camera takes.
   The star drift stays until the baked sky arrives (a painted sky cannot be drifted against),
   so until then the heroes wander slowly off the places the table gives.
+
+**As built: the suns (step 2).** A sun is a place now, not a lit ball.
+
+- **A living surface** on the three suns that are balls (Software, Research, Hackathons): each
+  facet takes one of **four flat tones** of its family (shade, base, light, and `hot`, the light
+  mixed 55 percent toward white), cut from two layers of noise by three thresholds so that about
+  15 / 45 / 30 / 10 percent of the ball is each: **the middle facet is the base**, or the sun
+  washes out to cream. Toward the **limb** a facet steps one tone down the ladder, then two
+  (limb darkening, in flat steps); **three spots** sit at fixed places on the ball, a dark core
+  in a ring. No gradient anywhere on it: matter is flat (rule 1). Nothing on the surface moves.
+- **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier), not the 2880 the look
+  was drawn at: a body is at most 2400 triangles every day, its signs included
+  (`tests/world-bodies.test.ts`), and that ceiling is not this pass's to raise. **Allen's call**
+  if the finer ball is wanted.
+- **The corona** is one draw call for all suns, in two layers. The **light**, behind everything
+  a sun wears, so that its brackets, its stopwatch and its light curve stay crisp: **four halo
+  steps** of the family's base (flat rings, 0.40, 0.20, 0.09 and 0.04, out to 2.1 radii), a
+  **soft glow** through the family's three tones out to 3.4, **ten rays** (thin wedges, each
+  its own length, width and lean) and **three prominences** (loops off the limb). The **lens**,
+  in front of the ball: a hot hairline just inside the outline, and a **four-point glint** on
+  the upper left, fixed on the screen. The parts are laid over each other as paint is, over the
+  navy of the sky, and the shader corrects for how each tier blends, so the low tier shows the
+  same corona.
+- **The Hardware sun keeps its gears.** Its ball is its fourteen gears, so it gets the halo
+  steps and the glow and nothing else: no tones, no rays, no loops, no hairline, no glint.
+- **Only the ball blooms** (rule 6), as it always has. The corona is drawn light, never on the
+  guest list: the halo that bloom used to fake is now there on the low tier too.
+- **Calm.** A ray breathes by 12 percent of its length over 9 to 14 seconds, a loop by 10
+  percent over 11 to 17, each at its own pace; nothing else moves, the glint least of all.
+  Under reduced motion they hold the frame of time zero. The low tier keeps six of the rays and
+  has no loops and no glint. On **the star map** a sun is a flat disc of exactly its token
+  (every tone, the limb and the spots go back to the base) inside its halo steps, and nothing
+  else of the corona is drawn (rule 8).
+- **Still to judge in the lab** (the `sun` subject: a living sun of any family, and `as on the
+  star map`; the `world` subject for a real sun with its signs): mint is the palest family, and
+  with bloom on top its hottest tone is nearly white (`look.sun.hotMix` is the knob); whether
+  the rays and the loops stay is decision D8.
 
 ## Accessibility bar (non-negotiable)
 

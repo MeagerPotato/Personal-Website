@@ -6,7 +6,8 @@ import { BODIES } from '../design/worlds/bodies';
 import type { ManifestBody } from '../manifest';
 import { hexToLinear } from '../sim/color';
 import type { PlanetBands, PlanetLook } from '../sim/planet';
-import type { BodyRecipe } from '../sim/world/rows';
+import { isLivingSun, type GroundSpec } from '../sim/world/ground';
+import { rowsOf, type BodyRecipe } from '../sim/world/rows';
 
 /** A planet's five colours, from its biome's tokens, in the linear space the generator paints in. */
 export function biomeBands(biome: BiomeKey): PlanetBands {
@@ -141,4 +142,15 @@ export function lookOf(
     nearDetail: isSun || isMoon ? null : detailNear,
     rings,
   };
+}
+
+/**
+ * Is a sun, looked at this way, a LIVING one: a ball whose facets carry tones (sim/sunSurface.ts),
+ * so that it gets the whole corona? The Hardware sun's ball is painted under its gears, and a sun
+ * with no rows is a generated globe: both are plain, and get only the halo and the glow.
+ */
+export function livingSun(look: BodyLook): boolean {
+  if (!look.world) return false;
+  const [ground] = rowsOf(look.world, { map: false });
+  return !Array.isArray(ground) && isLivingSun(ground as GroundSpec);
 }
