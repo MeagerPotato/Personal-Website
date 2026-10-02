@@ -1,4 +1,4 @@
-import { MeshBuilder, type MeshData, type Point, type Rgb } from './meshBuilder';
+import { MeshBuilder, type MeshData, type Point, type Rgb, type Side } from './meshBuilder';
 import { createNoise3, fbm } from './noise';
 import { createRng } from './rng';
 
@@ -174,6 +174,12 @@ type Flat = readonly [x: number, y: number];
 const OUTLINE_STEPS = 6;
 /** ...and a change of colour between two steps is then found by this many halvings. */
 const CUT_STEPS = 7;
+/** An outline's bend inside a facet is looked for in this many steps across its chord... */
+const BEND_STEPS = 6;
+/** ...and no further from the chord than this share of the chord's length (a cape, not a hair). */
+const BEND_MOST = 0.6;
+/** The middle of a facet. */
+const MIDDLE: Flat = [1 / 3, 1 / 3];
 
 export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<void, MeshData> {
   const noise = createNoise3(spec.seed);
@@ -182,6 +188,13 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
   const n = spec.detail + 1;
   const { flat, shape, paint: painter } = spec;
   const corners = spec.up === 'vertex' ? VERTEX_UP : CORNERS;
+
+  /** How high the ground is in a unit direction (`Corner.h`). */
+  const heightAt = (dx: number, dy: number, dz: number): number => {
+    const f = look.frequency;
+    const raw = fbm(noise, dx * f, dy * f, dz * f, look.octaves);
+    return (raw - look.seaLevel) / (look.peakAt - look.seaLevel);
+  };
 
   const corner = (x: number, y: number, z: number): Corner => {
     const length = Math.hypot(x, y, z);
@@ -194,11 +207,18 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
     const n = shape ? shapeNormal(d, shape) : d;
     if (flat !== undefined)
       return { at: [sx * spec.radius, sy * spec.radius, sz * spec.radius], h: flat, d, n };
-    const f = look.frequency;
-    const raw = fbm(noise, dx * f, dy * f, dz * f, look.octaves);
-    const h = (raw - look.seaLevel) / (look.peakAt - look.seaLevel);
+    const h = heightAt(dx, dy, dz);
     const r = spec.radius * (1 + look.reliefShare * Math.max(0, landOf(h)));
     return { at: [sx * r, sy * r, sz * r], h, d, n };
+  };
+
+  /** How high the ground is halfway between two corners (the same from either side). */
+  const halfway = (p: Corner, q: Corner): number => {
+    const x = p.d[0] + q.d[0];
+    const y = p.d[1] + q.d[1];
+    const z = p.d[2] + q.d[2];
+    const length = Math.hypot(x, y, z) || 1;
+    return heightAt(x / length, y / length, z / length);
   };
 
   /** A height as land: 0 to 1 above the sea, in terraces; below 0, the sea. A smooth ball's is its level. */
@@ -227,15 +247,36 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
 
   /**
    * The colour at a place on the facet a b c, given by its share of each corner: what paint says
-   * there, or else the band of its height.
+   * there, or else the band of its height. The height is the corners' and, with `mids` (the
+   * ground's height halfway along each edge: ab, bc, ca), the one smooth sheet through all six:
+   * it bends inside the facet as the ground does, so an outline is a curve there and not a
+   * chord, and along an edge it is the same sheet from either side.
    */
-  const inkAt = (a: Corner, b: Corner, c: Corner, u: number, v: number, w: number): Ink => {
-    if (painter) {
-      const x = a.d[0] * u + b.d[0] * v + c.d[0] * w;
-      const y = a.d[1] * u + b.d[1] * v + c.d[1] * w;
-      const z = a.d[2] * u + b.d[2] * v + c.d[2] * w;
-      const length = Math.hypot(x, y, z) || 1;
-      const d: Point = [x / length, y / length, z / length];
+  const inkAt = (
+    a: Corner,
+    b: Corner,
+    c: Corner,
+    u: number,
+    v: number,
+    w: number,
+    mids?: readonly number[],
+  ): Ink => {
+    const height = (): number => {
+      const [ab = 0, bc = 0, ca = 0] = mids ?? [];
+      return mids
+        ? a.h * u * (2 * u - 1) +
+            b.h * v * (2 * v - 1) +
+            c.h * w * (2 * w - 1) +
+            4 * (ab * u * v + bc * v * w + ca * w * u)
+        : a.h * u + b.h * v + c.h * w;
+    };
+    if (!painter) return { c: bandOf(height()), painted: false };
+    const x = a.d[0] * u + b.d[0] * v + c.d[0] * w;
+    const y = a.d[1] * u + b.d[1] * v + c.d[1] * w;
+    const z = a.d[2] * u + b.d[2] * v + c.d[2] * w;
+    const length = Math.hypot(x, y, z) || 1;
+    const d: Point = [x / length, y / length, z / length];
+    {
       const painted = painter({
         d,
         pos: [
@@ -248,7 +289,7 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
       });
       if (painted) return { c: painted, painted: true };
     }
-    return { c: bandOf(a.h * u + b.h * v + c.h * w), painted: false };
+    return { c: bandOf(height()), painted: false };
   };
 
   const same = (p: Ink, q: Ink): boolean =>
@@ -276,7 +317,8 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
       const t = along - Math.floor(along);
       return edge === 0 ? [t, 0] : edge === 1 ? [1 - t, t] : [0, 1 - t];
     };
-    const inkOf = ([x, y]: Flat): Ink => inkAt(a, b, c, 1 - x - y, x, y);
+    const mids = flat === undefined ? [halfway(a, b), halfway(b, c), halfway(c, a)] : undefined;
+    const inkOf = ([x, y]: Flat): Ink => inkAt(a, b, c, 1 - x - y, x, y, mids);
 
     const first = inkOf([0, 0]);
     const cuts: Array<{ along: number; after: Ink }> = [];
@@ -309,13 +351,99 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
      * Where each corner stands on the line through two places: a half ON the line, more than a
      * half on the side where `inside` lies.
      */
-    const line = (p: Flat, q: Flat, inside: Flat): number[] | null => {
+    const line = (p: Flat, q: Flat, inside: Flat, ink?: Ink): number[] | null => {
       const f = ([x, y]: Flat): number => (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]);
       const at = [f([0, 0]), f([1, 0]), f([0, 1])];
       const most = Math.max(...at.map(Math.abs));
-      const side = f(inside);
+      let side = f(inside);
+      // Both ends on one edge (a cape that comes in and goes out the same way): the line is that
+      // edge, and the facet's middle says which side of it the colour is on. Its bend does the rest.
+      if (ink && Math.abs(side) < 1e-9 * most)
+        side = f(MIDDLE) * (same(inkOf(MIDDLE), ink) ? 1 : -1);
       if (most < 1e-9 || Math.abs(side) < 1e-12) return null;
       return at.map((value) => 0.5 + (0.5 * Math.sign(side) * value) / most);
+    };
+    /**
+     * How the line `k` through p and q BENDS (`MeshData.bends`): the true outline of `ink` is
+     * looked for across the line's middle, as far as the facet goes, and the line is drawn as the
+     * arc through that place. Straight (no `bend`) where nothing is found.
+     */
+    const bent = (
+      p: Flat,
+      q: Flat,
+      k: number[],
+      ink: Ink,
+      cape = false,
+    ): { t: number[]; bend: number } | null => {
+      const [k0 = 0, k1 = 0, k2 = 0] = k;
+      // Across the line, in the facet's own two numbers: one step of this is one of k.
+      const gx = k1 - k0;
+      const gy = k2 - k0;
+      const g2 = gx * gx + gy * gy;
+      const dx = q[0] - p[0];
+      const dy = q[1] - p[1];
+      const d2 = dx * dx + dy * dy;
+      if (g2 < 1e-12 || d2 < 1e-12) return null;
+      const mx = (p[0] + q[0]) / 2;
+      const my = (p[1] + q[1]) / 2;
+      const at = (s: number): Flat => [mx + (s * gx) / g2, my + (s * gy) / g2];
+      const has = (s: number): boolean => same(inkOf(at(s)), ink);
+      // How far each way before the facet ends: x >= 0, y >= 0, x + y <= 1.
+      let low = -Infinity;
+      let high = Infinity;
+      for (const [value, slope] of [
+        [mx, gx / g2],
+        [my, gy / g2],
+        [1 - mx - my, -(gx + gy) / g2],
+      ] as const) {
+        if (Math.abs(slope) < 1e-12) continue;
+        const end = -value / slope;
+        if (slope > 0) low = Math.max(low, end);
+        else high = Math.min(high, end);
+      }
+      // The colour is where k is above a half. On the line's middle already: its outline is
+      // further out (below); not yet: further in.
+      const here = has(0);
+      // A cape may reach as far as the facet goes; any other line is a chord of a gentle arc.
+      const reach = cape
+        ? (here ? -low : high) * 0.98
+        : Math.min(here ? -low : high, BEND_MOST * Math.sqrt(d2 * g2));
+      if (!(reach > 1e-6)) return null;
+      const way = here ? -1 : 1;
+      let lo = 0;
+      let hi = 0;
+      for (let step = 1; step <= BEND_STEPS && hi === 0; step += 1) {
+        const s = (way * reach * step) / BEND_STEPS;
+        if (has(s) === here) lo = s;
+        else hi = s;
+      }
+      // Nothing found: straight; a cape that runs on past the facet's end is as long as the facet.
+      if (hi === 0) {
+        if (!cape) return null;
+        hi = lo;
+      }
+      for (let i = 0; i < CUT_STEPS; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (has(mid) === here) lo = mid;
+        else hi = mid;
+      }
+      // The arc must stay in the facet all its way (the outline it stands for does, or the walk
+      // would have found it crossing an edge): one that bulges out is flattened until it does.
+      let reached = (lo + hi) / 2;
+      const inFacet = (share: number): boolean =>
+        [0.2, 0.35, 0.65, 0.8].every((t) => {
+          const lift = (share * 4 * t * (1 - t)) / g2;
+          const x = p[0] + dx * t + lift * gx;
+          const y = p[1] + dy * t + lift * gy;
+          return x >= 0 && y >= 0 && x + y <= 1;
+        });
+      for (let i = 0; i < 4 && !inFacet(reached); i += 1) reached *= 0.7;
+      if (!inFacet(reached)) return null;
+      // On the arc, halfway: k + bend / 4 is a half.
+      const bend = -4 * reached;
+      if (Math.abs(bend) < 1e-3) return null;
+      const along = ([x, y]: Flat): number => ((x - p[0]) * dx + (y - p[1]) * dy) / d2;
+      return { t: [along([0, 0]), along([1, 0]), along([0, 1])], bend };
     };
     /** A place on the outline between two cuts (the second may lie past the first corner again). */
     const between = (from: number, to: number): Flat =>
@@ -329,13 +457,28 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
     const cut = (i: number): { along: number; after: Ink } =>
       cuts[((i % count) + count) % count] ?? { along: 0, after: first };
     /** The colour of the stretch of outline that begins at cut i, and the line that cuts it off. */
-    const side = (from: number, to: number): { c: Rgb; k: number[] } | null => {
-      const k = line(
-        place(cut(from).along),
-        place(cut(to).along),
-        between(cut(from).along, cut(to).along),
-      );
-      return k && { c: rgb(cut(from).after), k };
+    const side = (from: number, to: number): Side | null => {
+      const p = place(cut(from).along);
+      const q = place(cut(to).along);
+      const ink = cut(from).after;
+      const k = line(p, q, between(cut(from).along, cut(to).along), ink);
+      if (!k) return null;
+      const cape = k.filter((value) => Math.abs(value - 0.5) < 1e-9).length > 1;
+      const arc = bent(p, q, k, ink, cape);
+      if (!cape) return { c: rgb(ink), k, ...arc };
+      // A cape: the line is an edge of the facet, where a pixel could not say which side it is
+      // on. So the line is moved a half off the facet, and the same arc is drawn from further
+      // along it: through both cuts and the cape's tip, as before, and nothing along the edge.
+      if (!arc) return null;
+      const off = arc.bend > 0 ? 0.5 : -0.5;
+      const bend = arc.bend + 4 * off;
+      const end = (1 - Math.sqrt(1 - (4 * off) / bend)) / 2;
+      return {
+        c: rgb(ink),
+        k: k.map((value) => value - off),
+        t: arc.t.map((value) => end + (1 - 2 * end) * value),
+        bend,
+      };
     };
 
     if (count === 3) {
@@ -364,25 +507,50 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
     // (a corner, or one side of a single line), the line that bounds it and the next one out.
     // Whatever lies beyond a second line (a fourth band in one facet) takes its neighbour's
     // colour: a sliver in a corner.
-    const middle = inkOf([1 / 3, 1 / 3]);
+    // (Where the middle's is a colour the outline never has, an islet inside the facet, the
+    // colour of the longest stretch of outline stands in for it: the islet is too small to draw.)
+    let middle = inkOf(MIDDLE);
+    if (!cuts.some(({ after }) => same(after, middle))) {
+      let longest = -1;
+      cuts.forEach(({ along, after }, at) => {
+        const length = (cut(at + 1).along - along + 3) % 3 || 3;
+        if (length > longest) {
+          longest = length;
+          middle = after;
+        }
+      });
+    }
     const touches = cuts.flatMap((_, i) => (same(cut(i).after, middle) ? [i] : []));
     const [i, j] = touches;
-    if (i !== undefined && touches.length <= 2) {
-      const lines =
-        j !== undefined
-          ? [side(i + 1, j), side(j + 1, i)]
-          : [side(i + 1, i), count >= 4 ? side(i + 2, i - 1) : null];
-      const [near, far] = lines;
-      if (near) {
-        builder.triangle(a.at, b.at, c.at, rgb(middle), {
-          n,
-          side: near,
-          ...(far ? { over: far } : {}),
-        });
-        return;
-      }
+    // Where it touches more often, every stretch of other colours between two of the middle's is
+    // a piece cut off it, and the two longest that a line can cut off are drawn: a third is a
+    // corner, the smallest of them.
+    const lines =
+      i === undefined
+        ? []
+        : j === undefined
+          ? [side(i + 1, i), count >= 4 ? side(i + 2, i - 1) : null]
+          : touches
+              .map((touch, at) => {
+                const to = touches[(at + 1) % touches.length] ?? touch;
+                return {
+                  from: touch + 1,
+                  to,
+                  length: (cut(to).along - cut(touch + 1).along + 3) % 3,
+                };
+              })
+              .sort((p, q) => q.length - p.length)
+              .map(({ from, to }) => side(from, to));
+    const [near, far] = lines.filter((found) => found !== null);
+    if (near) {
+      builder.triangle(a.at, b.at, c.at, rgb(middle), {
+        n,
+        side: near,
+        ...(far ? { over: far } : {}),
+      });
+      return;
     }
-    // A knot of colours no two lines can part: its middle's.
+    // A knot of colours no line can part: its middle's.
     builder.triangle(a.at, b.at, c.at, rgb(middle), { n });
   };
 

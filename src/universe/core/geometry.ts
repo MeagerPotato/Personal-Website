@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 import {
+  BEND_ATTRIBUTE,
   DECAL_ATTRIBUTE,
   OVER_ATTRIBUTE,
   SIDE_ATTRIBUTE,
@@ -22,7 +23,8 @@ export interface VertexFlags {
  * Non-indexed, a colour a face and a normal a vertex, which is what the toon shader expects. The
  * arrays are handed over, not copied. The caller owns the geometry: track it in a Scope.
  *
- * Both flags and a face's other colours (`sides`: the side and the over, an attribute each) are
+ * Both flags, a face's other colours (`sides`: the side and the over, an attribute each) and how
+ * their lines bend (`bends`) are
  * always there, zeros (a byte each) where nobody set them: a model, a part with one colour a face. An attribute a geometry left out would read WebGL's generic value at its location,
  * which is the context's, not the geometry's: three writes the material's default there only when
  * it first sets up that geometry's vertex array, and any program drawn after may write another
@@ -46,6 +48,11 @@ export function geometryFrom(mesh: MeshData & VertexFlags): BufferGeometry {
       : new Uint8Array(count * 4);
     geometry.setAttribute(name, new BufferAttribute(values, 4));
   });
+  // How those two lines bend, as it is in the mesh (zeros: straight).
+  geometry.setAttribute(
+    BEND_ATTRIBUTE,
+    new BufferAttribute(mesh.bends ?? new Uint8Array(count * 4), 4),
+  );
   geometry.setAttribute(
     DECAL_ATTRIBUTE,
     new BufferAttribute(mesh.decal ?? new Uint8Array(count), 1),

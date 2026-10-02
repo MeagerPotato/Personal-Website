@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import {
   DECAL_ATTRIBUTE,
+  BEND_ATTRIBUTE,
   OVER_ATTRIBUTE,
   SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
@@ -43,6 +44,7 @@ describe('the toon material and its per-vertex flags', () => {
     expect(toonFlat.vertexShader).toContain(`attribute float ${DECAL_ATTRIBUTE};`);
     expect(toonFlat.vertexShader).toContain(`attribute vec4 ${SIDE_ATTRIBUTE};`);
     expect(toonFlat.vertexShader).toContain(`attribute vec4 ${OVER_ATTRIBUTE};`);
+    expect(toonFlat.vertexShader).toContain(`attribute vec4 ${BEND_ATTRIBUTE};`);
   });
 
   it('keeps colour flat and makes light round: a band is decided for every pixel', () => {
@@ -65,9 +67,12 @@ describe('the toon material and its per-vertex flags', () => {
     // A lit place is exactly its colour: the shade is mixed in by the level alone.
     expect(fragmentShader).toContain('mix(base * uShadowTint, base, level)');
     // A face's other colours are laid over its own along their lines: zeros leave it alone.
-    expect(fragmentShader).toContain(
-      'vec3 base = mix(mix(vColor, vSide, past(vEdge.x, 0.5)), vOver, past(vEdge.y, 0.5));',
-    );
+    expect(fragmentShader).toContain('mix(vColor, vSide, past(vEdge.x + arc(vBend.xy), 0.5)),');
+    expect(fragmentShader).toContain('past(vEdge.y + arc(vBend.zw), 0.5)');
+    // And a line is an arc: its bend is nothing at its two ends (and beyond them), the most
+    // halfway along. No bend: the straight line it was.
+    expect(fragmentShader).toContain('float along = clamp(bend.x, 0.0, 1.0);');
+    expect(fragmentShader).toContain('return bend.y * along * (1.0 - along);');
     // The map and an unlit vertex take all the light, as before.
     expect(fragmentShader).toContain('level = mix(level, 1.0, uFlatness);');
     expect(fragmentShader).toContain('if (vUnlit > 0.5) level = 1.0;');
@@ -83,6 +88,7 @@ describe('the toon material and its per-vertex flags', () => {
       [DECAL_ATTRIBUTE]: [0],
       [SIDE_ATTRIBUTE]: [0, 0, 0, 0],
       [OVER_ATTRIBUTE]: [0, 0, 0, 0],
+      [BEND_ATTRIBUTE]: [0, 0, 0, 0],
       // three's own defaults are kept.
       color: [1, 1, 1],
     });

@@ -556,11 +556,19 @@ other share their normal there, weighed by their angles), once per packed group
 shader interpolates how far a place faces its sun and cuts the three bands in the fragment
 shader, a pixel soft (`fwidth`); the colour stays `flat`. (3) LINES THROUGH FACETS: the planet
 generator walks each facet's outline, finds where the colour changes (a coast, a band, an edge
-of paint) and gives the facet up to three colours and two straight lines (`Facet.side`,
+of paint) and gives the facet up to three colours and two lines (`Facet.side`,
 `Facet.over`: a colour and, per corner, where it stands on the line; `MeshData.sides`, eight
 numbers a vertex), which ride through `Tri.s` and `Packed.sides` into two attributes every
 geometry carries (`aSide`, `aOver`: zeros, a byte each, where a face has one colour). A
-neighbour walks the shared edge through the same places, so the lines join. A change to a
+neighbour walks the shared edge through the same places, so the lines join. And each line is
+an ARC: a ground's height inside a facet is the one smooth sheet through its three corners
+and the ground's own height halfway along each edge (the same from either side of an edge),
+the generator finds where the outline crosses the line's perpendicular through its middle
+(`bent`), and the shader adds `bend * t * (1 - t)` to the line (`Side.t`, `Side.bend`;
+`MeshData.bends`, four numbers a vertex; `Tri.b`, `Packed.bends`, the attribute `aBend`). A
+line both of whose ends are on ONE edge (a cape) is that edge moved half a step off the facet,
+with the same arc drawn from further along it, so no pixel on the edge has to say which side
+it is on. A change to a
 generator that makes its own triangles keeps to this: give a curved surface its normals or let
 `roundNormals` find them, and never colour a boundary by the facet.
 

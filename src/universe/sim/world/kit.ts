@@ -37,7 +37,8 @@ export type Unlit = number;
  * One triangle: its corners (nine numbers, a b c), its colour (linear RGB) and its lighting. A
  * facet of a generated ground (ground.ts) may also carry the normals of the curve it lies on (`n`,
  * nine numbers) and its other colours with their lines (`s`, 24 numbers: sim/meshBuilder.ts,
- * `MeshData.sides`); a ground is never moved, so `xf` drops them.
+ * `MeshData.sides`) and how those lines bend (`b`, 12 numbers: `MeshData.bends`); a ground is
+ * never moved, so `xf` drops them.
  */
 export interface Tri {
   readonly p: readonly number[];
@@ -45,6 +46,7 @@ export interface Tri {
   readonly g: Unlit;
   readonly n?: ArrayLike<number>;
   readonly s?: ArrayLike<number>;
+  readonly b?: ArrayLike<number>;
 }
 
 export const ORIGIN: Vec3 = [0, 0, 0];

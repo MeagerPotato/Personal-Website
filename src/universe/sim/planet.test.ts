@@ -69,18 +69,26 @@ describe('the planet generator, without the options of sim/world', () => {
     // every world.
     // The PICTURE on it: its normals, colours and the lines through its facets, as of the look
     // pass that made the worlds round ("Deep light", step 2b, 2026-10-02). Before it the normals
-    // were a facet's own and a facet had one colour.
+    // were a facet's own and a facet had one colour. And how those lines bend, since an outline
+    // is an arc inside a facet (the same day): the lines moved too, to where the ground's own
+    // height puts them halfway along each edge.
     for (const [seed, radius, detail, shape, picture] of [
-      ['pin', 8, 5, '704547c5', '453266ff'],
-      ['project/robotics', 1, 8, '0b6c7c25', 'e6d8ff44'],
-      ['about', 14, 3, 'f75faf1a', '4a112202'],
+      ['pin', 8, 5, '704547c5', 'c779c19f'],
+      ['project/robotics', 1, 8, '0b6c7c25', '0239cb80'],
+      ['about', 14, 3, 'f75faf1a', '1813bb45'],
     ] as const) {
       const mesh = finish(generatePlanet({ seed, radius, detail, bands: BANDS }, LOOK));
       expect(mesh.triangleCount).toBe(planetTriangleCount(detail));
       expect(fingerprint(mesh.positions), seed).toBe(shape);
-      expect(fingerprint(mesh.normals, mesh.colors, mesh.sides ?? new Float32Array(0)), seed).toBe(
-        picture,
-      );
+      expect(
+        fingerprint(
+          mesh.normals,
+          mesh.colors,
+          mesh.sides ?? new Float32Array(0),
+          mesh.bends ?? new Float32Array(0),
+        ),
+        seed,
+      ).toBe(picture);
     }
   });
 });
@@ -190,17 +198,24 @@ describe('the options for worlds of their own', () => {
 describe('a round world on a mesh of facets', () => {
   /**
    * The colour at a place on triangle `t` (its share of each corner), as the toon shader draws it
-   * (design/shaders/toonFlat.ts): the facet's colour, its side's where the side's line is past a
-   * half, its over's where that one's is.
+   * (design/shaders/toonFlat.ts): the facet's colour, its side's where the side's line (bent by
+   * its arc) is past a half, its over's where that one's is.
    */
   function colourAt(mesh: ReturnType<typeof build>, t: number, share: Point): number[] {
-    const side = (o: number): { c: number[]; k: number } => ({
-      c: Array.from(mesh.sides?.subarray(t * 24 + o, t * 24 + o + 3) ?? [0, 0, 0]),
-      k: [0, 1, 2].reduce(
-        (sum, v) => sum + (mesh.sides?.[t * 24 + v * 8 + o + 3] ?? 0) * (share[v] ?? 0),
-        0,
-      ),
-    });
+    const side = (o: number): { c: number[]; k: number } => {
+      // Where the place stands on the line, and how far along it: the line bends by its arc.
+      const mixed = (values: Float32Array | undefined, stride: number, at: number): number =>
+        [0, 1, 2].reduce(
+          (sum, v) => sum + (values?.[(t * 3 + v) * stride + at] ?? 0) * (share[v] ?? 0),
+          0,
+        );
+      const along = Math.min(1, Math.max(0, mixed(mesh.bends, 4, o / 2)));
+      const bend = mesh.bends?.[t * 12 + o / 2 + 1] ?? 0;
+      return {
+        c: Array.from(mesh.sides?.subarray(t * 24 + o, t * 24 + o + 3) ?? [0, 0, 0]),
+        k: mixed(mesh.sides, 8, o + 3) + bend * along * (1 - along),
+      };
+    };
     const [first, over] = [side(0), side(4)];
     if (over.k > 0.5) return over.c;
     if (first.k > 0.5) return first.c;
@@ -221,6 +236,11 @@ describe('a round world on a mesh of facets', () => {
     [0.45, 0.1, 0.45],
     [0.34, 0.33, 0.33],
   ];
+
+  /** And a fine grid of them: 55 places a facet. */
+  const FINE: Point[] = [];
+  for (let i = 1; i < 12; i += 1)
+    for (let j = 1; j < 12 - i; j += 1) FINE.push([i / 12, j / 12, 1 - (i + j) / 12]);
 
   it('carries the normal of the ball at every corner, whatever the relief', () => {
     const mesh = build();
@@ -268,15 +288,16 @@ describe('a round world on a mesh of facets', () => {
     let wrong = 0;
     let near = 0;
     for (let t = 0; t < mesh.triangleCount; t += 1) {
-      for (const share of SHARES) {
+      for (const share of [...SHARES, ...FINE]) {
         const at = [0, 1, 2].map((axis) =>
           [0, 1, 2].reduce((sum, v) => sum + (corner(mesh, t, v)[axis] ?? 0) * (share[v] ?? 0), 0),
         );
         const length = Math.hypot(at[0] ?? 0, at[1] ?? 0, at[2] ?? 0);
         const d: Point = [(at[0] ?? 0) / length, (at[1] ?? 0) / length, (at[2] ?? 0) / length];
-        // Within a third of a degree of the rim either colour will do: the line is straight
-        // across a facet where the rim is very slightly curved.
-        if (Math.abs(Math.acos(d[1]) / Math.PI - 0.2) < 0.002) {
+        // Within a thirtieth of a degree of the rim either colour will do. (The line is an arc
+        // through the rim's own middle in the facet: as a chord it was wrong up to a tenth of a
+        // degree, ten times that.)
+        if (Math.abs(Math.acos(d[1]) / Math.PI - 0.2) < 0.0002) {
           near += 1;
           continue;
         }
@@ -286,6 +307,10 @@ describe('a round world on a mesh of facets', () => {
     }
     expect(wrong).toBe(0);
     expect(near).toBeLessThan(200);
+    // And the arcs are there: most facets the rim crosses carry a bend.
+    let bent = 0;
+    for (let t = 0; t < mesh.triangleCount; t += 1) if (mesh.bends?.[t * 12 + 1]) bent += 1;
+    expect(bent).toBeGreaterThan(20);
   });
 
   it('draws a stripe thinner than a facet as a stripe: two lines through each facet it crosses', () => {
@@ -358,16 +383,31 @@ describe('a round world on a mesh of facets', () => {
       expect(edges).toBe((mesh.triangleCount * 3) / 2);
       return { lines: lines / mesh.triangleCount, broken: broken / edges };
     };
-    // A sea and two bands of land: no facet holds more than two lines, and no outline breaks.
+    // A sea and two bands of land: hardly a facet holds more than two lines, and hardly an
+    // outline breaks.
     const gentle = measure({ terraces: 2, bandStops: [0.5, 9, 9] });
     expect(gentle.lines).toBeGreaterThan(0.15);
     expect(gentle.broken).toBeLessThan(0.005);
     // Four terraces in five colours on facets of seven degrees: more than a third of the facets
     // hold a line, and where one holds more than two lines the sliver beyond the second takes
-    // its neighbour's colour, so an outline may step there, by a sliver.
+    // its neighbour's colour, so an outline may step there, by a sliver. (0.073 while an outline
+    // was a chord; 0.103 since it is an arc: the ground's own height halfway along each edge
+    // finds capes a chord never saw, and a quarter of these facets now want a third line. The
+    // terrains the worlds use, three or four colours at most, are under 0.03.)
     const steep = measure({});
     expect(steep.lines).toBeGreaterThan(0.3);
-    expect(steep.broken).toBeLessThan(0.1);
+    expect(steep.broken).toBeLessThan(0.12);
+    // The home planet's terrain, as tuned (design/tuning.ts, `terrain.continents`).
+    const home = measure({
+      frequency: 1,
+      octaves: 3,
+      seaLevel: 0.02,
+      peakAt: 0.6,
+      terraces: 3,
+      terraceStrength: 0.7,
+      bandStops: [0.12, 0.5, 0.92],
+    });
+    expect(home.broken).toBeLessThan(0.01);
   });
 
   it('keeps a lit colour exact: both colours of a facet are the bands’ own, with no nudge between', () => {

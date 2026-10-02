@@ -21,7 +21,10 @@ import { gradientNoise } from './noise';
  * vertex, where it stands on the line between the two: below a half it is the first colour,
  * above it the second, so the outline runs straight through the facet, a pixel soft, and from
  * facet to facet it is a curve. A third colour (its over) is laid over both the same way, for a
- * stripe or a place where three meet. Zeros: one colour, as everything else is.
+ * stripe or a place where three meet. Zeros: one colour, as everything else is. And the line may
+ * BEND inside the facet (`aBend`: for each of the two lines, how far along it the vertex stands,
+ * and the bend): it is drawn where `k + bend * t * (1 - t)` passes a half, an arc through the
+ * place the true outline has halfway, so a coast is round however few facets it crosses.
  *
  * HOW EACH VERTEX IS LIT, `aUnlit` (the emblem worlds, sim/world/glue.ts): 0 lit by its sun as
  * above; 1 FLAT, its colour as it is, lit or not, like a painted sign; 2 GLOW, its colour as
@@ -67,8 +70,9 @@ import { gradientNoise } from './noise';
  *   half the soft rim of a spot in radians); uSunSpot[3] (a spot's unit normal on the ball, and
  *   its radius in radians)
  * Attributes: position (bound to location 0), normal, color (USE_COLOR), aSide and aOver (each a
- *   further colour, and where the vertex stands on its line), aUnlit (0 lit, 1 flat, 2 glow,
- *   above 4 a sun's surface), aDecal (1 on a decal): every geometry carries all four.
+ *   further colour, and where the vertex stands on its line), aBend (how those two lines bend),
+ *   aUnlit (0 lit, 1 flat, 2 glow,
+ *   above 4 a sun's surface), aDecal (1 on a decal): every geometry carries all five.
  * Defines: USE_COLOR (vertex colours), USE_INSTANCING / USE_INSTANCING_COLOR (set by three),
  *   INSTANCED_SUN (each instance carries its own `aSunPosition`: the galaxy-wide far bodies),
  *   SUN (a sun's living surface).
@@ -86,6 +90,7 @@ export const toonFlat = {
 
     attribute vec4 aSide;
     attribute vec4 aOver;
+    attribute vec4 aBend;
     attribute float aUnlit;
     attribute float aDecal;
 
@@ -98,6 +103,7 @@ export const toonFlat = {
     flat varying vec3 vOver;
     flat varying float vUnlit;
     varying vec2 vEdge;
+    varying vec4 vBend;
     varying float vFacing;
     #ifdef SUN
       varying vec3 vBall;
@@ -131,6 +137,7 @@ export const toonFlat = {
       vSide = tint * aSide.rgb;
       vOver = tint * aOver.rgb;
       vEdge = vec2(aSide.a, aOver.a);
+      vBend = aBend;
       vUnlit = aUnlit;
 
       #ifdef SUN
@@ -157,11 +164,18 @@ export const toonFlat = {
     flat varying vec3 vOver;
     flat varying float vUnlit;
     varying vec2 vEdge;
+    varying vec4 vBend;
     varying float vFacing;
 
     // How much of this pixel lies past an edge: a line one pixel soft, wherever it runs.
     float past(float value, float edge) {
       return clamp((value - edge) / max(fwidth(value), 1e-6) + 0.5, 0.0, 1.0);
+    }
+
+    // A line's bend at this pixel: none at its two ends, the most halfway along it.
+    float arc(vec2 bend) {
+      float along = clamp(bend.x, 0.0, 1.0);
+      return bend.y * along * (1.0 - along);
     }
 
     #ifdef SUN
@@ -215,7 +229,11 @@ export const toonFlat = {
     #endif
 
     void main() {
-      vec3 base = mix(mix(vColor, vSide, past(vEdge.x, 0.5)), vOver, past(vEdge.y, 0.5));
+      vec3 base = mix(
+        mix(vColor, vSide, past(vEdge.x + arc(vBend.xy), 0.5)),
+        vOver,
+        past(vEdge.y + arc(vBend.zw), 0.5)
+      );
       #ifdef SUN
         // Asked of every pixel (a derivative wants no branch round it), used on the ball's.
         vec3 surface = sunSurface();

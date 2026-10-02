@@ -30,12 +30,23 @@ export interface MeshData {
    * a pixel shader can draw (design/shaders/toonFlat.ts).
    */
   sides?: Float32Array;
+  /**
+   * Only where one of those lines is BENT: four numbers a vertex, the side's two and then the
+   * over's. First, how far along its line the vertex stands (0 where the line enters the
+   * triangle, 1 where it leaves); second, the bend, the same on all three: the line is drawn
+   * where `k + bend * t * (1 - t)` passes a half, an arc and not a chord, so an outline is a
+   * curve inside a facet too.
+   */
+  bends?: Float32Array;
 }
 
 /** A colour, and where each of a triangle's three corners stands on its line. */
 export interface Side {
   readonly c: Rgb;
   readonly k: ArrayLike<number>;
+  /** A bent line (`MeshData.bends`): how far along it each corner stands, and the bend. */
+  readonly t?: ArrayLike<number>;
+  readonly bend?: number;
 }
 
 /** What a triangle may say beyond its corners and its colour. */
@@ -168,6 +179,8 @@ export class MeshBuilder {
   private readonly colors: number[] = [];
   /** By triangle: eight numbers a vertex where it has more colours than one (`MeshData.sides`). */
   private readonly sides = new Map<number, number[]>();
+  /** By triangle: four numbers a vertex where a line is bent (`MeshData.bends`). */
+  private readonly bends = new Map<number, number[]>();
   /** The triangles that came with normals of their own. */
   private readonly given = new Set<number>();
 
@@ -209,6 +222,16 @@ export class MeshBuilder {
           ...(over ? [...over.c, over.k[i] ?? 0] : [0, 0, 0, 0]),
         ]),
       );
+      if (side.bend || over?.bend)
+        this.bends.set(
+          index,
+          [0, 1, 2].flatMap((i) => [
+            side.t?.[i] ?? 0,
+            side.bend ?? 0,
+            over?.t?.[i] ?? 0,
+            over?.bend ?? 0,
+          ]),
+        );
     }
     return this;
   }
@@ -387,6 +410,10 @@ export class MeshBuilder {
     if (this.sides.size > 0) {
       mesh.sides = new Float32Array(this.triangleCount * 24);
       for (const [triangle, side] of this.sides) mesh.sides.set(side, triangle * 24);
+    }
+    if (this.bends.size > 0) {
+      mesh.bends = new Float32Array(this.triangleCount * 12);
+      for (const [triangle, bend] of this.bends) mesh.bends.set(bend, triangle * 12);
     }
     return mesh;
   }

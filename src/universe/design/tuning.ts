@@ -654,12 +654,15 @@ export const tuning = {
         bandStops: [0.08, 0.5, 0.86],
       },
     },
-    /** Small islands in a sea. */
+    /**
+     * Small islands in a sea. Two octaves, not three: at this frequency a third is finer than a
+     * facet (4 to 7 degrees), and a coast is only as round as what its facets can hold.
+     */
     isles: {
       look: {
         reliefShare: 0.014,
         frequency: 2.3,
-        octaves: 3,
+        octaves: 2,
         seaLevel: 0.12,
         peakAt: 0.6,
         terraces: 3,

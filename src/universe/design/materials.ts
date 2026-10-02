@@ -95,6 +95,8 @@ export const UNLIT_ATTRIBUTE = 'aUnlit';
 export const DECAL_ATTRIBUTE = 'aDecal';
 export const SIDE_ATTRIBUTE = 'aSide';
 export const OVER_ATTRIBUTE = 'aOver';
+/** How the side's line and the over's bend inside a face (sim/meshBuilder.ts, `MeshData.bends`). */
+export const BEND_ATTRIBUTE = 'aBend';
 
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
@@ -154,6 +156,7 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     [DECAL_ATTRIBUTE]: [0],
     [SIDE_ATTRIBUTE]: [0, 0, 0, 0],
     [OVER_ATTRIBUTE]: [0, 0, 0, 0],
+    [BEND_ATTRIBUTE]: [0, 0, 0, 0],
   });
   return material as ToonMaterial;
 }

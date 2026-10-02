@@ -128,7 +128,7 @@ export function* groundOf(
   // A sun is light itself: its ball is unlit and blooms. A living one says which sun it is, and
   // is its family's base to a material that knows nothing of tones.
   const g = living ? sunFlag(sunSeed(spec.seed ?? seed)) : spec.sun ? 2 : 0;
-  const { sides } = mesh;
+  const { sides, bends } = mesh;
   return Array.from({ length: mesh.triangleCount }, (_, i): Tri => {
     const tri = {
       p: [...mesh.positions.subarray(i * 9, i * 9 + 9)],
@@ -144,6 +144,8 @@ export function* groundOf(
     };
     // More colours than one: the others, and their lines.
     const side = sides?.subarray(i * 24, i * 24 + 24);
-    return side?.some((value) => value !== 0) ? { ...tri, s: side } : tri;
+    if (!side?.some((value) => value !== 0)) return tri;
+    const bend = bends?.subarray(i * 12, i * 12 + 12);
+    return bend?.some((value) => value !== 0) ? { ...tri, s: side, b: bend } : { ...tri, s: side };
   });
 }

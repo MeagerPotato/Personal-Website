@@ -281,5 +281,27 @@ describe('round where it is round, an edge where it is an edge', () => {
     expect(sides.slice(24)).toEqual(new Array(24).fill(0));
     // A mesh with one colour a face has no such buffer at all.
     expect(tube(6).sides).toBeUndefined();
+    // Straight lines: no bends either.
+    expect(mesh.bends).toBeUndefined();
+  });
+
+  it("carries how a line bends: four numbers a vertex, the side's two and the over's", () => {
+    const mesh = new MeshBuilder()
+      .triangle([0, 0, 0], [1, 0, 0], [0, 1, 0], RED, {
+        side: { c: BLUE, k: [0.1, 0.9, 0.3], t: [0, 1, 0.5], bend: 0.25 },
+        over: { c: [0, 1, 0], k: [1, 0, 0.5] },
+      })
+      .triangle([0, 0, 0], [0, 1, 0], [-1, 0, 0], RED, {
+        side: { c: BLUE, k: [0.1, 0.9, 0.3] },
+        over: { c: [0, 1, 0], k: [1, 0, 0.5], t: [2, -1, 0.5], bend: -0.5 },
+      })
+      .triangle([0, 0, 0], [-1, 0, 0], [0, -1, 0], RED)
+      .build();
+    // How far along its line each corner stands, then the bend, the same on all three.
+    expect(Array.from(mesh.bends ?? [])).toEqual([
+      ...[0, 0.25, 0, 0, 1, 0.25, 0, 0, 0.5, 0.25, 0, 0],
+      ...[0, 0, 2, -0.5, 0, 0, -1, -0.5, 0, 0, 0.5, -0.5],
+      ...new Array(12).fill(0),
+    ]);
   });
 });

@@ -593,10 +593,16 @@ on everything that has edges. The rule, as built:
 - **Colour is flat, and its outlines are lines.** A face is one colour edge to edge, as before.
   But a facet of a ground that a coast, a band of height or an edge of paint runs through
   carries **up to three colours and the lines between them** (`aSide`, `aOver`), found by
-  walking its outline (`sim/planet.ts`), and the shader draws each line straight through the
-  facet, a pixel soft. From facet to facet a coast is a smooth outline, a painted stripe has
-  straight edges, a cap is a circle. Where one facet holds more than two lines (four bands of
-  height in seven degrees) the sliver beyond the second takes its neighbour's colour.
+  walking its outline (`sim/planet.ts`), and the shader draws each line through the facet, a
+  pixel soft. **A line is an arc, not a chord** (`aBend`): the generator looks across the
+  line's middle for where the outline really is (the ground's own height, asked again halfway
+  along each edge of the facet; or the paint) and the shader bends the line through that place.
+  So a coast is a curve inside each facet too, an island is a blob and not a polygon, a cape
+  that comes into a facet and leaves by the same edge is drawn, and a painted cap is a circle
+  to a thirtieth of a degree. Where one facet holds more than two lines (four bands of height
+  in seven degrees, or a coast, its shore and a cape) the sliver beyond the second takes its
+  neighbour's colour: a small step in an outline, about one shared edge in forty on the
+  islands of HackGT 13, one in two hundred on home.
 - **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
   of triangles, which is exactly what was asked away.
 - **Round outlines.** A moon is 1280 facets (`world.detailMoon` 7; it was 320, a ball of twenty
@@ -607,10 +613,13 @@ on everything that has edges. The rule, as built:
 - **What keeps its edges, on purpose:** the Hardware sun's gears, the station, the satellite,
   the relays, houses and towers, signs and screens, the ship's fins. Their silhouettes are
   theirs; only how a curved side of them takes the light changed.
-- **Still Allen's to judge:** a planet's coast is as fine as its mesh (a line a facet: 7 degrees
-  from afar, under 5 up close), so small islands (HackGT 13) read as soft polygons, not blobs;
-  rounder wants a slower terrain noise, which moves the land under the signs. And whether the
-  relief should go altogether.
+- **A terrain no finer than its facets.** An arc holds one bend a facet, so noise finer than
+  a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` is two octaves, not three.
+  A terrain's finest octave (`frequency` times two for each further octave) should stay under
+  about 5.
+- **Still Allen's to judge:** whether the relief should go altogether. And a third line a
+  facet (one more attribute) would take the last steps out of the outlines of small islands;
+  it was left out for the weight (the lazy budget).
 
 **As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.
 

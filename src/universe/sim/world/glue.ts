@@ -68,6 +68,8 @@ export interface Packed {
    * `MeshData.sides`). Zeros wherever a triangle has one colour.
    */
   readonly sides: Float32Array;
+  /** Four numbers a vertex: how those lines bend (`MeshData.bends`). Zeros where they are straight. */
+  readonly bends: Float32Array;
   /** 0 lit, 1 flat, 2 glow, on each vertex. */
   readonly unlit: Float32Array;
   /** 1 on each vertex of a decal part (FLAG.decal), else 0: for a depth offset. */
@@ -264,12 +266,14 @@ export function pack(tris: readonly Face[]): Packed {
   const normals = new Float32Array(tris.length * 9);
   const colors = new Float32Array(tris.length * 9);
   const sides = new Float32Array(tris.length * 24);
+  const bends = new Float32Array(tris.length * 12);
   const unlit = new Float32Array(tris.length * 3);
   const decal = new Uint8Array(tris.length * 3);
   tris.forEach((t, i) => {
     positions.set(t.p, i * 9);
     if (t.n) normals.set(t.n, i * 9);
     if (t.s) sides.set(t.s, i * 24);
+    if (t.b) bends.set(t.b, i * 12);
     for (let v = 0; v < 3; v += 1) {
       colors.set(t.c, i * 9 + v * 3);
       unlit[i * 3 + v] = t.g;
@@ -277,7 +281,7 @@ export function pack(tris: readonly Face[]): Packed {
     }
   });
   roundNormals(positions, normals, (i) => tris[i]?.n !== undefined);
-  return { positions, normals, colors, sides, unlit, decal, triangleCount: tris.length };
+  return { positions, normals, colors, sides, bends, unlit, decal, triangleCount: tris.length };
 }
 
 /**

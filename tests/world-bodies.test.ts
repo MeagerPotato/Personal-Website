@@ -61,7 +61,8 @@ import {
 // (`planet.colorJitter` 0), a sun's ball is one colour (its tones are the shader's), the
 // terrains' relief is lower, and a moon's ball is 1280 facets and not 320 (960 more on the two
 // moons that are balls: FishAI and Fish Onboarding). No other count moved: nothing was added to
-// any mesh to make it round.
+// any mesh to make it round. And how those lines bend (`Packed.bends`: an outline is an arc
+// inside a facet, the same day): the prints of the grounds with a coast or paint moved again.
 
 interface Budget {
   readonly everyday: number;
@@ -79,30 +80,30 @@ interface Budget {
 
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
-  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '52ecf04e' },
-  'page/resume':                    { everyday: 540,  closeup: 540,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8dcc59f0' },
-  'page/contact':                   { everyday: 218,  closeup: 218,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '046bf0c4' },
-  'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4e1d062a' },
-  'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4e0932f8' },
-  'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '6a41ae16' },
-  'system/hardware':                { everyday: 2084, closeup: 2156, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '66497a5f' },
-  'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '1516dc2f' },
-  'system/research':                { everyday: 2290, closeup: 2314, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'e903acde' },
-  'system/hackathons':              { everyday: 2314, closeup: 2334, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '47c5c4b4' },
-  'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'eaccc18a' },
-  'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f9a137ef' },
-  'project/fishai':                 { everyday: 1518, closeup: 1678, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'fdba00d2' },
-  'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f336b024' },
-  'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '728c024a' },
-  'project/hackathons-at-berkeley': { everyday: 2090, closeup: 5144, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '74691a5c' },
-  'project/cal-hacks-13':           { everyday: 1916, closeup: 4908, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: '2d4664aa' },
-  'project/fish-online':            { everyday: 820,  closeup: 820,  groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'eb1373f1' },
-  'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '1fbf7128' },
-  'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '49abcabe' },
-  'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'efd67e49' },
-  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'cb0a149d' },
-  'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '1afb91e2' },
-  'project/fish-onboarding':        { everyday: 1422, closeup: 1560, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3fbdfa0d' },
+  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '8c6a183c' },
+  'page/resume':                    { everyday: 540,  closeup: 540,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'ac4ff7b8' },
+  'page/contact':                   { everyday: 218,  closeup: 218,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '2c6437a0' },
+  'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8d487ea6' },
+  'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92847efe' },
+  'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0333ef20' },
+  'system/hardware':                { everyday: 2084, closeup: 2156, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '08b02f47' },
+  'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
+  'system/research':                { everyday: 2290, closeup: 2314, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8f45cfd8' },
+  'system/hackathons':              { everyday: 2314, closeup: 2334, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '85537452' },
+  'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b57c053f' },
+  'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '7d70b8ec' },
+  'project/fishai':                 { everyday: 1518, closeup: 1678, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '67ffbbb2' },
+  'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b3d805d4' },
+  'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '64ee8f2d' },
+  'project/hackathons-at-berkeley': { everyday: 2090, closeup: 5144, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'fc51069f' },
+  'project/cal-hacks-13':           { everyday: 1916, closeup: 4908, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: '8621516b' },
+  'project/fish-online':            { everyday: 820,  closeup: 820,  groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '1e286ce9' },
+  'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '10663688' },
+  'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '2dfed082' },
+  'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '9e1a2c83' },
+  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'd1eaed19' },
+  'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b0c0d17e' },
+  'project/fish-onboarding':        { everyday: 1422, closeup: 1560, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'e533a3ad' },
 };
 
 /** The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. */
@@ -147,7 +148,7 @@ const rounded = (values: ArrayLike<number>): string =>
   Array.from(values, (v) => Math.round(v * 1e5)).join();
 const packedText = ({ turn, hold, edges }: Assembly): string[] => [
   ...[turn, hold].flatMap((p) =>
-    [p.positions, p.normals, p.colors, p.sides, p.unlit, p.decal].map(rounded),
+    [p.positions, p.normals, p.colors, p.sides, p.bends, p.unlit, p.decal].map(rounded),
   ),
   rounded(edges.turn),
   rounded(edges.hold),

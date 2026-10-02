@@ -262,6 +262,11 @@ describe('the glue', () => {
     const { turn } = assemble(made, { kind: 'planet' });
     expect(turn.triangleCount).toBe(320 + 48);
     expect(turn.sides).toHaveLength(turn.triangleCount * 24);
+    // How the lines bend, four numbers a vertex: the band's edge is a circle round the ball, so
+    // it is an arc in the facets it crosses, and nothing bends on the post.
+    expect(turn.bends).toHaveLength(turn.triangleCount * 12);
+    expect(turn.bends.subarray(0, 320 * 12).some((value) => value !== 0)).toBe(true);
+    expect(turn.bends.subarray(320 * 12).every((value) => value === 0)).toBe(true);
     // The ground: at radius 1, so its normals are its positions; and the paint's edge runs
     // through the facets on the equator, which carry both colours.
     for (let i = 0; i < 320 * 9; i += 1)
