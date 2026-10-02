@@ -1,7 +1,7 @@
 ---
 name: Hackathons
 tagline: Things built against the clock, and the events I help run.
-theme: coral
+theme: lilac
 order: 3
 ---
 

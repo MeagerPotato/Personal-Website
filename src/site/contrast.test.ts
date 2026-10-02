@@ -117,8 +117,15 @@ describe('every colour family', () => {
         expect(contrast(family.light, plate)).toBeGreaterThanOrEqual(TEXT);
       }
       // Route lines, stations, glyphs and the panel's band are marks: 3:1 against what they cross,
-      // on the page, on a plate, on the panel over the world, and on a raised plate in the panel.
-      for (const ground of [color.space[900], color.surface.panel, PANEL, color.surface.raised]) {
+      // on the page, on a plate, on the panel over the world, on a raised plate in the panel, and
+      // on the HUD plate over the world (the glyph before a body's name, on its tag).
+      for (const ground of [
+        color.space[900],
+        color.surface.panel,
+        PANEL,
+        color.surface.raised,
+        HUD,
+      ]) {
         expect(contrast(family.base, ground)).toBeGreaterThanOrEqual(MARK);
       }
     });
@@ -138,5 +145,21 @@ describe('edges and rings', () => {
     // Round anything focusable in the panel, over the world and under prefers-contrast: more.
     expect(contrast(color.focus, PANEL)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.focus, color.surface.panel)).toBeGreaterThanOrEqual(MARK);
+  });
+});
+
+describe('primer, the clay of unbuilt work', () => {
+  it('shows every lit stop but the sea as a shape against space, and keeps them in order', () => {
+    // A planned body is carried by its lit side, its dashed ring and its crane; the sea stop is the
+    // darkest lumps of clay on the far side, decorative (4.2:1). The rest are marks, 3:1 or more.
+    const { primer } = color.biome;
+    for (const stop of [primer.shore, primer.low, primer.high, primer.peak]) {
+      expect(contrast(stop, color.space[900])).toBeGreaterThanOrEqual(MARK);
+    }
+    const ramp = [primer.sea, primer.shore, primer.low, primer.high, primer.peak].map(luminance);
+    expect([...ramp].sort((a, b) => a - b)).toEqual(ramp);
+    // Between ink.low and ink.mid, run a step darker and lighter: grey clay, never a family.
+    expect(luminance(primer.low)).toBeGreaterThan(luminance(color.ink.low));
+    expect(luminance(primer.high)).toBeLessThan(luminance(color.ink.mid));
   });
 });

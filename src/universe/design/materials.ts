@@ -15,6 +15,7 @@ import {
   type Texture,
 } from 'three';
 import { dust } from './shaders/dust';
+import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
@@ -45,6 +46,10 @@ const toonLook = {
   uBandEdges: { value: new Vector2(...tuning.shading.bandEdges) },
   uMidLevel: { value: tuning.shading.midLevel },
   uFlatness: { value: 0 },
+  /** A glowing vertex (aUnlit 2) blooms as a sun does. */
+  uGlowBloom: { value: tuning.world.sunBloom },
+  /** A decal's pull toward the camera; the ghost lines (shaders/edge.ts) take twice it. */
+  uDecalPull: { value: tuning.shading.decalPull },
 };
 
 /**
@@ -72,7 +77,16 @@ export function setToonFlatness(flatness: number): void {
 export function refreshToonLook(): void {
   toonLook.uBandEdges.value.set(...tuning.shading.bandEdges);
   toonLook.uMidLevel.value = tuning.shading.midLevel;
+  toonLook.uGlowBloom.value = tuning.world.sunBloom;
+  toonLook.uDecalPull.value = tuning.shading.decalPull;
 }
+
+/**
+ * The per-vertex flags of the emblem worlds (shaders/toonFlat.ts): how a vertex is lit (0 lit, 1
+ * flat, 2 glow) and whether it is a decal. core/geometry.ts names its attributes after these.
+ */
+export const UNLIT_ATTRIBUTE = 'aUnlit';
+export const DECAL_ATTRIBUTE = 'aDecal';
 
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
@@ -100,6 +114,17 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     },
     vertexColors: options.vertexColors ?? false,
     defines: options.instancedSun ? { INSTANCED_SUN: '' } : {},
+  });
+  // Location 0 is always an array that is there (a driver that finds it switched off emulates
+  // it, slowly), whatever order the driver would have put the attributes in. (Set here: three's
+  // setValues passes over a property that starts out undefined.)
+  material.index0AttributeName = 'position';
+  // Every geometry carries the worlds' flags (core/geometry.ts: zeros for a planet or a model).
+  // These are a backstop only: three writes a default when it first sets up a geometry's vertex
+  // array, and WebGL's generic value at that location is the context's, for any program to change.
+  Object.assign(material.defaultAttributeValues, {
+    [UNLIT_ATTRIBUTE]: [0],
+    [DECAL_ATTRIBUTE]: [0],
   });
   return material as ToonMaterial;
 }
@@ -159,6 +184,29 @@ export function createLineMaterial(options: { color: string; opacity: number }):
     }),
     false,
   );
+}
+
+export type EdgeMaterial = ShaderMaterial & { uniforms: { uColor: IUniform<Color> } };
+
+/**
+ * The lines of a blueprint (shaders/edge.ts): the parts of a planned world still to come, drawn
+ * as their edges in `color` (a token hex: the base of the family the body will wear). Opaque
+ * colour that leaves the bloom guest list as it found it, so the lines never bloom; drawn after
+ * the solid world, over the navy fill they outline.
+ */
+export function createEdgeMaterial(options: { color: string }): EdgeMaterial {
+  const material = new ShaderMaterial({
+    name: 'edge',
+    vertexShader: edge.vertexShader,
+    fragmentShader: edge.fragmentShader,
+    uniforms: {
+      uColor: { value: new Color(options.color) },
+      uDecalPull: toonLook.uDecalPull,
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, false) as EdgeMaterial;
 }
 
 export function createBackdropMaterial(): ShaderMaterial {
@@ -309,6 +357,7 @@ export type CompositeMaterial = ShaderMaterial & {
     tScene: IUniform<Texture | null>;
     tBloom: IUniform<Texture | null>;
     uBloomStrength: IUniform<number>;
+    uSelfBloom: IUniform<number>;
     uVignette: IUniform<number>;
     uVignetteRange: IUniform<Vector2>;
   };
@@ -319,6 +368,7 @@ export function createCompositeMaterial(): CompositeMaterial {
     tScene: { value: null },
     tBloom: { value: null },
     uBloomStrength: { value: tuning.post.bloomStrength },
+    uSelfBloom: { value: tuning.post.selfBloom },
     uVignette: { value: tuning.post.vignette },
     uVignetteRange: { value: new Vector2(...tuning.post.vignetteRange) },
   }) as CompositeMaterial;

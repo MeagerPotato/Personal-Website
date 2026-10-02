@@ -19,8 +19,10 @@ mode. In universe mode the **router** keeps the canvas alive across pages (soft 
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
 narrow ones). **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
-**galaxy is built from the real `/universe.json`**: generated planets and moons, suns, the station
-and the satellite, all moving on their orbits. Let go of the controls near a planet and the
+**galaxy is built from the real `/universe.json`**: every body (the planets and moons, the suns,
+home, the station, the satellite and the relays) drawn as its **emblem world** (`design/worlds/`:
+a ground and the parts that tell its story, finer and moving up close), all moving on their
+orbits, and none of what is drawn can be flown into. Let go of the controls near a planet and the
 **orbit assist** eases the ship onto a ring around it; planets cannot be crashed into, and space
 has a soft edge. Three **quality tiers** (anti-aliasing everywhere, bloom and a vignette where the
 device can afford them) and a lost WebGL context is survived. **Docking** works inside the world:
@@ -35,7 +37,7 @@ a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
 "cluster"), the autopilot docks every journey in today's galaxy of four systems (median 3.0 s,
-p90 4.05 s, the slowest 5.90 s), and every way a journey is handed back at speed (Stop, a key, the web layer
+p90 4.1 s, the slowest 6.2 s, since the emblem worlds' solids reach past their radii), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
 journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
@@ -115,7 +117,8 @@ frame, "copy tuning as JSON" to paste back into that file, and a flight recorder
 exact in open space and approximate near planets, which have moved on by then). The panel is
 **dev server only**: `verify-dist` fails a build that contains it.
 
-**The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: a
+**The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: any
+body's emblem world by its id (far, close-up, moving, or its star map variant), a
 planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
 station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as
 in the universe, with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the
@@ -213,9 +216,17 @@ material, and releases the handle in its scope. Asset names and socket names are
 and its seed; one that should look like no other gets a recipe in `design/worlds.ts`, keyed by its
 manifest id (`project/<id>`, `system/<id>`, `page/<id>`): another biome, a changed `PlanetLook`, a
 ring or none, or a registered model instead of the globe. `world/looks.ts` (`lookOf`) is the one
-place that decides a look (recipe, then the planned maquette, then the generator), for the galaxy
-and the lab alike, and `tests/worlds.test.ts` fails on a key that names no body. A new kind of
-thing a recipe can say is a logic change.
+place that decides a look (recipe, then the body's emblem rows in `design/worlds/`, then the
+planned maquette, then the generator), for the galaxy and the lab alike, and `tests/worlds.test.ts`
+fails on a key that names no body. A new kind of thing a recipe can say is a logic change. A body
+with rows is drawn by `world/BodyMesh.ts`: the everyday build as a job, the close-up
+(`design/worlds/near.ts` and `motion.ts`, a chunk of their own through `closeup.ts`) within
+`nearEnterRadii`, and its movers driven by the frame's exact time, so nothing of them is a snapshot
+field. A recipe may also say `still` (it never turns) and `faces: 'prograde'` (its own +X keeps
+pointing the way it goes round its parent, as Model Rocketry flies nose first round the Hardware
+sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
+is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
+on the low tier and on the star map.
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,
@@ -320,6 +331,10 @@ commit one good source image, at least 1200 px wide, and let the build do the re
 
 **Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
 Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.
+One thing may not follow: a body drawn from rows has the room under its docking ring of its kind
+and size, so a world that fits as a moon can be too big for a planet's ring (FishAI's would be),
+and the build says so (see "What checks content"). So can a planned project's world once it is
+built: its maquette grows to full size, and `tests/world-reach.test.ts` gives its new reach.
 
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
 (a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
@@ -328,9 +343,11 @@ Moons cannot have moons. Promoting a moon to a planet is swapping that one line;
 **A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
 file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no
 page of its own (its page is the projects index, shown in the universe from the primary). Each
-sun is a file of its own with `name` and `tagline` and its text: no `order`, `theme` or
-`position`, since it goes where its binary goes and wears its family; its page is
-`/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
+sun is a file of its own with `name` and `tagline` and its text: no `order` or `position`,
+since it goes where its binary goes; a `theme` if it wears a family of its own (Software sky,
+Hardware coral), else it wears its binary's, and its planets and moons wear what it wears, in
+the galaxy (`familiesOf`, `src/universe/manifest.ts`) and on the pages (`familyOf`,
+`src/site/view-models.ts`); its page is `/systems/<id>/`. Planets name a SUN (`system: software`), never the binary; the build says so
 if one does. A binary is the one exception to "adding a project moves nothing": a planet under
 one sun moves the other sun's orbit, the separation and the pair's period (docs/PLAN.md §5.4).
 And `tests/families.test.ts` pins which families the autopilot goes round as one disc: if a
@@ -363,8 +380,11 @@ anywhere in `dist/` fails the build.
 
 **What checks content.** Schemas catch shape. `buildUniverse()` (`src/universe/data/build.ts`)
 catches what a schema cannot: a missing `system`/`parent`/`related` target, a moon of a moon, a
-published moon under a draft planet, two systems claiming one `order`, a system grown too large.
-It lists every problem at once, and its output is the static `/universe.json` the engine reads.
+published moon under a draft planet, two systems claiming one `order`, a system grown too large,
+an emblem world that reaches further than its docking ring leaves room for (its declared reach,
+`design/worlds/reach.ts`, against the ring its kind and size give it: the message says what to
+do). It lists every problem at once, and its output is the static `/universe.json` the engine
+reads.
 
 **Add a log post.** The blog is its own site at `blog.allenkh.com` (`sites/blog`, planned in
 sites/docs/PLAN.md), and posts are written in its studio in the browser, not in this repository;

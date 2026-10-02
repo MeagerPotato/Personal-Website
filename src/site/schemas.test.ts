@@ -1,10 +1,16 @@
 import { z } from 'astro/zod';
 import { describe, expect, it } from 'vitest';
-import { buildUniverse } from '../universe/data/build';
+import { buildUniverse as buildWithReach } from '../universe/data/build';
 import { profiles } from './profiles';
 import { entryIdFromPath, routes } from './routes';
 import { pageSchema, projectSchema, systemSchema } from './schemas';
 import { toSystemInput, toUniverseInput } from './universe-input';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 // Stand-ins for the two helpers Astro injects. reference() really does resolve an id string to
 // { collection, id }; image() resolves to image metadata, which these tests do not care about.
@@ -81,6 +87,7 @@ describe('projectSchema', () => {
     ['an http link', { links: { repo: 'http://github.com/x/y' } }],
     ['an empty link', { links: { demo: '' } }],
     ['a biome that is not in the tokens', { planet: { biome: 'swamp' } }],
+    ['primer, the clay only planned work wears', { planet: { biome: 'primer' } }],
     ['an image without alt text', { cover: { src: './cover.png', alt: '' } }],
     ['too many decorative moons', { planet: { biome: 'tide', decorMoons: 4 } }],
     ['a summary too long for a link preview', { summary: 'x'.repeat(161) }],
@@ -204,9 +211,12 @@ describe('systemSchema: three shapes', () => {
       'tagline: required: one sentence under its name',
     ]);
     expect(issues({ ...sun, theme: 'coral', position: [0, 900] })).toEqual([
-      "theme: a sun of a binary wears its binary's family; leave it out",
       'position: a sun of a binary goes where its binary goes; leave it out',
     ]);
+    // Its own colour family is its to choose (Hardware's coral beside Software's sky), or its
+    // binary's without one.
+    expect(issues({ ...sun, theme: 'coral' })).toEqual([]);
+    expect(issues(sun)).toEqual([]);
     expect(issues({ name: 'Hardware' })).toEqual([
       'tagline: required: one sentence under its name',
     ]);

@@ -1,0 +1,324 @@
+import { describe, expect, it } from 'vitest';
+import { tuning } from '../../design/tuning';
+import {
+  assemble,
+  assembling,
+  callsOf,
+  groundDetail,
+  pack,
+  turnsOf,
+  wire,
+  type Assembly,
+  type Packed,
+} from './glue';
+import type { GroundLooks } from './ground';
+import { box, centroidOf, dot, type Vec3 } from './kit';
+import type { MotionRow } from './motion';
+import { colorOf } from './palette';
+import { FLAG, fromPivot, make, pivotOf, toPivot, type BodyRecipe, type Item } from './rows';
+
+// The glue turns a build into its draw groups: at most two calls for a body at rest, plus the
+// edge lines of its ghosts, each riding with what it outlines.
+
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const BOX: Item = ['box', 0.2, 0.2, 0.2, 'ink.high'];
+const RAISED: Item = ['s', 30, 60, { alt: 0.1 }, BOX];
+const PLAN: Item = ['g', BOX, { at: [1.5, 0, 0] }];
+const recipe = (planFlags: number = FLAG.ghost): BodyRecipe => ({
+  rows: [
+    {},
+    ['on-ground', 0, RAISED],
+    ['level', FLAG.hold, ['g', BOX, { at: [0, 1.5, 0] }]],
+    ['plan', planFlags, PLAN],
+    ['lamp', FLAG.glow, ['bead', 0.1, 'star.warm', { at: [0, -1.5, 0] }]],
+  ],
+  ghost: 'coral',
+});
+const build = make('t', recipe(), { detail: 1, looks: LOOKS });
+/** A box has twelve feature edges, each once: two vertices of three numbers each. */
+const BOX_EDGES = 12 * 6;
+
+/** A colour as the buffers hold it. */
+const f32 = (path: Parameters<typeof colorOf>[0]): number[] =>
+  Array.from(new Float32Array(colorOf(path)));
+/** The colour and the centre of each triangle of a packed group. */
+function trianglesOf(packed: Packed): { color: number[]; centre: Vec3 }[] {
+  return Array.from({ length: packed.triangleCount }, (_, i) => {
+    const at = (k: number): number => packed.positions[i * 9 + k] ?? NaN;
+    return {
+      color: Array.from(packed.colors.slice(i * 9, i * 9 + 3)),
+      centre: [
+        (at(0) + at(3) + at(6)) / 3,
+        (at(1) + at(4) + at(7)) / 3,
+        (at(2) + at(5) + at(8)) / 3,
+      ],
+    };
+  });
+}
+
+describe('the glue', () => {
+  it('splits a turning body into what turns and what holds, and outlines its ghost where it is', () => {
+    const a = assemble(build, { kind: 'planet' });
+    // Ground 80, the part on the ground 12, the ghost 12 and the lamp 8 turn; the level part holds.
+    expect(a.turn.triangleCount).toBe(80 + 12 + 12 + 8);
+    expect(a.hold.triangleCount).toBe(12);
+    expect(a.edges.turn.length).toBe(BOX_EDGES);
+    expect(a.edges.hold.length).toBe(0);
+    expect(a.edges.color).toEqual(colorOf('coral.base'));
+    expect(a.movers).toEqual([]);
+    expect(callsOf(a)).toBe(3);
+  });
+
+  it('packs a ghost as a navy blueprint, whatever its rows painted it', () => {
+    const tris = trianglesOf(assemble(build, { kind: 'planet' }).turn);
+    const ghost = tris.filter(({ centre }) => centre[0] > 1.3);
+    expect(ghost).toHaveLength(12);
+    for (const { color } of ghost) expect(color).toEqual(f32('space.700'));
+    // Everything else keeps its own colour: the boxes are ink, the ground is not navy.
+    const rest = tris.filter(({ centre }) => centre[0] <= 1.3);
+    expect(rest.some(({ color }) => String(color) === String(f32('space.700')))).toBe(false);
+    expect(rest.filter(({ color }) => String(color) === String(f32('ink.high')))).toHaveLength(12);
+    // The build itself keeps the colours its rows gave it: a part turns solid by losing its flag.
+    const part = build.parts.find((p) => p.name === 'plan');
+    expect(part?.tris.every((t) => String(t.c) === String(colorOf('ink.high')))).toBe(true);
+  });
+
+  it('holds a held ghost’s edges with it', () => {
+    const held = make('t', recipe(FLAG.hold | FLAG.ghost), { detail: 1, looks: LOOKS });
+    const a = assemble(held, { kind: 'planet' });
+    expect(a.hold.triangleCount).toBe(24);
+    expect(a.edges.turn.length).toBe(0);
+    expect(a.edges.hold.length).toBe(BOX_EDGES);
+    expect(callsOf(a)).toBe(3);
+  });
+
+  it('has no edge colour for a body with no ghost family, and no lines for one with no ghost', () => {
+    const plain = make('t', { rows: [{}, ['a', 0, BOX]] }, { detail: 1, looks: LOOKS });
+    const a = assemble(plain, { kind: 'planet' });
+    expect(a.edges).toEqual({ turn: new Float32Array(), hold: new Float32Array(), color: null });
+    expect(callsOf(a)).toBe(1);
+  });
+
+  it('holds everything of a body that does not turn', () => {
+    for (const a of [
+      assemble(build, { kind: 'sun' }),
+      assemble(build, { kind: 'planet', still: true }),
+    ]) {
+      expect(a.turn.triangleCount).toBe(0);
+      expect(a.hold.triangleCount).toBe(124);
+      expect(a.edges.turn.length).toBe(0);
+      expect(a.edges.hold.length).toBe(BOX_EDGES);
+      expect(callsOf(a)).toBe(2);
+    }
+  });
+
+  it('draws the low tier as one held group: nothing turns and nothing moves', () => {
+    const motion: MotionRow[] = [
+      ['on-ground', 'rot', 'y', 'sine', 0.1, 8],
+      ['lamp', 'scale', '*', 'hill', 1, 20],
+    ];
+    for (const moving of [false, true]) {
+      const a = assemble(build, { kind: 'planet', low: true, moving, motion });
+      expect(a.turn.triangleCount).toBe(0);
+      // The still: the lamp only exists while it plays.
+      expect(a.hold.triangleCount).toBe(124 - 8);
+      expect(a.movers).toEqual([]);
+      expect(a.edges.turn.length).toBe(0);
+      expect(a.edges.hold.length).toBe(BOX_EDGES);
+      expect(callsOf(a)).toBe(2);
+    }
+  });
+
+  it('gives a moving part a mesh of its own, about its pivot, in the group its part is in', () => {
+    const motion: MotionRow[] = [
+      ['on-ground', 'rot', 'y', 'sine', 0.1, 8],
+      ['level', 'rot', 'y', 'sine', 0.1, 8],
+    ];
+    const still = assemble(build, { kind: 'planet', motion });
+    expect(still.movers).toEqual([]);
+    const a = assemble(build, { kind: 'planet', motion, moving: true });
+    expect(a.turn.triangleCount).toBe(80 + 12 + 8);
+    expect(a.hold.triangleCount).toBe(0);
+    expect(a.movers.map((m) => [m.name, m.group, m.mesh.triangleCount])).toEqual([
+      ['on-ground', 'turn', 12],
+      ['level', 'hold', 12],
+    ]);
+    // In its own frame the box sits on its pivot, and back in the body's it is where it was.
+    const [mover] = a.movers;
+    const pivot = pivotOf([RAISED]);
+    expect(mover?.pivot).toEqual(pivot);
+    const xs = Array.from(mover?.mesh.positions ?? []);
+    const mid = [0, 1, 2].map(
+      (k) => xs.filter((_, i) => i % 3 === k).reduce((s, v) => s + v, 0) / (xs.length / 3),
+    );
+    mid.forEach((v) => expect(v).toBeCloseTo(0, 5));
+    const part = build.parts.find((p) => p.name === 'on-ground');
+    const first = part?.tris[0]?.p ?? [];
+    const local = toPivot([first[0] ?? 0, first[1] ?? 0, first[2] ?? 0], pivot);
+    local.forEach((v, i) => expect(mover?.mesh.positions[i]).toBeCloseTo(v, 5));
+    // On a body that does not turn, nothing it carries turns either.
+    const sun = assemble(build, { kind: 'sun', motion, moving: true });
+    expect(sun.movers.map((m) => m.group)).toEqual(['hold', 'hold']);
+  });
+
+  it('carries a moving ghost’s edges on its mover, in its own frame', () => {
+    const motion: MotionRow[] = [['plan', 'rot', 'y', 'sine', 0.1, 8]];
+    const a = assemble(build, { kind: 'planet', motion, moving: true });
+    expect(a.edges.turn.length).toBe(0);
+    const [mover] = a.movers;
+    expect(mover?.name).toBe('plan');
+    expect(mover?.group).toBe('turn');
+    expect(mover?.edges.length).toBe(BOX_EDGES);
+    // Back in the body's frame, they are the edges of the still.
+    const back = Array.from({ length: (mover?.edges.length ?? 0) / 3 }, (_, i) =>
+      fromPivot(
+        [mover?.edges[i * 3] ?? 0, mover?.edges[i * 3 + 1] ?? 0, mover?.edges[i * 3 + 2] ?? 0],
+        mover?.pivot ?? pivotOf([]),
+      ),
+    ).flat();
+    const still = assemble(build, { kind: 'planet' }).edges.turn;
+    back.forEach((v, i) => expect(v).toBeCloseTo(still[i] ?? NaN, 5));
+  });
+
+  it('moves the whole body as one mesh first when a row says *, and every ghost edge rides it', () => {
+    const motion: MotionRow[] = [
+      ['*', 'rot', 'z', 'sine', 0.12, 12],
+      ['lamp', 'rot', 'y', 'sine', 0.1, 8],
+    ];
+    const a = assemble(build, { kind: 'moon', still: true, motion, moving: true });
+    expect(a.movers.map((m) => [m.name, m.group, m.mesh.triangleCount])).toEqual([
+      ['*', 'hold', 80 + 12 + 12 + 12],
+      ['lamp', 'hold', 8],
+    ]);
+    expect(a.turn.triangleCount + a.hold.triangleCount).toBe(0);
+    expect(a.edges.turn.length + a.edges.hold.length).toBe(0);
+    const still = assemble(build, { kind: 'moon', still: true, motion });
+    expect(a.movers[0]?.edges).toEqual(still.edges.hold);
+    // Two meshes and the lines on the whole one.
+    expect(callsOf(a)).toBe(3);
+  });
+
+  it('refuses a whole-body motion on a body that turns', () => {
+    const motion: MotionRow[] = [['*', 'rot', 'z', 'sine', 0.12, 12]];
+    expect(() => assemble(build, { kind: 'planet', motion, moving: true })).toThrow(/still/);
+    expect(() => assemble(build, { kind: 'planet', motion })).not.toThrow();
+  });
+
+  it('leaves out of the still a part that only exists while it plays, and its edges', () => {
+    const lamp: MotionRow[] = [['lamp', 'scale', '*', 'hill', 1, 20]];
+    expect(assemble(build, { kind: 'planet', motion: lamp }).turn.triangleCount).toBe(80 + 12 + 12);
+    expect(assemble(build, { kind: 'planet', motion: lamp, moving: true }).movers).toHaveLength(1);
+    const plan: MotionRow[] = [['plan', 'scale', '*', 'hill', 1, 20]];
+    const a = assemble(build, { kind: 'planet', motion: plan });
+    expect(a.turn.triangleCount).toBe(80 + 12 + 8);
+    expect(a.edges.turn.length).toBe(0);
+  });
+
+  it('draws the close-up parts only when asked', () => {
+    const near = make('t', recipe(), { detail: 1, looks: LOOKS, near: [['close', 0, BOX]] });
+    expect(assemble(near, { kind: 'planet' }).turn.triangleCount).toBe(112);
+    expect(assemble(near, { kind: 'planet', near: true }).turn.triangleCount).toBe(124);
+  });
+
+  it('packs buffers with a flat normal facing out and the lighting on every vertex', () => {
+    const packed = pack(
+      make(
+        't',
+        { rows: [[BOX, ['bead', 0.1, 'star.warm', { g: 2 }]]] },
+        { detail: 0, looks: LOOKS },
+      ).ground,
+    );
+    expect(packed.triangleCount).toBe(20);
+    expect(packed.positions).toHaveLength(180);
+    const tris = box(0.2, 0.2, 0.2, [1, 1, 1]);
+    for (let i = 0; i < 12; i += 1) {
+      const n: Vec3 = [
+        packed.normals[i * 9] ?? 0,
+        packed.normals[i * 9 + 1] ?? 0,
+        packed.normals[i * 9 + 2] ?? 0,
+      ];
+      const t = tris[i];
+      if (t) expect(dot(n, centroidOf(t))).toBeGreaterThan(0);
+      expect(packed.normals.slice(i * 9, i * 9 + 3)).toEqual(
+        packed.normals.slice(i * 9 + 6, i * 9 + 9),
+      );
+    }
+    expect(Array.from(packed.unlit.slice(0, 36)).every((g) => g === 0)).toBe(true);
+    expect(Array.from(packed.unlit.slice(36)).every((g) => g === 2)).toBe(true);
+    expect(Array.from(packed.decal).every((d) => d === 0)).toBe(true);
+  });
+
+  it('marks every vertex of a decal part, in the same group as the rest', () => {
+    const decal = make(
+      't',
+      { rows: [{}, ['grid', FLAG.decal, RAISED], ['plain', 0, BOX]] },
+      { detail: 1, looks: LOOKS },
+    );
+    const { turn } = assemble(decal, { kind: 'planet' });
+    expect(turn.triangleCount).toBe(80 + 12 + 12);
+    expect(turn.decal).toHaveLength(turn.triangleCount * 3);
+    // Packed in order: the ground, the decal, the plain box.
+    const flags = Array.from(turn.decal);
+    expect(flags.slice(0, 80 * 3).every((d) => d === 0)).toBe(true);
+    expect(flags.slice(80 * 3, 92 * 3).every((d) => d === 1)).toBe(true);
+    expect(flags.slice(92 * 3).every((d) => d === 0)).toBe(true);
+  });
+
+  it('draws only the feature edges of a smooth surface', () => {
+    // A flat tile: its outline, not its inner diagonals.
+    const tile = make(
+      't',
+      { rows: [[['tile', 1, 6, 'ink.high']]] },
+      { detail: 0, looks: LOOKS },
+    ).ground;
+    expect(wire(tile).length).toBe(6 * 6);
+  });
+
+  it('gives each kind of body its ground detail', () => {
+    const { world } = tuning;
+    expect(groundDetail('planet', false, false, world)).toBe(world.detailPlanet);
+    expect(groundDetail('home', false, true, world)).toBe(world.detailNear);
+    expect(groundDetail('home', false, false, world)).toBe(world.detailPlanet);
+    // A maquette does not sharpen up close.
+    expect(groundDetail('planet', true, true, world)).toBe(world.detailMaquettePlanet);
+    expect(groundDetail('planet', true, false, world)).toBe(world.detailMaquettePlanet);
+    expect(groundDetail('moon', false, true, world)).toBe(world.detailMoon);
+    expect(groundDetail('moon', true, false, world)).toBe(world.detailMaquetteMoon);
+    expect(groundDetail('sun', false, true, world)).toBe(world.detailSun);
+    for (const hull of ['station', 'satellite', 'link'] as const) {
+      expect(groundDetail(hull, false, false, world)).toBe(0);
+    }
+  });
+
+  it('turns the ground of a planet, a moon and home, unless it is still or on the low tier', () => {
+    for (const kind of ['planet', 'moon', 'home'] as const) {
+      expect(turnsOf(kind), kind).toBe(true);
+      expect(turnsOf(kind, { still: true }), kind).toBe(false);
+      expect(turnsOf(kind, { low: true }), kind).toBe(false);
+    }
+    for (const kind of ['sun', 'station', 'satellite', 'link'] as const) {
+      expect(turnsOf(kind), kind).toBe(false);
+    }
+  });
+
+  it('assembles a slice at a time, into exactly what assemble makes at once', () => {
+    const motion: MotionRow[] = [['plan', 'rot', 'y', 'ramp', 1, 10]];
+    for (const options of [
+      { kind: 'planet' as const },
+      { kind: 'planet' as const, near: true, moving: true, motion },
+      { kind: 'sun' as const, low: true },
+    ]) {
+      const job = assembling(build, options);
+      let slices = 0;
+      let step = job.next();
+      while (!step.done) {
+        slices += 1;
+        step = job.next();
+      }
+      // It gives way between the groups and between the movers: never one long frame.
+      expect(slices).toBeGreaterThanOrEqual(3);
+      const whole: Assembly = assemble(build, options);
+      expect(step.value).toEqual(whole);
+    }
+  });
+});

@@ -1,4 +1,5 @@
 import type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
+import type { ThemeKey } from './design/tokens';
 import { hashSeed } from './sim/rng';
 
 export type { ManifestBody, ManifestSystem, UniverseManifest } from './data/types';
@@ -41,7 +42,7 @@ const byId = (a: { id: string }, b: { id: string }): number =>
  * inside a planet, and dock it on a ring that has gone elsewhere; with this, it is not believed.
  *
  * Only what decides where a body is and how big it is goes in: every system's centre and reach,
- * every body's place in the tree, size, docking ring and orbit, in order of id (the order a list
+ * every body's place in the tree, size, solid, docking ring and orbit, in order of id (the order a list
  * is written in moves nothing). Titles, hrefs and looks stay out, so a copy edit, a new biome or
  * a renamed page never costs a returning visitor their place. A new field that moves or sizes a
  * body belongs here too. 32 bits (sim/rng.ts's string hash), as eight hex digits: it only has to
@@ -55,8 +56,10 @@ export function galaxyKey(manifest: UniverseManifest): string {
   for (const body of [...manifest.bodies].sort(byId)) {
     const { orbit } = body;
     const around = orbit === null ? '-' : `${orbit.radius} ${orbit.phase} ${orbit.periodSec}`;
+    // Its solid, only when it has one of its own: a key from before the field stays the same.
+    const solid = body.solidRadius === undefined ? '' : ` solid ${body.solidRadius}`;
     lines.push(
-      `body ${body.id} ${body.system} ${body.parent ?? '-'} ${body.radius} ${body.dockRadius} ${around}`,
+      `body ${body.id} ${body.system} ${body.parent ?? '-'} ${body.radius} ${body.dockRadius} ${around}${solid}`,
     );
   }
   return hashSeed(lines.join('\n')).toString(16).padStart(8, '0');
@@ -98,6 +101,31 @@ export function nearestNeighbourOf(
     }
   }
   return nearest;
+}
+
+/**
+ * The colour FAMILY every body wears, by id: that of the first sun up its chain of parents that
+ * wears one of its own (a sun of a binary may: Hardware's coral beside Software's sky), else its
+ * system's. What the galaxy draws in it: the glow of a planet's ring and the lines of the orbits
+ * (world/Galaxy.ts); its name tag's glyph (ui/Labels.ts). The pages say the same with
+ * src/site/view-models.ts, `familyOf`. A body of a system the manifest does not list has none.
+ */
+export function familiesOf(manifest: UniverseManifest): ReadonlyMap<string, ThemeKey> {
+  const themes = new Map(manifest.systems.map((system) => [system.id, system.theme]));
+  const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+  const families = new Map<string, ThemeKey>();
+  for (const body of manifest.bodies) {
+    let theme = themes.get(body.system);
+    if (theme === undefined) continue;
+    for (let at: ManifestBody | undefined = body; at; at = byId.get(at.parent ?? '')) {
+      if (at.kind === 'sun' && at.theme !== undefined) {
+        theme = at.theme;
+        break;
+      }
+    }
+    families.set(body.id, theme);
+  }
+  return families;
 }
 
 export function centerBodyOf(manifest: UniverseManifest, system: ManifestSystem): ManifestBody {

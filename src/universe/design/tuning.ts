@@ -15,6 +15,7 @@ import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
+import type { Terrain, TerrainName } from '../sim/world/ground';
 import type { LabelsParams } from '../ui/Labels';
 import type { PickerParams } from '../ui/Picker';
 import type { StarMapParams } from '../ui/StarMap';
@@ -498,7 +499,10 @@ export const tuning = {
     starOpacity: 0.3,
     /**
      * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
-     * pixels per hundred units, and a planet at its true size would be a speck.
+     * pixels per hundred units, and a planet at its true size would be a speck. The size of ALL
+     * that is drawn of it (an emblem world's rays, rings and signs with its ball: its solid
+     * extent), which is also the disc its name keeps off and the pointer finds: a sun with a long
+     * reach is no bigger than one that is all ball, its ball smaller in proportion.
      */
     minRadiusPx: { sun: 9, home: 8, planet: 6, moon: 3.5, station: 4, satellite: 4, link: 3.5 },
     /**
@@ -554,6 +558,12 @@ export const tuning = {
   post: {
     /** How much of the blurred glow is added back, and how far it spreads (0 to 1). */
     bloomStrength: 0.9,
+    /**
+     * How much of it is kept off the very thing that glows (0 to 1): at 0 a sun's ball is its
+     * colour plus its own blur, clipped to near white; at 1 exactly its token, with the glow all
+     * round it. A little is left on, so that what glows is a shade brighter than what does not.
+     */
+    selfBloom: 0.85,
     bloomRadius: 0.72,
     /** Halvings of the picture that are blurred and summed: more = a wider, softer glow. */
     bloomLevels: 5,
@@ -595,6 +605,93 @@ export const tuning = {
     colorJitter: 0.03,
   } satisfies PlanetLook,
 
+  /**
+   * The terrains of the worlds of their own (sim/world/ground.ts; vocabulary.md, 3.1): how a
+   * body's ground shapes the noise, as overrides of `planet` above. A body's rows name one.
+   */
+  terrain: {
+    /**
+     * The home planet: few, large continents in three terraces. The cream peak is only the middle
+     * of the top terrace (`peakAt` and the last stop), a summit as in the concept art: lower, and
+     * the close-up's finer facets turned the whole plateau into a white blot.
+     */
+    continents: {
+      look: {
+        reliefShare: 0.045,
+        frequency: 1.0,
+        octaves: 3,
+        seaLevel: 0.02,
+        peakAt: 0.6,
+        terraces: 3,
+        terraceStrength: 0.7,
+        bandStops: [0.12, 0.5, 0.92],
+      },
+    },
+    /** Rolling ground with few peaks and little sea. */
+    calm: {
+      look: {
+        reliefShare: 0.03,
+        frequency: 0.95,
+        octaves: 3,
+        seaLevel: -0.5,
+        peakAt: 0.55,
+        terraces: 2,
+        terraceStrength: 0.85,
+        bandStops: [0.08, 0.5, 0.86],
+      },
+    },
+    /** Small islands in a sea. */
+    isles: {
+      look: {
+        reliefShare: 0.04,
+        frequency: 2.3,
+        octaves: 3,
+        seaLevel: 0.12,
+        peakAt: 0.6,
+        terraces: 3,
+        terraceStrength: 0.8,
+        bandStops: [0.12, 0.5, 0.85],
+      },
+    },
+    /**
+     * Planned work: unfired clay, rougher than any built world (the note on `planet.reliefShare`:
+     * above 0.07 the outline turns lumpy, which is the point).
+     */
+    lumpy: {
+      look: {
+        reliefShare: 0.07,
+        frequency: 1.5,
+        octaves: 3,
+        seaLevel: -0.6,
+        peakAt: 0.55,
+        terraces: 2,
+        terraceStrength: 0.6,
+        bandStops: [0.1, 0.5, 0.86],
+      },
+    },
+    /**
+     * A smooth ball, every facet at one level (0.3: the low band), so that ALL the character is
+     * paint and props. Its stops are pinned here rather than read from `planet`: a level was
+     * chosen for the band it falls in (-1 the sea, 0.3 low, 0.5 to 0.7 high), and a retune of the
+     * generated planets must not repaint these worlds.
+     */
+    flat: { look: { bandStops: [0.1, 0.46, 0.8] }, flat: 0.3 },
+    /** A sun's smooth ball: mostly its base, with lighter and darker patches, and no nudge at all. */
+    sun: {
+      look: {
+        reliefShare: 0,
+        frequency: 1.3,
+        octaves: 3,
+        seaLevel: -0.9,
+        peakAt: 0.55,
+        terraces: 3,
+        terraceStrength: 0.7,
+        bandStops: [0.36, 0.6, 0.78],
+        colorJitter: 0,
+      },
+    },
+  } satisfies Record<TerrainName, Terrain>,
+
   /** How the galaxy is drawn (world/Galaxy.ts). */
   world: {
     /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
@@ -607,6 +704,21 @@ export const tuning = {
      * as a model before the detail goes on (1 is 80 facets), with no close-up (world/looks.ts).
      */
     detailPlanned: 1,
+    /**
+     * The worlds of their own (sim/world, design/worlds): a planned body there is a maquette of
+     * primer clay that does not sharpen up close, coarser than a built world but not a sketch
+     * (980 facets for a planet, 320 for a moon). `detailPlanned` above is today's placeholder
+     * look, which the worlds replace body by body.
+     */
+    detailMaquettePlanet: 6,
+    detailMaquetteMoon: 3,
+    /**
+     * A planned world is drawn at this share of its finished size, rows and all: a maquette of
+     * primer clay inside the dashed ring its rows draw at the finished size (about 1 radius at
+     * this scale: vocabulary.md, section 6). Its declared reach (design/worlds/reach.ts) is
+     * measured at this scale, so tests/world-reach.test.ts follows a change here.
+     */
+    plannedScale: 0.7,
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,
@@ -632,6 +744,8 @@ export const tuning = {
     ringBloom: 0.18,
     /** The thin circles that show where things orbit. */
     orbitLineOpacity: 0.2,
+    /** A binary's suns' own path round the pair's centre: half as strong, not one more orbit. */
+    sunTrackOpacity: 0.1,
     orbitLineSegments: 128,
     /**
      * Away from every body, the ship is lit by the sun whose family it is in: fully inside
@@ -680,6 +794,14 @@ export const tuning = {
     bandEdges: [-0.12, 0.38],
     /** How lit the middle band is: 0 = same as shade, 1 = same as lit. */
     midLevel: 0.55,
+    /**
+     * A decal (a grid or a number painted on a world's ground: sim/world/glue.ts) is drawn this
+     * share of its distance nearer the camera, along its own line of sight (shaders/toonFlat.ts):
+     * a depth bias that moves nothing on screen and keeps it over the ground it hugs, from the
+     * star map as from orbit, where a 24-bit depth buffer tells apart about 3e-6 of the distance.
+     * The ghost lines of planned work take twice it (shaders/edge.ts).
+     */
+    decalPull: 2e-4,
   },
 
   /** The backdrop behind the stars (world/Backdrop.ts). */

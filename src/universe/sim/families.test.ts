@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { buildUniverse } from '../data/build';
+import { buildUniverse as buildWithReach } from '../data/build';
 import type { ProjectInput, UniverseInput } from '../data/types';
 import { tuning } from '../design/tuning';
 import { familyReaches } from './families';
 import { createOrbitTable, type OrbitTable } from './orbits';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const project = (id: string, over: Partial<ProjectInput>): ProjectInput => ({
   id,

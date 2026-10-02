@@ -20,6 +20,8 @@ import { tuning } from '../design/tuning';
 
 export interface PostParams {
   readonly bloomStrength: number;
+  /** How much of the glow is kept off what glows itself, 0 to 1 (shaders/post.ts). */
+  readonly selfBloom: number;
   readonly bloomRadius: number;
   readonly bloomLevels: number;
   readonly vignette: number;
@@ -120,6 +122,7 @@ export class PostFX {
     uniforms.tScene.value = this.scene.texture;
     uniforms.tBloom.value = source.texture;
     uniforms.uBloomStrength.value = tuning.post.bloomStrength;
+    uniforms.uSelfBloom.value = tuning.post.selfBloom;
     uniforms.uVignette.value = tuning.post.vignette;
     uniforms.uVignetteRange.value.set(...tuning.post.vignetteRange);
     this.pass(this.composite, null);

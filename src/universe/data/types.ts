@@ -9,16 +9,19 @@ export type DockKind = 'home' | 'station' | 'satellite';
 /**
  * One of three shapes, told apart by which keys are set (buildUniverse checks the combination):
  * a SYSTEM with one sun (`order`, `theme`: its sun is itself), a BINARY STAR (`order`, `theme`,
- * `suns`: two suns circling one centre, and no sun of its own), or a SUN OF A BINARY (neither:
- * it goes where its binary goes and wears its binary's family). Planets name a sun, never a
- * binary.
+ * `suns`: two suns circling one centre, and no sun of its own), or a SUN OF A BINARY (no
+ * `order`: it goes where its binary goes, and wears its own `theme` if it has one, else its
+ * binary's). Planets name a sun, never a binary.
  */
 export interface SystemInput {
   id: string;
   name: string;
   /** Its sun's page. A binary has no sun of its own: its page is the projects index. */
   href: string;
-  /** The colour family of a system, or of a binary (its two suns share it). */
+  /**
+   * The colour family of a system, or of a binary; a sun of a binary may wear one of its own,
+   * and without one wears its binary's.
+   */
   theme?: ThemeKey | undefined;
   /**
    * Slot in the galaxy's honeycomb, 1 upwards (slot 0 is the home system). Explicit, so it is
@@ -118,6 +121,12 @@ export interface ManifestBody {
   /** Body it orbits, or null when it sits at the centre of its system. */
   parent: string | null;
   radius: number;
+  /**
+   * How far its solid reaches in the plane the ship flies in, when that is past `radius`: an
+   * emblem world's signs, rings and fins (design/worlds/reach.ts, `radius x reach`). The collision
+   * field's surface (sim/surroundings.ts); the docking ring stays `dockRadius`. Absent: `radius`.
+   */
+  solidRadius?: number;
   /** Radius of the docking orbit around it. Computed once here so layout and engine agree. */
   dockRadius: number;
   orbit: Orbit | null;
@@ -129,6 +138,11 @@ export interface ManifestBody {
   flagship?: boolean;
   /** Planned work, not built yet: drawn and labelled as such. Absent for everything else. */
   planned?: true;
+  /**
+   * A sun of a binary that wears a colour family of its own (Hardware's coral beside Software's
+   * sky): its planets and moons wear it too (manifest.ts, `familiesOf`). Absent: its system's.
+   */
+  theme?: ThemeKey;
   /**
    * Only ever `false`, for a body the ship can never dock at (a link): no orbit is offered round
    * it, and nothing flies there. It is still solid, so it is only in the way. Absent for every

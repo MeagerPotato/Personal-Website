@@ -91,8 +91,10 @@ function limitAlong(
 /**
  * The reflex for the body the ship is going TO, which courseLimits leaves out: lowers `out` (as
  * courseLimits wrote it) to what body `i` allows. Its berth is REFLEX_CLEAR, with no lead at any
- * speed: its ring is further out than that (layout.dockMin, 6 u or more above the surface), so a
- * ship on its way onto the ring is never braked by it, and one diving at the body is.
+ * speed: its ring is further out than that (layout.dockMin, 6 u or more above the surface of a
+ * body drawn within its radius; the cushion's depth, 4 u, above an emblem world that reaches out
+ * as far as its ring allows, data/build.ts), so a ship on its way onto the ring is not braked by
+ * it unless its nose is turned well in toward the body, and one diving at the body is.
  */
 export function ownLimits(
   field: BodyField,

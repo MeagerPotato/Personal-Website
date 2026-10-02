@@ -59,6 +59,13 @@ export const tokens = {
      * Some stops were once the system families' colours (tide, ember, bloom). A1 moved the
      * families (lilac most of all) and left these alone, so a biome is its own palette now: A2
      * decides whether planets follow their system's family again.
+     *
+     * One ramp is not for choosing: PRIMER, the grey-lavender clay of work not built yet. A
+     * planned body wears it (sim/world, the planned kit) and no built one does, so on the star map
+     * "unbuilt" reads before any crane or dashed ring can. It sits between ink.low and ink.mid and
+     * runs a step darker (sea, the far side's lumps: 4.2:1 on space.900, decorative) and lighter
+     * (peak, 11.5:1). The content schema leaves it out of `planet.biome` (src/site/schemas.ts):
+     * only `status: planned` may say a project is unbuilt.
      */
     biome: {
       terra: { sea: '#7fb0dd', shore: '#f3e3b3', low: '#a8d8a0', high: '#7dbb8a', peak: '#f4f1ea' },
@@ -67,6 +74,13 @@ export const tokens = {
       frost: { sea: '#8fb8e0', shore: '#b9d6f0', low: '#d9e9f7', high: '#eef5fb', peak: '#ffffff' },
       ember: { sea: '#f2a097', shore: '#c8766f', low: '#8a6a78', high: '#6f5a6e', peak: '#f9cdc7' },
       bloom: { sea: '#9886c9', shore: '#c3b0f0', low: '#e0d6f8', high: '#f9cdc7', peak: '#fff1d6' },
+      primer: {
+        sea: '#6d7595',
+        shore: '#8189a8',
+        low: '#959db9',
+        high: '#a9b0c9',
+        peak: '#c3c8dc',
+      },
     },
     /**
      * How light falls in the 3D world. `shadow` MULTIPLIES a surface's colour on the side facing
@@ -169,6 +183,9 @@ export type Tokens = typeof tokens;
 export type ThemeKey = keyof Tokens['color']['system'];
 export const THEME_KEYS = Object.keys(tokens.color.system) as [ThemeKey, ...ThemeKey[]];
 
-/** Planet surface palettes a project can choose in its frontmatter (`planet.biome`). */
+/**
+ * Planet surface palettes. A project chooses one in its frontmatter (`planet.biome`), any but
+ * `primer`, which only planned work wears (src/site/schemas.ts leaves it out).
+ */
 export type BiomeKey = keyof Tokens['color']['biome'];
 export const BIOME_KEYS = Object.keys(tokens.color.biome) as [BiomeKey, ...BiomeKey[]];

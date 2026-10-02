@@ -2,9 +2,11 @@ import type { AssetId } from '../design/assets';
 import { tokens, type BiomeKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { worlds as recipes, type WorldRecipe } from '../design/worlds';
+import { BODIES } from '../design/worlds/bodies';
 import type { ManifestBody } from '../manifest';
 import { hexToLinear } from '../sim/color';
 import type { PlanetBands, PlanetLook } from '../sim/planet';
+import type { BodyRecipe } from '../sim/world/rows';
 
 /** A planet's five colours, from its biome's tokens, in the linear space the generator paints in. */
 export function biomeBands(biome: BiomeKey): PlanetBands {
@@ -48,11 +50,21 @@ export function sunLook(): PlanetLook {
   return { ...tuning.planet, reliefShare: 0, seaLevel: -2 };
 }
 
-/** What a body is drawn as: a registered model, or a generated globe and how it is generated. */
+/**
+ * What a body is drawn as: a registered model, an emblem world drawn from its rows (world/BodyMesh.ts),
+ * or a generated globe and how it is generated.
+ */
 export type BodyLook =
-  | { readonly model: AssetId; readonly rings: boolean }
+  | { readonly model: AssetId; readonly world?: undefined; readonly rings: boolean }
   | {
       readonly model: null;
+      /** Its rows (design/worlds/): they draw whatever ring it has, so it has no other. */
+      readonly world: BodyRecipe;
+      readonly rings: false;
+    }
+  | {
+      readonly model: null;
+      readonly world?: undefined;
       readonly bands: PlanetBands;
       readonly look: PlanetLook;
       /** Detail of the everyday mesh, and of the close-up (null: it never needs one). */
@@ -74,19 +86,29 @@ export type LookedAt = Pick<ManifestBody, 'id' | 'kind' | 'biome' | 'rings' | 'p
 /**
  * HOW A BODY LOOKS, decided in one place (world/Galaxy.ts asks, and so does the lab), in this
  * order:
- * 1. A world of its own (design/worlds.ts, by its id): a model, or the generator with what the
- *    recipe says. A recipe is a design, so it wins over the planned placeholder too.
- * 2. Planned work: the placeholder (`plannedBands`, no relief, `detailPlanned`, no close-up).
- * 3. Everything else, as it has always been: the station, the satellite and a link's relay are
+ * 1. A recipe (design/worlds.ts, by its id): a model, or the generator with what the recipe says.
+ *    It is the coarse override, and it comes first on purpose: one line there takes a body off
+ *    its rows (to a model, or back to the generator with a biome) without deleting them, say
+ *    while a world is being reworked. Today there are none.
+ * 2. An emblem world (design/worlds/, by its id): drawn from its rows by world/BodyMesh.ts. Rows
+ *    are a whole design, planned work's included (the primer maquette and its kit), so they win
+ *    over the placeholder below.
+ * 3. Planned work: the placeholder (`plannedBands`, no relief, `detailPlanned`, no close-up), for
+ *    planned work that has no rows yet.
+ * 4. Everything else, as it has always been: the station, the satellite and a link's relay are
  *    their models, a sun is lit from inside in its family's colours, and the rest is its biome.
- * `theme` is the colour family of the body's system.
+ * `theme` is the body's colour family (manifest.ts, `familiesOf`). `bodies` are the rows, by id
+ * (design/worlds/bodies.ts unless a test hands others).
  */
 export function lookOf(
   body: LookedAt,
   theme: ThemeKey,
   worlds: Readonly<Partial<Record<string, WorldRecipe>>> = recipes,
+  bodies: Readonly<Partial<Record<string, BodyRecipe>>> = BODIES,
 ): BodyLook {
   const recipe = worlds[body.id];
+  const rows = recipe === undefined ? bodies[body.id] : undefined;
+  if (rows !== undefined) return { model: null, world: rows, rings: false };
   const rings = recipe?.rings ?? body.rings === true;
   const { kind } = body;
   const model = recipe?.model ?? BUILT[kind] ?? null;

@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalUrl,
@@ -15,6 +16,12 @@ import {
   parseAttributes,
   toSitePath,
 } from '../scripts/lib/html.mjs';
+import {
+  CLOSE_UP_BUDGET,
+  CLOSE_UP_CHUNK,
+  CLOSE_UP_MARKERS,
+  closeUpProblems,
+} from '../scripts/lib/closeup.mjs';
 import { parseRedirects, redirectProblems } from '../scripts/lib/redirects.mjs';
 import {
   RESUME_PDF,
@@ -388,3 +395,88 @@ describe('old URLs (_redirects)', () => {
     ]);
   });
 });
+
+describe('closeUpProblems', () => {
+  const CHUNK = '/_astro/closeup.Ab1_c.js';
+  const rows = `export const NEAR={a:[["${CLOSE_UP_MARKERS.join('"],["')}"]]};`;
+  /** A build as Rolldown makes it: the engine loads the close-up rows with import(). */
+  const build = (over: Record<string, string> = {}): Map<string, string> =>
+    new Map(
+      Object.entries({
+        '/_astro/api.X1.js':
+          'import{a as t}from"./three.Q2.js";const l=()=>import(`./closeup.Ab1_c.js`);',
+        '/_astro/three.Q2.js': 'export const a=1;',
+        [CHUNK]: rows,
+        ...over,
+      }),
+    );
+  const light = (): number => 3000;
+
+  it('passes a chunk of its own, loaded only through import(), within its budget', () => {
+    expect(closeUpProblems(build(), light)).toEqual([]);
+    expect(CLOSE_UP_CHUNK.test(CHUNK)).toBe(true);
+  });
+
+  it('refuses a static import of it, which would download it with the engine', () => {
+    const problems = closeUpProblems(
+      build({ '/_astro/api.X1.js': 'import{NEAR as n}from"./closeup.Ab1_c.js";' }),
+      light,
+    );
+    expect(problems).toContain(
+      `/_astro/api.X1.js imports ${CHUNK} statically: the close-up would load with it`,
+    );
+    expect(problems).toContain(`nothing loads ${CHUNK} with import()`);
+  });
+
+  it('refuses close-up rows folded into another chunk', () => {
+    const marker = CLOSE_UP_MARKERS[0] ?? '';
+    const problems = closeUpProblems(
+      build({ '/_astro/three.Q2.js': `export const a="${marker}";` }),
+      light,
+    );
+    expect(problems).toEqual([
+      `/_astro/three.Q2.js holds "${marker}", a part only the close-up rows have`,
+    ]);
+    // ...or a chunk of that name without them.
+    expect(closeUpProblems(build({ [CHUNK]: 'export const NEAR={};' }), light)).toHaveLength(
+      CLOSE_UP_MARKERS.length,
+    );
+  });
+
+  it('wants exactly one such chunk, within its budget', () => {
+    const none = build();
+    none.delete(CHUNK);
+    expect(closeUpProblems(none, light)).toEqual([
+      'the close-up rows should be one chunk of their own (closeup.*.js); found 0',
+    ]);
+    expect(closeUpProblems(build({ '/_astro/closeup.Zz9.js': rows }), light)).toHaveLength(1);
+    expect(closeUpProblems(build(), () => CLOSE_UP_BUDGET + 1)).toEqual([
+      `${CHUNK} weighs ${CLOSE_UP_BUDGET + 1} B gzipped; the close-up chunk's budget is ${CLOSE_UP_BUDGET} B`,
+    ]);
+  });
+
+  it('looks for names only the close-up rows have: parts of near.ts, and no string elsewhere', () => {
+    // As a string, which is what a bundle keeps (a comment may name the part: it is stripped).
+    const near = readFileSync('src/universe/design/worlds/near.ts', 'utf8');
+    const elsewhere = sourceFiles('src')
+      .filter((file) => !/design[\\/]worlds[\\/](near|motion|closeup)\.ts$/.test(file))
+      .filter((file) => !file.endsWith('.test.ts'))
+      .map((file) => [file, readFileSync(file, 'utf8')] as const);
+    for (const marker of CLOSE_UP_MARKERS) {
+      expect(near, marker).toContain(`'${marker}'`);
+      for (const [file, text] of elsewhere) {
+        const quoted = ["'", '"', '`'].some((q) => text.includes(`${q}${marker}${q}`));
+        expect(quoted, `${marker} in ${file}`).toBe(false);
+      }
+    }
+  });
+});
+
+/** Every .ts and .astro file under `dir`. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.(ts|astro)$/.test(entry.name) ? [path] : [];
+  });
+}

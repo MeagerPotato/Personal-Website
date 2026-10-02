@@ -1,11 +1,12 @@
-import { Vector3, type Mesh, type Object3D } from 'three';
+import { Color, Vector3, type LineBasicMaterial, type Mesh, type Object3D } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
 import { JobQueue } from '../core/jobs';
-import { buildUniverse } from '../data/build';
+import { buildUniverse as buildWithReach } from '../data/build';
 import type { UniverseInput } from '../data/types';
 import { KEY_LIGHT_POSITION, type ToonMaterial } from '../design/materials';
+import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import {
   centerBodyOf,
@@ -18,6 +19,12 @@ import {
 import { spawnPoint } from '../sim/spawn';
 import { Galaxy } from './Galaxy';
 import { plannedBands } from './looks';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const project = (id: string, over: object) => ({
   id,
@@ -60,6 +67,12 @@ const input: UniverseInput = {
   includeDrafts: false,
 };
 const manifest = buildUniverse(input);
+/**
+ * The fixture's ids are real bodies' (page/about, project/fishai...), which are drawn from rows
+ * now (design/worlds/): these tests are of the generated look, so they hand the galaxy no rows.
+ * tests/world-galaxy.test.ts draws the real galaxy's emblem worlds.
+ */
+const NO_ROWS = {};
 
 const frame = (simTime: number, dt = 1 / 60): Frame => ({
   elapsed: simTime,
@@ -85,7 +98,14 @@ function setup(viewerAt = new Vector3(0, 0, -120)) {
   const viewer = { position: viewerAt };
   const assets = new AssetStore();
   const jobs = new JobQueue(1000);
-  const galaxy = new Galaxy({ manifest, assets, jobs, viewer, reducedMotion: false });
+  const galaxy = new Galaxy({
+    manifest,
+    assets,
+    jobs,
+    viewer,
+    reducedMotion: false,
+    bodies: NO_ROWS,
+  });
   const node = (id: string): Object3D => {
     const found = galaxy.object.getObjectByName(id);
     if (!found) throw new Error(`no node '${id}'`);
@@ -218,6 +238,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
       map,
     });
     const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
@@ -381,6 +402,7 @@ describe('Galaxy', () => {
       jobs,
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const mesh = galaxy.object.getObjectByName('project/sports')?.children[0] as Mesh;
     const finishJobs = (): void => {
@@ -447,6 +469,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer,
       reducedMotion: false,
+      bodies: NO_ROWS,
       map,
     });
     const row = (id: string): number => galaxy.orbits.indexOf(id);
@@ -472,6 +495,7 @@ describe('Galaxy', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3() },
       reducedMotion: false,
+      bodies: NO_ROWS,
       worlds: {
         'project/days2meet': { model: 'station', rings: true },
         'project/fishai': { rings: false },
@@ -510,6 +534,7 @@ describe('Galaxy', () => {
       jobs: lazy,
       viewer: { position: new Vector3() },
       reducedMotion: true,
+      bodies: NO_ROWS,
     });
     expect(lazy.pending).toBeGreaterThan(0);
     waiting.dispose();
@@ -600,6 +625,7 @@ describe('Galaxy, where suns move', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3(-900, 0, 300) },
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const node = (id: string): Object3D => galaxy.object.getObjectByName(id) as Object3D;
     const meshOf = (id: string): Mesh => node(id).children[0] as Mesh;
@@ -803,6 +829,7 @@ describe('Galaxy, where suns move', () => {
       jobs: new JobQueue(1000),
       viewer: { position: new Vector3() },
       reducedMotion: false,
+      bodies: NO_ROWS,
     });
     const node = (id: string): Object3D => {
       const found = galaxy.object.getObjectByName(id);
@@ -846,6 +873,69 @@ describe('Galaxy, where suns move', () => {
         expectSameDirection(lightFrom(galaxy, at), direction(at, node(sun).position));
       }
     }
+    galaxy.dispose();
+  });
+
+  it('draws each sun’s rings and paths in its own family, when it wears one', () => {
+    const systems: UniverseInput['systems'] = [
+      ...input.systems,
+      {
+        id: 'pair',
+        name: 'Pair',
+        href: '/projects/',
+        theme: 'sky',
+        order: 2,
+        position: 'auto',
+        suns: ['soft', 'hard'],
+      },
+      { id: 'soft', name: 'Soft', href: '/systems/soft/', position: 'auto' },
+      { id: 'hard', name: 'Hard', href: '/systems/hard/', position: 'auto', theme: 'coral' },
+    ];
+    const built = buildUniverse({
+      ...input,
+      systems,
+      projects: [
+        ...input.projects,
+        project('demo', { system: 'soft', rings: true }),
+        project('online', { parent: 'demo', size: 's' }),
+        project('meet', { system: 'soft' }),
+        project('rocket', { system: 'hard', rings: true }),
+        project('payload', { parent: 'rocket', size: 's' }),
+      ],
+    });
+    const galaxy = new Galaxy({
+      manifest: built,
+      assets: new AssetStore(),
+      jobs: new JobQueue(1000),
+      viewer: { position: new Vector3() },
+      reducedMotion: false,
+      bodies: NO_ROWS,
+    });
+    const lineOf = (id: string): Color => {
+      const line = galaxy.object.getObjectByName(`${id}:orbit`) as Mesh | undefined;
+      if (!line) throw new Error(`no path of ${id}`);
+      return (line.material as LineBasicMaterial).color;
+    };
+    const ringOf = (id: string): Color => {
+      const ring = galaxy.object
+        .getObjectByName(id)
+        ?.getObjectByName('planetRing')
+        ?.getObjectByProperty('type', 'Mesh') as Mesh;
+      return (ring.material as unknown as { uniforms: { uTint: { value: Color } } }).uniforms.uTint
+        .value;
+    };
+    const shade = (family: ThemeKey): Color => new Color(tokens.color.system[family].shade);
+    const light = (family: ThemeKey): Color => new Color(tokens.color.system[family].light);
+    // Hardware's own coral: its path round the centre, its planets', its moons', its rings.
+    for (const id of ['system/hard', 'project/rocket', 'project/payload']) {
+      expect(lineOf(id).equals(shade('coral')), id).toBe(true);
+    }
+    expect(ringOf('project/rocket').equals(light('coral'))).toBe(true);
+    // Software wears none of its own: its binary's sky.
+    for (const id of ['system/soft', 'project/demo', 'project/online']) {
+      expect(lineOf(id).equals(shade('sky')), id).toBe(true);
+    }
+    expect(ringOf('project/demo').equals(light('sky'))).toBe(true);
     galaxy.dispose();
   });
 });

@@ -1,5 +1,5 @@
 import { z } from 'astro/zod';
-import { BIOME_KEYS, THEME_KEYS } from '../universe/design/tokens';
+import { BIOME_KEYS, THEME_KEYS, type BiomeKey } from '../universe/design/tokens';
 
 // Content schemas as PLAIN zod ("thin Astro", docs/PLAN.md §5.1). The two helpers only Astro can
 // provide, image() and reference(), are injected by src/content.config.ts, so these schemas run
@@ -7,6 +7,9 @@ import { BIOME_KEYS, THEME_KEYS } from '../universe/design/tokens';
 //
 // Zod 4 notes: strictObject rejects unknown keys (a typo in frontmatter fails the build instead
 // of being ignored), and an object with .default({}) would skip its inner defaults.
+
+/** The palettes a project may choose for its planet: every biome but the clay of unbuilt work. */
+type ContentBiome = Exclude<BiomeKey, 'primer'>;
 
 /** "2026-08". Quote it in YAML so that it stays a string. */
 export const yearMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'use "YYYY-MM", in quotes');
@@ -30,7 +33,9 @@ const FAMILIES = `${THEME_KEYS.filter((key) => key !== 'butter').join(', ')}; bu
  *   a solar system    name, tagline, theme, order, [position], [link]   one sun: itself
  *   a binary star     name, theme, order, suns, [position]              two suns, no page: its
  *                                                                       page is the projects index
- *   a sun of a binary name, tagline, [link]                             goes where its binary goes
+ *   a sun of a binary name, tagline, [theme], [link]                    goes where its binary goes,
+ *                                                                       in its own family or its
+ *                                                                       binary's
  *
  * Each file is checked here on its own; what spans files (a sun no binary lists, a binary naming
  * a sun that is not there) is buildUniverse()'s, which lists every problem at once.
@@ -43,7 +48,10 @@ export const systemSchema = <Reference extends z.ZodType>({
       name: z.string().min(1).max(32),
       /** One sentence under the sun's name. A binary has none: each of its suns has its own. */
       tagline: z.string().min(1).max(120).optional(),
-      /** A system's colour family; a binary's two suns share their binary's. */
+      /**
+       * A system's colour family, or a binary's. A sun of a binary may wear one of its own (each
+       * of Projects' suns does: Software sky, Hardware coral); without one it wears its binary's.
+       */
       theme: z.enum(THEME_KEYS).optional(),
       /** Slot in the galaxy, from 1 (0 is home). NEVER reuse or renumber: it IS the position. */
       order: z.number().int().min(1).optional(),
@@ -72,10 +80,8 @@ export const systemSchema = <Reference extends z.ZodType>({
         }
         if (data.tagline === undefined) issue('tagline', 'required: one sentence under its name');
       } else {
-        // No order and no suns: a sun of a binary, placed and coloured by the binary.
-        if (data.theme !== undefined) {
-          issue('theme', "a sun of a binary wears its binary's family; leave it out");
-        }
+        // No order and no suns: a sun of a binary, placed by the binary, and in its own family
+        // or the binary's.
         if (data.position !== undefined) {
           issue('position', 'a sun of a binary goes where its binary goes; leave it out');
         }
@@ -128,7 +134,8 @@ export const projectSchema = <Image extends z.ZodType, Reference extends z.ZodTy
         .default([]),
       planet: z.strictObject({
         size: z.enum(['s', 'm', 'l']).default('m'),
-        biome: z.enum(BIOME_KEYS),
+        // Not `primer`: the colour of unbuilt work, which only `status: planned` may say.
+        biome: z.enum(BIOME_KEYS.filter((key): key is ContentBiome => key !== 'primer')),
         rings: z.boolean().default(false),
         decorMoons: z.number().int().min(0).max(3).default(0),
         /** Reseeds the procedural surface without renaming the project. Defaults to the id. */

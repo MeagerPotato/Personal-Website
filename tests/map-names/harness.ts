@@ -7,7 +7,7 @@ import type { Frame } from '../../src/universe/core/Engine';
 import { buildUniverse } from '../../src/universe/data/build';
 import type { ManifestBody, UniverseManifest } from '../../src/universe/data/types';
 import { tuning } from '../../src/universe/design/tuning';
-import { homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
+import { familiesOf, homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
 import { createRng } from '../../src/universe/sim/rng';
 import { boundsOf, displayScales } from '../../src/universe/sim/mapView';
 import { bodyPositions } from '../../src/universe/sim/orbits';
@@ -165,16 +165,73 @@ export interface Seen {
 }
 
 /**
- * How wide the browser draws a body's name (CSS px), within about 10: 6.8 px a letter and 24 of
- * padding, a system's glyph 28 more, the note of planned work (", Planned", set smaller) 41, and
- * a link's arrow 15. Every name is 44 px tall, its tag 26.
+ * How wide the browser draws each name (CSS px, the `offsetWidth` of its `.body-label`, the same
+ * at all three sizes), by the body's id, with the title it had then: measured in Chromium on
+ * 2026-10-01, with the family's glyph before every name but a link's (a system's own tag goes
+ * without on a map narrower than 480 px: `nameWidth` takes it off there)
+ * (`.body-label[data-theme]::before` in global.css), and for planned work the note after it. The
+ * bodies of today's galaxy, and the suns the grown galaxies add (scripts/journeys/galaxies.ts).
+ * A body that is not here, or has another title by now, is reckoned (`nameWidth`).
  */
-function nameWidth(body: Pick<ManifestBody, 'title' | 'kind' | 'planned' | 'docks'>): number {
-  const glyph = body.kind === 'sun' || body.kind === 'home' ? 28 : 0;
+const MEASURED: Readonly<Partial<Record<string, readonly [title: string, width: number]>>> = {
+  'page/about': ['About Me', 119],
+  'page/resume': ['Resume', 85],
+  'page/contact': ['Contact', 86],
+  'system/software': ['Software', 123],
+  'project/cyberpatriot': ['CyberPatriot', 117],
+  'project/canadian-fish-demo': ['Canadian Fish', 124],
+  'project/fish-onboarding': ['Fish Onboarding', 137],
+  'project/fishai': ['FishAI', 74],
+  'project/fish-online': ['Fish Online', 153],
+  'project/days2meet': ['Days2Meet', 106],
+  'system/hardware': ['Hardware', 126],
+  'project/model-rocketry': ['Model Rocketry', 132],
+  'project/robotics': ['Robotics', 90],
+  'system/research': ['Research', 119],
+  'project/sports-analysis': ['Sports Analysis', 180],
+  'project/kalshi': ['Kalshi', 122],
+  'system/hackathons': ['Hackathons', 145],
+  'project/hackathons-at-berkeley': ['Hackathons @ Berkeley', 179],
+  'project/hackgt-13': ['HackGT 13', 102],
+  'project/cal-hacks-13': ['Cal Hacks 13.0', 125],
+  'project/corgi': ['Corgi Hackathon', 190],
+  'link/github': ['GitHub', 80],
+  'link/linkedin': ['LinkedIn', 88],
+  'system/rocketry': ['Model Rocketry', 181],
+  'system/berkeley': ['Berkeley', 117],
+  'system/robotics': ['Robotics', 117],
+  'system/writing': ['Writing', 107],
+  'system/games': ['Games', 92],
+  'system/music': ['Music', 87],
+};
+
+/**
+ * How wide the browser draws a body's name (CSS px): as measured (`MEASURED`), or else reckoned,
+ * within about 8: 24 of padding; 6.8 px a letter, or 10.4 for a system's (capitals, bold, spaced:
+ * `.body-label[data-kind='sun']`); the note of planned work (", Planned", set smaller) 41; a
+ * link's arrow 15; and before every other name its family's glyph and the gap after it, 13.
+ * (Until 2026-10-01 every name was reckoned, a system's at 6.8 px a letter and 28, which is right
+ * for eight letters and 21 px short for "Model Rocketry"; and no name had a glyph.) Every name is
+ * 44 px tall, its tag 26.
+ */
+function nameWidth(
+  body: Pick<ManifestBody, 'id' | 'title' | 'kind' | 'planned' | 'docks'>,
+  viewWidth: number,
+): number {
+  const system = body.kind === 'sun' || body.kind === 'home';
+  const bare = system && viewWidth < GLYPH_FROM_PX ? GLYPH_PX : 0;
+  const measured = MEASURED[body.id];
+  if (measured && measured[0] === body.title) return measured[1] - bare;
+  const letter = system ? 10.4 : 6.8;
   const note = body.planned === true ? 41 : 0;
   const arrow = body.docks === false ? 15 : 0;
-  return 24 + 6.8 * body.title.length + glyph + note + arrow;
+  const glyph = body.docks === false ? 0 : GLYPH_PX;
+  return 24 + letter * body.title.length + note + arrow + glyph - bare;
 }
+/** A family's glyph and the gap after it (CSS px). */
+const GLYPH_PX = 13;
+/** A view narrower than this shows no glyph on a system's tag (global.css, "the map's names"). */
+const GLYPH_FROM_PX = 480;
 const NAME_HEIGHT = 44;
 const TAG_HEIGHT = 26;
 
@@ -281,7 +338,7 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
     count: orbits.count,
     parent: orbits.parent,
     orbitRadius: orbits.radius,
-    radius: bodies.map((body) => body.radius),
+    radius: bodies.map((body) => body.solidRadius ?? body.radius),
     minRadiusPx: Float64Array.from(bodies, (body) => tuning.map.minRadiusPx[body.kind]),
   };
   let reach = 0;
@@ -296,6 +353,7 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
   // The names, and the ship's marker they keep off, as main.ts makes them.
   const shipAt = { x: 0, y: 0 };
   const shipBox = { left: 0, top: 0, width: 0, height: 0 };
+  const families = familiesOf(manifest);
   const options: LabelsOptions = {
     overlay,
     screen: onScreen.map,
@@ -304,6 +362,7 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
       kind: body.kind,
       planned: body.planned === true,
       href: body.docks === false ? body.href : undefined,
+      theme: families.get(body.id),
     })),
     params: tuning.labels,
     view: rig.shape,
@@ -339,7 +398,7 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
   const datasets: Array<Record<string, string | undefined>> = [];
   names.forEach((name, row) => {
     const at = bodies[row];
-    const nameW = at ? nameWidth(at) : 100;
+    const nameW = at ? nameWidth(at, screen.width) : 100;
     Object.defineProperty(name, 'offsetWidth', { get: () => nameW });
     Object.defineProperty(name, 'offsetHeight', { get: () => NAME_HEIGHT });
     const dataset: Record<string, string | undefined> = { ...name.dataset };
@@ -402,7 +461,7 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
     bodyY: (row: number): number => body[2 * row + 1] ?? onScreen.map.y[row] ?? Number.NaN,
     width: (row: number): number => {
       const at = bodies[row];
-      return at ? nameWidth(at) : 0;
+      return at ? nameWidth(at, screen.width) : 0;
     },
     /** Open the map, as main.ts does: the camera goes over to the map's (a cut, or the blend). */
     open(): void {

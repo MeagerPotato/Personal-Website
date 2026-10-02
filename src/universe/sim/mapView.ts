@@ -223,9 +223,16 @@ export interface MapBodies {
   readonly parent: ArrayLike<number>;
   /** Radius of that circle, world units. */
   readonly orbitRadius: ArrayLike<number>;
-  /** How big the body is, world units. */
+  /**
+   * How far out the body is drawn, world units: its ball, or an emblem world's whole solid extent
+   * (its rays, rings and signs: the manifest's `solidRadius`), which is what the names and the
+   * pointer measure too.
+   */
   readonly radius: ArrayLike<number>;
-  /** The smallest it may look on the map (radius, CSS px), by what kind of body it is. */
+  /**
+   * The smallest that may look on the map (radius, CSS px), by what kind of body it is: every
+   * sun the same disc, whatever is ball and whatever is rays.
+   */
   readonly minRadiusPx: ArrayLike<number>;
 }
 

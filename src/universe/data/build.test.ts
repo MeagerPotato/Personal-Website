@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import { bodyPositions, createOrbitTable } from '../sim/orbits';
-import { buildUniverse, UniverseDataError } from './build';
+import { buildUniverse as buildWithReach, UniverseDataError } from './build';
 import { binaryOrbits, orbitPhase, round, slotPosition } from './layout';
 import type {
   LinkInput,
@@ -12,6 +12,12 @@ import type {
   UniverseInput,
   UniverseManifest,
 } from './types';
+
+/**
+ * The fixtures are made-up galaxies under real ids (FishAI a planet, not a moon): none of their
+ * bodies is an emblem world, so none has a declared reach (design/worlds/reach.ts).
+ */
+const buildUniverse = (input: Parameters<typeof buildWithReach>[0]) => buildWithReach(input, {});
 
 const L = tuning.layout;
 
@@ -179,6 +185,49 @@ describe('buildUniverse', () => {
       system: 'code',
       radius: L.moonRadius.s,
     });
+  });
+
+  it('sizes an emblem world’s solid by its declared reach, and leaves its ring where it was', () => {
+    const plain = byId(buildUniverse(v01()));
+    const reach = { 'page/about': 1.57, 'project/days2meet': 1.19, 'page/resume': 1 };
+    const drawn = byId(buildWithReach(v01(), reach));
+    const about = drawn.get('page/about');
+    expect(about?.solidRadius).toBe(Math.ceil(L.home.planetRadius * 1.57 * 100 - 1e-6) / 100);
+    expect(drawn.get('project/days2meet')?.solidRadius).toBe(
+      Math.ceil(L.planetRadius.m * 1.19 * 100 - 1e-6) / 100,
+    );
+    // A reach of 1 is its radius: nothing to say. And nothing else moves.
+    expect(drawn.get('page/resume')).not.toHaveProperty('solidRadius');
+    expect(drawn.get('project/fishai')).not.toHaveProperty('solidRadius');
+    for (const [id, body] of drawn) {
+      const rest: Partial<typeof body> = { ...body };
+      delete rest.solidRadius;
+      expect(rest, id).toEqual(plain.get(id));
+    }
+  });
+
+  it('rounds a solid UP to the hundredth, never inside what is drawn', () => {
+    // The station: 2.2 u x 1.12 is 2.464 u, which the nearest hundredth would put inside it.
+    const drawn = byId(buildWithReach(v01(), { 'page/resume': 1.12 }));
+    expect(drawn.get('page/resume')?.solidRadius).toBe(2.47);
+    expect(L.home.stationRadius * 1.12).toBeCloseTo(2.464, 9);
+  });
+
+  it('gives a body that a recipe takes off its rows no reach of theirs', () => {
+    // design/worlds.ts comes first (world/looks.ts, lookOf): drawn as the recipe says, its
+    // surface is its radius, and the ship does not bounce off the rows it no longer wears.
+    const reach = { 'page/about': 1.57, 'project/days2meet': 1.19 };
+    const drawn = byId(buildWithReach(v01(), reach, { 'page/about': { biome: 'frost' } }));
+    expect(drawn.get('page/about')).not.toHaveProperty('solidRadius');
+    expect(drawn.get('project/days2meet')?.solidRadius).toBeGreaterThan(L.planetRadius.m);
+  });
+
+  it('refuses a reach whose cushion would not fit under the docking ring, and says what to do', () => {
+    // A planet's ring is 1.4 radii and the cushion's depth out: no room for 1.5.
+    expect(() => buildWithReach(v01(), { 'project/days2meet': 1.5 })).toThrow(
+      /"project\/days2meet" reaches 1\.5 radii .*has room for 1\.4.*its docking ring.*recipe/,
+    );
+    expect(() => buildWithReach(v01(), { 'project/days2meet': 1.4 })).not.toThrow();
   });
 
   it('shows the projects index from the sun of the first system, when there is one', () => {
@@ -970,7 +1019,6 @@ describe('buildUniverse', () => {
         'binary "nested": sun "projects" is itself a binary',
         'binary "nested": sun "twins" is itself a binary',
         'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its order',
-        'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its theme',
         'system "hardware" is listed as a sun by "projects", so it goes where "projects" goes: leave out its position',
         'system "software" is listed as a sun by both "projects" and "twins"',
         'project "odd-one": "projects" is a binary star; its planets orbit one of its suns: set system to "software" or "hardware"',
@@ -978,6 +1026,31 @@ describe('buildUniverse', () => {
         'system "pale": needs a theme, its colour family',
       ]) {
         expect(problems).toContain(expected);
+      }
+      // A family of its own is a sun's to wear.
+      expect(problems.join('\n')).not.toMatch(/leave out its theme/);
+    });
+
+    it('lets a sun of a binary wear a colour family of its own, and says so in the manifest', () => {
+      const own = buildUniverse(
+        binary({
+          systems: binary().systems.map((entry) =>
+            entry.id === 'hardware' ? { ...entry, theme: 'coral' as const } : entry,
+          ),
+        }),
+      );
+      const suns = byId(own);
+      expect(suns.get('system/hardware')?.theme).toBe('coral');
+      // Without one it wears its binary's, and the manifest says nothing.
+      expect(suns.get('system/software')).not.toHaveProperty('theme');
+      expect(own.systems.find((entry) => entry.id === 'projects')?.theme).toBe(
+        binary().systems[0]?.theme,
+      );
+      // A colour moves nothing: every body is where it was.
+      for (const body of own.bodies) {
+        const rest: Partial<ManifestBody> = { ...body };
+        delete rest.theme;
+        expect(rest, body.id).toEqual(bodies.get(body.id));
       }
     });
   });

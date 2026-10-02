@@ -1,5 +1,7 @@
 import type { ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
+import { worlds, type WorldRecipe } from '../design/worlds';
+import { REACH } from '../design/worlds/reach';
 import {
   RELAY_SLOTS,
   binaryOrbits,
@@ -134,9 +136,9 @@ function validate(input: UniverseInput): string[] {
     if (system.id === HOME) problems.push(`system id "${HOME}" is reserved for the home system`);
     const binary = binaryOf.get(system.id);
     if (binary !== undefined) {
-      // A sun of a binary goes where its binary goes, in its binary's colours.
-      const own = { order: system.order, theme: system.theme, position: system.position };
-      for (const key of ['order', 'theme', 'position'] as const) {
+      // A sun of a binary goes where its binary goes (in its own colours, or its binary's).
+      const own = { order: system.order, position: system.position };
+      for (const key of ['order', 'position'] as const) {
         if (own[key] === undefined || own[key] === 'auto') continue;
         problems.push(
           `system "${system.id}" is listed as a sun by "${binary}", so it goes where ` +
@@ -509,11 +511,18 @@ function buildBinary(
     );
   }
 
+  // A sun that wears a family of its own says so; one that does not wears its binary's.
+  const own = (sun: SystemInput): { theme?: ThemeKey } =>
+    sun.theme === undefined ? {} : { theme: sun.theme };
   return {
     bodies: [
-      { ...a.sun, orbit: { radius: round(pair.a), phase, periodSec } },
+      { ...a.sun, ...own(primary), orbit: { radius: round(pair.a), phase, periodSec } },
       ...a.bodies,
-      { ...b.sun, orbit: { radius: round(pair.b), phase: round(phase + Math.PI, 4), periodSec } },
+      {
+        ...b.sun,
+        ...own(secondary),
+        orbit: { radius: round(pair.b), phase: round(phase + Math.PI, 4), periodSec },
+      },
       ...b.bodies,
     ],
     reach: pair.reach,
@@ -521,7 +530,17 @@ function buildBinary(
   };
 }
 
-export function buildUniverse(input: UniverseInput): UniverseManifest {
+/**
+ * `reach`: how far each emblem world's solid reaches, in radii, by body id (design/worlds/reach.ts
+ * unless a test says otherwise: its made-up galaxies reuse real ids for bodies of other sizes).
+ * `recipes`: the worlds of their own (design/worlds.ts); a body with one is not drawn from its
+ * rows, so it has no reach of theirs.
+ */
+export function buildUniverse(
+  input: UniverseInput,
+  reach: Readonly<Partial<Record<string, number>>> = REACH,
+  recipes: Readonly<Partial<Record<string, WorldRecipe>>> = worlds,
+): UniverseManifest {
   const problems = validate(input);
   if (problems.length > 0) throw new UniverseDataError(problems);
 
@@ -584,6 +603,33 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
     }
   }
 
+  // An emblem world's solid reaches past its radius (design/worlds/reach.ts): the collision field
+  // takes that as its surface, rounded UP to the hundredth (rounded to the nearest, a surface
+  // could sit a few thousandths inside what is drawn). Its cushion must still fit under its
+  // docking ring, and that room depends on the body's kind and size, which content chooses: a
+  // moon made a planet, or a size changed, can leave a world too big for its ring. A body that a
+  // recipe in design/worlds.ts takes off its rows is drawn as the recipe says (world/looks.ts,
+  // lookOf), so the reach of its rows is not its own.
+  const { depth } = tuning.cushion;
+  const solid = bodies.map((body) => {
+    const declared = recipes[body.id] === undefined ? (reach[body.id] ?? 1) : 1;
+    if (!(declared > 1)) return body;
+    const solidRadius = Math.ceil(body.radius * declared * 100 - 1e-6) / 100;
+    if (solidRadius + depth > body.dockRadius + 1e-9) {
+      const room = Math.floor(((body.dockRadius - depth) / body.radius) * 100 + 1e-6) / 100;
+      problems.push(
+        `"${body.id}" reaches ${declared} radii (design/worlds/reach.ts), but a ${body.kind} ` +
+          `of radius ${body.radius} u has room for ${room}: its cushion (${depth} u) needs its ` +
+          `docking ring at ${round(solidRadius + depth)} u, not ${body.dockRadius} u. Bring in ` +
+          `what stands out in its rows (design/worlds/) and measure it again ` +
+          `(tests/world-reach.test.ts), give it a size with room for it, or take it off its ` +
+          `rows with a recipe in design/worlds.ts`,
+      );
+    }
+    return { ...body, solidRadius };
+  });
+  if (problems.length > 0) throw new UniverseDataError(problems);
+
   // The home system is systems[0]; the first system of projects, by `order`, comes after it.
   const firstOfProjects = systems[1];
   const alsoAt: Record<string, string> = {};
@@ -594,7 +640,7 @@ export function buildUniverse(input: UniverseInput): UniverseManifest {
   return {
     version: 2,
     systems,
-    bodies,
+    bodies: solid,
     lanes: [...lanes.keys()].sort(compare).flatMap((key) => lanes.get(key) ?? []),
     alsoAt,
   };
