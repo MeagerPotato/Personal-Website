@@ -1449,7 +1449,7 @@ export const tuning = {
        * from the centre): the top of a tower is above it.
        */
       limb: {
-        power: 2.2,
+        power: 3.2,
         lit: 0.62,
         always: 0.07,
         litEdges: [-0.25, 0.45],
