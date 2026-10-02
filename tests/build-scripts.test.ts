@@ -554,7 +554,14 @@ describe('squeezeGlsl', () => {
     const noise = '$' + '{ noise }';
     expect(squeezeGlsl(`float a;\n  ${noise}\n  float b;`)).toBe(`float a;\n${noise}\nfloat b;`);
     const twice = '$' + '{ scale * 2 }';
-    expect(squeezeGlsl(`float a = ${twice} + 1.0; // twice`)).toBe(`float a=${twice}+1.0;`);
+    // A sign beside one keeps its space: what it holds may start or end with a sign of its own
+    // (`1.0 - ${x}` with x = -0.5 must not become `1.0--0.5`).
+    expect(squeezeGlsl(`float a = ${twice} + 1.0; // twice`)).toBe(`float a=${twice} +1.0;`);
+    expect(squeezeGlsl(`float a = 1.0 - ${twice};`)).toBe(`float a=1.0- ${twice};`);
+    expect(squeezeGlsl(`float a = 1.0\n  - ${twice};`)).toBe(`float a=1.0- ${twice};`);
+    expect(squeezeGlsl(`vec2 a = vec2(${twice}, ${twice});`)).toBe(
+      `vec2 a=vec2(${twice},${twice});`,
+    );
     // Braces, quotes and templates inside one are JavaScript, and none of the shader's business.
     const nested = '$' + '{ pick({ a: "}" }, `$' + '{b} // not a comment`) }';
     expect(squeezeGlsl(`x = ${nested};`)).toBe(`x=${nested};`);

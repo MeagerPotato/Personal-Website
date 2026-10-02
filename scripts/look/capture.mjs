@@ -3,9 +3,9 @@
 // not on memory:
 //
 //   on the site   the first frame at home on each quality tier, the same under reduced motion,
-//                 flying between systems, docked at home, at a planet, at an emblem world and
-//                 beside a sun, and the star map: on a desktop (1280 x 800) and on a phone
-//                 (412 x 839, touch, the bottom sheet)
+//                 flying between systems, docked at home, at a planet, at a globe with a sea,
+//                 at an emblem world and beside a sun, and the star map: on a desktop
+//                 (1280 x 800) and on a narrow phone (360 x 780, touch, the bottom sheet)
 //   in the lab    the sky alone from the seven views it is judged from (sim/skyDirections.ts),
 //                 with no twinkle and no drift, so two runs give the same picture
 //   --perf        instead of pictures: what `?perf` reads on each tier, at home and docked
@@ -63,8 +63,9 @@ const TIERS = ['low', 'medium', 'high'];
 const POSES = ['first', 'cruise', 'docked', 'proj', 'hack', 'res', 'band'];
 const SIZES = {
   desktop: { viewport: { width: 1280, height: 800 } },
-  // A Pixel 7: 412 x 839 CSS px, touch, a coarse pointer (so half the stars and the dust).
-  phone: { ...devices['Pixel 7'] },
+  // A Pixel 7's touch, coarse pointer (so half the stars and the dust) and pixel ratio, at the
+  // narrowest width the site is checked at: 360 CSS px.
+  phone: { ...devices['Pixel 7'], viewport: { width: 360, height: 780 } },
 };
 /** After the first frame: the planets are still being built, a slice a frame. */
 const SETTLE_MS = 3000;
@@ -91,6 +92,10 @@ const SITE_VIEWS = [
   ['home-high-reduced', '/', 'high', still, true],
   ['flight-high', '/', 'high', fly, false],
   ['docked-home-high', '/about/', 'high', still, false],
+  // Phones start on medium, and what a world wears differs by tier.
+  ['docked-home-medium', '/about/', 'medium', still, false],
+  // A generated globe with a sea (home is one too, but it wears a ring road and a town).
+  ['docked-globe-high', '/projects/cyberpatriot/', 'high', still, false],
   ['docked-planet-high', '/projects/days2meet/', 'high', still, false],
   ['docked-emblem-high', '/projects/cal-hacks-13/', 'high', still, false],
   ['docked-planet-low', '/projects/days2meet/', 'low', still, false],

@@ -25,6 +25,15 @@ const LONE_HOLE_RE = new RegExp(`^${HOLE}\\d+${HOLE}$`);
 const PUNCTUATION = new Set('{}()[];,=+-*/<>!?:&|^%');
 /** Pairs that mean something else once they touch: an operator of two signs, or a comment. */
 const NEVER_JOIN = new Set(['++', '--', '//', '/*', '*/']);
+/** Signs that can make such a pair with whatever a `${...}` turns out to hold (`- ${x}`, x = -1.0). */
+const SIGNS = new Set('+-*/');
+
+/** May the space between these two characters go? */
+function needless(before, after) {
+  // What a ${...} holds is not known here: a sign beside one keeps its space.
+  if ((before === HOLE && SIGNS.has(after)) || (after === HOLE && SIGNS.has(before))) return false;
+  return (PUNCTUATION.has(before) || PUNCTUATION.has(after)) && !NEVER_JOIN.has(before + after);
+}
 
 /** The end of the `${...}` whose `{` is at `open`: the index just past its `}`. */
 function endOfHole(text, open) {
@@ -72,11 +81,7 @@ function tighten(line) {
       out = word;
       continue;
     }
-    const before = out[out.length - 1];
-    const after = word[0];
-    const needless =
-      (PUNCTUATION.has(before) || PUNCTUATION.has(after)) && !NEVER_JOIN.has(before + after);
-    out += needless ? word : ` ${word}`;
+    out += needless(out[out.length - 1], word[0]) ? word : ` ${word}`;
   }
   return out;
 }
@@ -117,10 +122,7 @@ export function squeezeGlsl(source) {
     } else {
       const code = tighten(line);
       if (afterCode) {
-        const pair = out[out.length - 1] + code[0];
-        const needless =
-          (PUNCTUATION.has(pair[0]) || PUNCTUATION.has(pair[1])) && !NEVER_JOIN.has(pair);
-        out += needless ? code : ` ${code}`;
+        out += needless(out[out.length - 1], code[0]) ? code : ` ${code}`;
       } else out += code;
       afterCode = true;
     }
