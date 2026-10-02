@@ -600,6 +600,13 @@ as it was first drawn. The rule, as built:
     seam is a seam. Along a lathe's profile a turn of under **50 degrees** (`CREASE_DEG`) is a
     bend and a sharper one a fold; a profile that ends on its axis within 35 degrees of square
     (`POLE_DEG`) closes smoothly (a dome's top), a steeper one is a tip.
+  - **A bend is built as a curve.** Where a lathe's profile only bends, light already falls on
+    it as on one surface; its outline now agrees. The corner becomes an arc (`bent`,
+    `sim/world/kit.ts`): from half of the shorter band before it to as far after it, always
+    inside the corner the rows wrote (so no reach grows), in the pieces a circle of its radius
+    would get. A corner already within half the allowed sag of its arc is left alone: the
+    Devpost cup's bowl and Corgi's clay are curves every day, Model Rocketry's nose in the
+    close-up.
 - **Round in light.** A round thing's triangles carry the normals of the true surface, the
   shader carries the normal across each face and decides the three bands **at every pixel**
   (`design/shaders/toonFlat.ts`), a pixel soft: anti-aliased, never blurred. So a terminator is
@@ -642,8 +649,8 @@ as it was first drawn. The rule, as built:
   a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` and `lumpy` are two octaves,
   not three. A terrain's finest octave (`frequency` times two for each further octave) should
   stay under about 5.
-- **What it cost.** Triangles: the galaxy is about 39,900 every day (it was 32,500), the most
-  in one body 2612 every day and 6176 up close; the budget's ceilings rose once, on purpose,
+- **What it cost.** Triangles: the galaxy is about 40,400 every day (it was 32,500), the most
+  in one body 2746 every day and 6176 up close; the budget's ceilings rose once, on purpose,
   to 2800 and 6600 (`tests/world-bodies.test.ts`). No draw call was added: round and edged
   parts ride in one buffer and one material. A frame costs what it did (0.2 ms on the desktop
   it was measured on, on every tier). Nothing reaches further: the reaches of
@@ -656,9 +663,9 @@ as it was first drawn. The rule, as built:
   a hexagon nut or a pyramid, make it of a prism or of four sides. Do not fit a decal or a
   part to a FACET of a round thing: there are none to count on (the roll number of Model
   Rocketry sits on the tube's true radius).
-- **Still Allen's to judge:** whether the relief should go altogether; whether a profile of
-  few bands (the Devpost cup, a relay's beacon) should itself be a curve, as the ship's nose
-  became; and a third line a facet (one more attribute), which would take the last steps out
+- **Still Allen's to judge:** whether the relief should go altogether; whether the three tones
+  should stay hard-edged on a tube and a cone (a terminator is a straight line there, which
+  can read as a side of a prism); and a third line a facet (one more attribute), which would take the last steps out
   of the outlines of small islands and was left out for the weight (the lazy budget).
 
 **As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.

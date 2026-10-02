@@ -554,7 +554,9 @@ are the ball's or the shape's (`sim/planet.ts`, `shapeNormal`). A LATHE of five 
 every corner the normal of the true surface: round about the axis; along the profile shared
 between two bands where it only bends, kept apart where it folds by more than `CREASE_DEG` (a
 cap, a rim); one normal along the axis where a gentle profile ends on it (`POLE_DEG`: the top
-of a dome), one a side at a tip. A `ring` swept in two steps or more does the same for its
+of a dome), one a side at a tip. The rows' `lathe` is also built round ALONG its profile: a
+bend becomes an arc inside its corner (`bent`, `sim/world/kit.ts`), as fine as its size wants.
+A `ring` swept in two steps or more does the same for its
 walls. Everything else (a box, a prism, a fin, a quad, pixel art, a ring of one step, a lathe
 of three or four sides) carries no normals, and `pack` gives each face its own
 (`sim/world/glue.ts`). A triangle's normals ride in `Tri.n` through every placement (`xf`

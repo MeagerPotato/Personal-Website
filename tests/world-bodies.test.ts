@@ -71,8 +71,8 @@ import {
 // a wheel sketched with 8 sides has 16 every day and 24 up close), a bead is a ball and not an
 // octahedron, a planned world's clay is as fine as a built world's (1620 and 1280 facets; it was
 // 980 and 320), and the hubs and paint rings of the Hardware sun's gears are circles. The galaxy
-// is 39,926 triangles every day (it was 32,538). The ceilings rose with it, on purpose and once:
-// 2400 to 2800 every day, 5600 to 6600 up close (the most any body has: 2612 and 6176). What
+// is 40,434 triangles every day (it was 32,538). The ceilings rose with it, on purpose and once:
+// 2400 to 2800 every day, 5600 to 6600 up close (the most any body has: 2746 and 6176). What
 // they protect is a frame's cost, which did not move (the commit has the frame times).
 
 interface Budget {
@@ -96,7 +96,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'page/contact':                   { everyday: 292,  closeup: 404,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c1c9a6b8' },
   'link/github':                    { everyday: 420,  closeup: 908,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '944ba5be' },
   'link/linkedin':                  { everyday: 148,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92009a0f' },
-  'link/devpost':                   { everyday: 478,  closeup: 720,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'a54c4d13' },
+  'link/devpost':                   { everyday: 598,  closeup: 912,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3146ad73' },
   'system/hardware':                { everyday: 2612, closeup: 2684, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '0a97d327' },
   'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
   'system/research':                { everyday: 2578, closeup: 2890, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3e6c91fb' },
@@ -111,8 +111,8 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'project/fish-online':            { everyday: 2084, closeup: 2676, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'ff1e7ca6' },
   'project/sports-analysis':        { everyday: 2340, closeup: 3016, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '2eb57b5b' },
   'project/kalshi':                 { everyday: 676,  closeup: 1260, groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '569d8408' },
-  'project/corgi':                  { everyday: 2406, closeup: 3110, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '36030345' },
-  'project/model-rocketry':         { everyday: 508,  closeup: 852,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '6c5197d2' },
+  'project/corgi':                  { everyday: 2746, closeup: 3630, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '7a8df6ff' },
+  'project/model-rocketry':         { everyday: 556,  closeup: 1332, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'ac353ff1' },
   'project/cyberpatriot':           { everyday: 1968, closeup: 4972, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'edf52fc8' },
   'project/fish-onboarding':        { everyday: 1950, closeup: 2852, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f937f226' },
 };

@@ -10,6 +10,7 @@ import {
   add,
   AS_WRITTEN,
   basisM,
+  bent,
   box,
   brg,
   cone,
@@ -269,6 +270,9 @@ const decode = (x: unknown): unknown =>
 const runOp = <K extends OpName>(op: K, args: readonly unknown[]): Tri[] =>
   OPS[op](...(decode(args) as KitArgs<K>));
 
+/** Is this one colour path per band (and not one for the whole lathe)? */
+const isPaths = (colors: Cs): colors is readonly C[] => typeof colors !== 'string';
+
 /** A wavy ring (its radii a function of the bearing) is built this much finer than a plain one. */
 const WAVY = 3;
 
@@ -280,9 +284,14 @@ function refine(op: OpName, args: unknown[], fine: Fine): void {
   const num = (i: number): number => args[i] as number;
   const sides = (r: number, i: number): number => (args[i] = sidesFor(r, num(i), fine));
   switch (op) {
-    case 'lathe':
+    case 'lathe': {
       sides(Math.max(...(args[0] as readonly Vec2[]).map((ring) => ring[1])), 1);
+      // Round along its profile as it is round about its axis: a gentle bend is built as a curve.
+      if (num(1) < ROUND_FROM) break;
+      const curve = bent(args[0] as readonly Vec2[], args[2] as Cs, fine, isPaths);
+      [args[0], args[2]] = [curve.rings, curve.colors];
       break;
+    }
     case 'cyl':
       sides(num(0), 3);
       break;

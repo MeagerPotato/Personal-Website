@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TAU } from '../math';
 import { ROUND_FROM } from '../meshBuilder';
 import {
+  bent,
   AS_WRITTEN,
   box,
   brg,
@@ -172,6 +173,59 @@ describe('the kit', () => {
     expect(sidesFor(1, 4, fine)).toBe(4);
     expect(sidesFor(1, 3, fine)).toBe(3);
     expect(sidesFor(1, 8, AS_WRITTEN)).toBe(8);
+  });
+
+  it('builds a gentle bend of a profile as an arc inside its corner, and leaves a fold alone', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    const several = (colors: string | readonly string[]): colors is readonly string[] =>
+      typeof colors !== 'string';
+    // A tube, a shoulder that bends by 45 degrees, a cap that folds by 59.
+    const profile: Vec2[] = [
+      [0, 0],
+      [0, 0.5],
+      [1, 0.5],
+      [1.3, 0.2],
+      [1.25, 0],
+    ];
+    const { rings, colors } = bent(profile, ['a', 'b', 'c', 'd'], fine, several);
+    expect(rings.length).toBeGreaterThan(profile.length + 2);
+    expect(colors).toHaveLength(rings.length - 1);
+    // The folds stand where they stood; the bend's corner is cut, never passed.
+    for (const kept of [profile[0], profile[1], profile[3], profile[4]])
+      expect(rings).toContainEqual(kept);
+    expect(rings).not.toContainEqual(profile[2]);
+    for (const [y, r] of rings) {
+      expect(r).toBeLessThanOrEqual(0.5 + 1e-9);
+      expect(y).toBeLessThanOrEqual(1.3 + 1e-9);
+      // Inside the corner: under the tube's line and under the shoulder's.
+      expect(r + (y - 1)).toBeLessThanOrEqual(0.5 + 1e-9);
+    }
+    // It turns the same way all along, a little at a time.
+    const turns = rings.slice(1, -1).map((at, i) => {
+      const [before, after] = [rings[i] ?? at, rings[i + 2] ?? at];
+      return Math.atan2(
+        (at[0] - before[0]) * (after[1] - at[1]) - (at[1] - before[1]) * (after[0] - at[0]),
+        (at[0] - before[0]) * (after[0] - at[0]) + (at[1] - before[1]) * (after[1] - at[1]),
+      );
+    });
+    const arc = turns.filter((turn) => Math.abs(turn) > 1e-9 && Math.abs(turn) < 1);
+    expect(arc.length).toBeGreaterThan(2);
+    for (const turn of arc) expect(Math.abs(turn)).toBeLessThan((20 * Math.PI) / 180);
+    // The colours change in the middle of the arc: b before it, c after.
+    const list = colors as readonly string[];
+    expect(list[0]).toBe('a');
+    expect(list.at(-1)).toBe('d');
+    expect(list.filter((c) => c === 'b').length).toBeGreaterThan(1);
+    expect(list.filter((c) => c === 'c').length).toBeGreaterThan(1);
+    // One colour stays one colour; as written, and a bend too slight to see, stay as they are.
+    expect(bent(profile, 'a', fine, several).colors).toBe('a');
+    expect(bent(profile, 'a', AS_WRITTEN, several).rings).toBe(profile);
+    const slight: Vec2[] = [
+      [0, 0.5],
+      [0.1, 0.5],
+      [0.2, 0.495],
+    ];
+    expect(bent(slight, 'a', fine, several).rings).toBe(slight);
   });
 
   it('carries a normal through a move, a turn and a squash', () => {

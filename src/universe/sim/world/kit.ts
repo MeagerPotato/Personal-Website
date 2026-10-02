@@ -230,6 +230,73 @@ export const sidesFor = (r: number, sides: number, fine: Fine): number =>
         Math.min(fine.max, Math.ceil(Math.PI * Math.sqrt(Math.abs(r) / (2 * fine.sag)))),
       );
 
+/**
+ * A profile's GENTLE BENDS, built as the curves they stand for. Where a lathe's profile turns by
+ * less than `CREASE_DEG` from one band to the next, light already falls on it as on one curved
+ * surface (sim/meshBuilder.ts, `lathe`); its outline says so too once the corner is an arc: from
+ * half of the shorter band before it to as far after it, never outside the corner (so nothing
+ * reaches further than the rows wrote), in as many pieces as a circle of its radius would get
+ * (`sidesFor`). A fold stays a fold, a straight run stays straight, and a corner that already
+ * lies within half of `fine.sag` of its arc is left alone. `colors` is one colour, or one per
+ * band: an arc is the colour of the band before it up to its middle, and of the next from there.
+ */
+export function bent<T>(
+  rings: readonly Vec2[],
+  colors: T | readonly T[],
+  fine: Fine,
+  several: (colors: T | readonly T[]) => colors is readonly T[],
+): { rings: readonly Vec2[]; colors: T | readonly T[] } {
+  if (!Number.isFinite(fine.sag) || rings.length < 3) return { rings, colors };
+  const colorOf = (band: number): T =>
+    several(colors) ? (colors[Math.min(band, colors.length - 1)] as T) : colors;
+  const first = rings[0] as Vec2;
+  const out: Vec2[] = [first];
+  const paint: T[] = [];
+  let changed = false;
+  const push = (point: Vec2, color: T): void => {
+    const last = out[out.length - 1] as Vec2;
+    if (Math.hypot(point[0] - last[0], point[1] - last[1]) < 1e-9) return;
+    out.push(point);
+    paint.push(color);
+  };
+  for (let i = 1; i < rings.length; i += 1) {
+    const [before, at, after] = [rings[i - 1] as Vec2, rings[i] as Vec2, rings[i + 1]];
+    const a: Vec2 = [at[0] - before[0], at[1] - before[1]];
+    const la = Math.hypot(a[0], a[1]);
+    const b: Vec2 = after ? [after[0] - at[0], after[1] - at[1]] : [0, 0];
+    const lb = Math.hypot(b[0], b[1]);
+    const turn =
+      la > 1e-9 && lb > 1e-9
+        ? Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1]) / (la * lb))))
+        : 0;
+    const reach = Math.min(la, lb) / 2;
+    // On the axis a profile ends (a pole, a tip): no corner to round there.
+    const gentle =
+      Math.abs(at[1]) > 1e-9 &&
+      turn < (CREASE_DEG * Math.PI) / 180 &&
+      (reach * Math.sin(turn / 2)) / 2 > fine.sag / 2;
+    if (!gentle) {
+      push(at, colorOf(i - 1));
+      continue;
+    }
+    changed = true;
+    const from: Vec2 = [at[0] - (a[0] / la) * reach, at[1] - (a[1] / la) * reach];
+    const to: Vec2 = [at[0] + (b[0] / lb) * reach, at[1] + (b[1] / lb) * reach];
+    const circle = sidesFor(reach / Math.tan(turn / 2), ROUND_FROM, fine);
+    const pieces = 2 * Math.max(1, Math.ceil((circle * turn) / TAU / 2));
+    push(from, colorOf(i - 1));
+    for (let k = 1; k <= pieces; k += 1) {
+      const t = k / pieces;
+      const [u, v, w] = [(1 - t) * (1 - t), 2 * t * (1 - t), t * t];
+      push(
+        [u * from[0] + v * at[0] + w * to[0], u * from[1] + v * at[1] + w * to[1]],
+        colorOf(k <= pieces / 2 ? i - 1 : i),
+      );
+    }
+  }
+  return changed ? { rings: out, colors: several(colors) ? paint : colors } : { rings, colors };
+}
+
 // --- primitives (local frame: +Y up) --------------------------------------------------------------
 
 /** One colour, or one per segment (a lathe's bands, a ring's steps): */
