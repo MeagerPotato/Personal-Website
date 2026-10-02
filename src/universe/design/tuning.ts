@@ -1286,11 +1286,14 @@ export const tuning = {
        * Granulation: two noise frequencies on the unit sphere, the weight of the coarse one, and
        * the three thresholds that cut it into four tones (about 15 / 45 / 30 / 10 percent, so
        * that the median facet is the family's base). The thresholds are the 15th, 60th and 90th
-       * percentiles of THIS noise (sim/noise.ts, about -1 to 1), measured over sixteen suns: a
+       * percentiles of THIS noise (sim/noise.ts, about -1 to 1), measured over ten suns: a
        * change to the frequencies or the weight wants them measured again
-       * (sim/sunSurface.test.ts holds the shares).
+       * (sim/sunSurface.test.ts holds the shares). The frequencies are low on purpose: a facet
+       * of the ball is about 0.12 radians across, and a tone must lie in CELLS several facets
+       * wide. At 2.5 and 6 one facet in six had no neighbour of its own tone and the ball read
+       * as a mirror ball; here it is one in twenty (the test holds that too).
        */
-      granulation: { freq: 2.5, weight: 0.72, freq2: 6, thresholds: [-0.23, 0.061, 0.286] },
+      granulation: { freq: 1.5, weight: 0.85, freq2: 3.5, thresholds: [-0.268, 0.07, 0.329] },
       /** Limb darkening: a facet turned this far from the camera is two, then one, tone darker. */
       limbNz: [0.2, 0.42],
       /** Three spots: unit normals in the sun's own space, and angular radii in radians. */

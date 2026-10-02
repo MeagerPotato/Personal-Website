@@ -35,6 +35,32 @@ describe('a living sun’s surface', () => {
     }
   });
 
+  it('lays its tones in cells, not as confetti: few facets have no neighbour of their tone', () => {
+    // At facet-sized noise one facet in six stood alone and the ball read as a mirror ball.
+    for (const seed of SEEDS) {
+      const facets = finish(
+        groundOf({ seed, sun: 'sky', recipe: 'sun' }, 'body', tuning.world.detailSun, LOOKS),
+      );
+      const tones = facets.map((facet) => Math.floor(facet.g / 4) - 1);
+      const centres = facets.map(({ p }) =>
+        [0, 1, 2].map((axis) => ((p[axis] ?? 0) + (p[axis + 3] ?? 0) + (p[axis + 6] ?? 0)) / 3),
+      );
+      const gap = (a: number[], b: number[]): number =>
+        Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0));
+      let alone = 0;
+      centres.forEach((centre, i) => {
+        // The three facets across its edges are the three nearest centres.
+        const near = centres
+          .map((other, j) => [gap(centre, other), j] as const)
+          .filter(([distance, j]) => j !== i && distance < 0.15)
+          .sort((a, b) => a[0] - b[0])
+          .slice(0, 3);
+        if (near.every(([, j]) => tones[j] !== tones[i])) alone += 1;
+      });
+      expect(alone / facets.length, seed).toBeLessThan(0.08);
+    }
+  });
+
   it('has 2000 facets, 1280 on the low tier, each glowing and in its tone’s colour', () => {
     expect(tonesOf('sun-sky', tuning.world.detailSun)).toHaveLength(2000);
     expect(tonesOf('sun-sky', look.detailLow)).toHaveLength(1280);

@@ -574,6 +574,10 @@ flat.
   washes out to cream. Toward the **limb** a facet steps one tone down the ladder, then two
   (limb darkening, in flat steps); **three spots** sit at fixed places on the ball, a dark core
   in a ring. No gradient anywhere on it: matter is flat (rule 1). Nothing on the surface moves.
+  **The tones lie in cells** several facets wide: the noise is slower than the look's recipe
+  (1.5 and 3.5 on the unit sphere, where it was drawn at 2.5 and 6), because at 2000 facets
+  the recipe's noise was the size of a facet, one facet in six had no neighbour of its own
+  tone, and the ball read as a mirror ball, not a surface. A test holds it under one in twelve.
 - **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier), not the 2880 the look
   was drawn at: a body is at most 2400 triangles every day, its signs included
   (`tests/world-bodies.test.ts`), and that ceiling is not this pass's to raise. **Allen's call**
