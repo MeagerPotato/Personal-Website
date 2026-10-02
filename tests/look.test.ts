@@ -3,7 +3,9 @@ import { readRealInput } from '../scripts/journeys/galaxies';
 import { buildUniverse } from '../src/universe/data/build';
 import { tokens } from '../src/universe/design/tokens';
 import { tuning } from '../src/universe/design/tuning';
+import { createOrbitTable } from '../src/universe/sim/orbits';
 import { azimuthBetween, wrapDeg } from '../src/universe/sim/skyDirections';
+import { trafficDots } from '../src/universe/sim/traffic';
 
 // `tuning.look` and the star classes are the numbers of the "flat worlds, deep light" pass
 // (docs/DESIGN.md, "Deep light"). They are written before the systems that read them, so until
@@ -144,6 +146,43 @@ describe('the stars’ tables', () => {
     expect(classes.field.count).toBeGreaterThan(classes.bright.count);
     expect(classes.bright.count).toBeGreaterThan(classes.mid.count);
     expect(classes.mid.count).toBeGreaterThan(heroes.length);
+  });
+});
+
+describe('traffic and the chart', () => {
+  it('runs traffic on every orbit of today’s galaxy but the relays’', () => {
+    const table = createOrbitTable(real.systems, real.bodies);
+    const byId = new Map(real.bodies.map((body) => [body.id, body]));
+    const docks = (row: number): boolean => byId.get(table.ids[row] ?? '')?.docks !== false;
+    const dots = trafficDots(table, docks, tuning.look.traffic);
+    const lines = new Set(Array.from(dots.row, (row) => table.ids[row]));
+    const orbiting = real.bodies.filter((body) => body.orbit !== null);
+    const relays = orbiting.filter((body) => body.docks === false);
+    expect(relays.length).toBeGreaterThan(0);
+    expect(lines.size).toBe(orbiting.length - relays.length);
+    expect(dots.count).toBe(2 * lines.size);
+    for (const relay of relays) expect(lines.has(relay.id)).toBe(false);
+    // No orbit of today's is under the limit: every line a ship can dock on has its two dots.
+    expect(Math.min(...orbiting.map((body) => body.orbit?.radius ?? 0))).toBeGreaterThanOrEqual(
+      tuning.look.traffic.minOrbitRadiusU,
+    );
+  });
+
+  it('keeps the districts apart, and a dash shorter than its gap', () => {
+    // Two districts that overlap would paint one family's gas over another's.
+    const { districtOuter, ringDashPx, ringWidthPx, dotRadiusPx, dotSpacingPx } = tuning.look.chart;
+    expect(districtOuter).toBeGreaterThan(1);
+    for (const a of real.systems) {
+      for (const b of real.systems) {
+        if (a.id >= b.id) continue;
+        const apart = Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1]);
+        expect(apart, `${a.id} and ${b.id}`).toBeGreaterThan(districtOuter * (a.radius + b.radius));
+      }
+    }
+    // A ring of long dashes reads as an orbit line, which is what the dashes are there to avoid.
+    expect(ringDashPx[0]).toBeLessThan(ringDashPx[1]);
+    expect(ringWidthPx).toBeLessThan(ringDashPx[0]);
+    expect(dotRadiusPx * 8).toBeLessThan(dotSpacingPx);
   });
 });
 

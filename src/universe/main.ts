@@ -32,12 +32,14 @@ import { sunSeed } from './sim/sunSurface';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { AirShells } from './world/AirShells';
 import { Backdrop } from './world/Backdrop';
+import { Chart } from './world/Chart';
 import { Galaxy } from './world/Galaxy';
 import { livingSun, lookOf } from './world/looks';
 import { SkyBake, type SkyState } from './world/SkyBake';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 import { SunCorona } from './world/SunCorona';
+import { Traffic } from './world/Traffic';
 
 /**
  * Composition root: builds the engine and adds systems in an explicit order, because the order
@@ -393,13 +395,40 @@ export function boot(
       reducedMotion,
     }),
   );
+  // The dots that go round the orbit lines, in each line's family. After the galaxy, as the
+  // coronas are. A relay's orbit has none: nothing docks there, so nothing goes there.
+  const traffic = engine.add(
+    new Traffic({
+      orbits: surroundings.orbits,
+      families: surroundings.orbits.ids.map((id, row) =>
+        surroundings.field.docks[row] === 0 ? undefined : sunFamilies.get(id),
+      ),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      reducedMotion,
+    }),
+  );
+  // The star map's ground: a district for each system. After the map, whose scale it reads.
+  const chart = engine.add(
+    new Chart({
+      districts: manifest.systems.map(({ position: [x, z], radius, theme }) => ({
+        x,
+        z,
+        radius,
+        family: theme,
+      })),
+      map: starMap,
+    }),
+  );
   engine.scene.add(
     backdrop.object,
+    chart.object,
     starfield.object,
     dust.object,
     galaxy.object,
     coronas.object,
     air.object,
+    traffic.object,
     ship.object,
   );
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm

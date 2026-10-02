@@ -120,7 +120,8 @@ exact in open space and approximate near planets, which have moved on by then). 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: any
 body's emblem world by its id (far, close-up, moving, or its star map variant), a
 planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
-station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as
+station, the satellite, a profile's relay, orbit lines with their traffic over the sky, the star
+map's chart from above, in front of the real sky and lit and post-processed as
 in the universe, with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the
 light's direction, and the tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is

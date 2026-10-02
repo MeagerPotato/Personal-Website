@@ -25,6 +25,7 @@ import {
   airCloud,
   airShell,
 } from './shaders/air';
+import { chart } from './shaders/chart';
 import { corona } from './shaders/corona';
 import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
@@ -35,6 +36,7 @@ import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { skyBake } from './shaders/skyBake';
 import { skyConstants, skyLoops, skyRamps } from './skyRecipe';
 import { AIR_LIMB_STEPS, SUN_SPOTS, toonFlat } from './shaders/toonFlat';
+import { traffic } from './shaders/traffic';
 import { tokens, type AirKey, type BiomeKey, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
@@ -628,6 +630,97 @@ export function cloudColor(air: AirKey, peak: BiomeKey): Color {
 /** A world's air in display space, as the shell's shader lays it over the sky. */
 export function airColor(air: AirKey): Color {
   return new Color(tokens.color.air[air]).convertLinearToSRGB();
+}
+
+export type TrafficMaterial = ShaderMaterial & { uniforms: { uView: IUniform<Vector3> } };
+
+/**
+ * The dots on the orbit lines (shaders/traffic.ts): `tuning.look.traffic`. Paint over what is
+ * behind it, and not on the bloom guest list.
+ */
+export function createTrafficMaterial(): TrafficMaterial {
+  const material = new ShaderMaterial({
+    name: 'traffic',
+    vertexShader: traffic.vertexShader,
+    fragmentShader: traffic.fragmentShader,
+    uniforms: {
+      uView: { value: new Vector3(1, 1, 1) },
+      uOpacity: { value: tuning.look.traffic.opacity },
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, false) as TrafficMaterial;
+}
+
+/** A dot of traffic's colour (linear): its family's light. */
+export function trafficColor(family: ThemeKey): Color {
+  return new Color(tokens.color.system[family].light);
+}
+
+/** A system as the chart draws its district: where it is, how far it reaches, and its family. */
+export interface ChartDistrict {
+  readonly x: number;
+  readonly z: number;
+  /** The reach of its outermost docking orbit (u). */
+  readonly radius: number;
+  readonly family: ThemeKey;
+}
+
+export type ChartMaterial = ShaderMaterial & {
+  uniforms: { uWeight: IUniform<number>; uUnitsPerPx: IUniform<number> };
+};
+
+/**
+ * The star map's ground (shaders/chart.ts): `tuning.look.chart`, and a district for each system
+ * in its family's gas (the sky's palette) and, for the dashed ring, its base. Premultiplied
+ * colour over what is behind it, and not on the bloom guest list.
+ */
+export function createChartMaterial(districts: readonly ChartDistrict[]): ChartMaterial {
+  const look = tuning.look.chart;
+  const { space, ink, nebula, system } = tokens.color;
+  // Display space: the parts are laid over each other as paint is.
+  const paint = (hex: string): Color => new Color(hex).convertLinearToSRGB();
+  // A shader cannot loop over nothing: with no system at all, one district nobody can see.
+  const shown: readonly ChartDistrict[] =
+    districts.length > 0 ? districts : [{ x: 0, z: 0, radius: 0, family: 'butter' }];
+  const material = new ShaderMaterial({
+    name: 'chart',
+    vertexShader: chart.vertexShader,
+    fragmentShader: chart.fragmentShader,
+    defines: { DISTRICTS: shown.length },
+    uniforms: {
+      uWeight: { value: 0 },
+      uUnitsPerPx: { value: 1 },
+      uBloomMask: bloomMask,
+      // The sky as the map's camera sees it, straight down (shaders/sky.ts, the backdrop).
+      uUnder: {
+        value: new Color(space[950])
+          .lerp(new Color(space[800]), Math.exp(-tuning.backdrop.horizonFalloff))
+          .convertLinearToSRGB(),
+      },
+      uDot: { value: paint(ink.low) },
+      uGrid: { value: new Vector3(look.dotSpacingPx, look.dotRadiusPx, look.dotAlpha) },
+      uDisc: { value: shown.map(({ x, z, radius }) => new Vector3(x, z, radius)) },
+      uOuter: { value: shown.map(({ family }) => paint(nebula[family].mid)) },
+      uInner: { value: shown.map(({ family }) => paint(nebula[family].lit)) },
+      uRing: { value: shown.map(({ family }) => paint(system[family].base)) },
+      uDistrict: {
+        value: new Vector4(
+          look.districtOuter,
+          look.districtOuterAlpha,
+          look.districtInnerAlpha,
+          look.ringAlpha,
+        ),
+      },
+      uDash: { value: new Vector3(look.ringWidthPx, ...look.ringDashPx) },
+    },
+    transparent: true,
+    depthWrite: false,
+  });
+  keepBloomMask(material, false);
+  material.blendSrc = OneFactor;
+  return material as ChartMaterial;
 }
 
 export type DustMaterial = ShaderMaterial & {

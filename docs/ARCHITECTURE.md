@@ -640,6 +640,19 @@ galaxy's positions and display scales and each world's light. Which worlds wear 
 tier's (`look.air.cloudTiers`). Air is the world's id, the tokens, the tuning and the simulation
 time: nothing of it is a snapshot field.
 
+**Traffic and the chart** are two more systems added after the galaxy in `main.ts`.
+`world/Traffic.ts` is one instanced draw of quads (`design/shaders/traffic.ts`): two dots on
+every orbit that has a family to wear (a relay's has none). Which dots there are and where each
+is at a time is `sim/traffic.ts`, pure: a dot is its orbit's id, `tuning.look.traffic` and the
+simulation time of the frame, laid on the galaxy's positions of that same frame, so a rebuilt
+engine draws the same dots and reduced motion is simply time zero. A dot's size rides in its
+place's `y` (the flight plane is `y = 0`), which is also how an orbit the star map does not
+draw loses its dots (`displayScale` of its body: size 0). `world/Chart.ts` is one plane under
+the flight plane (`design/shaders/chart.ts`), visible only while the star map's weight is above
+0.01, drawn after the backdrop and before the stars; it reads the map's weight and scale each
+frame and has as many districts as the manifest has systems (a `#define`). Neither is state,
+neither is picked, and neither is on the bloom guest list.
+
 **The sky is baked once, on the GPU, after the first frame** (`world/SkyBake.ts`). What the sky
 adds to the navy (the Milky Way, the massifs of gas at the systems' bearings, far galaxies) is
 one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it

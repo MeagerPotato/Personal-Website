@@ -21,6 +21,7 @@ import {
   cloudColor,
   createAirShellMaterial,
   createBackdropMaterial,
+  createChartMaterial,
   createCloudMaterial,
   createCoronaMaterial,
   createEdgeMaterial,
@@ -28,6 +29,7 @@ import {
   createSkyBakeMaterial,
   createStarMaterial,
   createToonMaterial,
+  createTrafficMaterial,
   refreshToonLook,
   setSky,
 } from './materials';
@@ -39,9 +41,11 @@ import {
   airCloud,
   airShell,
 } from './shaders/air';
+import { chart } from './shaders/chart';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { AIR_LIMB_STEPS, SUN_SPOTS, SUN_TONES, toonFlat } from './shaders/toonFlat';
+import { traffic } from './shaders/traffic';
 import {
   CORONA_GLOW_STOPS,
   CORONA_PROMS,
@@ -405,6 +409,66 @@ describe('a world with air: its material, its shell and its clouds', () => {
       const mixed = (peak[k] ?? NaN) + ((air[k] ?? NaN) - (peak[k] ?? NaN)) * cloud.mix;
       expect(value).toBeCloseTo(mixed * cloud.tone, 6);
     });
+  });
+});
+
+describe('traffic and the chart', () => {
+  it('paints a dot of traffic over what is behind it, behind the solid world, never blooming', () => {
+    const material = createTrafficMaterial();
+    expect(material.uniforms.uOpacity?.value).toBe(tuning.look.traffic.opacity);
+    expect(material.blendSrc).toBe(SrcAlphaFactor);
+    expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
+    expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+    expect([material.depthTest, material.depthWrite]).toEqual([true, false]);
+    // Its place's y is its size, not a height: every dot lies on the flight plane.
+    expect(traffic.vertexShader).toContain('modelViewMatrix * vec4(aDot.x, 0.0, aDot.z, 1.0)');
+    expect(traffic.vertexShader).toContain('0.5 * aDot.y * uView.z');
+    material.dispose();
+  });
+
+  it('lays the chart’s numbers out as its shader reads them, and never on the bloom guest list', () => {
+    const look = tuning.look.chart;
+    const material = createChartMaterial([{ x: 3, z: -4, radius: 50, family: 'mint' }]);
+    const { uniforms } = material;
+    expect(material.defines?.DISTRICTS).toBe(1);
+    expect((uniforms.uGrid?.value as Vector3).toArray()).toEqual([
+      look.dotSpacingPx,
+      look.dotRadiusPx,
+      look.dotAlpha,
+    ]);
+    expect((uniforms.uDistrict?.value as Vector4).toArray()).toEqual([
+      look.districtOuter,
+      look.districtOuterAlpha,
+      look.districtInnerAlpha,
+      look.ringAlpha,
+    ]);
+    expect((uniforms.uDash?.value as Vector3).toArray()).toEqual([
+      look.ringWidthPx,
+      ...look.ringDashPx,
+    ]);
+    // The dots in the quietest ink, in display space: the token itself.
+    const low = Number.parseInt(tokens.color.ink.low.slice(1, 3), 16) / 255;
+    expect((uniforms.uDot?.value as Color).r).toBeCloseTo(low, 4);
+    // Under it, the sky straight down: all but the deepest navy.
+    const deep = Number.parseInt(tokens.color.space[950].slice(5, 7), 16) / 255;
+    const horizon = Number.parseInt(tokens.color.space[800].slice(5, 7), 16) / 255;
+    const under = (uniforms.uUnder?.value as Color).b;
+    expect(under).toBeGreaterThanOrEqual(deep - 1e-6);
+    expect(under).toBeLessThan(deep + 0.1 * (horizon - deep));
+    // Premultiplied colour over what is behind, and alpha left as it was found.
+    expect(material.blendSrc).toBe(OneFactor);
+    expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
+    expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+    expect(material.depthWrite).toBe(false);
+    expect(uniforms.uBloomMask).toBe(createToonMaterial().uniforms.uBloomMask);
+    // Every part is as much there as the map is: the dots, and a district's three alphas.
+    expect(chart.fragmentShader.match(/uWeight \* /g)).toHaveLength(2);
+    material.dispose();
+    // A galaxy with no system at all still compiles: one district nobody can see.
+    const empty = createChartMaterial([]);
+    expect(empty.defines?.DISTRICTS).toBe(1);
+    expect((empty.uniforms.uDisc?.value as Vector3[])[0]?.z).toBe(0);
+    empty.dispose();
   });
 });
 

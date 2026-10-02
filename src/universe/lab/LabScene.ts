@@ -1,5 +1,13 @@
 import GUI from 'lil-gui';
-import { Group, SRGBColorSpace, Vector3, WebGLRenderTarget } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Group,
+  LineLoop,
+  SRGBColorSpace,
+  Vector3,
+  WebGLRenderTarget,
+} from 'three';
 import { CameraRig } from '../camera/CameraRig';
 import { AssetStore } from '../core/AssetStore';
 import { Engine, type Frame, type System, type Viewport } from '../core/Engine';
@@ -10,6 +18,7 @@ import { TIERS, type QualityTier } from '../core/quality/tiers';
 import { Scope } from '../core/scope';
 import {
   createGlowMaterial,
+  createLineMaterial,
   createToonMaterial,
   refreshToonLook,
   setBloomMask,
@@ -21,10 +30,12 @@ import { skyColours } from '../design/skyRecipe';
 import { tokens, type AirKey, type BiomeKey, type StarKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { BODIES } from '../design/worlds/bodies';
-import { readManifest, type ManifestBody } from '../manifest';
+import { readManifest, type ManifestBody, type ManifestSystem } from '../manifest';
 import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
+import { TAU } from '../sim/math';
+import { bodyPositions, createOrbitTable } from '../sim/orbits';
 import { planetTriangleCount } from '../sim/planet';
 import { createRng, pickWeighted } from '../sim/rng';
 import { directionOf, SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
@@ -35,11 +46,13 @@ import { rowsOf, type BodyRecipe } from '../sim/world/rows';
 import { buildStarList, STAR_KINDS, type StarKind, type StarList } from '../sim/starList';
 import { AirShells } from '../world/AirShells';
 import { Backdrop } from '../world/Backdrop';
+import { Chart } from '../world/Chart';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { SkyBake } from '../world/SkyBake';
 import { starGeometry, Starfield } from '../world/Starfield';
 import { SunCorona } from '../world/SunCorona';
+import { Traffic } from '../world/Traffic';
 import { airOf, lookOf, type LookedAt } from '../world/looks';
 import { TurntableCam } from './TurntableCam';
 
@@ -54,6 +67,8 @@ const SUBJECTS = [
   'relay',
   'sky',
   'stars',
+  'orbits',
+  'chart',
 ] as const;
 type Subject = (typeof SUBJECTS)[number];
 
@@ -161,13 +176,24 @@ const KIND_OF = {
   satellite: 'satellite',
   relay: 'link',
 } as const satisfies Record<
-  Exclude<Subject, 'rocket' | 'world' | 'sun' | 'sky' | 'stars'>,
+  Exclude<Subject, 'rocket' | 'world' | 'sun' | 'sky' | 'stars' | 'orbits' | 'chart'>,
   LookedAt['kind']
 >;
 
 /** Whose air the thing on show wears: what the galaxy gives it, none, or one of the tokens'. */
 const AIR_CHOICES = ['galaxy', 'none', ...(Object.keys(tokens.color.air) as AirKey[])] as const;
 type AirChoice = (typeof AIR_CHOICES)[number];
+
+/**
+ * The `orbits` subject: a made-up system on the flight plane below and ahead of the view, as the
+ * chase camera sees one. Four planets' orbits (the real radii of a system of four) and, further
+ * out, a path as wide as a binary's sun's, which is drawn fainter.
+ */
+const ORBIT_RADII = [60.2, 98.6, 137, 175.4];
+const TRACK_RADIUS = 240;
+/** How far ahead of the view the system's centre is, and how far below it the flight plane (u). */
+const ORBITS_AHEAD = 220;
+const ORBITS_BELOW = 30;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
 const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
@@ -248,7 +274,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // The worlds' kinds and sizes, as the galaxy has them; until then, and without it, a guess.
   void fetch('/universe.json')
     .then((response) => response.json())
-    .then((data: unknown) => table.know(readManifest(data).bodies))
+    .then((data: unknown) => table.know(readManifest(data)))
     .catch(() => undefined);
   engine.add(new CameraRig(engine.camera, camera, tuning.cameraRig));
 
@@ -259,7 +285,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // It is quieter while docked and on the star map: the lab says which with two of its controls.
   const page = mount.ownerDocument.documentElement;
   engine.add({
-    frameUpdate: () => sky.setView(table.state.docked, table.state.starMap),
+    frameUpdate: () => sky.setView(table.state.docked, table.mapWeight),
     dispose: () => undefined,
   });
   const sky = engine.add(
@@ -347,6 +373,22 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // The stars alone, from the same views: the sky's own, or a sheet of one kind at 1:1, in one
   // tint or the mix, and drawn as a view of another height would draw them (a hero's spikes
   // follow the view's height).
+  // Orbit lines and their traffic in front of the sky, from the same views (the `first` one
+  // has the Projects pool behind them): how strong a line has to be to read over the gas. 0 is
+  // the tuning's own (tuning.world.orbitLineOpacity and sunTrackOpacity, under "world" below).
+  const orbitFolder = gui.addFolder('orbits (subject: orbits)');
+  orbitFolder
+    .add(state, 'lineOpacity', 0, 0.6, 0.01)
+    .name('line opacity (0: tuning)')
+    .onChange(rebuild);
+  orbitFolder
+    .add(state, 'trackOpacity', 0, 0.6, 0.01)
+    .name('sun track (0: tuning)')
+    .onChange(rebuild);
+  // The star map’s ground, from straight above; the slider zooms, as the wheel does on the map.
+  const chartFolder = gui.addFolder('chart (subject: chart)');
+  chartFolder.add(state, 'chartSpanU', 100, 4000, 50).name('view height, u');
+  addControls(chartFolder, tuning.look.chart as unknown as Record<string, unknown>, rebuild);
   const starFolder = gui.addFolder('stars (subject: stars)');
   starFolder.add(state, 'starKind', STAR_SHEETS).name('kind').onChange(rebuild);
   starFolder.add(state, 'starTint', STAR_TINTS).name('tint').onChange(rebuild);
@@ -549,6 +591,9 @@ class Turntable implements System {
     starTint: 'mixed' as StarTint,
     starRows: 0,
     starMap: 0,
+    lineOpacity: 0,
+    trackOpacity: 0,
+    chartSpanU: 2000,
   };
 
   private scope = new Scope();
@@ -560,6 +605,14 @@ class Turntable implements System {
   private corona: SunCorona | null = null;
   /** The air of the world on show, if it has any. */
   private air: AirShells | null = null;
+  /** The traffic on the orbits on show. */
+  private traffic: Traffic | null = null;
+  /** The chart on show, and the map it is told of: all of it, at the scale of this view. */
+  private chart: Chart | null = null;
+  private readonly chartMap = { weight: 1, unitsPerPx: 1 };
+  private systems: readonly ManifestSystem[] = [];
+  /** The view as the engine last gave it: the real pixel ratio, which a dot's size goes by. */
+  private view: Viewport = { width: 1, height: 1, pixelRatio: 1 };
   /** Where the thing on show is: the middle of the table. */
   private readonly center = new Vector3();
   /** The radius of the body on show (u). */
@@ -594,20 +647,37 @@ class Turntable implements System {
   }
 
   /** The galaxy's bodies have arrived: draw the world on show at its real kind and size. */
-  know(bodies: readonly ManifestBody[]): void {
+  know(manifest: { bodies: readonly ManifestBody[]; systems: readonly ManifestSystem[] }): void {
     if (this.disposed) return;
-    this.bodies = new Map(bodies.map((body) => [body.id, body]));
-    if (this.state.subject === 'world') this.show();
+    this.bodies = new Map(manifest.bodies.map((body) => [body.id, body]));
+    this.systems = manifest.systems;
+    if (this.state.subject === 'world' || this.state.subject === 'chart') this.show();
+  }
+
+  /** How much of the star map the sky and the stars are drawn as: all of it under the chart. */
+  get mapWeight(): number {
+    return this.state.subject === 'chart' ? 1 : this.state.starMap;
+  }
+
+  resize(viewport: Viewport): void {
+    this.view = viewport;
+    this.traffic?.resize(viewport);
   }
 
   describe(): string {
     const { subject, biome, theme } = this.state;
-    if (subject === 'sky' || subject === 'stars') {
+    if (subject === 'chart') return `chart, ${this.chartMap.unitsPerPx.toFixed(2)} u/px`;
+    if (subject === 'sky' || subject === 'stars' || subject === 'orbits') {
       const gaze = this.camera.gaze;
       const at = gaze
         ? `yaw ${gaze.yawDeg.toFixed(1)} pitch ${gaze.pitchDeg.toFixed(1)} fov ${gaze.fovDeg.toFixed(0)}`
         : '';
-      const what = subject === 'sky' ? 'sky' : `stars (${this.state.starKind})`;
+      const what =
+        subject === 'sky'
+          ? 'sky'
+          : subject === 'orbits'
+            ? 'orbits'
+            : `stars (${this.state.starKind})`;
       return `${what} from "${this.state.pose}", ${at}`;
     }
     if (subject === 'world') {
@@ -650,7 +720,13 @@ class Turntable implements System {
     }
     this.stars.rows = state.subject === 'stars' && state.starRows > 0 ? state.starRows : null;
     this.stars.resize(this.viewport());
-    if (state.subject === 'sky' || state.subject === 'stars') {
+    this.stars.setCalm(this.mapWeight, tuning.map.starOpacity);
+    if (state.subject === 'chart') {
+      this.showChart();
+      return;
+    }
+    if (state.subject === 'orbits') this.showOrbits();
+    if (state.subject === 'sky' || state.subject === 'stars' || state.subject === 'orbits') {
       // Nothing on the table: the camera turns round and looks out.
       const pose = SKY_POSES[state.pose] ?? SKY_POSES.first;
       this.camera.gaze = { yawDeg: pose.yawDeg, pitchDeg: pose.pitchDeg, fovDeg: pose.fovDeg };
@@ -777,11 +853,99 @@ class Turntable implements System {
     this.corona?.frameUpdate(frame);
     this.air?.setCalm(state.onMap ? 1 : 0);
     this.air?.frameUpdate(frame);
+    this.traffic?.frameUpdate(frame);
+    if (this.chart && this.camera.gaze) {
+      // The view is `chartSpanU` tall: so far below the camera the chart lies, through this lens.
+      const below = state.chartSpanU / 2 / Math.tan((this.camera.gaze.fovDeg * Math.PI) / 360);
+      this.chartMap.unitsPerPx = state.chartSpanU / this.viewport().height;
+      this.chart.object.parent?.position.setY(-below);
+      this.chart.frameUpdate();
+    }
     if (this.world && !this.framed && this.world.built) {
       this.framed = true;
       // A sun is framed with the nearer steps of its halo.
       this.camera.frame(this.shownRadius * Math.max(this.world.reach, this.corona ? 1.7 : 1));
     }
+  }
+
+  /**
+   * Orbit lines and their traffic, in the system theme, on a flight plane below the view: what
+   * the chase camera sees of a system ahead, in front of whatever the pose has behind it.
+   */
+  private showOrbits(): void {
+    const { state, scope } = this;
+    const pose = SKY_POSES[state.pose] ?? SKY_POSES.first;
+    const [x, , z] = directionOf(pose.yawDeg, 0);
+    const center: [number, number] = [x * ORBITS_AHEAD, z * ORBITS_AHEAD];
+    const { shade } = tokens.color.system[state.theme];
+    const circle = scope.track(new BufferGeometry());
+    const segments = tuning.world.orbitLineSegments;
+    const points = new Float32Array(segments * 3);
+    for (let i = 0; i < segments; i += 1) {
+      points[i * 3] = Math.sin((i / segments) * TAU);
+      points[i * 3 + 2] = Math.cos((i / segments) * TAU);
+    }
+    circle.setAttribute('position', new BufferAttribute(points, 3));
+    const plane = new Group();
+    plane.position.y = -ORBITS_BELOW;
+    const ring = (radius: number, opacity: number): void => {
+      const line = new LineLoop(circle, scope.track(createLineMaterial({ color: shade, opacity })));
+      line.position.set(center[0], 0, center[1]);
+      line.scale.setScalar(radius);
+      plane.add(line);
+    };
+    const line = state.lineOpacity || tuning.world.orbitLineOpacity;
+    for (const radius of ORBIT_RADII) ring(radius, line);
+    ring(TRACK_RADIUS, state.trackOpacity || tuning.world.sunTrackOpacity);
+
+    // The same circles as an orbit table: a body on each, holding still, round a centre.
+    const radii = [...ORBIT_RADII, TRACK_RADIUS];
+    const orbits = createOrbitTable(
+      [{ id: 'lab', position: center }],
+      [
+        { id: 'lab/sun', parent: null, system: 'lab', orbit: null },
+        ...radii.map((radius, i) => ({
+          id: `lab/orbit-${i}`,
+          parent: 'lab/sun',
+          system: 'lab',
+          orbit: { radius, phase: 0, periodSec: 0 },
+        })),
+      ],
+    );
+    this.traffic = new Traffic({
+      orbits,
+      families: orbits.ids.map((_, row) => (row === 0 ? undefined : state.theme)),
+      positions: bodyPositions(orbits, 0, new Float64Array(orbits.count * 2)),
+      scales: new Float64Array(orbits.count).fill(1),
+      reducedMotion: !state.moving,
+    });
+    this.traffic.resize(this.view);
+    plane.add(this.traffic.object);
+    this.object.add(plane);
+    scope.onDispose(() => plane.removeFromParent());
+  }
+
+  /** The star map's ground under today's galaxy, from straight above, north up, as the map is. */
+  private showChart(): void {
+    this.camera.gaze = { yawDeg: 0, pitchDeg: -90, fovDeg: tuning.map.fovDegrees };
+    this.state.docked = false;
+    const xs = this.systems.map((system) => system.position[0]);
+    const zs = this.systems.map((system) => system.position[1]);
+    const midX = xs.length > 0 ? (Math.min(...xs) + Math.max(...xs)) / 2 : 0;
+    const midZ = zs.length > 0 ? (Math.min(...zs) + Math.max(...zs)) / 2 : 0;
+    this.chart = new Chart({
+      districts: this.systems.map(({ position, radius, theme }) => ({
+        x: position[0] - midX,
+        z: position[1] - midZ,
+        radius,
+        family: theme,
+      })),
+      map: this.chartMap,
+    });
+    const ground = new Group();
+    ground.add(this.chart.object);
+    this.object.add(ground);
+    this.scope.onDispose(() => ground.removeFromParent());
   }
 
   private bodyOf(id: string): WorldBody {
@@ -922,6 +1086,10 @@ class Turntable implements System {
     this.corona = null;
     this.air?.dispose();
     this.air = null;
+    this.traffic?.dispose();
+    this.traffic = null;
+    this.chart?.dispose();
+    this.chart = null;
     this.lamps = false;
     setToonFlatness(0);
     this.planet?.dispose();

@@ -787,7 +787,11 @@ export const tuning = {
     /** How much a sun and a planet's ring bleed into the picture as bloom, 0 to 1. */
     sunBloom: 1,
     ringBloom: 0.18,
-    /** The thin circles that show where things orbit. */
+    /**
+     * The thin circles that show where things orbit. Judged against 0.26 (and 0.13 for the track)
+     * over the sky's brightest gas in the lab's `orbits` subject: the stronger pair is no easier
+     * to see there and louder everywhere else, so these stay (docs/DESIGN.md, "Deep light").
+     */
     orbitLineOpacity: 0.2,
     /** A binary's suns' own path round the pair's centre: half as strong, not one more orbit. */
     sunTrackOpacity: 0.1,
@@ -1567,7 +1571,7 @@ export const tuning = {
     /**
      * Traffic: two dots on every orbit line of at least `minOrbitRadiusU`, moving along it at
      * `speedUPerSec` (u/s), `sizesPx` across (CSS px), in the system's light. They rest where
-     * they start under reduced motion. `seed` places them (sim/rng.ts).
+     * they start under reduced motion. `seed` places them, with each orbit's own id (sim/traffic.ts).
      */
     traffic: {
       minOrbitRadiusU: 18,

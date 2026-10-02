@@ -6,8 +6,10 @@
 //                 flying between systems, docked at home, at a planet, at a globe with a sea,
 //                 at an emblem world and beside a sun, at each world with air (and home's on
 //                 every tier: what a world wears differs by tier), at the bodies with lamps,
-//                 and the star map: on a desktop (1280 x 800) and on a narrow phone (360 x 780,
-//                 touch, the bottom sheet; `--phone 412x839` for another size)
+//                 and the star map, whole and zoomed in on a system (its chart: the dot grid,
+//                 the districts and their dashed rings, and the traffic on the orbits): on a
+//                 desktop (1280 x 800) and on a narrow phone (360 x 780, touch, the bottom
+//                 sheet; `--phone 412x839` for another size)
 //   in the lab    the sky alone from the seven views it is judged from (sim/skyDirections.ts),
 //                 with no twinkle and no drift, so two runs give the same picture; and the
 //                 stars: a sheet of each kind at 1:1, the heroes as a short and as a tall view
@@ -15,8 +17,11 @@
 //                 living sun of each family, one on the low tier and one as the star map shows
 //                 it, and the Hardware sun, whose gears must stay readable in its halo; and
 //                 the worlds with air: each by day, home at dusk, by night (its lamps) and as
-//                 the star map shows it, on each tier, and the bodies with lamps
-//   --perf        instead of pictures: what `?perf` reads on each tier, at home and docked
+//                 the star map shows it, on each tier, and the bodies with lamps; and orbit
+//                 lines with their traffic over the gas, at the tuning's strength and at a
+//                 stronger one, and the chart from above
+//   --perf        instead of pictures: what `?perf` reads on each tier, at home, docked, beside
+//                 a sun and on the star map
 //
 // It starts no server and never more than one browser. Start what it should look at, on ports
 // of your own, and stop them when done (the machine is someone's computer):
@@ -103,6 +108,25 @@ const openMap = async (page) => {
   await page.waitForTimeout(2500);
 };
 
+const zoomMap = async (page) => {
+  await openMap(page);
+  // In on the Projects binary, the largest district: the pointer on it, the wheel toward it.
+  const { width, height } = page.viewportSize();
+  const at = await page.evaluate(() => {
+    const name = [...globalThis.document.querySelectorAll('#universe-overlay *')].find(
+      (node) => node.childElementCount === 0 && /software/i.test(node.textContent ?? ''),
+    );
+    const box = name?.getBoundingClientRect();
+    return box ? [box.left + box.width / 2, box.top - 12] : null;
+  });
+  await page.mouse.move(...(at ?? [width / 2, height / 2]));
+  for (let i = 0; i < 4; i += 1) {
+    await page.mouse.wheel(0, -160);
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(2000);
+};
+
 /** The views of the site: [name, path, tier, what to do first, reduced motion]. */
 const SITE_VIEWS = [
   ...TIERS.map((tier) => [`home-${tier}`, '/', tier, still, false]),
@@ -135,6 +159,10 @@ const SITE_VIEWS = [
   ['map-high', '/', 'high', openMap, false],
   ['map-low', '/', 'low', openMap, false],
   ['map-high-reduced', '/', 'high', openMap, true],
+  ['map-medium', '/', 'medium', openMap, false],
+  // The chart up close: a district's two steps and its dashed ring, and the traffic.
+  ['map-zoom-high', '/', 'high', zoomMap, false],
+  ['map-zoom-low', '/', 'low', zoomMap, false],
 ];
 
 /**
@@ -204,6 +232,22 @@ const LAB_VIEWS = [
   ['lab-lamps-bus-high', 'subject=world&world=project/hackathons-at-berkeley&turn=0', 'high'],
   ['lab-lamps-station-high', 'subject=world&world=page/resume&turn=0&near=1', 'high'],
   ['lab-lamps-satellite-high', 'subject=world&world=page/contact&turn=0&near=1', 'high'],
+  // Orbit lines and their traffic in front of the Projects pool (the `first` view), in the
+  // pool's own family and in another: at the tuning's strength, and at the stronger one the
+  // look's verdict asked to have judged (0.26, and 0.13 for a binary's sun's path).
+  ...['sky', 'coral', 'butter'].flatMap((family) => [
+    [`lab-orbits-${family}-high`, `subject=orbits&pose=first&moving=0&theme=${family}`, 'high'],
+    [
+      `lab-orbits-${family}-strong-high`,
+      `subject=orbits&pose=first&moving=0&theme=${family}&lineOpacity=0.26&trackOpacity=0.13`,
+      'high',
+    ],
+  ]),
+  ['lab-orbits-sky-low', 'subject=orbits&pose=first&moving=0&theme=sky', 'low'],
+  // The star map's ground from above, whole and close.
+  ['lab-chart-high', 'subject=chart', 'high'],
+  ['lab-chart-low', 'subject=chart', 'low'],
+  ['lab-chart-near-high', 'subject=chart&chartSpanU=500', 'high'],
 ];
 
 const browser = await chromium.launch({
@@ -273,10 +317,12 @@ async function shoot(name, size, reducedMotion, url, before) {
   }
 }
 
-async function perf(name, url) {
+async function perf(name, url, before = still) {
   const { context, page, problems } = await open('desktop', false, url);
   try {
-    await page.waitForTimeout(SETTLE_MS + 2000);
+    await page.waitForTimeout(SETTLE_MS);
+    await before(page);
+    await page.waitForTimeout(2000);
     const samples = [];
     for (let i = 0; i < 4; i += 1) {
       await page.waitForTimeout(1000);
@@ -309,13 +355,14 @@ async function perf(name, url) {
 try {
   if (args.perf) {
     for (const tier of TIERS) {
-      for (const [view, path] of [
-        ['home', '/'],
-        ['docked', '/about/'],
-        ['sun', '/systems/software/'],
+      for (const [view, path, before] of [
+        ['home', '/', still],
+        ['docked', '/about/', still],
+        ['sun', '/systems/software/', still],
+        ['map', '/', openMap],
       ]) {
         if (wanted(view))
-          await perf(`${view}-${tier}`, `${args.site}${path}?universe&perf&q=${tier}`);
+          await perf(`${view}-${tier}`, `${args.site}${path}?universe&perf&q=${tier}`, before);
       }
     }
     writeFileSync(

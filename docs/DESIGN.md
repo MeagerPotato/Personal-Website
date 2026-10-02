@@ -411,7 +411,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `traffic.ts` (the dots on the orbit lines), `chart.ts` (the star map's ground), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
@@ -537,7 +537,7 @@ flat.
 - **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
   the star classes in `tuning.starfield`, with the shapes of their tables in
   `design/lookTypes.ts`. Each block of `tuning.look` is switched on by the step that builds its
-  system (so far: the sky and the suns; the stars take the Milky Way's great circle from it). `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits at the
+  system (every one is by now: the sky, the suns, air, traffic and the chart; the stars take the Milky Way's great circle from the sky's). `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits at the
   bearing of its system from home, in its system's family; butter has no pool; air only on
   bodies that exist).
 - **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
@@ -817,6 +817,47 @@ too, make everything round and smooth", so nothing of the air follows a facet.
   (`duskShare`), how much cloud each world wears (`worlds.<id>.cloud.share`), and whether a
   generated planet with relief should keep its hairline (its mountains stand through it).
   **Not yet measured on a phone.**
+
+**As built: traffic and the chart (step 5).** The orbit lines are routes now, and the star map
+has a ground.
+
+- **Traffic.** Every orbit line a ship can dock on carries **two small round dots, one going
+  each way**, in its family's light (`color.system.<family>.light`), at 7 u/s along the line
+  whatever its size, 3.4 and 2.6 CSS px across at any distance. Today that is 18 lines and 36
+  dots; the relays' ring has none of its own (nothing docks there, so nothing goes there). A
+  dot is flat paint with a rim one pixel soft: it does not bloom (rule 6), it goes behind a
+  planet it passes, and seen edge-on a far system's dots are a few beads on its line. Under
+  reduced motion they rest where they start. On the star map they ride the lines as in flight,
+  and an orbit the map has no room to draw has no dots either.
+- **The chart** is drawn only on the star map, under everything: a **grid of dots** in the
+  quietest ink, about 34 px apart at any zoom (the spacing in world units is 1, 2 or 5 times a
+  power of ten, so a dot stays where it is while the map zooms), and a **district** for each
+  system: two flat steps of its family's gas (`color.nebula.<family>.mid` out to 1.18 of the
+  system's reach, `lit` at its reach: the sky's palette, as paint, with no depth) and a
+  **dashed** ring in the family's base at the reach itself. Dashed, because a solid ring read
+  as one more orbit. It fades in and out with the map, takes no part in pointing, and the map
+  is still flat (rule 8): nothing on it is a gradient. The Projects binary is one district, in
+  its own family (sky), with Hardware's coral lines inside it.
+- **Orbit lines keep their strength** (`world.orbitLineOpacity` 0.20, `sunTrackOpacity` 0.10).
+  The stronger pair the look's verdict asked to have judged (0.26 and 0.13) was judged in the
+  lab's `orbits` subject, on the `first` view with the Projects pool behind the lines: over the
+  brightest gas (sky luminance 0.10 and up) a sky line's contrast against what is behind it
+  goes from 1.13 to 1.15 (coral 1.07 to 1.09, butter 1.20 to 1.27), which the eye does not see,
+  while over the dark sky, where the lines are in practice, every line gets a tenth louder
+  (1.46 to 1.60). So the lines stay calm, and it is the traffic, at nearly full strength, that
+  marks a line where gas is behind it.
+- **Different from the spec**, on purpose: a dot is a crisp disc and not a soft one (matter is
+  flat); each orbit's dots are placed from its own id, so a new project moves no other line's
+  dots; the chart is painted as the corona is, as paint over the navy, so the low tier shows
+  the same colours as the others; and a district's dashes are a whole number round its ring.
+- **Cost**: one more draw call everywhere and one more on the map; on the desktop it was
+  measured on (1280 x 800, uncapped) a frame stayed at 0.1 to 0.3 ms on every tier.
+- **Still to judge** (the lab's `orbits` subject: lines and traffic of any family over any of
+  the sky's views, at any strength; and its `chart` subject: the ground alone from above, every
+  key of `look.chart` as a slider): whether home's district, which in butter's gas is a grey
+  plate, should be warmer; whether the dot grid wants the moodboard's stronger mark on every
+  fifth dot; and how busy a far system's line of beads reads in flight. **Not yet looked at on
+  a phone.**
 
 ## Accessibility bar (non-negotiable)
 
