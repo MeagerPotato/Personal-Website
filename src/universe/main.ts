@@ -33,6 +33,7 @@ import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
 import { livingSun, lookOf } from './world/looks';
+import { SkyBake, type SkyState } from './world/SkyBake';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 import { SunCorona } from './world/SunCorona';
@@ -64,6 +65,8 @@ export interface BootHooks {
   onNavigation<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
   /** The star map opened or closed, whoever did it. */
   onMap(open: boolean): void;
+  /** The baked sky is on its way, there, or not to be had (world/SkyBake.ts). */
+  onSky(state: SkyState): void;
 }
 
 export interface BootQuality {
@@ -392,9 +395,23 @@ export function boot(
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));
+      sky.setView(navigator.state.mode === 'docked', weight);
     },
     dispose: () => setToonFlatness(0),
   });
+  // The sky's gas, painted once after the first frame, a band a frame; those frames say nothing
+  // about the device, so the governor is not fed them. After the block above: it shows this
+  // frame's view. A snapshot only says whether the visitor has seen it.
+  const sky = engine.add(
+    new SkyBake({
+      renderer: engine.renderer,
+      tier: tuning.look.sky.tiers[quality.tier],
+      seen: start?.skyRevealed === true,
+      reducedMotion,
+      onState: hooks.onSky,
+      onBand: () => engine.excuseFrame(),
+    }),
+  );
   engine.add(jobs);
 
   if (options.overlay) {
@@ -441,7 +458,7 @@ export function boot(
   // with it (scripts/verify-dist.mjs checks).
   if (import.meta.env.DEV && options.debug?.tweak) {
     void import('./core/debug/TweakPanel').then(({ TweakPanel }) => {
-      if (!engine.isDisposed) engine.add(new TweakPanel({ input, ship }));
+      if (!engine.isDisposed) engine.add(new TweakPanel({ input, ship, sky }));
     });
   }
 
@@ -462,6 +479,7 @@ export function boot(
       dock: navigator.snapshot(),
       halting: navigator.halting,
       guarding: navigator.guarding,
+      skyRevealed: sky.seen,
       galaxy: stamp,
     }),
   };

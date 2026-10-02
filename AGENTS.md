@@ -244,6 +244,19 @@ Stop's brake) joins it there, where it can be tested headless.
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.
 
+**The sky.** What the sky adds to the navy is baked once, after the first frame, into a panorama
+(`world/SkyBake.ts`, `design/shaders/skyBake.ts`, the recipe in `tuning.look.sky`); the page
+says where it is on `html[data-sky]`. Its twin on the CPU is `sim/skyOracle.ts`: change the
+recipe in both, and `tests/sky-gates.test.ts` holds the luminance gates (never weaken one: the
+ceiling is what keeps the focus ring readable). Judge it in the lab's `sky` subject. The sky
+does not drift, and nothing new may: stars are dimmed by the panorama at fixed directions.
+
+**A built-in three material.** The build blanks every three shader chunk that the engine does
+not reach (`scripts/lib/three-diet.mjs`; about 18 KiB of the lazy budget). Only
+`MeshBasicMaterial` and `LineBasicMaterial` survive: another one, or an `#include` of another
+three chunk, is a line in that file's lists first, or it compiles to an `#error` in production
+(the dev server would not show it; `tests/build-scripts.test.ts` does).
+
 **Add an engine system.** A class implementing `System` from `core/Engine.ts` under
 `src/universe/world/` (or a sibling folder); add it in `main.ts`, where order is explicit.
 **Simulate in `fixedUpdate(dt)`** (always 1/60 s, so flight is identical on every display) and

@@ -16,6 +16,7 @@ import { boot, type Booted, type ViewInset } from './main';
 import { galaxyKey, readManifest } from './manifest';
 import { FLIGHT, type AppState } from './state/appMachine';
 import type { NavigatorEvents } from './state/Navigator';
+import type { SkyState } from './world/SkyBake';
 
 export type { QualityTier } from './core/quality/tiers';
 export type { StartOptions } from './core/snapshot';
@@ -113,6 +114,12 @@ export type UniverseEvents = {
   undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
+  /**
+   * The baked sky (gas, the Milky Way, far galaxies): `baking` from the first frame, while the
+   * old glows are still the sky, then `ready`, or `off` where it cannot be painted (the old sky
+   * stays). Again after every rebuild of the engine.
+   */
+  sky: { state: SkyState };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -274,6 +281,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       mapOpen = open;
       events.emit('map', { open });
     },
+    onSky: (state: SkyState): void => events.emit('sky', { state }),
     onContextLost: (): void => {
       if (disposed || !current || !deliverPending()) return;
       const snapshot = (last = current.snapshot());

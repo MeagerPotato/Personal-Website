@@ -1,6 +1,7 @@
 import {
   OneFactor,
   OneMinusSrcAlphaFactor,
+  Texture,
   ZeroFactor,
   type Color,
   type Vector3,
@@ -13,11 +14,15 @@ import {
   OVER_ATTRIBUTE,
   SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
+  createBackdropMaterial,
   createCoronaMaterial,
   createEdgeMaterial,
   createGlowMaterial,
+  createSkyBakeMaterial,
+  createStarMaterial,
   createToonMaterial,
   refreshToonLook,
+  setSky,
 } from './materials';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
@@ -251,5 +256,49 @@ describe('the blueprint edge material', () => {
     expect(edge.vertexShader).toContain('1.0 - 2.0 * uDecalPull');
     expect(material.uniforms.uDecalPull).toBe(createToonMaterial().uniforms.uDecalPull);
     material.dispose();
+  });
+});
+
+describe('the sky’s bake', () => {
+  it('hands the shader tables as long as it declares them, on every tier', () => {
+    for (const tier of Object.values(tuning.look.sky.tiers)) {
+      const material = createSkyBakeMaterial(tier);
+      const { uniforms, fragmentShader } = material;
+      const declared = (name: string): number =>
+        Number(new RegExp(`uniform \\w+ ${name}\\[(\\d+)\\]`).exec(fragmentShader)?.[1]);
+      // Colours go in end to end, three numbers each.
+      expect(uniforms.uRamp?.value).toHaveLength(declared('uRamp') * 3);
+      expect(uniforms.uStar?.value).toHaveLength(declared('uStar') * 3);
+      expect(uniforms.uLoop?.value).toHaveLength(declared('uLoop'));
+      // The recipe is in the program, and no number of it failed to print.
+      expect(fragmentShader).toContain('const float INTENSITY=');
+      expect(fragmentShader).not.toMatch(/NaN|undefined/);
+      // It is drawn into a panorama, over nothing: no depth, no blending.
+      expect(material.depthTest).toBe(false);
+      expect(material.transparent).toBe(false);
+      material.dispose();
+    }
+  });
+
+  it('the backdrop and the stars read one sky', () => {
+    const backdrop = createBackdropMaterial();
+    const stars = createStarMaterial({ motion: false });
+    // Until a panorama is there: no light of it, and no star dimmed by it.
+    expect(backdrop.uniforms.uExposure?.value).toBe(0);
+    expect(stars.uniforms.uReveal).toBe(backdrop.uniforms.uReveal);
+    expect(stars.uniforms.uPano).toBe(backdrop.uniforms.uPano);
+    const pano = new Texture();
+    setSky(pano, 0.5, 0.25);
+    expect(backdrop.uniforms.uPano?.value).toBe(pano);
+    expect(stars.uniforms.uReveal?.value).toBe(0.5);
+    expect(backdrop.uniforms.uExposure?.value).toBe(0.25);
+    // Without a panorama nothing of a sky shows, whatever is asked.
+    setSky(null, 1, 1);
+    expect(backdrop.uniforms.uPano?.value).toBeNull();
+    expect(backdrop.uniforms.uReveal?.value).toBe(0);
+    expect(backdrop.uniforms.uExposure?.value).toBe(0);
+    backdrop.dispose();
+    stars.dispose();
+    pano.dispose();
   });
 });

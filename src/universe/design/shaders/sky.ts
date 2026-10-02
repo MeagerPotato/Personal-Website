@@ -7,15 +7,23 @@
  */
 
 /**
- * Backdrop: navy that is a little lighter along the horizon (the galactic plane), plus a few very
- * large, very soft glows of colour at fixed places in the sky. Glows, not noise clouds: on a
- * calm dark sky procedural noise reads as mud, and the eye finds its lattice at once. Dark
- * gradients band badly in 8 bits, so the end adds half a code value of noise in display space.
+ * Backdrop: navy that is a little lighter along the horizon (the galactic plane), plus THE BAKED
+ * SKY: the light of a panorama that was painted once (shaders/skyBake.ts says what is in it, and
+ * how it is laid out), added to the navy. One texture fetch a pixel. Noise is only ever baked,
+ * limited and lit: run live on a calm dark sky it reads as mud, and the eye finds its lattice.
+ * Dark gradients band badly in 8 bits, so the end adds half a code value of noise in display
+ * space.
+ *
+ * Until the panorama is there (it is baked after the first frame), and wherever it cannot be
+ * baked at all, the sky is the navy and a few very large, very soft glows of colour at fixed
+ * places; they leave as the baked sky arrives (uReveal).
  *
  * Uniforms: uBloomMask (shared, see materials.ts), uDeep, uHorizon (linear colours),
- * uHorizonFalloff, and per glow (GLOW_COUNT of them)
- * uGlowDirection (unit vector), uGlowColor (linear, already scaled by its strength) and
- * uGlowTightness (higher = smaller).
+ * uHorizonFalloff; uPano (the panorama: rgb the added light, alpha the star occlusion),
+ * uExposure (how much of its light shows: the reveal, less while docked and on the star map) and
+ * uReveal (0 the old glows, 1 the baked sky), all three shared with the stars; and per glow
+ * (GLOW_COUNT of them) uGlowDirection (unit vector), uGlowColor (linear, already scaled by its
+ * strength) and uGlowTightness (higher = smaller).
  */
 export const GLOW_COUNT = 4;
 
@@ -41,6 +49,9 @@ export const backdrop = {
     uniform vec3 uGlowDirection[GLOW_COUNT];
     uniform vec3 uGlowColor[GLOW_COUNT];
     uniform float uGlowTightness[GLOW_COUNT];
+    uniform sampler2D uPano;
+    uniform float uExposure;
+    uniform float uReveal;
 
     varying vec3 vDirection;
 
@@ -54,9 +65,15 @@ export const backdrop = {
       vec3 direction = normalize(vDirection);
       vec3 color = mix(uDeep, uHorizon, exp(-abs(direction.y) * uHorizonFalloff));
 
-      for (int i = 0; i < GLOW_COUNT; i += 1) {
-        float facing = max(dot(direction, uGlowDirection[i]), 0.0);
-        color += uGlowColor[i] * pow(facing, uGlowTightness[i]);
+      // The panorama is an equal-area cylinder: azimuth across, the direction's y up.
+      vec2 at = vec2(atan(direction.x, direction.z) * 0.15915494 + 0.5, direction.y * 0.5 + 0.5);
+      // The azimuth jumps a whole turn at the seam: no derivative of it may pick a level.
+      color += textureLod(uPano, at, 0.0).rgb * uExposure;
+      if (uReveal < 1.0) {
+        for (int i = 0; i < GLOW_COUNT; i += 1) {
+          float facing = max(dot(direction, uGlowDirection[i]), 0.0);
+          color += uGlowColor[i] * pow(facing, uGlowTightness[i]) * (1.0 - uReveal);
+        }
       }
 
       // Half a step of noise against banding. It has to be added in DISPLAY space, and this
@@ -95,7 +112,9 @@ export const STAR_KIND_COUNT = 5;
  * and fastest period of that); by kind, uCore (the core's sigma, px), uHalo (sigma and gain of
  * two halos), uArm (length and gain of the spikes, length and gain of the line across) and
  * uThick (the sigma across a spike, and across the line across); uProfile (exponent, taper);
- * uBloomMask (shared, see materials.ts) and uUnder (linear: the navy the stars are added to).
+ * uBloomMask (shared, see materials.ts) and uUnder (linear: the navy the stars are added to);
+ * uPano and uReveal (shared with the backdrop): a star behind the sky's gas is dimmed by the
+ * panorama's alpha there, and one behind a dust body is gone.
  *
  * Light adds up in LINEAR light, and where the picture goes straight to the canvas (no
  * post-processing: uBloomMask 0) the blend happens after encoding, which would make every faint
@@ -123,6 +142,8 @@ export const stars = {
     uniform vec4 uHalo[KINDS];
     uniform vec4 uArm[KINDS];
     uniform vec2 uThick[KINDS];
+    uniform sampler2D uPano;
+    uniform float uReveal;
 
     varying vec3 vColor;
     varying vec2 vPx;
@@ -140,7 +161,12 @@ export const stars = {
       // A hero breathes: its light and the length of its spikes, each star at its own pace.
       float pace = mix(uBreathSec.x, uBreathSec.y, aStar.z);
       float breath = 1.0 + hero * uBreath * sin(uTime * 6.2831853 / pace + turn);
-      vColor = aColor * ((1.0 - aStar.w * uTwinkleDepth * wave) * uOpacity * breath);
+      // The model matrix carries the slow drift of the whole sky; the view matrix only turns.
+      vec3 world = mat3(modelMatrix) * aDir;
+      // How much of the star the gas in front of it lets through (1 until the sky is baked).
+      float clear = mix(1.0, textureLod(uPano, vec2(atan(world.x, world.z) * 0.15915494 + 0.5, world.y * 0.5 + 0.5), 0.0).a, uReveal);
+      float seen = (0.65 + 0.35 * clear) * clear * (0.75 + 0.25 * clear);
+      vColor = aColor * ((1.0 - aStar.w * uTwinkleDepth * wave) * uOpacity * breath * seen);
 
       float core = uCore[kind] * uScale.y;
       vec4 halo = uHalo[kind];
@@ -158,8 +184,7 @@ export const stars = {
       vArm = arm;
       vThick = vec3(0.5 / (uThick[kind] * uThick[kind]), hero);
 
-      // The model matrix carries the slow drift of the whole sky; the view matrix only turns.
-      vec3 direction = mat3(viewMatrix) * (mat3(modelMatrix) * aDir);
+      vec3 direction = mat3(viewMatrix) * world;
       vec4 clip = projectionMatrix * vec4(direction, 1.0);
       clip.z = clip.w;
       clip.xy += vPx * 2.0 / uView * clip.w;

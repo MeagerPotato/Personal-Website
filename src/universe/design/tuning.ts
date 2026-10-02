@@ -918,8 +918,11 @@ export const tuning = {
     /** This share of the dust, field and bright stars dims and comes back, by up to twinkleDepth. */
     twinkleShare: 0.2,
     twinkleDepth: 0.55,
-    /** Whole-sky drift, radians per second. Off under reduced motion. */
-    driftRadPerSec: 0.004,
+    /**
+     * Whole-sky drift, radians per second. 0 since the sky is baked: the stars would turn
+     * against a gas that does not, and a star hidden behind a ridge would come out of it.
+     */
+    driftRadPerSec: 0,
 
     // --- "Deep light" (docs/DESIGN.md): the star classes. sim/starList.ts makes the list of
     // stars from these, design/shaders/sky.ts draws it. ---
@@ -1026,9 +1029,9 @@ export const tuning = {
   /**
    * "FLAT WORLDS, DEEP LIGHT" (docs/DESIGN.md, "Deep light"): the look pass that gives the sky
    * gas, the suns a surface, the worlds air. Matter stays flat and token-exact; light and air
-   * get structure. NOTHING READS THIS BLOCK YET. Each part is switched on by the step that
-   * builds its system, and until then the block is the agreed numbers, kept where the lab and
-   * the tests can find them. Every colour is a token key (a family, a star tint, a biome), never
+   * get structure. Each part is switched on by the step that builds its system (so far: the
+   * sky and the suns), and until then it is the agreed numbers, kept where the lab and the
+   * tests can find them. Every colour is a token key (a family, a star tint, a biome), never
    * a number; design/lookTypes.ts holds the shapes of the tables.
    */
   look: {
@@ -1048,6 +1051,11 @@ export const tuning = {
       exposureMap: 0.28,
       /** 1/s: how fast the exposure eases to its target. A cut under reduced motion. */
       exposureOmega: 3,
+      /**
+       * The panorama is painted a band of rows a frame (tiers.bandRows); once a frame took this
+       * many ms or longer, only every second frame paints one (sim/skySchedule.ts).
+       */
+      bandSlowMs: 22,
       /** A slow noise pushes the azimuth sideways by up to this much, degrees: the massifs' outlines. */
       warpAzDeg: 14,
       /** That noise's frequency on the unit sphere. */
@@ -1061,6 +1069,14 @@ export const tuning = {
       /** Swing of the ragged detail on every crest, degrees, and its frequency. */
       ragDeg: 2,
       ragFreq: 8,
+      /**
+       * Swing of a ragged push SIDEWAYS, degrees of azimuth, and its frequency: the ends of a
+       * massif, and the edge of its glow, billow as its crests do. At 0 a massif ends along a
+       * line of one azimuth, straight up the sky (the recipe as it was first drawn). It moves
+       * the pools' reach, not their crests.
+       */
+      ragAzDeg: 5,
+      ragAzFreq: 8,
       /** A finer set of teeth (the high tier only): swing in degrees, and frequency. */
       rag2Deg: 0.55,
       rag2Freq: 26,

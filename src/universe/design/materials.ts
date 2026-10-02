@@ -22,8 +22,10 @@ import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
-import type { StarClass, SunTone } from './lookTypes';
+import type { SkyTier, StarClass, SunTone } from './lookTypes';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
+import { skyBake } from './shaders/skyBake';
+import { skyConstants, skyLoops, skyRamps } from './skyRecipe';
 import { SUN_SPOTS, toonFlat } from './shaders/toonFlat';
 import { tokens, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
@@ -68,6 +70,27 @@ const bloomMask = { value: 1 };
 /** main.ts says which, once, from the quality tier: is there post-processing to read the list? */
 export function setBloomMask(enabled: boolean): void {
   bloomMask.value = enabled ? 1 : 0;
+}
+
+/**
+ * THE BAKED SKY, as everything that draws the sky reads it (shaders/sky.ts): the panorama, how
+ * far it has come in over the old glows, and how much of its light shows. Shared BY REFERENCE
+ * between the backdrop and the stars; world/SkyBake.ts is the one that writes them.
+ */
+const skyLight = {
+  uPano: { value: null as Texture | null },
+  uReveal: { value: 0 },
+  uExposure: { value: 0 },
+};
+
+/**
+ * Show a baked sky: its panorama (null: none, and the old glows are the sky), `reveal` 0 to 1 as
+ * it comes in, and `exposure`, how much of its added light shows.
+ */
+export function setSky(pano: Texture | null, reveal: number, exposure: number): void {
+  skyLight.uPano.value = pano;
+  skyLight.uReveal.value = pano ? reveal : 0;
+  skyLight.uExposure.value = pano ? exposure : 0;
 }
 
 /**
@@ -291,8 +314,33 @@ export function createBackdropMaterial(): ShaderMaterial {
       uGlowDirection: { value: directions },
       uGlowColor: { value: colors },
       uGlowTightness: { value: tightness },
+      ...skyLight,
     },
     side: BackSide,
+    depthWrite: false,
+  });
+}
+
+/**
+ * The program that paints the sky's panorama (shaders/skyBake.ts), for one quality tier: the
+ * recipe of `tuning.look.sky` as its constants (skyRecipe.ts), the gas ramps and the star tints
+ * as linear colours. It is drawn into a render target, never onto the screen.
+ */
+export function createSkyBakeMaterial(tier: SkyTier): ShaderMaterial {
+  const { space, star } = tokens.color;
+  return new ShaderMaterial({
+    name: 'sky-bake',
+    vertexShader: skyBake.vertexShader,
+    fragmentShader: skyBake.fragmentShader(skyConstants(tier)),
+    uniforms: {
+      uDeep: { value: hexToLinear(space[950]) },
+      uHorizon: { value: hexToLinear(space[800]) },
+      uFalloff: { value: tuning.backdrop.horizonFalloff },
+      uRamp: { value: skyRamps() },
+      uStar: { value: [star.cool, star.warm, star.hot, star.amber].flatMap(hexToLinear) },
+      uLoop: { value: skyLoops() },
+    },
+    depthTest: false,
     depthWrite: false,
   });
 }
@@ -363,6 +411,8 @@ export function createStarMaterial(options: { motion: boolean }): StarMaterial {
       uProfile: { value: new Vector2(spike.exponent, spike.taper) },
       uBloomMask: bloomMask,
       uUnder: { value: new Color(tokens.color.space[900]) },
+      uPano: skyLight.uPano,
+      uReveal: skyLight.uReveal,
     },
     transparent: true,
     depthWrite: false,

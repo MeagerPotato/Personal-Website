@@ -42,6 +42,7 @@ function fallBackToPlain(reason: string): void {
   delete root.dataset.engine;
   delete root.dataset.quality;
   delete root.dataset.map;
+  delete root.dataset.sky;
   // With no canvas to protect there is nothing to gain from soft navigation: links are links.
   router?.dispose();
   router = undefined;
@@ -174,6 +175,10 @@ export async function start(): Promise<void> {
     universe.on('map', ({ open }) => {
       if (open) root.dataset.map = 'open';
       else delete root.dataset.map;
+    });
+    // For the tests and the stylesheet: `baking`, then `ready` (or `off`: the old sky stays).
+    universe.on('sky', ({ state }) => {
+      root.dataset.sky = state;
     });
     universe.on('quality', ({ tier, demoted }) => {
       root.dataset.quality = tier;

@@ -24,6 +24,25 @@ export function directionOf(azDeg: number, elDeg: number): [number, number, numb
   return [Math.sin(az) * flat, Math.sin(el), Math.cos(az) * flat];
 }
 
+/**
+ * A place in the sky with a frame across it: the direction `c`, a level unit vector `e1` (a
+ * quarter turn of azimuth on) and `e2 = c x e1`, which points up the sky. What is drawn ROUND a
+ * place (a far galaxy's ellipse, an arc's angle) is measured along these two.
+ */
+export function frameOf(
+  azDeg: number,
+  elDeg: number,
+): { c: [number, number, number]; e1: [number, number, number]; e2: [number, number, number] } {
+  const c = directionOf(azDeg, elDeg);
+  const flat = Math.hypot(c[2], c[0]);
+  const e1: [number, number, number] = [c[2] / flat, 0, -c[0] / flat];
+  return {
+    c,
+    e1,
+    e2: [c[1] * e1[2] - c[2] * e1[1], c[2] * e1[0] - c[0] * e1[2], c[0] * e1[1] - c[1] * e1[0]],
+  };
+}
+
 /** The azimuth of a direction, degrees in (-180, 180]. Not defined straight up or down (0 there). */
 export function azimuthDeg([x, , z]: Direction): number {
   return Math.atan2(x, z) / RAD;

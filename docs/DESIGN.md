@@ -536,9 +536,8 @@ flat.
   tint within 10 of butter ("here") or of coral.
 - **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
   the star classes in `tuning.starfield`, with the shapes of their tables in
-  `design/lookTypes.ts`. **Nothing reads `tuning.look` yet** but the stars, which take the
-  Milky Way's great circle from it: each block is switched on by the step that builds its
-  system. `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits at the
+  `design/lookTypes.ts`. Each block of `tuning.look` is switched on by the step that builds its
+  system (so far: the sky and the suns; the stars take the Milky Way's great circle from it). `tests/look.test.ts` keeps the tables honest meanwhile (a pool of gas sits at the
   bearing of its system from home, in its system's family; butter has no pool; air only on
   bodies that exist).
 - **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
@@ -572,8 +571,8 @@ flat.
   the mix, the heroes as a view of another height draws them, and the stars as the map shows
   them): whether two heroes should come down toward the horizon. Two of the eight are in the
   first frame at home; two (at azimuth 8 and 112) are above every view the chase camera takes.
-  The star drift stays until the baked sky arrives (a painted sky cannot be drifted against),
-  so until then the heroes wander slowly off the places the table gives.
+  (The star drift went with step 3: a painted sky cannot be drifted against, so the heroes
+  now stay at the places the table gives.)
 
 **As built: round and smooth (steps 2b and 2c, 2026-10-02).** Allen saw step 2's Software sun,
 a ball whose tones fell in sharp triangular facets, and said: "I want some more rounded texture
@@ -713,6 +712,63 @@ as it was first drawn. The rule, as built:
   star map`; the `world` subject for a real sun with its signs): mint is the palest family, and
   with bloom on top its hottest tone is nearly white (`look.sun.hotMix` is the knob); whether
   the rays and the loops stay is decision D8.
+
+**As built: the baked sky (step 3).** The sky is a place now: cliffs of gas, a Milky Way, far
+galaxies. It is the lesson "the sky uses glows, not noise clouds" turned into its draft
+successor, "noise only baked, limited and lit" (above; still Allen's to sign).
+
+- **What is in it.** Behind everything, the **Milky Way**: a soft band along the great circle
+  the stars' dust already follows, with dark lanes in it. **Four massifs of gas**, one for each
+  place round home, **at its real bearing from home and in its family** (Projects sky,
+  Hardware coral beside it, Research mint, Hackathons lilac; butter, "here", has no pool: home
+  is where the viewer stands). A massif is three ridges, one behind another:
+  each a silhouette with a ragged crest, flat `deep` and `mid` in its body, `lit` on the faces
+  that look toward its glow, and a hairline of `rim` along the crest. Above the far crest the
+  **glow**: the family's light in four flat steps, cut into streaks, with strands of steam in
+  it (not on the low tier). **Twelve far galaxies** (small ellipses in star tints, on medium and high), **arcs** and **seven
+  small knots** of gas, one of them the only butter in the sky. Matter rules still hold: every
+  colour is a token, every tone is flat, and the soft things (the glow, the band) are light.
+- **Light is added, never replaced** (rule 3). The panorama holds what the sky ADDS to the
+  navy; the backdrop draws the navy gradient it always drew and adds the panorama on top, times
+  an exposure. At exposure 0 the sky is exactly the old one.
+- **Calm where the work is** (rule 7), measured on the GPU's own picture from the seven views
+  (the lab's `sky` subject prints them): **the horizon strip stays near navy** (under 0.03
+  linear luminance; planets and orbit lines sit there), **no pixel of the sky is brighter than
+  0.19** (the brightest measured: 0.169, where the butter focus ring still reads over 3:1), the
+  brightest twentieth of a view stays under 0.08 and its brightest thousandth under 0.16. As
+  measured: the first frame p95 0.075, p99.9 0.153, max 0.160. **Docked, the sky is half of
+  itself** (`exposureDocked` 0.5: the view is closer and the panel wants quiet; p95 0.029),
+  and **on the star map 0.28 of itself** (rule 8: the map stays flat, and looks straight down
+  at empty sky anyway). The exposure eases over about a second; a cut under reduced motion.
+- **The stars know the gas is there.** The panorama's alpha says how clear the sky is at each
+  place, and a star behind a ridge dims or goes out: stars sit in the gaps and above the
+  crests, not painted over the cliffs. **The sky no longer drifts** (`starfield.driftRadPerSec`
+  is 0): a painted sky cannot be drifted against, and the heroes now stay where the table puts
+  them. Twinkle and the heroes' breathing are all that moves.
+- **It arrives after the first frame.** The first frame is today's sky (the navy and the four
+  old glows) with the new stars. The panorama is then painted on the GPU a band of 64 rows a
+  frame, and when it is whole the old glows fade out as it fades in, over 0.8 s
+  (`revealSec`); a cut under reduced motion, and a cut when the engine is rebuilt in a tab that
+  has already seen it (a lost context paints the same sky again and does not replay the fade).
+  On the desktop it was measured on, the sky is whole 0.6 s (low) to 1.7 s (high) after the
+  first frame the first time, and a quarter of a second after that on a later visit.
+- **By tier.** High: 2048 x 1024, everything. Medium: the same without the finest teeth on the
+  crests and with one octave less of relief. **Low: 1024 x 512, no far galaxies, no relief on
+  the faces, no steam**: the same massifs, pools and band, flatter. On the low tier a crisp
+  crest can show a soft stair where the view magnifies the panorama most (the phone's corners);
+  accepted, since the alternative is four times the memory on the devices that have least.
+- **Not on the bloom guest list** (rule 6). The sky writes "do not bloom" like every opaque
+  thing; nothing in it depends on bloom, so the low tier loses layers, never light.
+- **One change to the recipe as it was first drawn:** a massif used to end, and its glow with
+  it, along a line of ONE azimuth, a straight wall up the sky. A ragged push sideways
+  (`ragAzDeg` 5, `ragAzFreq` 8) now moves where each pool's influence ends, so the ends of a
+  massif billow as its crests do. It moves no bearing and no ceiling.
+- **Still to judge** (the lab's `sky` subject: the seven views, every key of `look.sky` as a
+  slider, `rebake sky`, `copy look.sky as JSON`; in flight, `?tweak` has the same): how loud
+  the sky is (`intensity` 0.9; calm is 0.6, painted 1.2 with `ceilingY` 0.158), and whether the
+  four old glows are retired once the preview has been flown (decision D3). **Not yet measured
+  on a phone:** the bake's time, its memory and the stair on low. Until two real phones have
+  run it, this stays on the preview.
 
 ## Accessibility bar (non-negotiable)
 

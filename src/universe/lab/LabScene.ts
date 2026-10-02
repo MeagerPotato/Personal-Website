@@ -1,5 +1,5 @@
 import GUI from 'lil-gui';
-import { Group, Vector3 } from 'three';
+import { Group, SRGBColorSpace, Vector3, WebGLRenderTarget } from 'three';
 import { CameraRig } from '../camera/CameraRig';
 import { AssetStore } from '../core/AssetStore';
 import { Engine, type Frame, type System, type Viewport } from '../core/Engine';
@@ -17,6 +17,7 @@ import {
   type ToonMaterial,
 } from '../design/materials';
 import type { StarClass } from '../design/lookTypes';
+import { skyColours } from '../design/skyRecipe';
 import { tokens, type BiomeKey, type StarKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { BODIES } from '../design/worlds/bodies';
@@ -27,6 +28,7 @@ import { Rocket } from '../ship/Rocket';
 import { planetTriangleCount } from '../sim/planet';
 import { createRng, pickWeighted } from '../sim/rng';
 import { directionOf, SKY_POSE_NAMES, SKY_POSES, type SkyPoseName } from '../sim/skyDirections';
+import { createSkyOracle, luminance } from '../sim/skyOracle';
 import { sunSeed } from '../sim/sunSurface';
 import { isLivingSun, type GroundSpec } from '../sim/world/ground';
 import { rowsOf, type BodyRecipe } from '../sim/world/rows';
@@ -34,6 +36,7 @@ import { buildStarList, STAR_KINDS, type StarKind, type StarList } from '../sim/
 import { Backdrop } from '../world/Backdrop';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
+import { SkyBake } from '../world/SkyBake';
 import { starGeometry, Starfield } from '../world/Starfield';
 import { SunCorona } from '../world/SunCorona';
 import { lookOf, type LookedAt } from '../world/looks';
@@ -247,12 +250,35 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const backdrop = engine.add(new Backdrop());
   engine.scene.add(backdrop.object, starfield.object, table.object);
   engine.add(jobs);
+  // The baked sky as the universe has it, but painted at once (two bands a frame, and a cut).
+  // It is quieter while docked and on the star map: the lab says which with two of its controls.
+  const page = mount.ownerDocument.documentElement;
+  engine.add({
+    frameUpdate: () => sky.setView(table.state.docked, table.state.starMap),
+    dispose: () => undefined,
+  });
+  const sky = engine.add(
+    new SkyBake({
+      renderer: engine.renderer,
+      tier: tuning.look.sky.tiers[options.tier],
+      seen: true,
+      reducedMotion: still,
+      onState: (state) => {
+        page.dataset.sky = state;
+      },
+      onBand: () => engine.excuseFrame(),
+    }),
+  );
+  const meter = engine.add(
+    new SkyMeter(engine, backdrop, sky, options.tier, page, query.get('parity') === '1'),
+  );
   if (!bare) {
     engine.add(
       new PerfHud(mount, engine.renderer, () => [
         `tier  ${options.tier} x${engine.resolutionScale.toFixed(2)}`,
         `shows ${table.describe()}`,
         `stars ${starfield.object.geometry.instanceCount}`,
+        `sky Y ${meter.text}`,
       ]),
     );
   }
@@ -292,6 +318,19 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // (sim/skyDirections.ts), or wherever a drag leaves it.
   const skyFolder = gui.addFolder('sky (subject: sky)');
   skyFolder.add(state, 'pose', SKY_POSE_NAMES).onChange(rebuild);
+  skyFolder.add(state, 'docked').name('as while docked (half strength)').listen();
+  // The recipe. Its numbers are baked into the panorama: move them, then repaint. (The exposure
+  // keys are read every frame.) "sky Y" in the read-out is the luminance of the view, stars
+  // left out: p50, p95, p99.9 and the brightest pixel, against the gates 0.08, 0.16 and 0.19.
+  const recipe = skyFolder.addFolder('tuning.look.sky');
+  recipe.close();
+  addControls(recipe, tuning.look.sky as unknown as Record<string, unknown>, () => undefined);
+  const skyActions = {
+    'rebake sky': () => sky.paint(true),
+    'copy look.sky as JSON': () => copyText(JSON.stringify(tuning.look.sky, null, 2)),
+  };
+  skyFolder.add(skyActions, 'rebake sky');
+  skyFolder.add(skyActions, 'copy look.sky as JSON');
   // The stars alone, from the same views: the sky's own, or a sheet of one kind at 1:1, in one
   // tint or the mix, and drawn as a view of another height would draw them (a hero's spikes
   // follow the view's height).
@@ -346,6 +385,126 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   };
 }
 
+const METER_WIDTH = 480;
+const METER_HEIGHT = 300;
+const toLinear = (code: number): number => {
+  const c = code / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const toCode = (linear: number): number =>
+  255 * (linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055);
+
+/**
+ * MEASURES THE SKY (the lab only). Once a second it draws the backdrop alone, the stars left
+ * out, into a small copy of the view and reads it back: the luminance (linear Y) at the middle,
+ * at 95% and at 99.9% of the pixels, and of the brightest one, which are what the sky's gates are
+ * written in (tests/sky-gates.test.ts holds the oracle to them; this is the GPU's own picture).
+ * The numbers also go on <html data-sky-y> for a script to read.
+ *
+ * With `?parity=1` it also reads the baked panorama back, once, and compares it texel by texel
+ * with the oracle (sim/skyOracle.ts): the mean and the worst difference in linear light, and in
+ * code values of the 8-bit panorama (which is dithered: half a code is its own noise), on
+ * <html data-sky-parity>.
+ */
+class SkyMeter implements System {
+  text = '...';
+  private readonly target = new WebGLRenderTarget(METER_WIDTH, METER_HEIGHT, {
+    colorSpace: SRGBColorSpace,
+    depthBuffer: false,
+  });
+  private readonly pixels = new Uint8Array(METER_WIDTH * METER_HEIGHT * 4);
+  private readonly values = new Float32Array(METER_WIDTH * METER_HEIGHT);
+  private seconds = 1;
+  private compared = false;
+
+  constructor(
+    private readonly engine: Engine,
+    private readonly backdrop: Backdrop,
+    private readonly sky: SkyBake,
+    private readonly tier: QualityTier,
+    private readonly page: HTMLElement,
+    private readonly parity: boolean,
+  ) {}
+
+  frameUpdate(frame: Frame): void {
+    this.seconds += frame.dt;
+    if (this.seconds < 1) return;
+    this.seconds = 0;
+    const { renderer, camera } = this.engine;
+    const { pixels, values } = this;
+    renderer.setRenderTarget(this.target);
+    renderer.render(this.backdrop.object, camera);
+    renderer.setRenderTarget(null);
+    renderer.readRenderTargetPixels(this.target, 0, 0, METER_WIDTH, METER_HEIGHT, pixels);
+    for (let i = 0; i < values.length; i += 1) {
+      values[i] = luminance([
+        toLinear(pixels[i * 4] ?? 0),
+        toLinear(pixels[i * 4 + 1] ?? 0),
+        toLinear(pixels[i * 4 + 2] ?? 0),
+      ]);
+    }
+    values.sort();
+    const at = (share: number): number =>
+      values[Math.min(values.length - 1, Math.floor(values.length * share))] ?? 0;
+    const read = { p50: at(0.5), p95: at(0.95), p999: at(0.999), max: at(1) };
+    this.text = Object.values(read)
+      .map((value) => value.toFixed(4))
+      .join(' ');
+    this.page.dataset.skyY = JSON.stringify(read);
+    if (this.parity && this.sky.seen && !this.compared) {
+      this.compared = true;
+      this.page.dataset.skyParity = JSON.stringify(this.compare());
+    }
+  }
+
+  /** The panorama against the oracle, on every 16th row and every 8th texel of it. */
+  private compare(): Record<string, number> {
+    const { width, height } = this.sky.pano;
+    const look = tuning.look.sky;
+    const texel = createSkyOracle(look, skyColours(), look.tiers[this.tier]);
+    const row = new Uint8Array(width * 4);
+    const out = [0, 0, 0, 0];
+    let count = 0;
+    let sum = 0;
+    let worst = 0;
+    let codes = 0;
+    let worstCodes = 0;
+    let worstClear = 0;
+    for (let j = 5; j < height; j += 16) {
+      this.engine.renderer.readRenderTargetPixels(this.sky.pano, 0, j, width, 1, row);
+      const y = ((j + 0.5) / height) * 2 - 1;
+      const r = Math.sqrt(Math.max(1 - y * y, 0));
+      for (let i = 3; i < width; i += 8) {
+        const az = ((i + 0.5) / width - 0.5) * 2 * Math.PI;
+        texel([r * Math.sin(az), y, r * Math.cos(az)], out);
+        for (let c = 0; c < 3; c += 1) {
+          const code = row[i * 4 + c] ?? 0;
+          const error = Math.abs(toLinear(code) - (out[c] ?? 0));
+          const inCodes = Math.abs(code - toCode(out[c] ?? 0));
+          sum += error;
+          codes += inCodes;
+          if (error > worst) worst = error;
+          if (inCodes > worstCodes) worstCodes = inCodes;
+          count += 1;
+        }
+        worstClear = Math.max(worstClear, Math.abs((row[i * 4 + 3] ?? 0) / 255 - (out[3] ?? 0)));
+      }
+    }
+    return {
+      samples: count,
+      meanAbs: sum / count,
+      worstAbs: worst,
+      meanCodes: codes / count,
+      worstCodes,
+      worstOcclusion: worstClear,
+    };
+  }
+
+  dispose(): void {
+    this.target.dispose();
+  }
+}
+
 /** What is on show, and everything that was made for it. */
 class Turntable implements System {
   readonly object = new Group();
@@ -367,6 +526,7 @@ class Turntable implements System {
     lightAzimuthDeg: -55,
     lightElevationDeg: 35,
     sky: true,
+    docked: false,
     pose: 'first' as SkyPoseName,
     starKind: 'sky' as StarSheet,
     starTint: 'mixed' as StarTint,
@@ -473,6 +633,8 @@ class Turntable implements System {
       // Nothing on the table: the camera turns round and looks out.
       const pose = SKY_POSES[state.pose] ?? SKY_POSES.first;
       this.camera.gaze = { yawDeg: pose.yawDeg, pitchDeg: pose.pitchDeg, fovDeg: pose.fovDeg };
+      // The docked view is judged at the strength the sky has while docked.
+      state.docked = pose.exposure < 1;
       return;
     }
     this.camera.gaze = null;

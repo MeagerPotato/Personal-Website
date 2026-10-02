@@ -178,6 +178,9 @@ async function open(size, reducedMotion, url) {
   });
   await page.goto(url);
   await page.locator('html[data-engine="ready"]').waitFor({ timeout: 60_000 });
+  // The baked sky arrives after the first frame (world/SkyBake.ts): a picture, or a frame time,
+  // taken before it is there would be of the sky it replaces, or of the bake itself.
+  await page.locator('html[data-sky="ready"], html[data-sky="off"]').waitFor({ timeout: 60_000 });
   return { context, page, problems };
 }
 

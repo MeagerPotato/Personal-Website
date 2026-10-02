@@ -124,6 +124,7 @@ export interface SkyLook {
   readonly exposureDocked: number;
   readonly exposureMap: number;
   readonly exposureOmega: number;
+  readonly bandSlowMs: number;
   readonly warpAzDeg: number;
   readonly warpFreq: number;
   readonly poolFall: number;
@@ -131,6 +132,8 @@ export interface SkyLook {
   readonly dropDeg: number;
   readonly ragDeg: number;
   readonly ragFreq: number;
+  readonly ragAzDeg: number;
+  readonly ragAzFreq: number;
   readonly rag2Deg: number;
   readonly rag2Freq: number;
   readonly reliefOctaves: number;
