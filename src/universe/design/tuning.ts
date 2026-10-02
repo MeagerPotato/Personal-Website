@@ -1285,13 +1285,14 @@ export const tuning = {
         { azDeg: -8, elDeg: 24, radiusDeg: 2.2, family: 'mint', seed: 7.7 },
       ],
       /**
-       * What each quality tier bakes: the panorama in texels (2 MiB on low, 8 MiB otherwise),
+       * What each quality tier bakes: the panorama in texels (4.5 MiB on low, 8 MiB otherwise:
+       * at 1024 x 512 a phone showed every steep crest as a stair, one texel being 13 pixels wide),
        * how many of its rows are drawn in one frame, and which layers its shader keeps.
        */
       tiers: {
         low: {
-          panoWidth: 1024,
-          panoHeight: 512,
+          panoWidth: 1536,
+          panoHeight: 768,
           bandRows: 64,
           far: false,
           reliefOctaves: 0,

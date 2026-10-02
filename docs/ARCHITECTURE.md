@@ -628,7 +628,7 @@ adds to the navy (the Milky Way, the massifs of gas at the systems' bearings, fa
 one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it
 from `tuning.look.sky` by `design/skyRecipe.ts` (pure; a tier's layers are `#define`s, so a tier
 compiles only what it paints). It is drawn into a panorama (an equal-area cylinder: u is the
-azimuth, v the sine of the elevation; sRGB, 8 bits, 2048 x 1024, or 1024 x 512 on the low
+azimuth, v the sine of the elevation; sRGB, 8 bits, 2048 x 1024, or 1536 x 768 on the low
 tier) whose alpha says how clear the sky is, for the stars. The steps, each of which must not
 hold a frame up:
 

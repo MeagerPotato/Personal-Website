@@ -92,7 +92,7 @@ describe('the sky’s tables', () => {
     for (const [tier, bake] of Object.entries(sky.tiers)) {
       expect(bake.panoWidth, tier).toBe(bake.panoHeight * 2);
       expect(bake.panoHeight % bake.bandRows, tier).toBe(0);
-      // RGBA8: 2 MiB on low, 8 MiB at most. A phone starts at medium.
+      // RGBA8: 4.5 MiB on low, 8 MiB at most. A phone starts at medium.
       expect(bake.panoWidth * bake.panoHeight * 4, tier).toBeLessThanOrEqual(8 * 1024 * 1024);
     }
     expect(sky.tiers.low.panoWidth).toBeLessThan(sky.tiers.medium.panoWidth);

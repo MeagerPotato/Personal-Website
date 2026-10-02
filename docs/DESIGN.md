@@ -753,10 +753,10 @@ successor, "noise only baked, limited and lit" (above; still Allen's to sign).
   On the desktop it was measured on, the sky is whole 0.6 s (low) to 1.7 s (high) after the
   first frame the first time, and a quarter of a second after that on a later visit.
 - **By tier.** High: 2048 x 1024, everything. Medium: the same without the finest teeth on the
-  crests and with one octave less of relief. **Low: 1024 x 512, no far galaxies, no relief on
-  the faces, no steam**: the same massifs, pools and band, flatter. On the low tier a crisp
-  crest can show a soft stair where the view magnifies the panorama most (the phone's corners);
-  accepted, since the alternative is four times the memory on the devices that have least.
+  crests and with one octave less of relief. **Low: 1536 x 768, no far galaxies, no relief on
+  the faces, no steam**: the same massifs, pools and band, flatter and a little softer. Not
+  1024 x 512 (2 MiB instead of 4.5): on a phone one of its texels is 13 pixels wide, and every
+  steep crest was a stair, which is an edge on something that should be smooth.
 - **Not on the bloom guest list** (rule 6). The sky writes "do not bloom" like every opaque
   thing; nothing in it depends on bloom, so the low tier loses layers, never light.
 - **One change to the recipe as it was first drawn:** a massif used to end, and its glow with
