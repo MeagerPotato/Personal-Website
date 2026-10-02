@@ -4,6 +4,7 @@ import {
   assemble,
   assembling,
   callsOf,
+  fineOf,
   groundDetail,
   pack,
   turnsOf,
@@ -12,7 +13,7 @@ import {
   type Packed,
 } from './glue';
 import type { GroundLooks } from './ground';
-import { box, centroidOf, dot, type Vec3 } from './kit';
+import { box, centroidOf, cyl, dot, type Vec3 } from './kit';
 import type { MotionRow } from './motion';
 import { colorOf } from './palette';
 import { FLAG, fromPivot, make, pivotOf, toPivot, type BodyRecipe, type Item } from './rows';
@@ -59,8 +60,8 @@ function trianglesOf(packed: Packed): { color: number[]; centre: Vec3 }[] {
 describe('the glue', () => {
   it('splits a turning body into what turns and what holds, and outlines its ghost where it is', () => {
     const a = assemble(build, { kind: 'planet' });
-    // Ground 80, the part on the ground 12, the ghost 12 and the lamp 8 turn; the level part holds.
-    expect(a.turn.triangleCount).toBe(80 + 12 + 12 + 8);
+    // Ground 80, the part on the ground 12, the ghost 12 and the lamp 24 turn; the level part holds.
+    expect(a.turn.triangleCount).toBe(80 + 12 + 12 + 24);
     expect(a.hold.triangleCount).toBe(12);
     expect(a.edges.turn.length).toBe(BOX_EDGES);
     expect(a.edges.hold.length).toBe(0);
@@ -105,7 +106,7 @@ describe('the glue', () => {
       assemble(build, { kind: 'planet', still: true }),
     ]) {
       expect(a.turn.triangleCount).toBe(0);
-      expect(a.hold.triangleCount).toBe(124);
+      expect(a.hold.triangleCount).toBe(140);
       expect(a.edges.turn.length).toBe(0);
       expect(a.edges.hold.length).toBe(BOX_EDGES);
       expect(callsOf(a)).toBe(2);
@@ -137,7 +138,7 @@ describe('the glue', () => {
     const still = assemble(build, { kind: 'planet', motion });
     expect(still.movers).toEqual([]);
     const a = assemble(build, { kind: 'planet', motion, moving: true });
-    expect(a.turn.triangleCount).toBe(80 + 12 + 8);
+    expect(a.turn.triangleCount).toBe(80 + 12 + 24);
     expect(a.hold.triangleCount).toBe(0);
     expect(a.movers.map((m) => [m.name, m.group, m.mesh.triangleCount])).toEqual([
       ['on-ground', 'turn', 12],
@@ -188,7 +189,7 @@ describe('the glue', () => {
     const a = assemble(build, { kind: 'moon', still: true, motion, moving: true });
     expect(a.movers.map((m) => [m.name, m.group, m.mesh.triangleCount])).toEqual([
       ['*', 'hold', 80 + 12 + 12 + 12],
-      ['lamp', 'hold', 8],
+      ['lamp', 'hold', 24],
     ]);
     expect(a.turn.triangleCount + a.hold.triangleCount).toBe(0);
     expect(a.edges.turn.length + a.edges.hold.length).toBe(0);
@@ -210,14 +211,14 @@ describe('the glue', () => {
     expect(assemble(build, { kind: 'planet', motion: lamp, moving: true }).movers).toHaveLength(1);
     const plan: MotionRow[] = [['plan', 'scale', '*', 'hill', 1, 20]];
     const a = assemble(build, { kind: 'planet', motion: plan });
-    expect(a.turn.triangleCount).toBe(80 + 12 + 8);
+    expect(a.turn.triangleCount).toBe(80 + 12 + 24);
     expect(a.edges.turn.length).toBe(0);
   });
 
   it('draws the close-up parts only when asked', () => {
     const near = make('t', recipe(), { detail: 1, looks: LOOKS, near: [['close', 0, BOX]] });
-    expect(assemble(near, { kind: 'planet' }).turn.triangleCount).toBe(112);
-    expect(assemble(near, { kind: 'planet', near: true }).turn.triangleCount).toBe(124);
+    expect(assemble(near, { kind: 'planet' }).turn.triangleCount).toBe(128);
+    expect(assemble(near, { kind: 'planet', near: true }).turn.triangleCount).toBe(140);
   });
 
   it('packs buffers with a flat normal facing out and the lighting on every vertex', () => {
@@ -228,8 +229,8 @@ describe('the glue', () => {
         { detail: 0, looks: LOOKS },
       ).ground,
     );
-    expect(packed.triangleCount).toBe(20);
-    expect(packed.positions).toHaveLength(180);
+    expect(packed.triangleCount).toBe(36);
+    expect(packed.positions).toHaveLength(324);
     const tris = box(0.2, 0.2, 0.2, [1, 1, 1]);
     for (let i = 0; i < 12; i += 1) {
       const n: Vec3 = [
@@ -319,6 +320,68 @@ describe('the glue', () => {
     expect(flags.slice(0, 80 * 3).every((d) => d === 0)).toBe(true);
     expect(flags.slice(80 * 3, 92 * 3).every((d) => d === 1)).toBe(true);
     expect(flags.slice(92 * 3).every((d) => d === 0)).toBe(true);
+  });
+
+  it("turns a round part's normals with it into a mover's frame, and moves none of them", () => {
+    // A post lying on its side, far from the middle: its pivot is turned and moved.
+    const made = make(
+      't',
+      { rows: [{}, ['post', 0, ['s', 0, 90, { alt: 0.5 }, ['cyl', 0.2, 0, 1, 12, 'ink.high']]]] },
+      { detail: 0, looks: LOOKS },
+    );
+    const motion: MotionRow[] = [['post', 'rot', 'y', 'sine', 0.1, 8]];
+    const [mover] = assemble(made, { kind: 'planet', motion, moving: true }).movers;
+    if (!mover) throw new Error('fixture');
+    const { positions, normals, triangleCount } = mover.mesh;
+    expect(triangleCount).toBe(48);
+    for (let v = 0; v < triangleCount * 3; v += 1) {
+      const [x, y, z] = [
+        positions[v * 3] ?? 0,
+        positions[v * 3 + 1] ?? 0,
+        positions[v * 3 + 2] ?? 0,
+      ];
+      const n = normals.subarray(v * 3, v * 3 + 3);
+      expect(Math.hypot(n[0] ?? 0, n[1] ?? 0, n[2] ?? 0)).toBeCloseTo(1, 5);
+      // In its own frame the post stands on +Y again: caps along it, the side straight out.
+      if (Math.abs(n[1] ?? 0) > 0.5) expect(Math.abs(n[1] ?? 0)).toBeCloseTo(1, 5);
+      else if (Math.hypot(x, z) > 0.1) {
+        expect(n[0]).toBeCloseTo(x / 0.2, 4);
+        expect(n[2]).toBeCloseTo(z / 0.2, 4);
+      }
+      expect(y).toBeGreaterThan(-1e-6);
+    }
+  });
+
+  it('lights an edged part by its faces and a round one by its curve, in one buffer', () => {
+    const packed = pack([...box(0.2, 0.2, 0.2, [1, 1, 1]), ...cyl(0.2, 0, 1, 12, [1, 1, 1])]);
+    // The box: three corners, one normal. The tube's side: a normal a corner.
+    const cornersAlike = (t: number): boolean =>
+      String(packed.normals.slice(t * 9, t * 9 + 3)) ===
+        String(packed.normals.slice(t * 9 + 3, t * 9 + 6)) &&
+      String(packed.normals.slice(t * 9, t * 9 + 3)) ===
+        String(packed.normals.slice(t * 9 + 6, t * 9 + 9));
+    for (let t = 0; t < 12; t += 1) expect(cornersAlike(t)).toBe(true);
+    const side = Array.from({ length: 48 }, (_, i) => i + 12).filter(
+      (t) => Math.abs(packed.normals[t * 9 + 1] ?? 0) < 0.5,
+    );
+    expect(side).toHaveLength(24);
+    for (const t of side) expect(cornersAlike(t)).toBe(false);
+  });
+
+  it('outlines a round ghost by its rims, not by its sides', () => {
+    // A tube of twelve sides: two rims of twelve edges, and no line down its side.
+    expect(wire(cyl(0.2, 0, 1, 12, [1, 1, 1])).length).toBe(2 * 12 * 6);
+    // A post of four sides is a box: its twelve edges.
+    expect(wire(cyl(0.2, 0, 1, 4, [1, 1, 1])).length).toBe(BOX_EDGES);
+  });
+
+  it('builds finer up close than every day, and coarser on the low tier', () => {
+    const { round } = tuning.world;
+    expect(fineOf(false, false, round)).toEqual({ sag: round.sagEveryday, max: round.maxSides });
+    expect(fineOf(true, false, round).sag).toBe(round.sagNear);
+    expect(round.sagNear).toBeLessThan(round.sagEveryday);
+    expect(fineOf(true, true, round).sag).toBe(round.sagNear * round.sagLowTimes);
+    expect(round.sagLowTimes).toBeGreaterThan(1);
   });
 
   it('draws only the feature edges of a smooth surface', () => {

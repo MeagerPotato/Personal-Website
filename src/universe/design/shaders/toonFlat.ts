@@ -10,11 +10,13 @@ import { gradientNoise } from './noise';
  *
  * FLAT COLOUR, ROUND LIGHT ("Deep light", docs/DESIGN.md). The colour is `flat`: the whole
  * triangle takes one vertex's value, so a face is one colour edge to edge and never a gradient.
- * The light is decided for every PIXEL, from the normal its vertices hand down: where a mesh says
- * its faces are one curved surface (they share their normals: sim/meshBuilder.ts, `roundNormals`,
- * and a generated ground's are its ball's) the three bands meet along round lines, whatever the
- * facets under them; where it says a face is flat (a box, a cog's tooth) the face is one band, as
- * it always was. The line between two bands is a pixel soft: anti-aliased, not blurred.
+ * The light is decided for every PIXEL, from the normal its vertices hand down (the normal itself
+ * is carried across the face, and compared with the light at the pixel): where a mesh says its
+ * faces are one curved surface (a lathe's, a ring's wall: sim/meshBuilder.ts and sim/world/kit.ts
+ * say which things are round; a generated ground's are its ball's) the three bands meet along
+ * round lines, whatever the facets under them; where it says a face is flat (a box, a cog's tooth)
+ * the face is one band, as it always was. The line between two bands is a pixel soft:
+ * anti-aliased, not blurred.
  *
  * MORE COLOURS THAN ONE IN A FACE (`aSide`, `aOver`: sim/planet.ts): a facet that a coast, a band
  * of height or an edge of paint runs through carries a second colour (its side) and, at each
@@ -104,7 +106,8 @@ export const toonFlat = {
     flat varying float vUnlit;
     varying vec2 vEdge;
     varying vec4 vBend;
-    varying float vFacing;
+    varying vec3 vNormal;
+    varying vec3 vToSun;
     #ifdef SUN
       varying vec3 vBall;
       varying float vLimb;
@@ -124,7 +127,8 @@ export const toonFlat = {
       #else
         vec3 sun = uSunPosition;
       #endif
-      vFacing = dot(worldNormal, normalize(sun - worldPosition.xyz));
+      vNormal = worldNormal;
+      vToSun = sun - worldPosition.xyz;
 
       vec3 tint = uTint;
       #ifdef USE_INSTANCING_COLOR
@@ -165,7 +169,8 @@ export const toonFlat = {
     flat varying float vUnlit;
     varying vec2 vEdge;
     varying vec4 vBend;
-    varying float vFacing;
+    varying vec3 vNormal;
+    varying vec3 vToSun;
 
     // How much of this pixel lies past an edge: a line one pixel soft, wherever it runs.
     float past(float value, float edge) {
@@ -240,7 +245,10 @@ export const toonFlat = {
         if (vUnlit > 4.0) base = surface;
       #endif
 
-      float level = mix(uMidLevel * past(vFacing, uBandEdges.x), 1.0, past(vFacing, uBandEdges.y));
+      // Asked of every pixel, from the normal of the curve at that pixel: between the corners of a
+      // long facet the facing itself does not run straight, and a band's edge would show its corners.
+      float facing = dot(normalize(vNormal), normalize(vToSun));
+      float level = mix(uMidLevel * past(facing, uBandEdges.x), 1.0, past(facing, uBandEdges.y));
       // On the star map everything is lit: a map shows what is where, not what time of day it is.
       level = mix(level, 1.0, uFlatness);
       // A flat or glowing vertex takes no light: it is its colour. (The tests are halfway between

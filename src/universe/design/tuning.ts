@@ -672,13 +672,16 @@ export const tuning = {
     },
     /**
      * Planned work: unfired clay, rougher than any built world (the note on `planet.reliefShare`:
-     * above 0.07 the outline turns lumpy, which is the point).
+     * above 0.07 the outline turns lumpy, which is the point). Since the worlds were made round
+     * ("Deep light", step 2c) its lumps are round ones: lower (0.045; it was 0.07, whose lumps had
+     * corners on the outline) and of two octaves, not three (a third is finer than a facet, and
+     * its patches cannot be drawn round: the note on `isles`).
      */
     lumpy: {
       look: {
-        reliefShare: 0.07,
+        reliefShare: 0.045,
         frequency: 1.5,
-        octaves: 3,
+        octaves: 2,
         seaLevel: -0.6,
         peakAt: 0.55,
         terraces: 2,
@@ -725,7 +728,7 @@ export const tuning = {
     /**
      * A sun's ball: 2000 facets, fine enough for its granulation (`look.sun`; the low tier:
      * `detailLow`). The look was drawn at 11 (2880), which the worlds' budget has no room for:
-     * a body is at most 2400 triangles every day, its signs included (tests/world-bodies.test.ts).
+     * a body is at most 2800 triangles every day, its signs included (tests/world-bodies.test.ts).
      */
     detailSun: 9,
     /**
@@ -736,11 +739,13 @@ export const tuning = {
     /**
      * The worlds of their own (sim/world, design/worlds): a planned body there is a maquette of
      * primer clay that does not sharpen up close, coarser than a built world but not a sketch
-     * (980 facets for a planet, 320 for a moon). `detailPlanned` above is today's placeholder
-     * look, which the worlds replace body by body.
+     * (it was 980 facets for a planet, 320 for a moon: balls of straight sides against the sky;
+     * round and smooth is for clay too, so a maquette is as fine as a built world is every day,
+     * 1620 and 1280). `detailPlanned` above is today's placeholder look, which the worlds replace
+     * body by body.
      */
-    detailMaquettePlanet: 6,
-    detailMaquetteMoon: 3,
+    detailMaquettePlanet: 8,
+    detailMaquetteMoon: 7,
     /**
      * A planned world is drawn at this share of its finished size, rows and all: a maquette of
      * primer clay inside the dashed ring its rows draw at the finished size (about 1 radius at
@@ -748,6 +753,17 @@ export const tuning = {
      * measured at this scale, so tests/world-reach.test.ts follows a change here.
      */
     plannedScale: 0.7,
+    /**
+     * HOW ROUND a round thing is built ("Deep light": round and smooth). The rows sketch a wheel
+     * with eight sides; it is built with as many as keep the middle of a side within `sag` of
+     * the true circle (sim/world/kit.ts, `sidesFor`), in radii of its body: a third of a pixel
+     * on a body 55 px in radius every day, and half a pixel on one 200 px in radius up close. A
+     * wheel a third of its world across gets 16 sides every day and 24 up close, a mast 7 and
+     * 10, a bead a ball of 8 to 14. The low tier allows `sagLowTimes` as much; nothing gets more
+     * than `maxSides`. Light does not depend on it (a round thing is lit by its true normals):
+     * this is its outline only.
+     */
+    round: { sagEveryday: 0.006, sagNear: 0.0025, sagLowTimes: 2, maxSides: 64 },
     /** The near mesh is built inside this many radii, and dropped after lingering outside the exit. */
     nearEnterRadii: 8,
     nearExitRadii: 10,

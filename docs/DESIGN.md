@@ -407,7 +407,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | What | Where |
 | --- | --- |
 | The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is | `tuning.shading` |
-| What counts as an edge: faces that meet at less than this are lit as one round surface ("Deep light", round and smooth) | `CREASE_DEG` in `sim/meshBuilder.ts` |
+| What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
+| How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
 | The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
@@ -481,8 +482,10 @@ On 2026-10-01 Allen asked for "higher fidelity art styles across the board, inst
 plain, muted glows", "more hifi and in depth", keeping "the feeling of that simplicity but with a
 lot more details", and pointed at space photographs (the Carina cliffs, the Pillars, Jupiter,
 Earthrise, deep fields). The answer that was chosen is **flat worlds, deep light**: matter
-(planets, ships, signs) stays faceted and token-exact, and what is around matter (gas, stars,
-coronas, air) becomes light with structure. It is built in steps on a preview branch that Allen
+(planets, ships, signs) stays flat-coloured and token-exact, and what is around matter (gas,
+stars, coronas, air) becomes light with structure. (It began as "matter stays faceted"; on
+2026-10-02 Allen asked for everything round and smooth but what should have edges, and the
+facets went: "As built: round and smooth", below.) It is built in steps on a preview branch that Allen
 flies before any of it reaches `main`.
 
 **DRAFT, NOT SIGNED: what this would change in the principles above.** These are Allen's to
@@ -504,7 +507,8 @@ written, and nothing on `main` follows the drafts.
   **noise only baked, limited and lit**: never at run time, never without a ceiling, never
   without a light it faces.
 
-**Eight rules a change to the look is checked against.** (1) Matter is flat, light may be smooth.
+**Eight rules a change to the look is checked against.** (1) Matter is flat in colour and round
+in form (an edge only where the thing has one); light may be smooth.
 (2) Every colour is a token; shaders receive colours as uniforms. (3) Light is added, never
 replaced: the sky is today's navy plus added light, and a strength of 0 skips the pass. (4) Depth
 is layering: flats at different distances, never volumetric noise at run time. (5) One lens for
@@ -571,25 +575,54 @@ flat.
   The star drift stays until the baked sky arrives (a painted sky cannot be drifted against),
   so until then the heroes wander slowly off the places the table gives.
 
-**As built: round and smooth (step 2b, 2026-10-02).** Allen saw step 2's Software sun, a ball
-whose tones fell in sharp triangular facets, and said: "I want some more rounded texture instead
-of sharp triangles. everything should roughly look round and smooth", and then "i meant the
-planets too, make everything round and smooth, except for just the stuff that should have edges
-(like the hardware cogs)". So the faceted look is gone from everything that is round, and kept
-on everything that has edges. The rule, as built:
+**As built: round and smooth (steps 2b and 2c, 2026-10-02).** Allen saw step 2's Software sun,
+a ball whose tones fell in sharp triangular facets, and said: "I want some more rounded texture
+instead of sharp triangles. everything should roughly look round and smooth", and then "i meant
+the planets too, make everything round and smooth, except for just the stuff that should have
+edges (like the hardware cogs)". So the faceted look is gone from everything that is round, and
+kept, crisp, on everything that has edges. This replaces the "matter stays faceted" of the look
+as it was first drawn. The rule, as built:
 
-- **The mesh is facets; the picture is not.** Nothing was added to any mesh for this (the
-  budgets of `tests/world-bodies.test.ts` stand). What changed is what a facet carries and where
-  the shader decides.
-- **Light is round.** The three bands are decided for every pixel (`design/shaders/toonFlat.ts`)
-  from the normal the vertices hand down, and a line between two bands is one pixel soft:
-  anti-aliased, never blurred. A generated ground carries the normals of the ball or the shape
-  it is (`sim/planet.ts`; the relief does not turn them), so the terminator of a planet is a
-  clean curve. Every other mesh shares its normals where its faces are one curved surface and
-  keeps a face's own at an edge (`sim/meshBuilder.ts`, `roundNormals`): faces that meet at
-  less than **50 degrees** (`CREASE_DEG`) are round. A lathe of eight sides or more, a dome, a
-  ring's wall are lit as the curve they stand for; a box, a fin, a hexagonal post, a house, a
-  cog and its teeth keep their edges. A lit place is still exactly its token.
+- **What a thing is made with says whether it is round**, once, in the kit
+  (`sim/world/kit.ts`), never body by body and never by guessing from angles:
+  - **Round:** anything turned on a lathe with five sides or more (a tube, a cone, a dome, a
+    wheel, a mast, a cup, a rocket's body and nose, the ship), a bead (a ball; it was an
+    octahedron), the walls of a ring or an arc swept in two steps or more, and a tile of five
+    sides or more (a disc). And every generated ground: a globe, the fish, the rounded cube of
+    Days2Meet, the bus, the clay of planned work.
+  - **Edged:** a box, a prism (a card, a phone, an arrow, a bracket, a glyph plate), a fin, a
+    quad, a trapezoid (a cog's tooth, a clock's tick), pixel art and the pixel digits, a ring
+    of one step (a stand of the stadium, a dash), and a lathe of three or four sides (a house's
+    roof, a square post). The Hardware sun's gears are all of this kind: plates, teeth and
+    walls stay sharp. (Their hubs, axles and paint rings are circles now: a gear's teeth have
+    edges, its hub is turned.)
+  - A round thing keeps the edges it really has: a tube's cap meets its side at an edge, a
+    seam is a seam. Along a lathe's profile a turn of under **50 degrees** (`CREASE_DEG`) is a
+    bend and a sharper one a fold; a profile that ends on its axis within 35 degrees of square
+    (`POLE_DEG`) closes smoothly (a dome's top), a steeper one is a tip.
+- **Round in light.** A round thing's triangles carry the normals of the true surface, the
+  shader carries the normal across each face and decides the three bands **at every pixel**
+  (`design/shaders/toonFlat.ts`), a pixel soft: anti-aliased, never blurred. So a terminator is
+  a clean curve on a ball, a straight line down a tube, and one flat band on a box's face. A
+  lit place is still exactly its token. An edged thing is lit face by face, as it always was.
+- **Round in outline.** The rows still sketch a wheel with eight sides. It is BUILT with as
+  many as its size wants: the middle of a side may stand no further inside the true circle
+  than `tuning.world.round` says, in radii of the body (0.006 every day, a third of a pixel on
+  a body 55 px in radius; 0.0025 in the close-up, half a pixel at 200 px; twice that on the low
+  tier; never more than 64 sides, never fewer than written). A wheel a third of its world
+  across has 16 sides every day and 24 up close, a mast 7 and 10, a bead is a ball of 10 to
+  15. A polygon of under five sides is never touched. A ring keeps its colours where they were
+  painted (each step becomes a whole number of steps), and a wavy ring is built three times as
+  fine. The ship is 24 sides with a nose of eight bands, and its window lies on the curve of
+  its hull.
+- **Round grounds.** A moon is 1280 facets (`world.detailMoon` 7; it was 320), and so is a
+  planned moon; a planned planet is 1620 (`detailMaquettePlanet` 8, `detailMaquetteMoon` 7;
+  they were 980 and 320, balls of straight sides against the sky). The terrains' relief is
+  about a third of what it was (`terrain.continents` 0.018, `calm` 0.012, `isles` 0.014 of a
+  radius): light no longer shows relief (it falls on the ball), so all the old relief did was
+  put flat-topped lumps on the limb. **Clay keeps its lumps, as round ones**
+  (`terrain.lumpy`: relief 0.045, it was 0.07; two octaves, it was three): planned work still
+  looks unfinished, in soft blotches and a gently uneven outline, not in corners.
 - **Colour is flat, and its outlines are lines.** A face is one colour edge to edge, as before.
   But a facet of a ground that a coast, a band of height or an edge of paint runs through
   carries **up to three colours and the lines between them** (`aSide`, `aOver`), found by
@@ -605,21 +638,28 @@ on everything that has edges. The rule, as built:
   islands of HackGT 13, one in two hundred on home.
 - **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
   of triangles, which is exactly what was asked away.
-- **Round outlines.** A moon is 1280 facets (`world.detailMoon` 7; it was 320, a ball of twenty
-  sides). The terrains' relief is about a third of what it was (`terrain.continents` 0.018,
-  `calm` 0.012, `isles` 0.014 of a radius): light no longer shows relief (it falls on the ball),
-  so all the old relief did was put flat-topped lumps on the limb. Planned work's clay
-  (`terrain.lumpy`) keeps its lumps: it is meant to look unfinished.
-- **What keeps its edges, on purpose:** the Hardware sun's gears, the station, the satellite,
-  the relays, houses and towers, signs and screens, the ship's fins. Their silhouettes are
-  theirs; only how a curved side of them takes the light changed.
 - **A terrain no finer than its facets.** An arc holds one bend a facet, so noise finer than
-  a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` is two octaves, not three.
-  A terrain's finest octave (`frequency` times two for each further octave) should stay under
-  about 5.
-- **Still Allen's to judge:** whether the relief should go altogether. And a third line a
-  facet (one more attribute) would take the last steps out of the outlines of small islands;
-  it was left out for the weight (the lazy budget).
+  a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` and `lumpy` are two octaves,
+  not three. A terrain's finest octave (`frequency` times two for each further octave) should
+  stay under about 5.
+- **What it cost.** Triangles: the galaxy is about 39,900 every day (it was 32,500), the most
+  in one body 2612 every day and 6176 up close; the budget's ceilings rose once, on purpose,
+  to 2800 and 6600 (`tests/world-bodies.test.ts`). No draw call was added: round and edged
+  parts ride in one buffer and one material. A frame costs what it did (0.2 ms on the desktop
+  it was measured on, on every tier). Nothing reaches further: the reaches of
+  `design/worlds/reach.ts` stand (three beads were trimmed by a hair for it, since a ball
+  reaches its whole radius every way and an octahedron did not).
+- **A blueprint follows.** A ghost's lines are the folds of its mesh, judged by the same
+  normals: a round ghost shows its rims and not a line down every side.
+- **Writing a part, from now on:** pick the op for what the thing IS. If it is round, use a
+  lathe op with any sketch of sides from five up and let the build round it; if it should be
+  a hexagon nut or a pyramid, make it of a prism or of four sides. Do not fit a decal or a
+  part to a FACET of a round thing: there are none to count on (the roll number of Model
+  Rocketry sits on the tube's true radius).
+- **Still Allen's to judge:** whether the relief should go altogether; whether a profile of
+  few bands (the Devpost cup, a relay's beacon) should itself be a curve, as the ship's nose
+  became; and a third line a facet (one more attribute), which would take the last steps out
+  of the outlines of small islands and was left out for the weight (the lazy budget).
 
 **As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.
 

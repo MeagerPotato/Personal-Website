@@ -4,7 +4,9 @@ import { HOME } from '../../design/worlds/home';
 import { bead, fin, pix, tile } from './atoms';
 import { glyph } from './glyphs';
 import type { GroundLooks } from './ground';
+import { TAU } from '../math';
 import {
+  AS_WRITTEN,
   box,
   centroidOf,
   cone,
@@ -85,7 +87,7 @@ describe('the interpreter', () => {
       { rows: [[BOX, ['bead', 0.1, 'ink.mid']]] },
       { detail: 8, looks: LOOKS },
     );
-    expect(build.ground).toHaveLength(20);
+    expect(build.ground).toHaveLength(36);
     expect(build.parts).toEqual([]);
   });
 
@@ -141,9 +143,94 @@ describe('the interpreter', () => {
     expect(partOf(build, 'lamp').tris.every((t) => t.g === 2)).toBe(true);
     expect(partOf(build, 'sign').tris.map((t) => t.g)).toEqual([
       ...Array(12).fill(1),
-      ...Array(8).fill(2),
+      ...Array(24).fill(2),
     ]);
     expect(build.ground.every((t) => t.g === 0)).toBe(true);
+  });
+
+  it('builds a round thing with the sides its size wants, and an edged one as written', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    const count = (item: Item, how = fine): number => mk(item, 0, how).length;
+    // A wheel a third of its world across: 8 sides as written, 24 built; 4 triangles a side.
+    expect(count(['cyl', 0.29, 0, 0.1, 8, 'ink.mid'], AS_WRITTEN)).toBe(32);
+    expect(count(['cyl', 0.29, 0, 0.1, 8, 'ink.mid'])).toBe(24 * 4);
+    expect(count(['cone', 0.29, 0, 0, 0.3, 8, 'ink.mid'])).toBe(24 * 2);
+    expect(
+      count([
+        'lathe',
+        [
+          [0, 0.1],
+          [1, 0.29],
+        ],
+        6,
+        'ink.mid',
+      ]),
+    ).toBe(24 * 2);
+    // A dome's bands follow its sides: a quarter as many, pole to rim.
+    expect(count(['dome', 0.29, 6, 2, 'ink.mid'])).toBe(24 * 2 * 6);
+    // A bead is a ball; a tile of five sides or more a disc.
+    expect(count(['bead', 0.1, 'ink.mid'])).toBe(15 * 7 * 2);
+    expect(count(['tile', 0.29, 8, 'ink.mid'])).toBe(22);
+    // Edged, whatever the sag: a pyramid, a square post, a square tile, a box, a prism.
+    for (const item of [
+      ['cone', 0.5, 0, 0, 1, 4, 'ink.mid'],
+      ['cyl', 0.5, 0, 1, 4, 'ink.mid'],
+      ['tile', 0.5, 4, 'ink.mid'],
+      BOX,
+      [
+        'prism',
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+        0,
+        1,
+        'ink.mid',
+      ],
+    ] as const satisfies readonly Item[])
+      expect(count(item)).toBe(count(item, AS_WRITTEN));
+  });
+
+  it('sweeps a ring finer, keeps a block of one step, and keeps its colours in their places', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    // Radius 1.4: 53 sides round, so 12 steps become 60 (a whole number of steps to a step).
+    const hoop = mk(['ring', [1.3, 1.4], 0, TAU, 12, 0, 0, ['butter.light', 'ink.mid']], 0, fine);
+    expect(hoop).toHaveLength(60 * 2);
+    expect(hoop.slice(0, 10).every((t) => t.c === colorOf('butter.light'))).toBe(true);
+    expect(hoop.slice(10, 20).every((t) => t.c === colorOf('ink.mid'))).toBe(true);
+    // A stand: one step, as written.
+    expect(mk(['ring', [0.56, 0.84], 0, TAU / 16, 1, 0.5, 1.1, 'ink.high'], 0, fine)).toHaveLength(
+      12,
+    );
+    // A wave is built finer still.
+    const wave = (b: number): [number, number] => [1.3, 1.4 + 0.05 * Math.sin(5 * b)];
+    expect(mk(['ring', wave, 0, TAU, 12, 0, 0, 'ink.high'], 0, fine).length).toBeGreaterThan(
+      60 * 2,
+    );
+  });
+
+  it('builds what a placement shrinks for the size it ends at', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    const wheel: Item = ['cyl', 0.29, 0, 0.1, 8, 'ink.mid'];
+    const small = mk(['g', wheel, { s: 0.25 }], 0, fine);
+    // As a wheel of radius 0.0725 would be: 12 sides.
+    expect(small).toHaveLength(mk(['cyl', 0.0725, 0, 0.025, 8, 'ink.mid'], 0, fine).length);
+    expect(small).toHaveLength(12 * 4);
+    expect(mk(['s', 10, 20, { s: 0.25 }, wheel], 0, fine)).toHaveLength(12 * 4);
+    expect(mk(['n', [0, 1, 0], [0, 1, 0], 0, 0.25, wheel], 0, fine)).toHaveLength(12 * 4);
+  });
+
+  it("hands the build's fineness to its hull, its parts and its close-up parts", () => {
+    const wheel: Item = ['cyl', 0.29, 0, 0.1, 8, 'ink.mid'];
+    const build = make(
+      't',
+      { rows: [[wheel], ['far', 0, wheel]] },
+      { detail: 0, looks: LOOKS, near: [['near', 0, wheel]], fine: { sag: 0.0025, max: 64 } },
+    );
+    expect(build.ground).toHaveLength(96);
+    expect(build.parts.map((p) => p.tris.length)).toEqual([96, 96]);
   });
 
   it('resolves colour paths, and throws on one that names nothing', () => {

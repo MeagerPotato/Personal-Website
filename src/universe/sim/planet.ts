@@ -593,8 +593,7 @@ export function* generatePlanet(spec: PlanetSpec, look: PlanetLook): Generator<v
     yield;
   }
 
-  // Every facet came with its normals: there is nothing to round.
-  return builder.build(false);
+  return builder.build();
 }
 
 /** Run a generator to its end in one go (tests, and bodies too small to be worth slicing). */

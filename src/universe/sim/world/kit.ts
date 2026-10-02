@@ -1,5 +1,5 @@
 import { TAU } from '../math';
-import { MeshBuilder, type Point, type Rgb } from '../meshBuilder';
+import { CREASE_DEG, MeshBuilder, ROUND_FROM, type Point, type Rgb } from '../meshBuilder';
 
 /**
  * THE GEOMETRY KIT of the worlds: the small toolbox every prop of every body is built from. It
@@ -13,6 +13,17 @@ import { MeshBuilder, type Point, type Rgb } from '../meshBuilder';
  * part be re-placed (an `s` or `n` placement, a modifier) after it is made, and a test count or
  * measure any of it. Local frame: +Y up, and a prop is modelled at the origin on a world of
  * radius 1 (vocabulary: "radius-1 worlds").
+ *
+ * ROUND OR EDGED is said here, once, by what a thing is made with ("Deep light", docs/DESIGN.md):
+ *
+ *   round   `lathe` and what is made with it (`cyl`, `cone`, `dome`, a bead) of `ROUND_FROM` sides
+ *           or more, and the walls of a `ring` swept in two steps or more: their triangles carry
+ *           the normals of the true surface (`Tri.n`), so light falls on them as on a tube, a ball
+ *           or a hoop, and they are built with as many sides as their size wants (`sidesFor`), so
+ *           their outline is round too. A tile of five sides or more is a disc, and is built so.
+ *   edged   everything else: a box, a prism, a fin, a quad, a trapezoid, pixel art, a ring of one
+ *           step (a straight block), a lathe of three or four sides (a pyramid, a post). No
+ *           normals: each face is lit as the flat face it is, and its edges stay crisp.
  *
  * A port of the concept set's prototype (kit.mjs). The shapes are the prototype's, triangle for
  * triangle, and so are the float32 corners of what goes through MeshBuilder: the triangle counts
@@ -35,10 +46,11 @@ export type Unlit = number;
 
 /**
  * One triangle: its corners (nine numbers, a b c), its colour (linear RGB) and its lighting. A
- * facet of a generated ground (ground.ts) may also carry the normals of the curve it lies on (`n`,
- * nine numbers) and its other colours with their lines (`s`, 24 numbers: sim/meshBuilder.ts,
- * `MeshData.sides`) and how those lines bend (`b`, 12 numbers: `MeshData.bends`); a ground is
- * never moved, so `xf` drops them.
+ * triangle of a ROUND surface also carries the normals of the curve it lies on (`n`, nine
+ * numbers); without them it is a flat face. A facet of a generated ground (ground.ts) may carry
+ * its other colours with their lines too (`s`, 24 numbers: sim/meshBuilder.ts, `MeshData.sides`)
+ * and how those lines bend (`b`, 12 numbers: `MeshData.bends`); a ground is never moved, so `xf`
+ * drops those two.
  */
 export interface Tri {
   readonly p: readonly number[];
@@ -176,9 +188,47 @@ export function xf(tris: readonly Tri[], { at = ORIGIN, rot, s = 1, m }: Place =
       if (turn) q = mulM(turn, q);
       p.push(q[0] + at[0], q[1] + at[1], q[2] + at[2]);
     }
-    return { p, c: t.c, g: t.g };
+    if (!t.n) return { p, c: t.c, g: t.g };
+    // A normal goes through the inverse of the scale (a squashed dome's lean outward), then turns.
+    const n: number[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const q: Vec3 = [
+        (t.n[i * 3] ?? 0) / k[0],
+        (t.n[i * 3 + 1] ?? 0) / k[1],
+        (t.n[i * 3 + 2] ?? 0) / k[2],
+      ];
+      n.push(...norm(turn ? mulM(turn, q) : q));
+    }
+    return { p, c: t.c, g: t.g, n };
   });
 }
+
+// --- how round ------------------------------------------------------------------------------------
+
+/**
+ * How finely round things are built (design/tuning.ts, `world.round`). `sag`: how far the middle
+ * of a side may stand inside the true circle, in body radii; `max`: the most sides anything gets.
+ */
+export interface Fine {
+  readonly sag: number;
+  readonly max: number;
+}
+
+/** As the rows wrote it: no side is added. */
+export const AS_WRITTEN: Fine = { sag: Infinity, max: Infinity };
+
+/**
+ * The sides a circle of radius `r` is built with: as many as keep its sides within `fine.sag`
+ * of the circle, and never fewer than the rows wrote. A polygon of under `ROUND_FROM` sides is a
+ * polygon (a square, a pyramid) and keeps its count.
+ */
+export const sidesFor = (r: number, sides: number, fine: Fine): number =>
+  sides < ROUND_FROM
+    ? sides
+    : Math.max(
+        sides,
+        Math.min(fine.max, Math.ceil(Math.PI * Math.sqrt(Math.abs(r) / (2 * fine.sag)))),
+      );
 
 // --- primitives (local frame: +Y up) --------------------------------------------------------------
 
@@ -186,19 +236,24 @@ export function xf(tris: readonly Tri[], { at = ORIGIN, rot, s = 1, m }: Place =
 export type Colors = Rgb | readonly Rgb[];
 const isList = (colors: Colors): colors is readonly Rgb[] => typeof colors[0] !== 'number';
 
-/** The triangles a MeshBuilder made, as records: float32 corners, as the engine will draw them. */
-function recordsOf(builder: MeshBuilder, color?: Rgb): Tri[] {
-  const mesh = builder.build(false);
+/**
+ * The triangles a MeshBuilder made, as records: float32 corners, as the engine will draw them,
+ * and for a `round` surface the normals it gave them.
+ */
+function recordsOf(builder: MeshBuilder, round: boolean, color?: Rgb): Tri[] {
+  const mesh = builder.build();
   return Array.from({ length: mesh.triangleCount }, (_, i) => ({
     p: [...mesh.positions.slice(i * 9, i * 9 + 9)],
     c: color ?? [mesh.colors[i * 9] ?? 0, mesh.colors[i * 9 + 1] ?? 0, mesh.colors[i * 9 + 2] ?? 0],
     g: 0,
+    ...(round ? { n: [...mesh.normals.slice(i * 9, i * 9 + 9)] } : {}),
   }));
 }
 
 /**
  * A body of revolution about +Y. `rings` is its profile, [height, radius] pairs walked bottom to
- * top for the OUTSIDE; `colors` one colour, or one per band between two rings.
+ * top for the OUTSIDE; `colors` one colour, or one per band between two rings. ROUND from
+ * `ROUND_FROM` sides (sim/meshBuilder.ts, `lathe`): a tube, a cone, a ball.
  */
 export function lathe(rings: readonly Vec2[], sides: number, colors: Colors, phase = 0): Tri[] {
   const builder = new MeshBuilder();
@@ -209,7 +264,7 @@ export function lathe(rings: readonly Vec2[], sides: number, colors: Colors, pha
     phase,
   );
   builder.rotateX(-Math.PI / 2);
-  return recordsOf(builder);
+  return recordsOf(builder, sides >= ROUND_FROM);
 }
 
 /** A capped cylinder from y0 to y1 (4 x sides triangles). */
@@ -274,7 +329,7 @@ export const dome = (r: number, sides: number, steps: number, color: Rgb): Tri[]
 export function box(sx: number, sy: number, sz: number, color: Rgb): Tri[] {
   const builder = new MeshBuilder();
   builder.box([0, 0, 0], [sx, sy, sz], color);
-  return recordsOf(builder, color);
+  return recordsOf(builder, false, color);
 }
 
 /** A compass bearing (radians clockwise from north, -Z) and a radius, as [x, z]. */
@@ -362,7 +417,12 @@ export const RING = { noUnderside: 1, flatUnderside: 2 } as const;
 /**
  * A strip swept round the Y axis from bearing b0 to b1 in `steps`, between y0 and y1, its radii
  * fixed or a function of the bearing: a solid ring, an arc, a wave, a gear rim, a road, a dash.
- * `top` and `side` may be a list of colours, one per step in turn.
+ * `top` and `side` may be a list of colours, one per step in turn, or per `per` steps (a ring
+ * built finer than it was written keeps its colours where they were).
+ *
+ * Swept in two steps or more it is a CURVE, and its walls are lit as one: they share their
+ * normals from step to step wherever they turn by less than `CREASE_DEG`. One step is a straight
+ * block, and keeps its flat walls.
  */
 export function ring(
   radii: Radii,
@@ -374,13 +434,46 @@ export function ring(
   top: Colors,
   side: Colors = top,
   flags = 0,
+  per = 1,
 ): Tri[] {
   const radiiAt = typeof radii === 'function' ? radii : (): Vec2 => radii;
   const flat = y1 - y0 < 1e-6;
   const out: Tri[] = [];
   const A = (p: Vec2, y: number): Vec3 => [p[0], y, p[1]];
   const pick = (colors: Colors, i: number): Rgb =>
-    isList(colors) ? (colors[i % colors.length] ?? [0, 0, 0]) : colors;
+    isList(colors) ? (colors[Math.floor(i / per) % colors.length] ?? [0, 0, 0]) : colors;
+  const whole = Math.abs(b1 - b0) > TAU - 1e-6;
+  const bearing = (i: number): number => b0 + ((b1 - b0) * i) / steps;
+  // A wall's own normal over step i (which: 0 the inner wall, 1 the outer), and the one its two
+  // triangles carry at each end: shared with the next step's where the wall only bends.
+  const chord = (i: number, which: 0 | 1): Vec3 => {
+    const a = brg(bearing(i), radiiAt(bearing(i))[which]);
+    const b = brg(bearing(i + 1), radiiAt(bearing(i + 1))[which]);
+    const sign = (which ? 1 : -1) * Math.sign(b1 - b0);
+    return norm([(b[1] - a[1]) * sign, 0, (a[0] - b[0]) * sign]);
+  };
+  const fold = Math.cos((CREASE_DEG * Math.PI) / 180);
+  const shared = (i: number, end: 0 | 1, which: 0 | 1): Vec3 => {
+    const own = chord(i, which);
+    let j = i + (end ? 1 : -1);
+    if (whole) j = (j + steps) % steps;
+    if (j < 0 || j >= steps) return own;
+    const next = chord(j, which);
+    return dot(own, next) > fold ? norm(add(own, next)) : own;
+  };
+  const wall = (a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Rgb, i: number, which: 0 | 1): Tri[] => {
+    const faces = quad(a, b, c, d, color, chord(i, which));
+    if (steps < 2) return faces;
+    // Corners a and d stand at the step's start, b and c at its end.
+    const [n0, n1] = [shared(i, 0, which), shared(i, 1, which)];
+    return faces.map((t) => ({
+      ...t,
+      n: [0, 1, 2].flatMap((v) => {
+        const at = corner(t, v);
+        return Math.hypot(at[0] - a[0], at[2] - a[2]) < 1e-9 ? n0 : n1;
+      }),
+    }));
+  };
   for (let i = 0; i < steps; i += 1) {
     const ba = b0 + ((b1 - b0) * i) / steps;
     const bb = b0 + ((b1 - b0) * (i + 1)) / steps;
@@ -396,14 +489,12 @@ export function ring(
     if (flat ? flags & RING.flatUnderside : !(flags & RING.noUnderside))
       out.push(...quad(A(ia, y0), A(oa, y0), A(ob, y0), A(ib, y0), s, [0, -1, 0]));
     if (!flat) {
-      const outward: Vec3 = [(oa[0] + ob[0]) / 2, 0, (oa[1] + ob[1]) / 2];
-      const inward: Vec3 = [-(ia[0] + ib[0]) / 2, 0, -(ia[1] + ib[1]) / 2];
-      out.push(...quad(A(oa, y0), A(ob, y0), A(ob, y1), A(oa, y1), s, outward));
-      out.push(...quad(A(ia, y0), A(ib, y0), A(ib, y1), A(ia, y1), s, inward));
+      out.push(...wall(A(oa, y0), A(ob, y0), A(ob, y1), A(oa, y1), s, i, 1));
+      out.push(...wall(A(ia, y0), A(ib, y0), A(ib, y1), A(ia, y1), s, i, 0));
     }
   }
   // An arc (not a whole ring) that has height is closed at both ends.
-  if (!flat && Math.abs(b1 - b0) < TAU - 1e-6) {
+  if (!flat && !whole) {
     for (const [b, sign] of [
       [b0, -1],
       [b1, 1],

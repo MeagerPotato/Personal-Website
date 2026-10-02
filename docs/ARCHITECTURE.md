@@ -547,14 +547,31 @@ real shader). Three rules follow for whoever writes one: tag the literal `/* gls
 backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
 that brings in a block of GLSL stands alone on its line, which it then keeps.
 
-**The mesh is facets, the picture is round.** Three things make it so, and none adds a
-triangle. (1) NORMALS: a mesh hands the toon shader a normal a vertex. A generated ground's are
-the ball's or the shape's (`sim/planet.ts`, `shapeNormal`); everything else is rounded by
-`roundNormals` (`sim/meshBuilder.ts`: faces that meet at a point within `CREASE_DEG` of each
-other share their normal there, weighed by their angles), once per packed group
-(`sim/world/glue.ts`, `pack`) or per model (`MeshBuilder.build`). (2) LIGHT PER PIXEL: the
-shader interpolates how far a place faces its sun and cuts the three bands in the fragment
-shader, a pixel soft (`fwidth`); the colour stays `flat`. (3) LINES THROUGH FACETS: the planet
+**The mesh is facets, the picture is round.** Four things make it so. (1) NORMALS, said once by
+what a thing is made with: a mesh hands the toon shader a normal a vertex. A generated ground's
+are the ball's or the shape's (`sim/planet.ts`, `shapeNormal`). A LATHE of five sides or more
+(`MeshBuilder.lathe`, and the kit's `lathe`, `cyl`, `cone`, `dome` and bead on top of it) gives
+every corner the normal of the true surface: round about the axis; along the profile shared
+between two bands where it only bends, kept apart where it folds by more than `CREASE_DEG` (a
+cap, a rim); one normal along the axis where a gentle profile ends on it (`POLE_DEG`: the top
+of a dome), one a side at a tip. A `ring` swept in two steps or more does the same for its
+walls. Everything else (a box, a prism, a fin, a quad, pixel art, a ring of one step, a lathe
+of three or four sides) carries no normals, and `pack` gives each face its own
+(`sim/world/glue.ts`). A triangle's normals ride in `Tri.n` through every placement (`xf`
+takes them through the inverse of a scale, then the turn; a mover's are turned into its
+pivot's frame), and a ghost's wire reads them, so a round ghost is outlined by its rims.
+There is no pass that guesses what is round from the angles between faces any more. (2) SIDES:
+the rows sketch a round thing with a handful of sides, and the interpreter builds it with as
+many as its size wants (`sim/world/rows.ts`, `refine`; `sim/world/kit.ts`, `sidesFor`: the
+middle of a side within `tuning.world.round`'s sag of the true circle, in radii of the body,
+for the size the part ends at after the placements that scale it): more in the close-up than
+every day, fewer on the low tier (`fineOf`), never fewer than written, a polygon of under
+five sides never changed. A ring's steps become a whole number of steps each, so its colours
+stay where they were painted. (3) LIGHT PER PIXEL: the shader carries the NORMAL across a
+face, asks at each pixel how far it faces its sun, and cuts the three bands there, a pixel
+soft (`fwidth`); the colour stays `flat`. (The facing itself was interpolated until step 2c:
+across a long facet of a cone that is not a straight run, and a band's edge showed corners.)
+(4) LINES THROUGH FACETS: the planet
 generator walks each facet's outline, finds where the colour changes (a coast, a band, an edge
 of paint) and gives the facet up to three colours and two lines (`Facet.side`,
 `Facet.over`: a colour and, per corner, where it stands on the line; `MeshData.sides`, eight
@@ -569,8 +586,8 @@ the generator finds where the outline crosses the line's perpendicular through i
 line both of whose ends are on ONE edge (a cape) is that edge moved half a step off the facet,
 with the same arc drawn from further along it, so no pixel on the edge has to say which side
 it is on. A change to a
-generator that makes its own triangles keeps to this: give a curved surface its normals or let
-`roundNormals` find them, and never colour a boundary by the facet.
+generator that makes its own triangles keeps to this: give a curved surface its normals (a
+triangle without them is a flat face), and never colour a boundary by the facet.
 
 **A sun is drawn on its ball, and a corona.** A sun's ball is generated like any ground
 (`sim/world/ground.ts`): a smooth ball in its family's base, every facet flagged as the SURFACE

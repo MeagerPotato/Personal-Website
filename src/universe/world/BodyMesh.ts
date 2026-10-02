@@ -18,6 +18,7 @@ import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import {
   assembling,
+  fineOf,
   groundDetail,
   turnsOf,
   type Assembly,
@@ -271,6 +272,7 @@ export class BodyMesh {
         seed,
         map: tier === 'map',
         near: closeUpRows,
+        fine: fineOf(near, low, tuning.world.round),
       });
       yield;
       return yield* assembling(build, {

@@ -54,12 +54,13 @@ describe('the toon material and its per-vertex flags', () => {
       expect(vertexShader).toContain(`flat varying vec3 ${name};`);
       expect(fragmentShader).toContain(`flat varying vec3 ${name};`);
     }
-    // How far a place faces its sun comes down from the vertices' normals, unflattened, and the
-    // three bands are cut from it in the fragment shader, a pixel soft.
-    expect(vertexShader).toContain('varying float vFacing;');
-    expect(vertexShader).not.toContain('flat varying float vFacing');
+    // The normal comes down from the vertices unflattened, how far the place faces its sun is
+    // asked at the pixel, and the three bands are cut from that, a pixel soft.
+    expect(vertexShader).toContain('varying vec3 vNormal;');
+    expect(vertexShader).not.toContain('flat varying vec3 vNormal');
+    expect(fragmentShader).toContain('float facing = dot(normalize(vNormal), normalize(vToSun));');
     expect(fragmentShader).toContain(
-      'float level = mix(uMidLevel * past(vFacing, uBandEdges.x), 1.0, past(vFacing, uBandEdges.y));',
+      'float level = mix(uMidLevel * past(facing, uBandEdges.x), 1.0, past(facing, uBandEdges.y));',
     );
     expect(fragmentShader).toContain(
       'return clamp((value - edge) / max(fwidth(value), 1e-6) + 0.5, 0.0, 1.0);',

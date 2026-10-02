@@ -4,10 +4,12 @@
  * three.js, so a generated model can be checked in a unit test: is it the right size, do its faces
  * point outwards, does it use the colours it was given?
  *
- * ROUND WHERE IT IS ROUND ("Deep light", docs/DESIGN.md): the faces of one curved surface (a
- * lathe's sides, a dome, a ball) share their normals where they meet, so light falls across them
- * as across the curve they stand for; faces that meet at a real edge (a box, a fin, a cog's
- * tooth: `CREASE_DEG`) keep their own, and the edge stays crisp. `roundNormals` decides which.
+ * ROUND WHERE IT IS ROUND ("Deep light", docs/DESIGN.md): what a thing IS says how it is lit, and
+ * it says so once, where it is made. A LATHE of five sides or more is a body of revolution: every
+ * corner carries the normal of the true surface there, round about the axis, and along its profile
+ * round where the profile bends gently and an edge where it folds (`CREASE_DEG`: a wheel's rim, a
+ * seam). A lathe of three or four sides is a pyramid or a post, and everything else here (a box, a
+ * plate, a disc, a quad) is flat: each face keeps its own normal, and its edges stay crisp.
  *
  * Conventions: +Y up, +Z forward, 1 unit = 1 u (docs/PLAN.md §5.6). Triangles are wound
  * counter-clockwise seen from OUTSIDE; the normal follows from the winding. Colours are linear RGB.
@@ -59,91 +61,24 @@ export interface Facet {
 }
 
 /**
- * Faces that meet at less than this many degrees are one round surface, and share their normals
- * there; at more, it is an edge and stays one. An eight-sided post is round (45 degrees a side),
- * a hexagonal one is not; a box, a fin and a cog's tooth never are.
+ * A lathe's profile that turns by less than this many degrees from one band to the next is one
+ * curved surface there (a dome, an ogive nose); by more, it is an edge and stays one (a cap on a
+ * tube, a step, a rim).
  */
 export const CREASE_DEG = 50;
 
 /**
- * Round the normals of a triangle soup (`positions`: nine numbers a triangle) in place: every
- * corner takes the mean of the normals of the faces that meet at that point and lie within
- * `CREASE_DEG` of its own face, each weighed by the angle of its corner there (so that the two
- * triangles of a quad count as the one face they are). `given(i)`: triangle i already has its
- * normals and is left alone.
+ * A lathe of this many sides or more is ROUND: a tube, a ball, a cone. With fewer it is the
+ * polygon it says: a pyramid, a square post.
  */
-export function roundNormals(
-  positions: ArrayLike<number>,
-  normals: { [index: number]: number },
-  given?: (triangle: number) => boolean,
-): void {
-  const count = positions.length / 9;
-  const face = new Float32Array(count * 3);
-  const angle = new Float32Array(count * 3);
-  const at = new Map<string, number[]>();
-  const p = (i: number): number => positions[i] ?? 0;
-  for (let t = 0; t < count; t += 1) {
-    if (given?.(t)) continue;
-    const o = t * 9;
-    const nx =
-      (p(o + 4) - p(o + 1)) * (p(o + 8) - p(o + 2)) - (p(o + 5) - p(o + 2)) * (p(o + 7) - p(o + 1));
-    const ny =
-      (p(o + 5) - p(o + 2)) * (p(o + 6) - p(o)) - (p(o + 3) - p(o)) * (p(o + 8) - p(o + 2));
-    const nz =
-      (p(o + 3) - p(o)) * (p(o + 7) - p(o + 1)) - (p(o + 4) - p(o + 1)) * (p(o + 6) - p(o));
-    const length = Math.hypot(nx, ny, nz) || 1;
-    face[t * 3] = nx / length;
-    face[t * 3 + 1] = ny / length;
-    face[t * 3 + 2] = nz / length;
-    for (let c = 0; c < 3; c += 1) {
-      const a = o + c * 3;
-      const b = o + ((c + 1) % 3) * 3;
-      const d = o + ((c + 2) % 3) * 3;
-      const ex = p(b) - p(a);
-      const ey = p(b + 1) - p(a + 1);
-      const ez = p(b + 2) - p(a + 2);
-      const fx = p(d) - p(a);
-      const fy = p(d + 1) - p(a + 1);
-      const fz = p(d + 2) - p(a + 2);
-      const cos =
-        (ex * fx + ey * fy + ez * fz) / (Math.hypot(ex, ey, ez) * Math.hypot(fx, fy, fz) || 1);
-      angle[t * 3 + c] = Math.acos(Math.max(-1, Math.min(1, cos)));
-      const key = `${Math.round(p(a) * 1e4)},${Math.round(p(a + 1) * 1e4)},${Math.round(p(a + 2) * 1e4)}`;
-      const list = at.get(key);
-      if (list) list.push(t * 3 + c);
-      else at.set(key, [t * 3 + c]);
-    }
-  }
-  const crease = Math.cos((CREASE_DEG * Math.PI) / 180);
-  for (const list of at.values()) {
-    for (const corner of list) {
-      const t = (corner - (corner % 3)) / 3;
-      const fx = face[t * 3] ?? 0;
-      const fy = face[t * 3 + 1] ?? 0;
-      const fz = face[t * 3 + 2] ?? 0;
-      let x = 0;
-      let y = 0;
-      let z = 0;
-      for (const other of list) {
-        const u = (other - (other % 3)) / 3;
-        const gx = face[u * 3] ?? 0;
-        const gy = face[u * 3 + 1] ?? 0;
-        const gz = face[u * 3 + 2] ?? 0;
-        if (u !== t && fx * gx + fy * gy + fz * gz < crease) continue;
-        const weight = angle[other] ?? 0;
-        x += gx * weight;
-        y += gy * weight;
-        z += gz * weight;
-      }
-      const length = Math.hypot(x, y, z);
-      // A sliver with no angle to speak of keeps its face's.
-      const whole = length > 1e-9;
-      normals[corner * 3] = whole ? x / length : fx;
-      normals[corner * 3 + 1] = whole ? y / length : fy;
-      normals[corner * 3 + 2] = whole ? z / length : fz;
-    }
-  }
-}
+export const ROUND_FROM = 5;
+
+/**
+ * A profile that ends ON the axis within this many degrees of square to it closes smoothly there
+ * (the top of a dome, the pole of a ball: one normal, along the axis); a steeper one is a tip (a
+ * cone's, a nose's), which each side meets with its own.
+ */
+export const POLE_DEG = 35;
 
 /** One ring of a body of revolution around the Z axis. */
 export interface Ring {
@@ -181,8 +116,6 @@ export class MeshBuilder {
   private readonly sides = new Map<number, number[]>();
   /** By triangle: four numbers a vertex where a line is bent (`MeshData.bends`). */
   private readonly bends = new Map<number, number[]>();
-  /** The triangles that came with normals of their own. */
-  private readonly given = new Set<number>();
 
   get triangleCount(): number {
     return this.positions.length / 9;
@@ -210,7 +143,6 @@ export class MeshBuilder {
     }
     if (facet?.n) {
       for (let i = 0; i < 9; i += 1) this.normals[index * 9 + i] = facet.n[i] ?? 0;
-      this.given.add(index);
     }
     if (facet?.side) {
       const { side, over } = facet;
@@ -242,16 +174,51 @@ export class MeshBuilder {
   }
 
   /**
-   * A body of revolution around Z: a band of `sides` flat faces between each pair of rings.
+   * A body of revolution around Z: a band of `sides` faces between each pair of rings, lit as the
+   * round surface they stand for when there are `ROUND_FROM` of them or more (see the top of the file).
    * The rings are a PATH, and the surface faces to the left of the direction of travel: walk from
    * the back (low z) to the front for the outside of a body; two rings at the same z make a flat
    * step (wider = facing back, narrower = facing forward); walk backwards for the INSIDE of a
    * tube, such as a nozzle. `colors[i]` paints the band between ring i and ring i + 1.
    */
   lathe(rings: readonly Ring[], sides: number, colors: readonly Rgb[], phase = 0): this {
+    const angleOf = (index: number): number => phase + (index / sides) * Math.PI * 2;
     const at = (ring: Ring, index: number): Point => {
-      const angle = phase + (index / sides) * Math.PI * 2;
+      const angle = angleOf(index);
       return [ring.radius * Math.cos(angle), ring.radius * Math.sin(angle), ring.z];
+    };
+    const round = sides >= ROUND_FROM;
+    const fold = Math.cos((CREASE_DEG * Math.PI) / 180);
+    // Each band's normal in the profile's own plane, [along z, away from the axis]: it faces to
+    // the left of the direction of travel.
+    const flat = rings.slice(1).map((front, band): readonly [number, number] => {
+      const back = rings[band] ?? front;
+      const dz = front.z - back.z;
+      const dr = front.radius - back.radius;
+      const length = Math.hypot(dz, dr) || 1;
+      return [-dr / length, dz / length];
+    });
+    /**
+     * The normal of the true surface at a corner of a band: the band's own, turned halfway to its
+     * neighbour's where the profile only bends there, and straight along the axis where a gentle
+     * profile ends on it (the top of a dome). A point on the axis that is a real tip (a cone's)
+     * has no angle of its own: it takes the middle of its side.
+     */
+    const normalAt = (band: number, end: 0 | 1, side: number, other: number): Point => {
+      const own = flat[band] ?? [0, 1];
+      let [nz, nr] = own;
+      let angle = angleOf(side);
+      if ((rings[band + end]?.radius ?? 0) < EPSILON) {
+        if (Math.abs(nz) > Math.cos((POLE_DEG * Math.PI) / 180)) [nz, nr] = [Math.sign(nz), 0];
+        else angle = (angle + angleOf(other)) / 2;
+      } else {
+        const next = flat[band + (end ? 1 : -1)];
+        if (next && own[0] * next[0] + own[1] * next[1] > fold) {
+          const length = Math.hypot(own[0] + next[0], own[1] + next[1]);
+          [nz, nr] = [(own[0] + next[0]) / length, (own[1] + next[1]) / length];
+        }
+      }
+      return [nr * Math.cos(angle), nr * Math.sin(angle), nz];
     };
     for (let band = 0; band + 1 < rings.length; band += 1) {
       const back = rings[band];
@@ -261,7 +228,24 @@ export class MeshBuilder {
       // One winding is right for every band: it faces outwards while z rises, a step that
       // widens faces back (the underside of a body), and a step that narrows faces forward.
       for (let side = 0; side < sides; side += 1) {
-        this.quad(at(back, side), at(back, side + 1), at(front, side + 1), at(front, side), color);
+        const [a, b, c, d] = [
+          at(back, side),
+          at(back, side + 1),
+          at(front, side + 1),
+          at(front, side),
+        ];
+        if (!round) {
+          this.quad(a, b, c, d, color);
+          continue;
+        }
+        const [na, nb, nc, nd] = [
+          normalAt(band, 0, side, side + 1),
+          normalAt(band, 0, side + 1, side),
+          normalAt(band, 1, side + 1, side),
+          normalAt(band, 1, side, side + 1),
+        ];
+        this.triangle(a, b, c, color, { n: [...na, ...nb, ...nc] });
+        this.triangle(a, c, d, color, { n: [...na, ...nc, ...nd] });
       }
     }
     return this;
@@ -394,13 +378,8 @@ export class MeshBuilder {
     return this;
   }
 
-  /**
-   * `round`: share the normals of faces that are one curved surface (`roundNormals`). A caller
-   * that only wants the corners (sim/world/kit.ts, whose glue rounds a whole body at once) says no.
-   */
-  build(round = true): MeshData {
+  build(): MeshData {
     const normals = new Float32Array(this.normals);
-    if (round) roundNormals(this.positions, normals, (triangle) => this.given.has(triangle));
     const mesh: MeshData = {
       positions: new Float32Array(this.positions),
       normals,

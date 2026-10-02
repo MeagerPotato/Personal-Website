@@ -214,7 +214,7 @@ const fishai: PartRow[] = [
         0,
         'sky.light',
       ]),
-      ['bead', 0.09, 'ink.high', { at: [brg(rad(120), LOOP)[0], 0, brg(rad(120), LOOP)[1]] }],
+      ['bead', 0.084, 'ink.high', { at: [brg(rad(120), LOOP)[0], 0, brg(rad(120), LOOP)[1]] }],
       { rot: [rad(14), 0, rad(-6)] },
     ],
   ],
@@ -323,10 +323,10 @@ const modelRocketryNear: PartRow[] = [
     FLAG.flat | FLAG.decal,
     [
       'quad',
-      [0.245, -0.1, -0.2165],
-      [0.715, -0.1, -0.2165],
-      [0.715, 0.1, -0.2165],
-      [0.245, 0.1, -0.2165],
+      [0.245, -0.1, -0.2215],
+      [0.715, -0.1, -0.2215],
+      [0.715, 0.1, -0.2215],
+      [0.245, 0.1, -0.2215],
       'space.900',
       [0, 0, -1],
     ],
@@ -334,10 +334,10 @@ const modelRocketryNear: PartRow[] = [
   [
     'altimeter-digits',
     FLAG.glow | FLAG.decal,
-    ['pix', '3200', 0.03, 'star.warm', { at: [0.48, 0, -0.2205], rot: [0, Math.PI, 0] }],
+    ['pix', '3200', 0.03, 'star.warm', { at: [0.48, 0, -0.2255], rot: [0, Math.PI, 0] }],
   ],
   // The recovery, on the shade flank: a small canopy for the drogue, a large one for the main.
-  ['recovery-badges', FLAG.decal, chute(0.6, 0.04, 0.055, 0.2165), chute(0.4, 0.05, 0.085, 0.2165)],
+  ['recovery-badges', FLAG.decal, chute(0.6, 0.04, 0.055, 0.2215), chute(0.4, 0.05, 0.085, 0.2215)],
   // A streamer tied to the dorsal fin's tip, flying behind it.
   [
     'streamer',

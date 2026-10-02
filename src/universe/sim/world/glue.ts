@@ -1,7 +1,7 @@
 import type { BodyKind } from '../../data/types';
-import { roundNormals, type Rgb } from '../meshBuilder';
+import type { Rgb } from '../meshBuilder';
 import { finish } from '../planet';
-import { normalOf, type Tri } from './kit';
+import { add, corner, normalOf, type Fine, type Tri, type Vec3 } from './kit';
 import { absentAtRest, type MotionRow } from './motion';
 import { colorOf } from './palette';
 import { BODY_PIVOT, FLAG, toPivot, type Build, type Pivot } from './rows';
@@ -57,9 +57,9 @@ const BLUEPRINT: Rgb = colorOf('space.700');
 export interface Packed {
   readonly positions: Float32Array;
   /**
-   * A normal a vertex: a ground's are those of the ball it is (sim/planet.ts); a part's faces
-   * share theirs where they are one curved surface, and keep their own at an edge
-   * (sim/meshBuilder.ts, `roundNormals`).
+   * A normal a vertex: a ground's are those of the ball it is (sim/planet.ts); a round part's
+   * those of the curve it stands for, and an edged part's its own face's (sim/world/kit.ts says
+   * which is which, by what the part is made with).
    */
   readonly normals: Float32Array;
   readonly colors: Float32Array;
@@ -207,9 +207,18 @@ export function* assembling(
         into,
         faces.map((t) => ({
           ...t,
-          p: [0, 1, 2].flatMap((i) =>
-            toPivot([t.p[i * 3] ?? 0, t.p[i * 3 + 1] ?? 0, t.p[i * 3 + 2] ?? 0], part.pivot),
-          ),
+          p: [0, 1, 2].flatMap((i) => toPivot(corner(t, i), part.pivot)),
+          // A normal turns with its part, and is not moved.
+          ...(t.n
+            ? {
+                n: [0, 1, 2].flatMap((i) =>
+                  toPivot(
+                    add(corner({ ...t, p: t.n as number[] }, i), part.pivot.origin),
+                    part.pivot,
+                  ),
+                ),
+              }
+            : {}),
         })),
         ghost,
       );
@@ -271,7 +280,9 @@ export function pack(tris: readonly Face[]): Packed {
   const decal = new Uint8Array(tris.length * 3);
   tris.forEach((t, i) => {
     positions.set(t.p, i * 9);
+    // Round: the normals it came with. Edged: its own face's, on all three corners.
     if (t.n) normals.set(t.n, i * 9);
+    else for (let v = 0; v < 3; v += 1) normals.set(normalOf(t), i * 9 + v * 3);
     if (t.s) sides.set(t.s, i * 24);
     if (t.b) bends.set(t.b, i * 12);
     for (let v = 0; v < 3; v += 1) {
@@ -280,39 +291,59 @@ export function pack(tris: readonly Face[]): Packed {
       decal[i * 3 + v] = t.decal ? 1 : 0;
     }
   });
-  roundNormals(positions, normals, (i) => tris[i]?.n !== undefined);
   return { positions, normals, colors, sides, bends, unlit, decal, triangleCount: tris.length };
 }
 
 /**
  * The edge lines of ghost parts: the feature edges of the meshes they already are (a boundary,
  * or a fold sharper than about 8 degrees), each once, as line-segment positions. No second model.
+ * A fold is judged by the normals the two faces carry along it: across a round surface they are
+ * the same, so a tube shows its two rims and not its sides.
  */
 export function wire(tris: readonly Tri[]): Float32Array {
-  const edges = new Map<
-    string,
-    { a: number[]; c: number[]; normals: ReturnType<typeof normalOf>[] }
-  >();
+  // By edge: its ends, and for each face on it the normals at those ends (in the key's order).
+  const edges = new Map<string, { a: Vec3; c: Vec3; normals: (readonly [Vec3, Vec3])[] }>();
   const key = (p: readonly number[]): string => p.map((v) => Math.round(v * 1e3)).join();
   for (const t of tris) {
-    const n = normalOf(t);
+    const face = normalOf(t);
+    const normalAt = (i: number): Vec3 => (t.n ? corner({ ...t, p: t.n as number[] }, i) : face);
     for (let i = 0; i < 3; i += 1) {
       const j = (i + 1) % 3;
-      const a = t.p.slice(i * 3, i * 3 + 3);
-      const c = t.p.slice(j * 3, j * 3 + 3);
-      const k = [key(a), key(c)].sort().join('|');
+      const [a, c] = [corner(t, i), corner(t, j)];
+      const [ka, kc] = [key(a), key(c)];
+      const k = ka < kc ? `${ka}|${kc}` : `${kc}|${ka}`;
+      const pair =
+        ka < kc ? ([normalAt(i), normalAt(j)] as const) : ([normalAt(j), normalAt(i)] as const);
       const edge = edges.get(k);
-      if (edge) edge.normals.push(n);
-      else edges.set(k, { a, c, normals: [n] });
+      if (edge) edge.normals.push(pair);
+      else edges.set(k, { a, c, normals: [pair] });
     }
   }
+  const same = (m: Vec3, n: Vec3): boolean => m[0] * n[0] + m[1] * n[1] + m[2] * n[2] >= 0.99;
   const out: number[] = [];
   for (const { a, c, normals } of edges.values()) {
     const [n0, n1] = normals;
-    if (!n0 || !n1 || n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2] < 0.99) out.push(...a, ...c);
+    if (!n0 || !n1 || !same(n0[0], n1[0]) || !same(n0[1], n1[1])) out.push(...a, ...c);
   }
   return new Float32Array(out);
 }
+
+/** How finely round things are built, by where they are seen (design/tuning.ts, `world.round`). */
+export interface RoundLook {
+  readonly sagEveryday: number;
+  readonly sagNear: number;
+  readonly sagLowTimes: number;
+  readonly maxSides: number;
+}
+
+/**
+ * How finely a body's round parts are built (sim/world/kit.ts, `sidesFor`): finer in the close-up
+ * than every day, and coarser on the low tier, whose bodies are drawn smaller and on less.
+ */
+export const fineOf = (near: boolean, low: boolean, look: RoundLook): Fine => ({
+  sag: (near ? look.sagNear : look.sagEveryday) * (low ? look.sagLowTimes : 1),
+  max: look.maxSides,
+});
 
 /** A ground's detail by the kind of body (design/tuning.ts, `world`): 20 * (detail + 1)^2 facets. */
 export interface GroundDetails {
