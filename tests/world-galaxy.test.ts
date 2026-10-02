@@ -199,12 +199,17 @@ describe('the real galaxy, drawn from its rows', () => {
       expect(material.uniforms).toHaveProperty('uSunTone');
       const unlit = mesh.geometry.getAttribute('aUnlit');
       const kinds = [...new Set(Array.from(unlit.array))].sort((a, b) => a - b);
-      // Nothing of it is lit: the ball glows, each facet with its tone above the flag (6 to 26:
-      // sim/sunSurface.ts), and the rest is flat (1). Except Hardware: its frame ball and its
-      // gears (design/worlds/gears.ts) are plain glow (2); flat beside the halo they would wash out.
-      expect(kinds, sun.id).toEqual(
-        sun.id === 'system/hardware' ? [2] : [1, 6, 10, 14, 18, 22, 26],
-      );
+      // Nothing of it is lit: the ball glows, every facet flagged as the surface with the sun's
+      // own number above 6 (sim/sunSurface.ts, `sunFlag`), and the rest is flat (1). Except
+      // Hardware: its frame ball and its gears (design/worlds/gears.ts) are plain glow (2); flat
+      // beside the halo they would wash out.
+      if (sun.id === 'system/hardware') expect(kinds, sun.id).toEqual([2]);
+      else {
+        expect(kinds, sun.id).toHaveLength(2);
+        expect(kinds[0], sun.id).toBe(1);
+        expect(kinds[1], sun.id).toBeGreaterThanOrEqual(6);
+        expect(kinds[1], sun.id).toBeLessThan(16);
+      }
     }
     // Two suns of one family would share a material; these four are four families.
     const materials = withRows

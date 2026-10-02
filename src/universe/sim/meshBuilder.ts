@@ -1,8 +1,13 @@
 /**
- * Builds low-poly, flat-shaded meshes as plain arrays: triangles with one normal and one colour
- * each, which is exactly what the toon shader wants (design/shaders/toonFlat.ts). Pure maths, no
+ * Builds low-poly meshes as plain arrays: triangles with one colour each and a normal on every
+ * corner, which is exactly what the toon shader wants (design/shaders/toonFlat.ts). Pure maths, no
  * three.js, so a generated model can be checked in a unit test: is it the right size, do its faces
  * point outwards, does it use the colours it was given?
+ *
+ * ROUND WHERE IT IS ROUND ("Deep light", docs/DESIGN.md): the faces of one curved surface (a
+ * lathe's sides, a dome, a ball) share their normals where they meet, so light falls across them
+ * as across the curve they stand for; faces that meet at a real edge (a box, a fin, a cog's
+ * tooth: `CREASE_DEG`) keep their own, and the edge stays crisp. `roundNormals` decides which.
  *
  * Conventions: +Y up, +Z forward, 1 unit = 1 u (docs/PLAN.md §5.6). Triangles are wound
  * counter-clockwise seen from OUTSIDE; the normal follows from the winding. Colours are linear RGB.
@@ -17,6 +22,116 @@ export interface MeshData {
   normals: Float32Array;
   colors: Float32Array;
   triangleCount: number;
+  /**
+   * Only where a triangle has more than one colour (sim/planet.ts): eight numbers a vertex, a
+   * SIDE and then an OVER, each a colour and, fourth, where the vertex stands on its line: the
+   * side's colour replaces the triangle's where that is above a half, and the over's then
+   * replaces both where its own is. Each outline is a straight line through the triangle, which
+   * a pixel shader can draw (design/shaders/toonFlat.ts).
+   */
+  sides?: Float32Array;
+}
+
+/** A colour, and where each of a triangle's three corners stands on its line. */
+export interface Side {
+  readonly c: Rgb;
+  readonly k: ArrayLike<number>;
+}
+
+/** What a triangle may say beyond its corners and its colour. */
+export interface Facet {
+  /** A normal for each corner (nine numbers) instead of the triangle's own: a curved surface. */
+  readonly n?: ArrayLike<number>;
+  /** A second colour, and a third laid over both (see `MeshData.sides`). */
+  readonly side?: Side;
+  readonly over?: Side;
+}
+
+/**
+ * Faces that meet at less than this many degrees are one round surface, and share their normals
+ * there; at more, it is an edge and stays one. An eight-sided post is round (45 degrees a side),
+ * a hexagonal one is not; a box, a fin and a cog's tooth never are.
+ */
+export const CREASE_DEG = 50;
+
+/**
+ * Round the normals of a triangle soup (`positions`: nine numbers a triangle) in place: every
+ * corner takes the mean of the normals of the faces that meet at that point and lie within
+ * `CREASE_DEG` of its own face, each weighed by the angle of its corner there (so that the two
+ * triangles of a quad count as the one face they are). `given(i)`: triangle i already has its
+ * normals and is left alone.
+ */
+export function roundNormals(
+  positions: ArrayLike<number>,
+  normals: { [index: number]: number },
+  given?: (triangle: number) => boolean,
+): void {
+  const count = positions.length / 9;
+  const face = new Float32Array(count * 3);
+  const angle = new Float32Array(count * 3);
+  const at = new Map<string, number[]>();
+  const p = (i: number): number => positions[i] ?? 0;
+  for (let t = 0; t < count; t += 1) {
+    if (given?.(t)) continue;
+    const o = t * 9;
+    const nx =
+      (p(o + 4) - p(o + 1)) * (p(o + 8) - p(o + 2)) - (p(o + 5) - p(o + 2)) * (p(o + 7) - p(o + 1));
+    const ny =
+      (p(o + 5) - p(o + 2)) * (p(o + 6) - p(o)) - (p(o + 3) - p(o)) * (p(o + 8) - p(o + 2));
+    const nz =
+      (p(o + 3) - p(o)) * (p(o + 7) - p(o + 1)) - (p(o + 4) - p(o + 1)) * (p(o + 6) - p(o));
+    const length = Math.hypot(nx, ny, nz) || 1;
+    face[t * 3] = nx / length;
+    face[t * 3 + 1] = ny / length;
+    face[t * 3 + 2] = nz / length;
+    for (let c = 0; c < 3; c += 1) {
+      const a = o + c * 3;
+      const b = o + ((c + 1) % 3) * 3;
+      const d = o + ((c + 2) % 3) * 3;
+      const ex = p(b) - p(a);
+      const ey = p(b + 1) - p(a + 1);
+      const ez = p(b + 2) - p(a + 2);
+      const fx = p(d) - p(a);
+      const fy = p(d + 1) - p(a + 1);
+      const fz = p(d + 2) - p(a + 2);
+      const cos =
+        (ex * fx + ey * fy + ez * fz) / (Math.hypot(ex, ey, ez) * Math.hypot(fx, fy, fz) || 1);
+      angle[t * 3 + c] = Math.acos(Math.max(-1, Math.min(1, cos)));
+      const key = `${Math.round(p(a) * 1e4)},${Math.round(p(a + 1) * 1e4)},${Math.round(p(a + 2) * 1e4)}`;
+      const list = at.get(key);
+      if (list) list.push(t * 3 + c);
+      else at.set(key, [t * 3 + c]);
+    }
+  }
+  const crease = Math.cos((CREASE_DEG * Math.PI) / 180);
+  for (const list of at.values()) {
+    for (const corner of list) {
+      const t = (corner - (corner % 3)) / 3;
+      const fx = face[t * 3] ?? 0;
+      const fy = face[t * 3 + 1] ?? 0;
+      const fz = face[t * 3 + 2] ?? 0;
+      let x = 0;
+      let y = 0;
+      let z = 0;
+      for (const other of list) {
+        const u = (other - (other % 3)) / 3;
+        const gx = face[u * 3] ?? 0;
+        const gy = face[u * 3 + 1] ?? 0;
+        const gz = face[u * 3 + 2] ?? 0;
+        if (u !== t && fx * gx + fy * gy + fz * gz < crease) continue;
+        const weight = angle[other] ?? 0;
+        x += gx * weight;
+        y += gy * weight;
+        z += gz * weight;
+      }
+      const length = Math.hypot(x, y, z);
+      // A sliver with no angle to speak of keeps its face's.
+      const whole = length > 1e-9;
+      normals[corner * 3] = whole ? x / length : fx;
+      normals[corner * 3 + 1] = whole ? y / length : fy;
+      normals[corner * 3 + 2] = whole ? z / length : fz;
+    }
+  }
 }
 
 /** One ring of a body of revolution around the Z axis. */
@@ -51,13 +166,17 @@ export class MeshBuilder {
   private readonly positions: number[] = [];
   private readonly normals: number[] = [];
   private readonly colors: number[] = [];
+  /** By triangle: eight numbers a vertex where it has more colours than one (`MeshData.sides`). */
+  private readonly sides = new Map<number, number[]>();
+  /** The triangles that came with normals of their own. */
+  private readonly given = new Set<number>();
 
   get triangleCount(): number {
     return this.positions.length / 9;
   }
 
   /** Degenerate triangles (a cone's tip, a zero-width band) are skipped, not emitted as NaN. */
-  triangle(a: Point, b: Point, c: Point, color: Rgb): this {
+  triangle(a: Point, b: Point, c: Point, color: Rgb, facet?: Facet): this {
     const ux = b[0] - a[0];
     const uy = b[1] - a[1];
     const uz = b[2] - a[2];
@@ -70,10 +189,26 @@ export class MeshBuilder {
     const length = Math.hypot(nx, ny, nz);
     if (length < EPSILON) return this;
 
+    const index = this.triangleCount;
     for (const point of [a, b, c]) {
       this.positions.push(point[0], point[1], point[2]);
       this.normals.push(nx / length, ny / length, nz / length);
       this.colors.push(color[0], color[1], color[2]);
+    }
+    if (facet?.n) {
+      for (let i = 0; i < 9; i += 1) this.normals[index * 9 + i] = facet.n[i] ?? 0;
+      this.given.add(index);
+    }
+    if (facet?.side) {
+      const { side, over } = facet;
+      this.sides.set(
+        index,
+        [0, 1, 2].flatMap((i) => [
+          ...side.c,
+          side.k[i] ?? 0,
+          ...(over ? [...over.c, over.k[i] ?? 0] : [0, 0, 0, 0]),
+        ]),
+      );
     }
     return this;
   }
@@ -236,12 +371,23 @@ export class MeshBuilder {
     return this;
   }
 
-  build(): MeshData {
-    return {
+  /**
+   * `round`: share the normals of faces that are one curved surface (`roundNormals`). A caller
+   * that only wants the corners (sim/world/kit.ts, whose glue rounds a whole body at once) says no.
+   */
+  build(round = true): MeshData {
+    const normals = new Float32Array(this.normals);
+    if (round) roundNormals(this.positions, normals, (triangle) => this.given.has(triangle));
+    const mesh: MeshData = {
       positions: new Float32Array(this.positions),
-      normals: new Float32Array(this.normals),
+      normals,
       colors: new Float32Array(this.colors),
       triangleCount: this.triangleCount,
     };
+    if (this.sides.size > 0) {
+      mesh.sides = new Float32Array(this.triangleCount * 24);
+      for (const [triangle, side] of this.sides) mesh.sides.set(side, triangle * 24);
+    }
+    return mesh;
   }
 }

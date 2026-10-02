@@ -1,5 +1,5 @@
 import type { BodyKind } from '../../data/types';
-import type { Rgb } from '../meshBuilder';
+import { roundNormals, type Rgb } from '../meshBuilder';
 import { finish } from '../planet';
 import { normalOf, type Tri } from './kit';
 import { absentAtRest, type MotionRow } from './motion';
@@ -56,9 +56,18 @@ const BLUEPRINT: Rgb = colorOf('space.700');
  */
 export interface Packed {
   readonly positions: Float32Array;
-  /** One normal a triangle, on each of its vertices: flat shading. */
+  /**
+   * A normal a vertex: a ground's are those of the ball it is (sim/planet.ts); a part's faces
+   * share theirs where they are one curved surface, and keep their own at an edge
+   * (sim/meshBuilder.ts, `roundNormals`).
+   */
   readonly normals: Float32Array;
   readonly colors: Float32Array;
+  /**
+   * Eight numbers a vertex: a triangle's other colours and their lines (sim/meshBuilder.ts,
+   * `MeshData.sides`). Zeros wherever a triangle has one colour.
+   */
+  readonly sides: Float32Array;
   /** 0 lit, 1 flat, 2 glow, on each vertex. */
   readonly unlit: Float32Array;
   /** 1 on each vertex of a decal part (FLAG.decal), else 0: for a depth offset. */
@@ -254,19 +263,21 @@ export function pack(tris: readonly Face[]): Packed {
   const positions = new Float32Array(tris.length * 9);
   const normals = new Float32Array(tris.length * 9);
   const colors = new Float32Array(tris.length * 9);
+  const sides = new Float32Array(tris.length * 24);
   const unlit = new Float32Array(tris.length * 3);
   const decal = new Uint8Array(tris.length * 3);
   tris.forEach((t, i) => {
     positions.set(t.p, i * 9);
-    const n = normalOf(t);
+    if (t.n) normals.set(t.n, i * 9);
+    if (t.s) sides.set(t.s, i * 24);
     for (let v = 0; v < 3; v += 1) {
-      normals.set(n, i * 9 + v * 3);
       colors.set(t.c, i * 9 + v * 3);
       unlit[i * 3 + v] = t.g;
       decal[i * 3 + v] = t.decal ? 1 : 0;
     }
   });
-  return { positions, normals, colors, unlit, decal, triangleCount: tris.length };
+  roundNormals(positions, normals, (i) => tris[i]?.n !== undefined);
+  return { positions, normals, colors, sides, unlit, decal, triangleCount: tris.length };
 }
 
 /**

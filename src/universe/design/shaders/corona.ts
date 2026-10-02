@@ -7,8 +7,10 @@
  *
  *   the light   1 halo steps: flat rings of the family's base, each fainter than the one inside
  *               2 a soft glow, falling off through the family's three tones
- *               3 rays: thin wedges from the limb, one in each tenth of the circle, each its own
- *                 length, width and lean (hashed from the sun's seed), breathing slowly
+ *               3 rays: thin beams from the limb, one in each tenth of the circle, each its own
+ *                 length, width and lean (hashed from the sun's seed), breathing slowly. A beam
+ *                 is light, so it has no edge: brightest along its middle, it fades to nothing
+ *                 at the width a wedge would have had, and so comes to no corner at its tip
  *               4 prominences: loops that rise from the limb and come back to it
  *   the lens    5 the lit edge: a hairline of the hottest tone just inside the outline
  *               6 the glint: a four-point sparkle fixed on the screen, a lens artefact as the
@@ -183,7 +185,8 @@ export const corona = {
         float wide = mix(uRayShape.z, uRayShape.w, pace);
         float along = r * cos(lean);
         float width = uRay.w * sin(wide) * (tip - along) / (tip - uRay.w * cos(wide));
-        float ray = cover(width, abs(r * sin(lean)), px) * float((uRayMask >> int(i)) & 1);
+        float ray = (1.0 - smoothstep(0.0, max(width, px), abs(r * sin(lean))))
+          * clamp(width / px + 0.5, 0.0, 1.0) * float((uRayMask >> int(i)) & 1);
         float s = clamp((r - 1.0) / (uRay.y - 1.0), 0.0, 1.0);
         for (int j = 1; j < RAY_STOPS; j += 1) {
           vec3 a = uRayStops[j - 1];

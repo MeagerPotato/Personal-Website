@@ -1,18 +1,20 @@
 import type { Point, Rgb } from './meshBuilder';
-import { fbm, type Noise3 } from './noise';
 import { hashSeed } from './rng';
 
 /**
- * A LIVING SUN'S SURFACE ("Deep light", docs/DESIGN.md): which TONE each facet of a sun's ball
- * takes. Granulation is two layers of noise (the planets' own, sim/noise.ts, seeded by the sun)
- * cut into four flat tones (shade, base, light, hot) by three thresholds, chosen so that the
- * middle facet is the family's base and the ball does not wash out to cream; three spots sit at
- * fixed places on it, a dark core inside a ring. Decided once, when the ball is generated: no
- * noise runs while it is drawn.
+ * A LIVING SUN'S SURFACE ("Deep light", docs/DESIGN.md): a sun is LIGHT, and light may be smooth.
+ * Its ball's tones are not its facets': they are drawn PER PIXEL by the sun's own shader
+ * (design/shaders/toonFlat.ts, SUN) as round, soft-edged cells of smooth noise on the sphere, cut
+ * into four flat tones (shade, base, light, hot) by three thresholds so that the middle of the
+ * ball is the family's base and it does not wash out to cream; three spots sit at fixed places
+ * on it, a dark core inside a ring; and toward the limb the tones step down the ladder in round
+ * bands. No facet edge shows anywhere on it.
  *
- * The tone rides to the shader in the lighting flag every vertex already has (`toneUnlit`), and
- * its colour is one of a LADDER of six made from the family's three tokens (`sunLadder`), down
- * which the shader steps a facet near the limb (design/shaders/toonFlat.ts, SUN).
+ * What is decided here is what the shader is handed: the LADDER of six colours made from the
+ * family's three tokens (`sunLadder`), the sun's own place in the noise (`sunOffset` of its
+ * seed), and the flag every facet of the ball carries so that the shader knows the surface from
+ * the signs a sun wears (`SUN_SURFACE`). The CPU twin of the shader's picture, which the tests
+ * hold to its shares, is sim/sunGrain.ts; nothing the engine ships imports that.
  *
  * Pure: the numbers come in as `SunSurfaceLook` (design/tuning.ts, `look.sun`).
  */
@@ -23,8 +25,8 @@ export const SUN_TONE_COUNT = 6;
 
 /** A spot's two shades are the family's shade, this much of it. */
 const SPOT = { ring: 0.86, core: 0.5 } as const;
-/** A spot's ring reaches this many of its radii. */
-const RING_RADII = 1.5;
+/** A spot's ring reaches this many of its radii (the shader's SUN_RING: a test holds them equal). */
+export const SUN_RING_RADII = 1.5;
 
 export interface SunSurfaceLook {
   /** The hottest tone is the family's light mixed this far toward white. */
@@ -36,8 +38,15 @@ export interface SunSurfaceLook {
     readonly freq2: number;
     /** shade | base | light | hot. */
     readonly thresholds: readonly [number, number, number];
+    /** Half the width of the soft edge between two tones, in the noise's own units. */
+    readonly soft: number;
   };
-  /** Unit normals in the sun's own space (nearly unit: they are normalised here), radians. */
+  /** Limb darkening: where the ball is turned this far from the camera it is two, then one, tone darker. */
+  readonly limbNz: readonly [number, number];
+  /** Half the width of the soft edge of a limb band (in facing, 0 to 1) and of a spot (radians). */
+  readonly softLimb: number;
+  readonly softSpotRad: number;
+  /** Unit normals in the sun's own space (nearly unit: they are normalised), radians. */
   readonly spots: ReadonlyArray<{ readonly normal: Point; readonly radius: number }>;
 }
 
@@ -46,39 +55,22 @@ export function sunSeed(name: string): number {
   return (hashSeed(name) / 4294967296) * 10;
 }
 
-/**
- * The tone (SUN_TONE) of a facet whose unit normal, in the sun's own space, is `n`. `noise` is
- * the sun's own (sim/noise.ts, `createNoise3` of its seed).
- */
-export function sunTone(n: Point, noise: Noise3, look: SunSurfaceLook): number {
-  for (const spot of look.spots) {
-    const [x, y, z] = spot.normal;
-    const cos = (n[0] * x + n[1] * y + n[2] * z) / Math.hypot(x, y, z);
-    const angle = Math.acos(Math.max(-1, Math.min(1, cos)));
-    if (angle < spot.radius) return SUN_TONE.core;
-    if (angle < spot.radius * RING_RADII) return SUN_TONE.ring;
-  }
-  const { freq, weight, freq2, thresholds } = look.granulation;
-  const grain =
-    weight * fbm(noise, n[0] * freq, n[1] * freq, n[2] * freq, 3) +
-    (1 - weight) * fbm(noise, n[0] * freq2 + 2.2, n[1] * freq2 + 7.1, n[2] * freq2 + 1.3, 2);
-  return grain < thresholds[0]
-    ? SUN_TONE.shade
-    : grain < thresholds[1]
-      ? SUN_TONE.base
-      : grain < thresholds[2]
-        ? SUN_TONE.light
-        : SUN_TONE.hot;
+/** Where in the noise a sun's surface is cut from: its own place, from its number. */
+export function sunOffset(seed: number): Point {
+  return [seed, 0.4 * seed, 0.9 * seed];
 }
 
 /**
- * A tone as the lighting flag of its facet (sim/world/kit.ts, `Unlit`): 6, 10, 14... Every reader
- * of the flag asks "above a half?" (takes no light) and "above one and a half?" (glows, and
- * blooms), which all of these are, so a sun's facet is still plain glow to everything but the sun
- * shader, which reads the tone back as `floor(flag / 4) - 1`. A plain 2 (a lamp, a gear of the
- * Hardware sun) reads back as -1: no tone, its own colour.
+ * The lighting flag of every facet of a living sun's ball (sim/world/kit.ts, `Unlit`): 6 and the
+ * sun's own number above it (`sunSeed`, under 10). Every reader of the flag asks "above a half?"
+ * (takes no light) and "above one and a half?" (glows, and blooms), which this is, so a sun's
+ * facet is plain glow to everything but the sun's shader, which asks "above four?": the surface,
+ * whose tones it draws, at the place in the noise its number says (so two suns of one family,
+ * which share a material, are still two suns). A plain 2 (a lamp, a gear of the Hardware sun, a
+ * sun's sign) keeps its own colour.
  */
-export const toneUnlit = (tone: number): number => 2 + 4 * (tone + 1);
+export const SUN_SURFACE = 6;
+export const sunFlag = (seed: number): number => SUN_SURFACE + seed;
 
 /** The six colours of a sun (linear RGB), by tone, from its family's three. */
 export function sunLadder(

@@ -611,8 +611,12 @@ export const tuning = {
     terraceStrength: 0.6,
     /** Land height (0 to 1) where the colour changes: shore|low, low|high, high|peak. */
     bandStops: [0.1, 0.46, 0.8],
-    /** Each facet's colour is nudged by up to this share: flat areas look hand-made. */
-    colorJitter: 0.03,
+    /**
+     * Each facet's colour is nudged by up to this share. None: it was 0.03, which made every
+     * flat area a mosaic of triangles, and a world is round now ("Deep light": light falls
+     * across the ball, and an outline runs through its facets, not along them).
+     */
+    colorJitter: 0,
   } satisfies PlanetLook,
 
   /**
@@ -627,7 +631,7 @@ export const tuning = {
      */
     continents: {
       look: {
-        reliefShare: 0.045,
+        reliefShare: 0.018,
         frequency: 1.0,
         octaves: 3,
         seaLevel: 0.02,
@@ -640,7 +644,7 @@ export const tuning = {
     /** Rolling ground with few peaks and little sea. */
     calm: {
       look: {
-        reliefShare: 0.03,
+        reliefShare: 0.012,
         frequency: 0.95,
         octaves: 3,
         seaLevel: -0.5,
@@ -653,7 +657,7 @@ export const tuning = {
     /** Small islands in a sea. */
     isles: {
       look: {
-        reliefShare: 0.04,
+        reliefShare: 0.014,
         frequency: 2.3,
         octaves: 3,
         seaLevel: 0.12,
@@ -710,7 +714,11 @@ export const tuning = {
     /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
     detailPlanet: 8,
     detailNear: 14,
-    detailMoon: 3,
+    /**
+     * A moon: 1280 facets. It was 3 (320), a ball of twenty sides against the sky; light falls
+     * round on every ball now (shaders/toonFlat.ts), and its outline has to be round too.
+     */
+    detailMoon: 7,
     /**
      * A sun's ball: 2000 facets, fine enough for its granulation (`look.sun`; the low tier:
      * `detailLow`). The look was drawn at 11 (2880), which the worlds' budget has no room for:
@@ -1283,19 +1291,33 @@ export const tuning = {
       /** The hottest tone is the family's light mixed this far toward white. */
       hotMix: 0.55,
       /**
-       * Granulation: two noise frequencies on the unit sphere, the weight of the coarse one, and
-       * the three thresholds that cut it into four tones (about 15 / 45 / 30 / 10 percent, so
-       * that the median facet is the family's base). The thresholds are the 15th, 60th and 90th
-       * percentiles of THIS noise (sim/noise.ts, about -1 to 1), measured over ten suns: a
-       * change to the frequencies or the weight wants them measured again
-       * (sim/sunSurface.test.ts holds the shares). The frequencies are low on purpose: a facet
-       * of the ball is about 0.12 radians across, and a tone must lie in CELLS several facets
-       * wide. At 2.5 and 6 one facet in six had no neighbour of its own tone and the ball read
-       * as a mirror ball; here it is one in twenty (the test holds that too).
+       * Granulation, drawn per pixel by the sun's shader (shaders/toonFlat.ts, SUN): two layers
+       * of smooth noise at these frequencies on the unit sphere, the weight of the coarse one,
+       * and the three thresholds that cut the sum into four tones (about 15 / 45 / 30 / 10
+       * percent, so that the middle of the ball is the family's base). The thresholds are the
+       * 15th, 60th and 90th percentiles of THIS noise (sim/skyNoise.ts, about -1 to 1),
+       * measured over seven suns: a change to the frequencies or the weight wants them measured
+       * again (sim/sunGrain.test.ts holds the shares). The frequencies are low on purpose: a
+       * tone lies in round CELLS a fifth to a third of the ball across, and the fine layer only
+       * bends their outlines. `soft`: half the width of the soft edge between two tones, in the
+       * noise's units (never thinner than a pixel).
        */
-      granulation: { freq: 1.5, weight: 0.85, freq2: 3.5, thresholds: [-0.268, 0.07, 0.329] },
-      /** Limb darkening: a facet turned this far from the camera is two, then one, tone darker. */
+      granulation: {
+        freq: 2.6,
+        weight: 0.9,
+        freq2: 5,
+        thresholds: [-0.331, 0.038, 0.338],
+        soft: 0.02,
+      },
+      /**
+       * Limb darkening: where the ball is turned this far from the camera (0 edge on, 1 face on)
+       * it is two, then one, tone darker: two round bands. `softLimb`: half the width of a
+       * band's soft edge, in the same measure.
+       */
       limbNz: [0.2, 0.42],
+      softLimb: 0.012,
+      /** Half the width of the soft rim of a spot's core and of its ring, radians. */
+      softSpotRad: 0.008,
       /** Three spots: unit normals in the sun's own space, and angular radii in radians. */
       spots: [
         { normal: [0.35, 0.2, 0.9], radius: 0.16 },

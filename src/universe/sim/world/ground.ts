@@ -1,7 +1,6 @@
 import type { ThemeKey } from '../../design/tokens';
 import { generatePlanet, type PlanetLook, type PlanetShape } from '../planet';
-import { createNoise3 } from '../noise';
-import { sunLadder, sunTone, toneUnlit, type SunSurfaceLook } from '../sunSurface';
+import { sunFlag, sunSeed, type SunSurfaceLook } from '../sunSurface';
 import type { Tri } from './kit';
 import { painterOf, type PaintOp } from './paint';
 import { bandsOf, colorOf, sunBandsOf, type Ramp } from './palette';
@@ -20,10 +19,13 @@ import { bandsOf, colorOf, sunBandsOf, type Ramp } from './palette';
  * not the concept prototype's three steps: the worlds should sit among the generated planets as
  * one family, and a sun's `colorJitter: 0` keeps it exact.
  *
- * A SUN'S ball is a living surface (sim/sunSurface.ts): a smooth ball whose every facet takes one
- * of four tones of its family, or a spot's, and carries that tone in its lighting flag. A sun
- * that is PAINTED (the Hardware sun's frame ball, one shade under its gears) keeps its paint and
- * a plain glow: its gears are its surface.
+ * A SUN'S ball is a living surface (sim/sunSurface.ts): a smooth ball in its family's base, every
+ * facet flagged as the surface with the sun's own number, on which the sun's shader draws the
+ * tones. A sun that is PAINTED (the Hardware sun's frame ball, one shade under its gears) keeps
+ * its paint and a plain glow: its gears are its surface.
+ *
+ * Every facet carries the normals of the ball it lies on, and where two colours meet in it, both
+ * (sim/planet.ts): the ground is round, whatever its facets.
  */
 
 export type TerrainName = 'continents' | 'calm' | 'isles' | 'lumpy' | 'flat' | 'sun';
@@ -107,7 +109,7 @@ export function* groundOf(
   looks: GroundLooks,
 ): Generator<void, Tri[]> {
   const { look, flat: level } = groundLook(spec, looks);
-  // A living sun: a smooth ball (its tones are cut from a noise of its own, below).
+  // A living sun: a smooth ball (its tones are the shader's).
   const living = isLivingSun(spec);
   const flat = living ? 0 : level;
   const mesh = yield* generatePlanet(
@@ -123,34 +125,25 @@ export function* groundOf(
     },
     look,
   );
-  if (spec.sun !== undefined && living) {
-    const family = spec.sun;
-    const ladder = sunLadder(
-      {
-        shade: colorOf(`${family}.shade`),
-        base: colorOf(`${family}.base`),
-        light: colorOf(`${family}.light`),
-      },
-      looks.sun.hotMix,
-    );
-    const own = createNoise3(`${spec.seed ?? seed}/sun`);
-    return Array.from({ length: mesh.triangleCount }, (_, i): Tri => {
-      const p = [...mesh.positions.subarray(i * 9, i * 9 + 9)];
-      // The facet's own direction: the ball is smooth, so its centroid points along its normal.
-      const x = (p[0] ?? 0) + (p[3] ?? 0) + (p[6] ?? 0);
-      const y = (p[1] ?? 0) + (p[4] ?? 0) + (p[7] ?? 0);
-      const z = (p[2] ?? 0) + (p[5] ?? 0) + (p[8] ?? 0);
-      const length = Math.hypot(x, y, z) || 1;
-      const tone = sunTone([x / length, y / length, z / length], own, looks.sun);
-      // Its colour too, so that even a material that knows nothing of tones shows the surface.
-      return { p, c: ladder[tone] ?? ladder[1] ?? [0, 0, 0], g: toneUnlit(tone) };
-    });
-  }
-  // A sun is light itself: its ball is unlit and blooms.
-  const g = spec.sun ? 2 : 0;
-  return Array.from({ length: mesh.triangleCount }, (_, i): Tri => ({
-    p: [...mesh.positions.subarray(i * 9, i * 9 + 9)],
-    c: [mesh.colors[i * 9] ?? 0, mesh.colors[i * 9 + 1] ?? 0, mesh.colors[i * 9 + 2] ?? 0],
-    g,
-  }));
+  // A sun is light itself: its ball is unlit and blooms. A living one says which sun it is, and
+  // is its family's base to a material that knows nothing of tones.
+  const g = living ? sunFlag(sunSeed(spec.seed ?? seed)) : spec.sun ? 2 : 0;
+  const { sides } = mesh;
+  return Array.from({ length: mesh.triangleCount }, (_, i): Tri => {
+    const tri = {
+      p: [...mesh.positions.subarray(i * 9, i * 9 + 9)],
+      c: living
+        ? colorOf(`${spec.sun ?? 'sky'}.base`)
+        : ([
+            mesh.colors[i * 9] ?? 0,
+            mesh.colors[i * 9 + 1] ?? 0,
+            mesh.colors[i * 9 + 2] ?? 0,
+          ] as const),
+      g,
+      n: mesh.normals.subarray(i * 9, i * 9 + 9),
+    };
+    // More colours than one: the others, and their lines.
+    const side = sides?.subarray(i * 24, i * 24 + 24);
+    return side?.some((value) => value !== 0) ? { ...tri, s: side } : tri;
+  });
 }

@@ -24,7 +24,7 @@ import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
 import type { StarClass, SunTone } from './lookTypes';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
-import { toonFlat } from './shaders/toonFlat';
+import { SUN_SPOTS, toonFlat } from './shaders/toonFlat';
 import { tokens, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
@@ -88,10 +88,13 @@ export function refreshToonLook(): void {
 
 /**
  * The per-vertex flags of the emblem worlds (shaders/toonFlat.ts): how a vertex is lit (0 lit, 1
- * flat, 2 glow) and whether it is a decal. core/geometry.ts names its attributes after these.
+ * flat, 2 glow) and whether it is a decal; and a face's other colours (a side, and an over), each
+ * with where the vertex stands on its line. core/geometry.ts names its attributes after these.
  */
 export const UNLIT_ATTRIBUTE = 'aUnlit';
 export const DECAL_ATTRIBUTE = 'aDecal';
+export const SIDE_ATTRIBUTE = 'aSide';
+export const OVER_ATTRIBUTE = 'aOver';
 
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
@@ -131,12 +134,7 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
       uBloomMask: bloomMask,
       uSunPosition: { value: KEY_LIGHT_POSITION.clone() },
       uTint: { value: new Color(options.tint ?? tokens.color.star.white) },
-      ...(options.sun
-        ? {
-            uSunTone: { value: sunTones(options.sun) },
-            uSunLimb: { value: new Vector2(...tuning.look.sun.limbNz) },
-          }
-        : {}),
+      ...(options.sun ? sunSurfaceUniforms(options.sun) : {}),
     },
     vertexColors: options.vertexColors ?? false,
     defines: {
@@ -154,8 +152,33 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
   Object.assign(material.defaultAttributeValues, {
     [UNLIT_ATTRIBUTE]: [0],
     [DECAL_ATTRIBUTE]: [0],
+    [SIDE_ATTRIBUTE]: [0, 0, 0, 0],
+    [OVER_ATTRIBUTE]: [0, 0, 0, 0],
   });
   return material as ToonMaterial;
+}
+
+/**
+ * A sun's living surface as the shader's uniforms (shaders/toonFlat.ts, SUN): the family's
+ * ladder, and `tuning.look.sun` laid out as the shader reads it.
+ */
+function sunSurfaceUniforms(family: ThemeKey): Record<string, IUniform> {
+  const { granulation, limbNz, softLimb, softSpotRad, spots } = tuning.look.sun;
+  if (spots.length !== SUN_SPOTS) throw new RangeError(`a sun has ${SUN_SPOTS} spots`);
+  return {
+    uSunTone: { value: sunTones(family) },
+    uSunGrain: {
+      value: new Vector4(granulation.freq, granulation.weight, granulation.freq2, granulation.soft),
+    },
+    uSunCut: { value: new Vector3(...granulation.thresholds) },
+    uSunLimb: { value: new Vector4(...limbNz, softLimb, softSpotRad) },
+    uSunSpot: {
+      value: spots.map(({ normal, radius }) => {
+        const n = new Vector3(...normal).normalize();
+        return new Vector4(n.x, n.y, n.z, radius);
+      }),
+    },
+  };
 }
 
 export type GlowMaterial = ShaderMaterial & {

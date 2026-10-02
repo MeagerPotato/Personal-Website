@@ -547,15 +547,35 @@ real shader). Three rules follow for whoever writes one: tag the literal `/* gls
 backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
 that brings in a block of GLSL stands alone on its line, which it then keeps.
 
-**A sun is a tone a facet, and a corona.** A sun's ball is generated like any ground
-(`sim/world/ground.ts`), but each facet is given a TONE (`sim/sunSurface.ts`, pure: two layers
-of the sun's own seeded noise cut by three thresholds, and three spots at fixed places) and
-carries it in the lighting flag every vertex already has: `aUnlit` is `2 + 4 * (tone + 1)`, so
-6 to 26, which every reader of the flag still sees as "glows" (above one and a half). Only the
-toon shader's SUN variant (a material a sun family, `Galaxy.sunSurfaceOf`) reads the tone back,
-steps it down its ladder of six colours toward the limb, and takes it to the base by
-`uFlatness`. No new attribute, no noise at run time, and a plain glow (a lamp, a gear of the
-Hardware sun, whose painted frame ball is no living surface) is left alone. The light round the
+**The mesh is facets, the picture is round.** Three things make it so, and none adds a
+triangle. (1) NORMALS: a mesh hands the toon shader a normal a vertex. A generated ground's are
+the ball's or the shape's (`sim/planet.ts`, `shapeNormal`); everything else is rounded by
+`roundNormals` (`sim/meshBuilder.ts`: faces that meet at a point within `CREASE_DEG` of each
+other share their normal there, weighed by their angles), once per packed group
+(`sim/world/glue.ts`, `pack`) or per model (`MeshBuilder.build`). (2) LIGHT PER PIXEL: the
+shader interpolates how far a place faces its sun and cuts the three bands in the fragment
+shader, a pixel soft (`fwidth`); the colour stays `flat`. (3) LINES THROUGH FACETS: the planet
+generator walks each facet's outline, finds where the colour changes (a coast, a band, an edge
+of paint) and gives the facet up to three colours and two straight lines (`Facet.side`,
+`Facet.over`: a colour and, per corner, where it stands on the line; `MeshData.sides`, eight
+numbers a vertex), which ride through `Tri.s` and `Packed.sides` into two attributes every
+geometry carries (`aSide`, `aOver`: zeros, a byte each, where a face has one colour). A
+neighbour walks the shared edge through the same places, so the lines join. A change to a
+generator that makes its own triangles keeps to this: give a curved surface its normals or let
+`roundNormals` find them, and never colour a boundary by the facet.
+
+**A sun is drawn on its ball, and a corona.** A sun's ball is generated like any ground
+(`sim/world/ground.ts`): a smooth ball in its family's base, every facet flagged as the SURFACE
+in the lighting flag every vertex already has: `aUnlit` is 6 plus the sun's own number
+(`sim/sunSurface.ts`, `sunFlag`; under 16), which every reader of the flag still sees as
+"glows" (above one and a half). Only the toon shader's SUN variant (a material a sun family,
+`Galaxy.sunSurfaceOf`) asks "above four?", and there draws the surface per pixel: two layers
+of gradient noise on the ball (`design/shaders/noise.ts`, a chunk the baked sky will share) at
+the place the sun's number says, cut by three thresholds into the four tones of a ladder of
+six, stepped down toward the limb, with three spots laid over, every edge soft and never
+thinner than a pixel; `uFlatness` takes it to the base. `sim/sunGrain.ts` is the same
+arithmetic on the CPU, for the tests. No new attribute for it, and a plain glow (a lamp, a gear
+of the Hardware sun, whose painted frame ball is no living surface) is left alone. The light round the
 suns is `world/SunCorona.ts`: one instanced draw (`design/shaders/corona.ts`), two quads a
 living sun (its light behind what it wears, its lens in front of its ball) and one a plain sun,
 placed each frame from the galaxy's positions and display scales, so it is added after the

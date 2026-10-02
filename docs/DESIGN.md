@@ -406,7 +406,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 
 | What | Where |
 | --- | --- |
-| The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| What counts as an edge: faces that meet at less than this are lit as one round surface ("Deep light", round and smooth) | `CREASE_DEG` in `sim/meshBuilder.ts` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
 | The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
@@ -488,9 +489,14 @@ flies before any of it reaches `main`.
 accept, change or refuse once he has flown the preview; until then the principles stand as
 written, and nothing on `main` follows the drafts.
 
-- Principle 2 would read: **Matter is flat, light may be soft.** Surfaces keep their two or three
-  bands and never get a gradient; light and air (gas, halos, coronas, shells, spikes) may be
-  soft, and are still cut into a few flat steps wherever they sit beside facets.
+- Principle 2 would read: **Flat colour, round form; light may be soft.** A surface keeps its
+  flat colours and its two or three bands of light and never gets a gradient, but colour and
+  light follow the FORM, not the mesh: a ball is lit as a ball and a coast is a line, whatever
+  the facets under them, and an edge shows only where the thing has one (a box, a cog's tooth).
+  Light and air (gas, halos, coronas, shells, spikes) may be soft, and are still cut into a few
+  flat steps. (Redrafted on 2026-10-02, after Allen saw step 2: "everything should roughly look
+  round and smooth", "the planets too", "except for just the stuff that should have edges (like
+  the hardware cogs)". It was "Matter is flat, light may be soft", with matter faceted.)
 - Principle 3 would add: **and the sky, never brighter than luminance 0.19** (where the butter
   focus ring still reads 3:1 over it), with a strip along the horizon left near today's navy,
   because that is where planets and orbit lines sit.
@@ -565,28 +571,74 @@ flat.
   The star drift stays until the baked sky arrives (a painted sky cannot be drifted against),
   so until then the heroes wander slowly off the places the table gives.
 
-**As built: the suns (step 2).** A sun is a place now, not a lit ball.
+**As built: round and smooth (step 2b, 2026-10-02).** Allen saw step 2's Software sun, a ball
+whose tones fell in sharp triangular facets, and said: "I want some more rounded texture instead
+of sharp triangles. everything should roughly look round and smooth", and then "i meant the
+planets too, make everything round and smooth, except for just the stuff that should have edges
+(like the hardware cogs)". So the faceted look is gone from everything that is round, and kept
+on everything that has edges. The rule, as built:
 
-- **A living surface** on the three suns that are balls (Software, Research, Hackathons): each
-  facet takes one of **four flat tones** of its family (shade, base, light, and `hot`, the light
-  mixed 55 percent toward white), cut from two layers of noise by three thresholds so that about
-  15 / 45 / 30 / 10 percent of the ball is each: **the middle facet is the base**, or the sun
-  washes out to cream. Toward the **limb** a facet steps one tone down the ladder, then two
-  (limb darkening, in flat steps); **three spots** sit at fixed places on the ball, a dark core
-  in a ring. No gradient anywhere on it: matter is flat (rule 1). Nothing on the surface moves.
-  **The tones lie in cells** several facets wide: the noise is slower than the look's recipe
-  (1.5 and 3.5 on the unit sphere, where it was drawn at 2.5 and 6), because at 2000 facets
-  the recipe's noise was the size of a facet, one facet in six had no neighbour of its own
-  tone, and the ball read as a mirror ball, not a surface. A test holds it under one in twelve.
-- **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier), not the 2880 the look
-  was drawn at: a body is at most 2400 triangles every day, its signs included
-  (`tests/world-bodies.test.ts`), and that ceiling is not this pass's to raise. **Allen's call**
-  if the finer ball is wanted.
+- **The mesh is facets; the picture is not.** Nothing was added to any mesh for this (the
+  budgets of `tests/world-bodies.test.ts` stand). What changed is what a facet carries and where
+  the shader decides.
+- **Light is round.** The three bands are decided for every pixel (`design/shaders/toonFlat.ts`)
+  from the normal the vertices hand down, and a line between two bands is one pixel soft:
+  anti-aliased, never blurred. A generated ground carries the normals of the ball or the shape
+  it is (`sim/planet.ts`; the relief does not turn them), so the terminator of a planet is a
+  clean curve. Every other mesh shares its normals where its faces are one curved surface and
+  keeps a face's own at an edge (`sim/meshBuilder.ts`, `roundNormals`): faces that meet at
+  less than **50 degrees** (`CREASE_DEG`) are round. A lathe of eight sides or more, a dome, a
+  ring's wall are lit as the curve they stand for; a box, a fin, a hexagonal post, a house, a
+  cog and its teeth keep their edges. A lit place is still exactly its token.
+- **Colour is flat, and its outlines are lines.** A face is one colour edge to edge, as before.
+  But a facet of a ground that a coast, a band of height or an edge of paint runs through
+  carries **up to three colours and the lines between them** (`aSide`, `aOver`), found by
+  walking its outline (`sim/planet.ts`), and the shader draws each line straight through the
+  facet, a pixel soft. From facet to facet a coast is a smooth outline, a painted stripe has
+  straight edges, a cap is a circle. Where one facet holds more than two lines (four bands of
+  height in seven degrees) the sliver beyond the second takes its neighbour's colour.
+- **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
+  of triangles, which is exactly what was asked away.
+- **Round outlines.** A moon is 1280 facets (`world.detailMoon` 7; it was 320, a ball of twenty
+  sides). The terrains' relief is about a third of what it was (`terrain.continents` 0.018,
+  `calm` 0.012, `isles` 0.014 of a radius): light no longer shows relief (it falls on the ball),
+  so all the old relief did was put flat-topped lumps on the limb. Planned work's clay
+  (`terrain.lumpy`) keeps its lumps: it is meant to look unfinished.
+- **What keeps its edges, on purpose:** the Hardware sun's gears, the station, the satellite,
+  the relays, houses and towers, signs and screens, the ship's fins. Their silhouettes are
+  theirs; only how a curved side of them takes the light changed.
+- **Still Allen's to judge:** a planet's coast is as fine as its mesh (a line a facet: 7 degrees
+  from afar, under 5 up close), so small islands (HackGT 13) read as soft polygons, not blobs;
+  rounder wants a slower terrain noise, which moves the land under the signs. And whether the
+  relief should go altogether.
+
+**As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.
+
+- **A living surface** on the three suns that are balls (Software, Research, Hackathons), and a
+  sun is light, so all of it is round: the surface is DRAWN, pixel by pixel, by the sun's own
+  shader (`toonFlat.ts`, SUN). **Four flat tones** of its family (shade, base, light, and
+  `hot`, the light mixed 55 percent toward white) lie in **round cells** a fifth to a third of
+  the ball across, cut from two layers of smooth noise by three thresholds so that about
+  15 / 45 / 30 / 10 percent of the ball is each: **the middle of the ball is the base**, or the
+  sun washes out to cream. An edge between two tones is soft by a hair (`granulation.soft`) and
+  never thinner than a pixel. Toward the **limb** the tones step one down the ladder, then two:
+  limb darkening in two round bands. **Three spots** sit at fixed places on the ball, a dark
+  core in a ring, round and soft-rimmed. Still no gradient across a tone. Nothing on the
+  surface moves. (Step 2 gave each FACET a tone; that was the ball of triangles.)
+- **The noise** is the sky's (gradient noise on an integer lattice, `shaders/noise.ts`), which
+  gives the same picture on every driver; its twin on the CPU (`sim/sunGrain.ts`, which
+  nothing shipped imports) is what `sunGrain.test.ts` holds to the shares. Each sun is cut from
+  its own place in the noise: its number rides in the flag its ball's facets carry, so two
+  suns of one family would still differ. Cost: two noise look-ups a pixel of the ball.
+- **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier). They no longer show:
+  the outline's corners are a third of a pixel deep when docked beside it.
 - **The corona** is one draw call for all suns, in two layers. The **light**, behind everything
   a sun wears, so that its brackets, its stopwatch and its light curve stay crisp: **four halo
   steps** of the family's base (flat rings, 0.40, 0.20, 0.09 and 0.04, out to 2.1 radii), a
-  **soft glow** through the family's three tones out to 3.4, **ten rays** (thin wedges, each
-  its own length, width and lean) and **three prominences** (loops off the limb). The **lens**,
+  **soft glow** through the family's three tones out to 3.4, **ten rays** (thin beams, each
+  its own length, width and lean; a beam is light, so since step 2b it has no edge: brightest
+  along its middle, gone at the width its wedge had, and so with no corner at its tip) and
+  **three prominences** (loops off the limb). The **lens**,
   in front of the ball: a hot hairline just inside the outline, and a **four-point glint** on
   the upper left, fixed on the screen. The parts are laid over each other as paint is, over the
   navy of the sky, and the shader corrects for how each tier blends, so the low tier shows the

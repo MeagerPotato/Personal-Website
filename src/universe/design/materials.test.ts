@@ -3,13 +3,14 @@ import {
   OneMinusSrcAlphaFactor,
   ZeroFactor,
   type Color,
-  type Vector2,
   type Vector3,
   type Vector4,
 } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   DECAL_ATTRIBUTE,
+  OVER_ATTRIBUTE,
+  SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
   createCoronaMaterial,
   createEdgeMaterial,
@@ -19,7 +20,7 @@ import {
 } from './materials';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
-import { SUN_TONES, toonFlat } from './shaders/toonFlat';
+import { SUN_SPOTS, SUN_TONES, toonFlat } from './shaders/toonFlat';
 import {
   CORONA_GLOW_STOPS,
   CORONA_PROMS,
@@ -40,6 +41,36 @@ describe('the toon material and its per-vertex flags', () => {
   it('declares the flags the geometry carries, under the names materials.ts exports', () => {
     expect(toonFlat.vertexShader).toContain(`attribute float ${UNLIT_ATTRIBUTE};`);
     expect(toonFlat.vertexShader).toContain(`attribute float ${DECAL_ATTRIBUTE};`);
+    expect(toonFlat.vertexShader).toContain(`attribute vec4 ${SIDE_ATTRIBUTE};`);
+    expect(toonFlat.vertexShader).toContain(`attribute vec4 ${OVER_ATTRIBUTE};`);
+  });
+
+  it('keeps colour flat and makes light round: a band is decided for every pixel', () => {
+    const { vertexShader, fragmentShader } = toonFlat;
+    // A face is one colour, edge to edge: its colours never blend across it.
+    for (const name of ['vColor', 'vSide', 'vOver']) {
+      expect(vertexShader).toContain(`flat varying vec3 ${name};`);
+      expect(fragmentShader).toContain(`flat varying vec3 ${name};`);
+    }
+    // How far a place faces its sun comes down from the vertices' normals, unflattened, and the
+    // three bands are cut from it in the fragment shader, a pixel soft.
+    expect(vertexShader).toContain('varying float vFacing;');
+    expect(vertexShader).not.toContain('flat varying float vFacing');
+    expect(fragmentShader).toContain(
+      'float level = mix(uMidLevel * past(vFacing, uBandEdges.x), 1.0, past(vFacing, uBandEdges.y));',
+    );
+    expect(fragmentShader).toContain(
+      'return clamp((value - edge) / max(fwidth(value), 1e-6) + 0.5, 0.0, 1.0);',
+    );
+    // A lit place is exactly its colour: the shade is mixed in by the level alone.
+    expect(fragmentShader).toContain('mix(base * uShadowTint, base, level)');
+    // A face's other colours are laid over its own along their lines: zeros leave it alone.
+    expect(fragmentShader).toContain(
+      'vec3 base = mix(mix(vColor, vSide, past(vEdge.x, 0.5)), vOver, past(vEdge.y, 0.5));',
+    );
+    // The map and an unlit vertex take all the light, as before.
+    expect(fragmentShader).toContain('level = mix(level, 1.0, uFlatness);');
+    expect(fragmentShader).toContain('if (vUnlit > 0.5) level = 1.0;');
   });
 
   it('lights geometry without the flags as before: lit, and no decal', () => {
@@ -50,6 +81,8 @@ describe('the toon material and its per-vertex flags', () => {
     expect(material.defaultAttributeValues).toMatchObject({
       [UNLIT_ATTRIBUTE]: [0],
       [DECAL_ATTRIBUTE]: [0],
+      [SIDE_ATTRIBUTE]: [0, 0, 0, 0],
+      [OVER_ATTRIBUTE]: [0, 0, 0, 0],
       // three's own defaults are kept.
       color: [1, 1, 1],
     });
@@ -59,7 +92,7 @@ describe('the toon material and its per-vertex flags', () => {
   it('writes the bloom guest list as the glow shader does, and a lit surface off it', () => {
     // Lit and flat: 1 - uBloomMask, as before the flag existed. Glowing: the glow shader's own.
     expect(glow.fragmentShader).toContain('mix(1.0, uBloom, uBloomMask)');
-    expect(toonFlat.fragmentShader).toContain('float bloom = mix(0.0, uGlowBloom, vGlow);');
+    expect(toonFlat.fragmentShader).toContain('float bloom = vUnlit > 1.5 ? uGlowBloom : 0.0;');
     expect(toonFlat.fragmentShader).toContain('mix(1.0, bloom, uBloomMask)');
     // A glowing vertex blooms as much as a sun does.
     const sun = createGlowMaterial({ intensity: 1, bloom: tuning.world.sunBloom });
@@ -102,29 +135,56 @@ describe('a sun’s material and its corona', () => {
     expect(ladder[0]?.toArray()).toEqual([...hexToLinear(shade)]);
     expect(ladder[1]?.toArray()).toEqual([...hexToLinear(base)]);
     expect(ladder[2]?.toArray()).toEqual([...hexToLinear(light)]);
-    expect((material.uniforms.uSunLimb?.value as Vector2).toArray()).toEqual([
-      ...tuning.look.sun.limbNz,
+    // The surface's numbers, as the shader reads them (design/tuning.ts, `look.sun`).
+    const { granulation, limbNz, softLimb, softSpotRad, spots } = tuning.look.sun;
+    expect((material.uniforms.uSunLimb?.value as Vector4).toArray()).toEqual([
+      ...limbNz,
+      softLimb,
+      softSpotRad,
     ]);
+    expect((material.uniforms.uSunGrain?.value as Vector4).toArray()).toEqual([
+      granulation.freq,
+      granulation.weight,
+      granulation.freq2,
+      granulation.soft,
+    ]);
+    expect((material.uniforms.uSunCut?.value as Vector3).toArray()).toEqual([
+      ...granulation.thresholds,
+    ]);
+    const marks = material.uniforms.uSunSpot?.value as Vector4[];
+    expect(marks).toHaveLength(SUN_SPOTS);
+    marks.forEach((mark, i) => {
+      expect(Math.hypot(mark.x, mark.y, mark.z)).toBeCloseTo(1, 12);
+      expect(mark.w).toBe(spots[i]?.radius);
+    });
     // No other material pays for it.
-    expect(createToonMaterial().uniforms).not.toHaveProperty('uSunTone');
+    const plain = createToonMaterial();
+    for (const name of ['uSunTone', 'uSunGrain', 'uSunCut', 'uSunLimb', 'uSunSpot']) {
+      expect(plain.uniforms).not.toHaveProperty(name);
+    }
+    plain.dispose();
     material.dispose();
   });
 
   it('is a flat disc of its token on the star map, and steps down its ladder at the limb', () => {
-    const { vertexShader } = toonFlat;
+    const { fragmentShader } = toonFlat;
     // uFlatness 1 takes every tone, the limb and the spots back to tone 1, the family's base:
     // uSunTone[1] is exactly the token (above), so the map's sun is its token.
-    expect(vertexShader).toContain('mix(uSunTone[int(tone)], uSunTone[1], uFlatness)');
-    // The tone is read back from the flag; a plain glow (2) has none and keeps its colour.
-    expect(vertexShader).toContain('float tone = floor(aUnlit * 0.25) - 1.0;');
-    expect(vertexShader).toContain('if (tone > -0.5) {');
-    // The limb moves the four tones of the granulation, never a spot's, and never below shade.
-    expect(vertexShader).toContain('if (tone < 3.5) {');
-    expect(vertexShader).toContain(
-      'tone = max(tone - step(limb, uSunLimb.x) - step(limb, uSunLimb.y), 0.0);',
+    expect(fragmentShader).toContain('return uTint * mix(surface, uSunTone[1], uFlatness);');
+    // Only the ball's own facets are the surface; a plain glow (2: a gear, a sign) keeps its colour.
+    expect(fragmentShader).toContain('if (vUnlit > 4.0) base = surface;');
+    // The limb moves the four tones of the granulation down the ladder, never below shade, and
+    // the spots are laid over it afterwards: they keep their shades.
+    expect(fragmentShader).toContain(
+      'tone - 2.0 + soft(vLimb, uSunLimb.x, uSunLimb.z) + soft(vLimb, uSunLimb.y, uSunLimb.z),\n          0.0',
     );
+    expect(fragmentShader.indexOf('uSunTone[5], core')).toBeGreaterThan(
+      fragmentShader.indexOf('soft(vLimb, uSunLimb.x'),
+    );
+    // Every edge on a sun is soft, and never thinner than a pixel.
+    expect(fragmentShader).toContain('reach = max(reach, fwidth(value));');
     // A sun's facet still glows and blooms as any glowing vertex does.
-    expect(vertexShader).toContain('vGlow = aUnlit > 1.5 ? 1.0 : 0.0;');
+    expect(fragmentShader).toContain('float bloom = vUnlit > 1.5 ? uGlowBloom : 0.0;');
   });
 
   it('lays the corona’s tables out as its shader reads them, and never on the bloom guest list', () => {

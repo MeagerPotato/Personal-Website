@@ -248,6 +248,58 @@ describe('the glue', () => {
     expect(Array.from(packed.decal).every((d) => d === 0)).toBe(true);
   });
 
+  it('packs a ground as the ball it is, and rounds a part where it is round', () => {
+    const made = make(
+      't',
+      {
+        rows: [
+          { biome: 'primer', paint: [['band', 0, 0.5, 'coral.base']] },
+          ['post', 0, ['cyl', 0.2, 1, 1.5, 12, 'ink.high']],
+        ],
+      },
+      { detail: 3, looks: LOOKS },
+    );
+    const { turn } = assemble(made, { kind: 'planet' });
+    expect(turn.triangleCount).toBe(320 + 48);
+    expect(turn.sides).toHaveLength(turn.triangleCount * 24);
+    // The ground: at radius 1, so its normals are its positions; and the paint's edge runs
+    // through the facets on the equator, which carry both colours.
+    for (let i = 0; i < 320 * 9; i += 1)
+      expect(turn.normals[i]).toBeCloseTo(turn.positions[i] ?? NaN, 5);
+    const own = (t: number): string => String(Array.from(turn.colors.slice(t * 9, t * 9 + 3)));
+    const colours = new Set(Array.from({ length: 320 }, (_, t) => own(t)));
+    expect(colours.size).toBe(2);
+    expect(colours.has(String(f32('coral.base')))).toBe(true);
+    let split = 0;
+    for (let t = 0; t < 320; t += 1) {
+      const side = turn.sides.subarray(t * 24, t * 24 + 24);
+      if (side.every((value) => value === 0)) continue;
+      split += 1;
+      // The other of the two colours, and no third.
+      const second = String(Array.from(side.slice(0, 3)));
+      expect(colours.has(second) && second !== own(t)).toBe(true);
+      expect(Array.from(side.slice(4, 8))).toEqual([0, 0, 0, 0]);
+    }
+    expect(split).toBeGreaterThan(0);
+    // The post: no second colour; its side is lit as a cylinder (normals straight out from its
+    // axis), its caps are flat.
+    for (let v = 320 * 3; v < turn.triangleCount * 3; v += 1) {
+      expect(Array.from(turn.sides.subarray(v * 8, v * 8 + 8))).toEqual(new Array(8).fill(0));
+      const [x, y, z] = [
+        turn.positions[v * 3] ?? 0,
+        turn.positions[v * 3 + 1] ?? 0,
+        turn.positions[v * 3 + 2] ?? 0,
+      ];
+      const n = turn.normals.subarray(v * 3, v * 3 + 3);
+      if (Math.abs(n[1] ?? 0) > 0.5) expect(Math.abs(n[1] ?? 0)).toBeCloseTo(1, 5);
+      else if (Math.hypot(x, z) > 0.1) {
+        expect(n[0]).toBeCloseTo(x / 0.2, 4);
+        expect(n[2]).toBeCloseTo(z / 0.2, 4);
+      }
+      expect(y).toBeGreaterThan(0.99);
+    }
+  });
+
   it('marks every vertex of a decal part, in the same group as the rest', () => {
     const decal = make(
       't',

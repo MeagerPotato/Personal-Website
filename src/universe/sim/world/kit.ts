@@ -27,17 +27,24 @@ export type Vec2 = readonly [number, number];
 
 /**
  * How a triangle is lit: 0 by its sun (the toon bands), 1 flat and unlit, 2 unlit and glowing. A
- * facet of a sun's living surface glows too, and carries its tone above that (6, 10, 14...:
- * sim/sunSurface.ts, `toneUnlit`), so every reader's "above a half" and "above one and a half"
+ * facet of a sun's living surface glows too, and says so above that (6 and the sun's own number:
+ * sim/sunSurface.ts, `sunFlag`), so every reader's "above a half" and "above one and a half"
  * still hold.
  */
 export type Unlit = number;
 
-/** One triangle: its corners (nine numbers, a b c), its colour (linear RGB) and its lighting. */
+/**
+ * One triangle: its corners (nine numbers, a b c), its colour (linear RGB) and its lighting. A
+ * facet of a generated ground (ground.ts) may also carry the normals of the curve it lies on (`n`,
+ * nine numbers) and its other colours with their lines (`s`, 24 numbers: sim/meshBuilder.ts,
+ * `MeshData.sides`); a ground is never moved, so `xf` drops them.
+ */
 export interface Tri {
   readonly p: readonly number[];
   readonly c: Rgb;
   readonly g: Unlit;
+  readonly n?: ArrayLike<number>;
+  readonly s?: ArrayLike<number>;
 }
 
 export const ORIGIN: Vec3 = [0, 0, 0];
@@ -167,7 +174,7 @@ export function xf(tris: readonly Tri[], { at = ORIGIN, rot, s = 1, m }: Place =
       if (turn) q = mulM(turn, q);
       p.push(q[0] + at[0], q[1] + at[1], q[2] + at[2]);
     }
-    return { ...t, p };
+    return { p, c: t.c, g: t.g };
   });
 }
 
@@ -179,7 +186,7 @@ const isList = (colors: Colors): colors is readonly Rgb[] => typeof colors[0] !=
 
 /** The triangles a MeshBuilder made, as records: float32 corners, as the engine will draw them. */
 function recordsOf(builder: MeshBuilder, color?: Rgb): Tri[] {
-  const mesh = builder.build();
+  const mesh = builder.build(false);
   return Array.from({ length: mesh.triangleCount }, (_, i) => ({
     p: [...mesh.positions.slice(i * 9, i * 9 + 9)],
     c: color ?? [mesh.colors[i * 9] ?? 0, mesh.colors[i * 9 + 1] ?? 0, mesh.colors[i * 9 + 2] ?? 0],
