@@ -50,7 +50,7 @@ import { Chart } from '../world/Chart';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { SkyBake } from '../world/SkyBake';
-import { starGeometry, Starfield } from '../world/Starfield';
+import { starCount, starGeometry, Starfield } from '../world/Starfield';
 import { SunCorona } from '../world/SunCorona';
 import { Traffic } from '../world/Traffic';
 import { airOf, lookOf, type LookedAt } from '../world/looks';
@@ -311,7 +311,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
       new PerfHud(mount, engine.renderer, () => [
         `tier  ${options.tier} x${engine.resolutionScale.toFixed(2)}`,
         `shows ${table.describe()}`,
-        `stars ${starfield.object.geometry.instanceCount}`,
+        `stars ${starCount(starfield.object.geometry)}`,
         `sky Y ${meter.text}`,
       ]),
     );

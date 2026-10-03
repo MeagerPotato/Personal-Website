@@ -647,11 +647,18 @@ is at a time is `sim/traffic.ts`, pure: a dot is its orbit's id, `tuning.look.tr
 simulation time of the frame, laid on the galaxy's positions of that same frame, so a rebuilt
 engine draws the same dots and reduced motion is simply time zero. A dot's size rides in its
 place's `y` (the flight plane is `y = 0`), which is also how an orbit the star map does not
-draw loses its dots (`displayScale` of its body: size 0). `world/Chart.ts` is one plane under
-the flight plane (`design/shaders/chart.ts`), visible only while the star map's weight is above
-0.01, drawn after the backdrop and before the stars; it reads the map's weight and scale each
-frame and has as many districts as the manifest has systems (a `#define`). Neither is state,
-neither is picked, and neither is on the bloom guest list.
+draw loses its dots (`displayScale` of its body: size 0). `world/Chart.ts` is the star map's
+ground, a little under the flight plane (`design/shaders/chart.ts`), visible only while the
+star map's weight is above 0.01, drawn after the backdrop and before the stars; it reads the
+map's weight and scale each frame. With post-processing it is one plane and one program, which
+lays every part over the next itself and has as many districts as the manifest has systems (a
+`#define`). Straight to the canvas (the low tier) the canvas's own blending lays the paint, so
+it is three draws, each only where its part is: the dots on the plane, every district's discs
+on a polygon round them and every ring on a strip along it (`sim/chartMesh.ts` makes those
+meshes). That is for a renderer with no GPU, which works out every pixel a draw covers: in
+Chromium's software renderer, which is what CI draws with, the one program took 24 ms of every
+frame of the map, and the three parts take 4. Neither is state, neither is picked, and neither
+is on the bloom guest list.
 
 **The sky is baked once, on the GPU, after the first frame** (`world/SkyBake.ts`). What the sky
 adds to the navy (the Milky Way's haze and fifteen far galaxies; no gas and no clouds: Allen's
@@ -720,10 +727,13 @@ the bulge is these stars), the clusters (three of them at the systems' bearings 
 each a few bright stars, then field stars, then dust), the double stars, and the heroes
 last, at the places the table gives. How many depends on the pointer and the tier, which are known before the renderer
 exists, so the list is built once in the constructor of `world/Starfield.ts` and nothing about
-it is state: a rebuilt engine makes the same sky. It is drawn as one instanced quad a star
-(`stars` in `design/shaders/sky.ts`): the vertex shader puts the quad at the star's direction
+it is state: a rebuilt engine makes the same sky. It is drawn as one draw of quads, a quad a
+star (`stars` in `design/shaders/sky.ts`): the vertex shader puts the quad at the star's direction
 on the far plane and sizes it in CSS px by class; the fragment shader sums a core, halos and
-spikes. `createStarMaterial` lays the classes out as the shader's tables, a row a class. Points
+spikes. Every quad has four vertices of its own and none is an instance: a software renderer
+(CI has no GPU) runs each instance as a draw of its own, and thousands of them were the most
+expensive thing in its frame (`starGeometry` in `world/Starfield.ts` has the numbers).
+`createStarMaterial` lays the classes out as the shader's tables, a row a class. Points
 could not do it: a point's size is capped by the GPU and a point has no angle. A star also
 reads the panorama's alpha at its own direction, in the vertex shader, and dims in the Milky
 Way's dark lane. `sim/skyDirections.ts` projects a direction into each of the seven views

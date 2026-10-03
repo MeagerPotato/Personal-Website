@@ -9,8 +9,9 @@ import {
   type Vector2,
   type Vector4,
 } from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+  CHART_ROOM_PX,
   DECAL_ATTRIBUTE,
   BEND_ATTRIBUTE,
   OVER_ATTRIBUTE,
@@ -18,10 +19,12 @@ import {
   UNLIT_ATTRIBUTE,
   airBands,
   airColor,
+  chartPaints,
   cloudColor,
   createAirShellMaterial,
   createBackdropMaterial,
   createChartMaterial,
+  createChartParts,
   createCloudMaterial,
   createCoronaMaterial,
   createEdgeMaterial,
@@ -30,7 +33,9 @@ import {
   createStarMaterial,
   createToonMaterial,
   createTrafficMaterial,
+  drawsToCanvas,
   refreshToonLook,
+  setBloomMask,
   setSky,
 } from './materials';
 import {
@@ -41,7 +46,7 @@ import {
   airCloud,
   airShell,
 } from './shaders/air';
-import { chart } from './shaders/chart';
+import { chart, chartDiscs, chartDots, chartRings } from './shaders/chart';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import * as sky from './shaders/sky';
@@ -461,15 +466,119 @@ describe('traffic and the chart', () => {
     expect(material.blendDst).toBe(OneMinusSrcAlphaFactor);
     expect([material.blendSrcAlpha, material.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
     expect(material.depthWrite).toBe(false);
-    expect(uniforms.uBloomMask).toBe(createToonMaterial().uniforms.uBloomMask);
     // Every part is as much there as the map is: the dots, and a district's three alphas.
     expect(chart.fragmentShader.match(/uWeight \* /g)).toHaveLength(2);
+    // This program is for a picture of linear light: it lays the paint itself, in display
+    // space, and writes the light that blends to it over the sky straight down.
+    expect(chart.fragmentShader).toContain('sRGBTransferEOTF(vec4(paint, 1.0)).rgb - keep * under');
+    expect(uniforms.uBloomMask).toBeUndefined();
+    // The grid's spacing is worked out once a frame, not once a pixel (sim/chartMesh.ts).
+    expect(uniforms.uCell.value).toBe(1);
+    expect(chart.fragmentShader).not.toMatch(/\bpow\(|\blog\(/);
     material.dispose();
     // A galaxy with no system at all still compiles: one district nobody can see.
     const empty = createChartMaterial([]);
     expect(empty.defines?.DISTRICTS).toBe(1);
     expect((empty.uniforms.uDisc?.value as Vector3[])[0]?.z).toBe(0);
     empty.dispose();
+  });
+
+  it('gives a district its family’s two dim tones and its base, as the screen shows them', () => {
+    const { nebula, system } = tokens.color;
+    const hex = (color: Color): string => `#${color.getHexString()}`;
+    for (const family of ['butter', 'sky', 'mint', 'lilac'] as const) {
+      const paints = chartPaints(family);
+      // Display space: getHexString converts from the working space, so undo that first.
+      const shown = (color: Color): string => hex(color.clone().convertSRGBToLinear());
+      expect([shown(paints.outer), shown(paints.inner), shown(paints.ring)]).toEqual([
+        nebula[family].mid,
+        nebula[family].lit,
+        system[family].base,
+      ]);
+    }
+  });
+});
+
+// Straight to the canvas the chart is three programs, each on a mesh that holds only its part
+// (shaders/chart.ts): the canvas's own blending is the paint.
+describe('the chart’s parts', () => {
+  afterEach(() => setBloomMask(true));
+
+  it('knows where the picture goes', () => {
+    expect(drawsToCanvas()).toBe(false);
+    setBloomMask(false);
+    expect(drawsToCanvas()).toBe(true);
+  });
+
+  it('lays out each part’s numbers, and one weight and one scale for all three', () => {
+    const look = tuning.look.chart;
+    const { dots, discs, rings } = createChartParts();
+    expect([dots.name, discs.name, rings.name]).toEqual([
+      'chart-dots',
+      'chart-discs',
+      'chart-rings',
+    ]);
+    // By reference: world/Chart.ts sets the dots', and the others follow.
+    for (const name of ['uWeight', 'uUnitsPerPx']) {
+      expect(discs.uniforms[name]).toBe(dots.uniforms[name]);
+      expect(rings.uniforms[name]).toBe(dots.uniforms[name]);
+    }
+    expect([dots.uniforms.uWeight.value, dots.uniforms.uUnitsPerPx.value]).toEqual([0, 1]);
+    expect((dots.uniforms.uGrid?.value as Vector3).toArray()).toEqual([
+      look.dotSpacingPx,
+      look.dotRadiusPx,
+      look.dotAlpha,
+    ]);
+    const low = Number.parseInt(tokens.color.ink.low.slice(1, 3), 16) / 255;
+    expect((dots.uniforms.uDot?.value as Color).r).toBeCloseTo(low, 4);
+    for (const part of [discs, rings]) {
+      expect((part.uniforms.uDistrict?.value as Vector4).toArray()).toEqual([
+        look.districtOuter,
+        look.districtOuterAlpha,
+        look.districtInnerAlpha,
+        look.ringAlpha,
+      ]);
+    }
+    expect((rings.uniforms.uDash?.value as Vector3).toArray()).toEqual([
+      look.ringWidthPx,
+      ...look.ringDashPx,
+    ]);
+    expect(discs.uniforms.uRoom?.value).toBe(CHART_ROOM_PX);
+    expect(rings.uniforms.uRoom?.value).toBe(CHART_ROOM_PX + 0.5 * look.ringWidthPx);
+    for (const part of [dots, discs, rings]) part.dispose();
+  });
+
+  it('writes premultiplied paint as it is, and leaves alone both alpha and every empty pixel', () => {
+    const parts = createChartParts();
+    for (const part of Object.values(parts)) {
+      expect(part.transparent).toBe(true);
+      expect(part.blendSrc).toBe(OneFactor);
+      expect(part.blendDst).toBe(OneMinusSrcAlphaFactor);
+      // On this tier alpha is what the page sees of the canvas: it stays 1.
+      expect([part.blendSrcAlpha, part.blendDstAlpha]).toEqual([ZeroFactor, OneFactor]);
+      expect([part.depthTest, part.depthWrite]).toEqual([true, false]);
+      part.dispose();
+    }
+    for (const shader of [chartDots, chartDiscs, chartRings]) {
+      // The canvas is display space: no conversion on the way, and so none of its powers.
+      expect(shader.fragmentShader).not.toMatch(/sRGBTransfer|\bpow\(/);
+      expect(shader.fragmentShader).toMatch(
+        /#include <colorspace_fragment>\s+(\/\/[^\n]*\s+)?gl_FragColor\.rgb = /,
+      );
+      // Where a part paints nothing, nothing is blended.
+      expect(shader.fragmentShader).toMatch(/if \(alpha(\.x)? <= 0\.0\) discard;/);
+      // As much there as the map is.
+      expect(shader.fragmentShader.match(/uWeight \* /g)).toHaveLength(1);
+    }
+    // Only the ring's own pixels work out the angle round it, and only the plane's the grid.
+    expect(chartRings.fragmentShader).toContain('atan(');
+    expect(chartDiscs.fragmentShader).not.toContain('atan(');
+    expect(chartDots.fragmentShader).not.toContain('atan(');
+    // A part's mesh steps out by the room it is given, at the map's zoom, and no further than
+    // its vertex may go.
+    for (const shader of [chartDiscs, chartRings]) {
+      expect(shader.vertexShader).toContain('min(uRoom * uUnitsPerPx, aPad.z)');
+    }
   });
 });
 

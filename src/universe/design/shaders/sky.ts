@@ -74,8 +74,8 @@ export const backdrop = {
 export const STAR_KIND_COUNT = 5;
 
 /**
- * Stars: one draw call of instanced quads, a quad a star. Points cannot do this: a point's size
- * is capped by the GPU and a point has no angle, and a hero star has six diffraction spikes.
+ * Stars: one draw call of quads, a quad a star. Points cannot do this: a point's size is capped
+ * by the GPU and a point has no angle, and a hero star has six diffraction spikes.
  *
  * A star is a Gaussian core, up to two wider and fainter halos, and (the mid and hero kinds)
  * spikes: a line through the star whose light falls off along it as
@@ -86,9 +86,10 @@ export const STAR_KIND_COUNT = 5;
  * sizes are CSS px; light is ADDED, and the stars are not on the bloom guest list (materials.ts
  * leaves alpha as it was).
  *
- * Geometry: position (a corner of the quad, x and y each -1 or 1). Per instance: aDir (unit
- * direction), aColor (linear, brightness baked in), aStar (kind as in STAR_KINDS, the size of
- * its spikes 0 to 1, phase 0 to 1, twinkle 0 or 1).
+ * Geometry: position (a corner of the quad, x and y each -1 or 1) and, the same on all four
+ * corners of a star, aDir (unit direction), aColor (linear, brightness baked in) and aStar
+ * (kind as in STAR_KINDS, the size of its spikes 0 to 1, phase 0 to 1, twinkle 0 or 1). The
+ * quads are not instances, and why not is in world/Starfield.ts (`starGeometry`).
  * Uniforms: uTime (s), uView (the view in CSS px), uScale (how much the px sizes below are
  * scaled in this view: x halos and spikes, y cores), uTwinkleDepth, uOpacity, uSpikes (1 flying,
  * 0 on the star map), uBreath (the share by which a hero breathes) and uBreathSec (the slowest

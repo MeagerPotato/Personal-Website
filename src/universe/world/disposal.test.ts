@@ -1,5 +1,6 @@
 import { Vector3, type BufferGeometry, type Material, type Mesh, type WebGLRenderer } from 'three';
 import { describe, expect, it } from 'vitest';
+import { setBloomMask } from '../design/materials';
 import { tuning } from '../design/tuning';
 import { createOrbitTable } from '../sim/orbits';
 import { AirShells } from './AirShells';
@@ -67,6 +68,29 @@ describe('what the look’s systems free', () => {
       map: { weight: 1, unitsPerPx: 1 },
     });
     expectFreed(partsOf(chart.object), () => chart.dispose());
+  });
+
+  it('frees the chart’s three parts where it is drawn straight to the canvas', () => {
+    setBloomMask(false);
+    try {
+      const chart = new Chart({
+        districts: [{ x: 0, z: 0, radius: 66, family: 'butter' }],
+        map: { weight: 1, unitsPerPx: 1 },
+      });
+      const meshes = [chart.object, ...(chart.object.children as Mesh[])];
+      expect(meshes).toHaveLength(3);
+      // Three geometries and three materials.
+      expect(watch(meshes.flatMap(partsOf)).total).toBe(6);
+      expectFreed(meshes.flatMap(partsOf), () => chart.dispose());
+      expect(chart.object.children).toHaveLength(0);
+
+      // With no system there is no disc and no ring to draw: the plane is all there is to free.
+      const empty = new Chart({ districts: [], map: { weight: 1, unitsPerPx: 1 } });
+      expect(empty.object.children).toHaveLength(0);
+      expectFreed(partsOf(empty.object), () => empty.dispose());
+    } finally {
+      setBloomMask(true);
+    }
   });
 
   it('frees the traffic', () => {

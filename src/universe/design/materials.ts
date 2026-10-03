@@ -25,7 +25,7 @@ import {
   airCloud,
   airShell,
 } from './shaders/air';
-import { chart } from './shaders/chart';
+import { chart, chartDiscs, chartDots, chartRings } from './shaders/chart';
 import { corona } from './shaders/corona';
 import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
@@ -80,6 +80,15 @@ const bloomMask = { value: 1 };
 /** main.ts says which, once, from the quality tier: is there post-processing to read the list? */
 export function setBloomMask(enabled: boolean): void {
   bloomMask.value = enabled ? 1 : 0;
+}
+
+/**
+ * Does the picture go straight to the canvas (no post-processing)? Then what a material writes
+ * is display space, and so is what it blends with: paint laid over paint there needs no sums of
+ * its own (the chart: shaders/chart.ts).
+ */
+export function drawsToCanvas(): boolean {
+  return bloomMask.value < 0.5;
 }
 
 /**
@@ -653,23 +662,71 @@ export interface ChartDistrict {
   readonly family: ThemeKey;
 }
 
+/**
+ * What world/Chart.ts sets every frame: how much of the picture is the map's, the map's scale,
+ * and the dot grid's spacing at that scale (sim/chartMesh.ts, gridCell).
+ */
 export type ChartMaterial = ShaderMaterial & {
-  uniforms: { uWeight: IUniform<number>; uUnitsPerPx: IUniform<number> };
+  uniforms: {
+    uWeight: IUniform<number>;
+    uUnitsPerPx: IUniform<number>;
+    uCell: IUniform<number>;
+  };
 };
 
+/** The chart's paint is laid in display space: a token as the screen shows it. */
+const chartPaint = (hex: string): Color => new Color(hex).convertLinearToSRGB();
+
 /**
- * The star map's ground (shaders/chart.ts): `tuning.look.chart`, and a district for each system
- * in its family's two dim tones (color.nebula) and, for the dashed ring, its base. Premultiplied
- * colour over what is behind it, and not on the bloom guest list.
+ * A district's three paints (display space): its family's two dim tones (color.nebula) for the
+ * disc out past its reach and the disc at its reach, and its base for the dashed ring.
+ */
+export function chartPaints(family: ThemeKey): { outer: Color; inner: Color; ring: Color } {
+  const { nebula, system } = tokens.color;
+  return {
+    outer: chartPaint(nebula[family].mid),
+    inner: chartPaint(nebula[family].lit),
+    ring: chartPaint(system[family].base),
+  };
+}
+
+/** `tuning.look.chart` as the chart's programs read it (shaders/chart.ts). */
+function chartLook(): Record<'uDot' | 'uGrid' | 'uDistrict' | 'uDash', IUniform> {
+  const look = tuning.look.chart;
+  return {
+    uDot: { value: chartPaint(tokens.color.ink.low) },
+    uGrid: { value: new Vector3(look.dotSpacingPx, look.dotRadiusPx, look.dotAlpha) },
+    uDistrict: {
+      value: new Vector4(
+        look.districtOuter,
+        look.districtOuterAlpha,
+        look.districtInnerAlpha,
+        look.ringAlpha,
+      ),
+    },
+    uDash: { value: new Vector3(look.ringWidthPx, ...look.ringDashPx) },
+  };
+}
+
+/** Premultiplied paint over what is behind it, which leaves alpha as it found it. */
+function chartBlend<T extends Material>(material: T): T {
+  keepBloomMask(material, false);
+  material.blendSrc = OneFactor;
+  return material;
+}
+
+/**
+ * The star map's ground WITH POST-PROCESSING (shaders/chart.ts, `chart`): one program that lays
+ * the dots and a district for each system over each other in display space, and writes the sum
+ * for a picture of linear light. Premultiplied colour over what is behind it, and not on the
+ * bloom guest list. Straight to the canvas the chart is `createChartParts`.
  */
 export function createChartMaterial(districts: readonly ChartDistrict[]): ChartMaterial {
-  const look = tuning.look.chart;
-  const { space, ink, nebula, system } = tokens.color;
-  // Display space: the parts are laid over each other as paint is.
-  const paint = (hex: string): Color => new Color(hex).convertLinearToSRGB();
+  const { space } = tokens.color;
   // A shader cannot loop over nothing: with no system at all, one district nobody can see.
   const shown: readonly ChartDistrict[] =
     districts.length > 0 ? districts : [{ x: 0, z: 0, radius: 0, family: 'butter' }];
+  const paints = shown.map(({ family }) => chartPaints(family));
   const material = new ShaderMaterial({
     name: 'chart',
     vertexShader: chart.vertexShader,
@@ -678,35 +735,85 @@ export function createChartMaterial(districts: readonly ChartDistrict[]): ChartM
     uniforms: {
       uWeight: { value: 0 },
       uUnitsPerPx: { value: 1 },
-      uBloomMask: bloomMask,
+      uCell: { value: 1 },
       // The sky as the map's camera sees it, straight down (shaders/sky.ts, the backdrop).
       uUnder: {
         value: new Color(space[950])
           .lerp(new Color(space[800]), Math.exp(-tuning.backdrop.horizonFalloff))
           .convertLinearToSRGB(),
       },
-      uDot: { value: paint(ink.low) },
-      uGrid: { value: new Vector3(look.dotSpacingPx, look.dotRadiusPx, look.dotAlpha) },
+      ...chartLook(),
       uDisc: { value: shown.map(({ x, z, radius }) => new Vector3(x, z, radius)) },
-      uOuter: { value: shown.map(({ family }) => paint(nebula[family].mid)) },
-      uInner: { value: shown.map(({ family }) => paint(nebula[family].lit)) },
-      uRing: { value: shown.map(({ family }) => paint(system[family].base)) },
-      uDistrict: {
-        value: new Vector4(
-          look.districtOuter,
-          look.districtOuterAlpha,
-          look.districtInnerAlpha,
-          look.ringAlpha,
-        ),
-      },
-      uDash: { value: new Vector3(look.ringWidthPx, ...look.ringDashPx) },
+      uOuter: { value: paints.map(({ outer }) => outer) },
+      uInner: { value: paints.map(({ inner }) => inner) },
+      uRing: { value: paints.map(({ ring }) => ring) },
     },
     transparent: true,
     depthWrite: false,
   });
-  keepBloomMask(material, false);
-  material.blendSrc = OneFactor;
-  return material as ChartMaterial;
+  return chartBlend(material) as ChartMaterial;
+}
+
+/**
+ * The room round a part of the chart, CSS px: its mesh reaches this far past the part itself
+ * (sim/chartMesh.ts). Half a pixel is the part's own soft edge; the rest is a pixel of the
+ * PICTURE, of which any corner may be what an anti-aliased edge samples, and which is two CSS
+ * px wide once the frame governor has halved the resolution (tuning.quality.minPixelRatio).
+ */
+export const CHART_ROOM_PX = 4;
+
+/** The chart's three parts where the picture goes straight to the canvas. */
+export interface ChartParts {
+  /** On the plane. Its uWeight and uUnitsPerPx are the other two's as well, by reference. */
+  readonly dots: ChartMaterial;
+  /** On sim/chartMesh.ts's polygons (`discMesh`), with aDisc, aOuter and aInner a vertex. */
+  readonly discs: ShaderMaterial;
+  /** On its strips (`ringMesh`), with aDisc and aRing a vertex. */
+  readonly rings: ShaderMaterial;
+}
+
+/**
+ * The star map's ground STRAIGHT TO THE CANVAS (shaders/chart.ts): a program for each part,
+ * drawn in this order on a mesh that holds only that part, and the canvas's own blending lays
+ * one over the next. Premultiplied paint in display space; alpha is left as it was found (on
+ * this tier it is what the page sees of the canvas).
+ */
+export function createChartParts(): ChartParts {
+  const look = chartLook();
+  // One of each for all three: whoever sets the dots' sets the others'.
+  const shared = { uWeight: { value: 0 }, uUnitsPerPx: { value: 1 } };
+  const part = (
+    name: string,
+    shader: { vertexShader: string; fragmentShader: string },
+    uniforms: Record<string, IUniform>,
+  ): ShaderMaterial =>
+    chartBlend(
+      new ShaderMaterial({
+        name,
+        vertexShader: shader.vertexShader,
+        fragmentShader: shader.fragmentShader,
+        uniforms: { ...shared, ...uniforms },
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+  return {
+    dots: part('chart-dots', chartDots, {
+      uCell: { value: 1 },
+      uDot: look.uDot,
+      uGrid: look.uGrid,
+    }) as ChartMaterial,
+    discs: part('chart-discs', chartDiscs, {
+      uDistrict: look.uDistrict,
+      uRoom: { value: CHART_ROOM_PX },
+    }),
+    rings: part('chart-rings', chartRings, {
+      uDistrict: look.uDistrict,
+      uDash: look.uDash,
+      // A ring is as wide as its line, half of it to either side.
+      uRoom: { value: CHART_ROOM_PX + 0.5 * tuning.look.chart.ringWidthPx },
+    }),
+  };
 }
 
 export type DustMaterial = ShaderMaterial & {
