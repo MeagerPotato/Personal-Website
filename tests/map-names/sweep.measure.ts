@@ -90,7 +90,15 @@ const SWEEPS: readonly Sweep[] = [
     most: 20,
     twice: 4,
   },
-  // Research's sun half past the bottom edge, its name above it with less than a keep to spare.
+  // Until 2026-10-03 Research's sun lay half past the bottom edge of this view, its name above it
+  // with less than a keep to spare: the case the edge rule was written for (a body whose only
+  // room is nearer an edge than a keep is named all the same, unless it is leaving). Where
+  // Research stands now (docs/PLAN.md §5.4) all of it is well inside this view, so this look no
+  // longer shows that case, and no look at rest was found that does (tried, zoomed in one to
+  // six times: the real galaxy at all three sizes, the galaxies of six and eight at 360x740 and
+  // 1280x800; no system's body rests in that band at the bottom edge). The rule is held by its
+  // unit test (src/universe/ui/labels.test.ts, "names a body whose only room is nearer an edge
+  // than that"); this look still holds Research to its name.
   {
     name: 'at rest, 360x740, zoomed in three times',
     look: { size: '360x740', zoomIns: 3 },
@@ -106,7 +114,9 @@ const SWEEPS: readonly Sweep[] = [
     most: 20,
     twice: 6,
   },
-  // The home planet half past the bottom edge.
+  // Until 2026-10-03 the home planet lay half past the bottom edge of this view (the same case);
+  // in the galaxy of six as it grows now (its fifth and sixth systems in slots 2 and 4) it is
+  // near the middle, and the look holds the home planet to its name there.
   {
     name: 'six systems, 1280x800, zoomed in four times',
     look: { size: '1280x800', galaxy: 6, zoomIns: 4 },

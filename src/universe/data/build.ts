@@ -6,6 +6,8 @@ import {
   RELAY_SLOTS,
   binaryOrbits,
   dockRadius,
+  HAND_PLACE_WITHIN,
+  handPlace,
   homeReach,
   homeRings,
   orbitPeriod,
@@ -531,6 +533,43 @@ function buildBinary(
 }
 
 /**
+ * A system placed by hand keeps to the room of its own slot: beside the centre of every other
+ * slot there must still be room for a full-size system (data/layout.ts, `handPlace`), so that no
+ * other system, there now or added later, can tell that this one was placed by hand. If it has
+ * outgrown its place, it is the one to go: further out towards its own slot's centre, or back
+ * onto it. Nothing else moves.
+ */
+function handPlacedProblems(
+  system: Slotted,
+  position: readonly [number, number],
+  reach: number,
+): string[] {
+  const place = handPlace(system.order, position);
+  const label = system.suns === undefined ? 'system' : 'binary';
+  if (place.fromHub > HAND_PLACE_WITHIN) {
+    return [
+      `${label} "${system.id}" is placed by hand at (${position[0]}, ${position[1]}), ` +
+        `${round(place.fromHub)} u from the hub of the honeycomb (slot 1): the build can hold a ` +
+        `place by hand clear of every other slot only within ${HAND_PLACE_WITHIN} u of it. ` +
+        `Leave the position out (the system then stands on the centre of its own slot ` +
+        `${system.order}), or place it nearer (docs/PLAN.md §5.4).`,
+    ];
+  }
+  if (reach <= place.room) return [];
+  const [x, z] = slotPosition(system.order);
+  const room = place.room > 0 ? `room to reach ${round(place.room)} u` : 'no room at all';
+  return [
+    `${label} "${system.id}" is placed by hand at (${position[0]}, ${position[1]}), ` +
+      `${round(place.distance)} u from the centre of slot ${place.slot}: beside a full-size ` +
+      `system there (${L.maxSystemRadius} u, ${L.minSystemGap} u clear) it has ${room}, and it ` +
+      `reaches ${round(reach)} u. Move its position further from slot ${place.slot}, towards the ` +
+      `centre of its own slot ${system.order} at (${round(x)}, ${round(z)}), or leave the ` +
+      `position out: on its slot's centre it has room for anything the build accepts. No other ` +
+      `system moves either way (docs/PLAN.md §5.4).`,
+  ];
+}
+
+/**
  * `reach`: how far each emblem world's solid reaches, in radii, by body id (design/worlds/reach.ts
  * unless a test says otherwise: its made-up galaxies reuse real ids for bodies of other sizes).
  * `recipes`: the worlds of their own (design/worlds.ts); a body with one is not drawn from its
@@ -555,10 +594,11 @@ export function buildUniverse(
   // Systems and binaries, in the order of their slots. Suns of a binary go where it goes.
   const slotted = input.systems.filter(isSlotted).sort((a, b) => a.order - b.order);
   const byId = new Map(input.systems.map((system) => [system.id, system]));
-  // A slot too small for what the build accepts is refused, not moved (data/layout.ts).
-  if (slotted.some((system) => system.position === 'auto')) {
-    problems.push(...slotRoomProblems());
-  }
+  // A slot too small for what the build accepts is refused, not moved (data/layout.ts). Only a
+  // galaxy that stands on the honeycomb is held to its rooms: one whose every system is placed
+  // by hand (the journeys harness trying another formula) answers to the tripwire below alone.
+  const onHoneycomb = slotted.some((system) => system.position === 'auto');
+  if (onHoneycomb) problems.push(...slotRoomProblems());
 
   for (const system of slotted) {
     // A binary's two suns exist: validate() has seen to it.
@@ -569,6 +609,9 @@ export function buildUniverse(
         : buildSystem(system, projects, problems);
     bodies.push(...built.bodies);
 
+    if (onHoneycomb && system.position !== 'auto') {
+      problems.push(...handPlacedProblems(system, system.position, built.reach));
+    }
     const [x, z] = system.position === 'auto' ? slotPosition(system.order) : system.position;
     systems.push({
       id: system.id,

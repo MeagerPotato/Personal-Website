@@ -32,6 +32,24 @@ export interface LabelsParams extends DeclutterParams {
    * aside for another. It still gives way where it must.
    */
   readonly dwellSec: number;
+  /**
+   * On the map, a body that circles another (a moon, a planet, a relay) gets its name once its
+   * orbit is this wide on screen (its radius, CSS px), and one that shows keeps it until the orbit
+   * is `keepPx` narrower. Closer in, its name has nowhere steady to be: it and its parent's take
+   * turns at the same few places as the body goes round, a change every few seconds for as long as
+   * the map is open. Zooming in is what brings such a name. Never the name of where the ship is
+   * going, nor the one the keyboard is on. 0: every body in view may have its name.
+   */
+  readonly orbitMinPx: number;
+  /**
+   * On the map, while the view carries a body across the screen faster than this (CSS px a
+   * second: a stroke of a finger, a pinch, a held key), its name is not juggled: it is offered
+   * only its places as they are, none slid along the body to stay off an edge that is itself
+   * passing by; a planet's or a moon's name keeps the place it has or goes, and none comes. A
+   * system's name may still come, and change places, so that the landmarks stay named under the
+   * fingers. The view at rest decides everything again. Infinity: never.
+   */
+  readonly sweptPxPerSec: number;
 }
 
 export interface LabelsOptions {
@@ -51,6 +69,8 @@ export interface LabelsOptions {
     readonly planned?: boolean;
     readonly href?: string | undefined;
     readonly theme?: ThemeKey | undefined;
+    /** Row of the body it circles, or -1 (or left out) for one that circles none. */
+    readonly parent?: number | undefined;
   }>;
   params: LabelsParams;
   /** The part of the view that the info panel leaves free, as shares of its width and height. */
@@ -166,7 +186,7 @@ const NEAR_MAX = WAITING - 1;
  * the keyboard are placed first and never moved, nor left out, for another. On the map the
  * systems' names come next, placed together, every way of fitting them all tried before one is
  * left out; they move for each other, and for a planet's only back to their first places; and a
- * name that has just appeared keeps its place in `max` (14 names, which a laptop's map fills at
+ * name that has just appeared keeps its place in `max` (12 names, which a laptop's map fills at
  * its first view most of the time) while it is young (`dwellSec`). Past that, `max` goes by rank:
  * a planet's name that waits with room takes the place of a moon's that shows, never of another
  * planet's (one that waits comes after every one of its rank that shows: `WAITING`).
@@ -265,6 +285,8 @@ export class Labels implements System {
    * (`slackAt`), having none with it?
    */
   private loose = false;
+  /** Is the name being placed offered its places as they are, none slid along its body (`along`)? */
+  private rigid = false;
   /** Scratch: the name being placed and its body (`offer`), filled in again for every name. */
   private readonly spot = {
     x: 0,
@@ -352,6 +374,8 @@ export class Labels implements System {
     // The middle of where names may go: on the map, where the visitor is looking.
     const middleX = (params.edgePx + room.right) / 2;
     const middleY = (room.top + room.bottom) / 2;
+    // How far a body may go across the screen in this frame before the view is sweeping it along.
+    const sweptPx = params.sweptPxPerSec * frame.dt;
 
     // First, while this frame has not touched the page yet: what is in the way.
     let obstacles = 0;
@@ -399,12 +423,18 @@ export class Labels implements System {
       // On its way out of the view: as it goes on screen, or as it goes by itself. They are the
       // same thing until a finger drags the map: then every body goes the finger's way on screen,
       // for as long as the drag lasts, and its own way again the moment the finger stops.
+      const movedX = x - (this.seenX[row] ?? x);
+      const movedY = y - (this.seenY[row] ?? y);
       const leaving =
-        this.leaving(x, y, x - (this.seenX[row] ?? x), y - (this.seenY[row] ?? y)) ||
+        this.leaving(x, y, movedX, movedY) ||
         this.leaving(x, y, screen.ownX[row] ?? 0, screen.ownY[row] ?? 0);
       this.seenX[row] = x;
       this.seenY[row] = y;
       if (!(depth > 0) || radius < params.minVisiblePx || (docked && row === target)) {
+        this.prefer[row] = 0;
+        continue;
+      }
+      if (onMap && this.tooClose(row, x, y, target)) {
         this.prefer[row] = 0;
         continue;
       }
@@ -417,14 +447,29 @@ export class Labels implements System {
       // body is on its way out of the view, where it would only come and go. (Its own way counts
       // as much as the way a finger is taking it: a body dragged IN from the edge while its orbit
       // takes it OUT would get its name for the drag, and lose it half a second after.)
+      //
+      // And while the view sweeps the body along (`sweptPxPerSec`: a finger, a pinch, a held key),
+      // nothing is juggled: a place slid along the body, away from an edge that is itself going
+      // by, is no place for those frames, and a planet's or a moon's name keeps the one place it
+      // has, or goes, and does not come. (Under the fingers every edge of the view passes every
+      // body in turn, and each pass used to be a name that came, slid and went within frames:
+      // tests/map-names/, the fingers.) A system's name is placed as ever, but for the sliding:
+      // the landmarks stay named whatever the fingers do.
       const preferred = this.prefer[row] ?? 0;
+      const kind = bodies[row]?.kind ?? 'moon';
+      const kept = row === target || row === this.focused || row === this.beckoning;
+      const swept = onMap && !kept && Math.hypot(movedX, movedY) > sweptPx;
+      const held = swept && RANK[kind] !== RANK.sun;
+      if (held && this.wasShown[row] !== 1) continue;
+      this.rigid = swept;
       let offered = this.placesOf(row, target, ship, onMap, middleX);
-      if (offered === 0 && onMap && !leaving) {
+      if (offered === 0 && onMap && !leaving && !swept) {
         this.prefer[row] = preferred;
         this.loose = true;
         offered = this.placesOf(row, target, ship, onMap, middleX);
         this.loose = false;
       }
+      this.rigid = false;
       if (offered === 0) continue;
       const base = row * PLACES;
       // Where it showed last frame, among the places it has now: it may stay there a while. In
@@ -441,6 +486,16 @@ export class Labels implements System {
         boxes.at[row] = place;
         break;
       }
+      if (held) {
+        // Swept along: the place it has, and no other. (With none, it is no candidate at all.)
+        const stays = boxes.at[row] ?? NOWHERE;
+        if (stays === NOWHERE) continue;
+        for (let place = 0; place < PLACES; place += 1) {
+          if (place === stays) continue;
+          boxes.left[base + place] = Number.NaN;
+          boxes.top[base + place] = Number.NaN;
+        }
+      }
 
       // Where the ship is going comes first, then whatever the keyboard is on (a name must not
       // vanish from under someone who has tabbed to it, or who is about to be: `beckon`), then
@@ -450,7 +505,6 @@ export class Labels implements System {
       // stays with whoever has it and nothing is traded back and forth as bodies go round; and
       // between two that both show, or both wait, the nearest the middle of the view, where the
       // visitor is looking.
-      const kind = bodies[row]?.kind ?? 'moon';
       const rank =
         row === target ? 0 : row === this.focused || row === this.beckoning ? 0.5 : RANK[kind];
       boxes.priority[row] = onMap
@@ -548,6 +602,22 @@ export class Labels implements System {
   }
 
   /**
+   * On the map: does this row's body circle another so closely, as the map shows them now, that
+   * its name has no steady place (`orbitMinPx`)? Never the name of where the ship is going, nor
+   * the one the keyboard is on. One that shows stays until the orbit is a keep narrower.
+   */
+  private tooClose(row: number, x: number, y: number, target: number): boolean {
+    const { screen, params, bodies } = this.options;
+    const least = params.orbitMinPx;
+    const parent = bodies[row]?.parent ?? -1;
+    if (!(least > 0) || parent < 0) return false;
+    if (row === target || row === this.focused || row === this.beckoning) return false;
+    if (!((screen.depth[parent] ?? 0) > 0)) return false;
+    const apart = Math.hypot(x - (screen.x[parent] ?? 0), y - (screen.y[parent] ?? 0));
+    return apart < least - (this.wasShown[row] === 1 ? params.keepPx : 0);
+  }
+
+  /**
    * Is a body at (x, y) on screen, having moved (dx, dy) since the frame before (on screen, or by
    * itself: `ScreenMap.ownX`), on its way out of where names may go, through the edge of it (or
    * the top bar) that it is nearest?
@@ -614,6 +684,16 @@ export class Labels implements System {
     // How far each side's tag would have to glide, away from the body, to clear the ship.
     const down = ship ? glidePast(left, under, width, tag, ship, params.gapPx, 1) : 0;
     const up = ship ? glidePast(left, over + height - tag, width, tag, ship, params.gapPx, -1) : 0;
+    const { spot } = this;
+    spot.x = x;
+    spot.y = y;
+    spot.radius = radius;
+    spot.centred = centred;
+    spot.width = width;
+    spot.tag = tag;
+    spot.under = under;
+    spot.over = over;
+    spot.ship = ship;
     let side = onMap ? this.sideOf(row, left, width, under, over, down, up, ship) : BELOW;
     this.prefer[row] = side;
     let top = side ? over - up : under + down;
@@ -643,16 +723,6 @@ export class Labels implements System {
       // the nearer screen edge. Last, a system's name off the two corners of its body that way.
       const inward: Reach = x < middleX ? 1 : -1;
       const other = side === ABOVE ? BELOW : ABOVE;
-      const { spot } = this;
-      spot.x = x;
-      spot.y = y;
-      spot.radius = radius;
-      spot.centred = centred;
-      spot.width = width;
-      spot.tag = tag;
-      spot.under = under;
-      spot.over = over;
-      spot.ship = ship;
       offered += this.offer(row, 1, other, 0);
       offered += this.offer(row, 2, inward > 0 ? RIGHT : LEFT, 0);
       offered += this.offer(row, 3, inward > 0 ? LEFT : RIGHT, 0);
@@ -846,6 +916,7 @@ export class Labels implements System {
     const max = this.room.right - width;
     if (max < min) return Number.NaN;
     const left = Math.min(Math.max(wanted, min), max);
+    if (this.rigid && left !== wanted) return Number.NaN;
     // Reaching one way, the body is right over the tag's round end by construction: a hair's
     // tolerance, or rounding would take that place away every other frame. Slid, the body nears
     // the end the tag was slid towards as it nears the edge: that is the end to keep clear of.
@@ -860,9 +931,26 @@ export class Labels implements System {
    * declutter lets a name stay; anywhere else, no further than the gap. Only where it IS: a place
    * open to a name only while it showed would come and go with it, and a name could then hop
    * there and back.
+   *
+   * But as far as it takes where the ship is AT this body, its marker on the body's own disc (or
+   * within `offsetPx` of it): parked beside the home planet, where a first visit starts, on a
+   * phone's map. The marker is then part of what the name names, and past the two of them is the
+   * name's own place, below or above; with a gap's patience it had none there, and stood beside
+   * its planet or off a corner of it instead, in the row its neighbours' names need. (A galaxy of
+   * six on a 360 px phone, over a whole turn: without this, 0.29 tags a look lay on another
+   * system's sun, and Software went unnamed for 18.9% of the turn and About Me for 10.5%; with
+   * it, no tag on a sun and no system unnamed. tests/map-names/.) `spot` says where the body and
+   * the ship are.
    */
   private patienceAt(row: number, side: number, reach: Reach): number {
-    const { gapPx, keepPx } = this.options.params;
+    const { gapPx, keepPx, offsetPx } = this.options.params;
+    const { x, y, radius, ship } = this.spot;
+    if (ship) {
+      const within = radius + offsetPx;
+      const dx = x - Math.min(Math.max(x, ship.left), ship.left + ship.width);
+      const dy = y - Math.min(Math.max(y, ship.top), ship.top + ship.height);
+      if (dx * dx + dy * dy < within * within) return Infinity;
+    }
     return this.isAt(row, side, reach) ? gapPx + keepPx : gapPx;
   }
 

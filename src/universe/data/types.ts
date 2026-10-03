@@ -30,7 +30,10 @@ export interface SystemInput {
   order?: number | undefined;
   /** A binary star: its two suns, PRIMARY FIRST (the projects index is shown from the first). */
   suns?: readonly string[] | undefined;
-  /** Where its slot is: 'auto' (the honeycomb) or hand-placed. Only a system or a binary has one. */
+  /**
+   * Where it stands: 'auto' (its slot's centre on the honeycomb), or placed by hand at [x, z],
+   * within its own slot's room (data/layout.ts, handPlace). Only a system or a binary has one.
+   */
   position: 'auto' | readonly [number, number];
 }
 

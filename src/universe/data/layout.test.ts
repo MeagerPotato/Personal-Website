@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import {
+  HAND_PLACE_WITHIN,
   RELAY_SLOTS,
+  SLOTS_KEPT,
+  SLOTS_KEPT_WITHIN,
   binaryOrbits,
   dockRadius,
+  handPlace,
   homeReach,
   homeRings,
   honeycomb,
@@ -107,9 +111,10 @@ describe('relayPhase', () => {
   });
 });
 
+const distance = (a: readonly number[], b: readonly number[]): number =>
+  Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0));
+
 describe('slotPosition', () => {
-  const distance = (a: readonly number[], b: readonly number[]): number =>
-    Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0));
   /** The farthest two of the first `count` slots: the longest trip between system centres. */
   const farthest = (count: number): number => {
     const points = Array.from({ length: count }, (_, order) => slotPosition(order));
@@ -281,6 +286,78 @@ describe('slotPosition', () => {
       const tall = Math.max(...zs) - Math.min(...zs);
       expect(Math.abs(wide - tall), `${count} systems`).toBeLessThan(1e-6);
     }
+  });
+});
+
+describe('handPlace', () => {
+  // What a slot promises whoever stands in it: a system of the largest size the build accepts,
+  // minSystemGap clear of its neighbours (and the slack of rounding).
+  const promised = L.maxSystemRadius + L.minSystemGap + 1;
+
+  it("gives a system on its own slot's centre room for anything the build accepts", () => {
+    for (const order of [1, 2, 3, 5, 8]) {
+      const place = handPlace(order, slotPosition(order));
+      expect(place.distance, `slot ${order}`).toBeGreaterThanOrEqual(L.slotRoom - 1e-6);
+      expect(place.room, `slot ${order}`).toBeGreaterThanOrEqual(L.maxSystemRadius - 1e-6);
+    }
+  });
+
+  it("measures a place against the nearest OTHER slot's centre, never against its own", () => {
+    // In slot 5's pocket, on the line from its centre to home: as near slot 1 as slot 3.
+    const [x, z] = slotPosition(5);
+    const from = Math.hypot(x, z);
+    const drawnIn: [number, number] = [(x / from) * 850, (z / from) * 850];
+    const place = handPlace(5, drawnIn);
+    const toSlot = (order: number): number => distance(slotPosition(order), drawnIn);
+    expect([1, 3]).toContain(place.slot);
+    expect(place.distance).toBeCloseTo(Math.min(toSlot(1), toSlot(3)), 9);
+    expect(toSlot(1)).toBeCloseTo(toSlot(3), 6);
+    expect(place.room).toBeCloseTo(place.distance - promised, 9);
+    // Its own centre is 384 u away, nearer than either: that room is its own to give up.
+    expect(toSlot(5)).toBeLessThan(place.distance);
+    // The same place for a system of any other slot lies deep in slot 5's room: none to reach.
+    const other = handPlace(2, drawnIn);
+    expect(other.slot).toBe(5);
+    expect(other.room).toBeLessThan(0);
+  });
+
+  it('gives less room the further a place is drawn in, and none in the room of another slot', () => {
+    const [x, z] = slotPosition(5);
+    const from = Math.hypot(x, z);
+    const roomAt = (out: number): number => handPlace(5, [(x / from) * out, (z / from) * out]).room;
+    let before = roomAt(from);
+    for (let out = from - 50; out >= 350; out -= 50) {
+      const room = roomAt(out);
+      expect(room, `${out} u from home`).toBeLessThan(before);
+      before = room;
+    }
+    // 345 u from home the line passes nearest slots 1 and 3, 597.6 u from both: nearer than a
+    // full-size system there, with its gap, lets anything stand.
+    expect(roomAt(345)).toBeLessThan(0);
+    expect(handPlace(5, slotPosition(3)).room).toBeCloseTo(-promised, 9);
+  });
+
+  it('holds a place clear of every slot it could be near', () => {
+    // The slots it is not measured against are all far out: more than 2,800 u from the hub...
+    const slots = honeycomb(160, slotLimits());
+    const hub = slots[1] ?? [0, 0];
+    for (let order = SLOTS_KEPT + 1; order < slots.length; order += 1) {
+      expect(distance(slots[order] ?? [0, 0], hub), `slot ${order}`).toBeGreaterThan(
+        SLOTS_KEPT_WITHIN,
+      );
+    }
+    // ...so a place by hand within HAND_PLACE_WITHIN of the hub is further from each of them than
+    // two full-size systems and their gap need (whatever it reaches itself, up to full size), and
+    // the build refuses one further out (data/build.test.ts).
+    expect(SLOTS_KEPT_WITHIN - HAND_PLACE_WITHIN).toBeGreaterThanOrEqual(
+      2 * L.maxSystemRadius + L.minSystemGap + 1,
+    );
+  });
+
+  it('says how far a place is from the hub of the honeycomb', () => {
+    expect(handPlace(5, slotPosition(1)).fromHub).toBe(0);
+    expect(handPlace(5, [0, 0]).fromHub).toBeCloseTo(L.homeRoom, 9);
+    expect(handPlace(5, slotPosition(5)).fromHub).toBeCloseTo(L.slotRoom, 6);
   });
 });
 

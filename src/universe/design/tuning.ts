@@ -307,16 +307,40 @@ export const tuning = {
      * Names keep gapPx apart; one that shows already may stay until it is keepPx closer than that,
      * and one that waits needs the whole gap, so names do not blink while bodies drift past each
      * other (on the map, a place a name is not at needs keepPx to spare from the edges of the view
-     * too); never more than max at once.
+     * too); never more than max at once. (12 since 2026-10-03, 14 before: with the four systems
+     * side by side, a laptop's map zoomed in once has some twenty bodies in view, and the last two
+     * names of fourteen were the ones forever traded between them: 7.9 to 9.8 changes a minute in
+     * tests/map-names/'s sample there, 4.5 to 5.3 with twelve. A phone never shows that many.)
      */
     gapPx: 4,
     keepPx: 8,
-    max: 14,
+    max: 12,
     /**
      * On the map, a name that has just appeared, hidden or moved makes no other change of its own
      * accord for this long (s); it still makes way where it must (tests/map-names/).
      */
     dwellSec: 1,
+    /**
+     * On the map, a body that circles another gets its name once its orbit is this wide on screen
+     * (its radius, CSS px), and keeps it until the orbit is keepPx narrower: closer in, its name
+     * and its parent's take turns at the same places for as long as the map is open. Zooming in
+     * is what brings a moon's name. Measured with it and without, over whole turns
+     * (tests/map-names/): a phone's map zoomed in twice changes 1.0 to 1.7 times a minute against
+     * 4.3 to 6.1, a laptop's beside a page 3.6 times against 7.5. Keep it well under 35: Kalshi's
+     * orbit is 35 px wide on a 360 px phone's map nine times as close as it opens, where the moon
+     * must be named (tests/e2e/map.spec.ts). And not under 30: at 28 a laptop's map zoomed in
+     * twice names Kalshi (its orbit 29 px there) and changes 12.3 times a minute against 7.3.
+     * (40 is calmer still, a laptop's first view 3.4 changes a minute against 7.5, but leaves that
+     * moon unnamed on the small phone.)
+     */
+    orbitMinPx: 30,
+    /**
+     * On the map, while the view carries a body across the screen faster than this (CSS px a
+     * second: a finger's stroke, a pinch, a held key), its name is not juggled: none is slid along
+     * its body, and a planet's or a moon's keeps its place or goes and none comes; a system's may
+     * still come and change places. A body's own way round its orbit is a few px a second.
+     */
+    sweptPxPerSec: 360,
   } satisfies LabelsParams,
 
   /**
@@ -973,7 +997,8 @@ export const tuning = {
   layout: {
     /**
      * WHERE THE SYSTEMS ARE: these three, and each system's `order`, alone (data/layout.ts,
-     * slotPosition). Systems pack round home like a honeycomb: every one sits homeRoom u from
+     * slotPosition; a system may stand elsewhere in its own slot's room, by a `position` in its
+     * file: handPlace). Systems pack round home like a honeycomb: every one sits homeRoom u from
      * home (centre to centre), or further, and slotRoom u from any other, or further. Slot 1
      * stands clusterAxisDeg from home (degrees from +x toward +z) and the galaxy grows
      * symmetrically about that line: on a diagonal (45, 135...) a galaxy with an even number of

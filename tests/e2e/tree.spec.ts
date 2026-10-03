@@ -53,8 +53,8 @@ test('Projects is the binary’s page, shown from its first sun, Software', asyn
 
   await expect(heading(page)).toHaveText('Projects');
   // One section per sun, in the galaxy's order: the two suns of the binary first, then
-  // Hackathons; Research (slot 2) comes last because all its work is planned, so the first screen
-  // is finished work.
+  // Hackathons; Research comes last because all its work is planned, so the first screen is
+  // finished work (it is the last in the galaxy's order too: slot 5, since 2026-10-03).
   await expect(page.locator('main h2')).toHaveText([
     'Software',
     'Hardware',
