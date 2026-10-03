@@ -141,7 +141,10 @@ export class SkyBake implements System {
             this.options.seen,
           );
         },
-        () => this.fail(),
+        // (Of an older painting, as above: the one that replaced it has its own say.)
+        () => {
+          if (run === this.run) this.fail();
+        },
       );
     } catch {
       renderer.setRenderTarget(null);
