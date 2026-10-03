@@ -83,7 +83,7 @@ Three words of the vocabulary never change meaning:
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
   keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), what
   acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"), and the card of the deck
-  that is open (the ring before its title). The home system is butter
+  that is open (the ring before its title, and the station its leader ends on). The home system is butter
   too, so a focused butter key keeps a navy rim between its fill and the ring.
 - **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
   Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
@@ -132,6 +132,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | butter on the page / the panel / the HUD plate | 13.9 / 11.3 / 9.3 | the ring where it meets the ground outside it; the current page's bar under its word (plain / universe) |
 | `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
+| a family's base on `space.950` | 6.5 (lilac) to 14.8 (mint) | a leader's line on its casing, whatever the world shows under it; the open card's butter station on its rim (14.5) |
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
 | `surface.line` hairline on the page / the panel | 1.7 / 1.4 | decoration, not a boundary: the rules between legend rows, a status or date chip's outline, the resume's rail. Nothing is found by them alone |
@@ -216,7 +217,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, its family glyph turned navy, the station it stops at (every other tag shows the glyph in its family's base) | the body the ship is headed for |
 | On | The cream face: `ink.high`, navy words, no edge. A toggle is named for what it does next ("Close map", "Shrink"), so the sheet's button carries no `aria-pressed` ("Shrink, toggle button, pressed" contradicted itself) | the Map button while the map is open (`data-state='open'`; its M cap turns navy), the sheet's Shrink (`html[data-panel-size='full']`), "About this site" while its text shows (`aria-expanded`) |
 | Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the boost pad |
-| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
+| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail, the crumbs' dashes and the deck's leaders (on a `Canvas` casing, the open card's station `Highlight`) are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
 | More contrast | The HUD plate, the panel and the deck's cards are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
 
 ## The two modes
@@ -395,6 +396,18 @@ of, is in the table under The 3D world.
     30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
     its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
     `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+  **Leaders** tie the cards to the body, as Allen drew them: from each card (the middle of
+  its title row, on the edge that faces the body) a route line in the body's family, 3 px on a
+  7 px casing of `space.950` so that it reads on a white peak as on the night sky, runs straight
+  to the nearest point of the body's limb and ends in a station: a `space.900` disc in a 2 px
+  `ink.high` ring, 12 px across. They all make for the middle of the disc, so no two cross.
+  With a card open only its own leader is left; as the camera turns to what the card points at
+  and closes in, the line's end slides off the limb to that place, and its station is the
+  butter dot that stands before the open card's title (10 px, in a 2 px rim of `space.950`:
+  butter meets navy, never the world): here. The lines lie over the world and under the cards,
+  are nothing a visitor can press or a screen reader hears, and are away on the star map and
+  while the ship is not in orbit. In forced colours they are `CanvasText` on `Canvas`, the open
+  station `Highlight`.
   A section's cover picture is not in its card where the card's body is the planet itself
   (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
   wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
@@ -467,6 +480,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
 | The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders; and, while a card of the deck is open, how quickly it turns to that card's landmark (`faceOmega`, never faster than `faceMaxRadPerSec`), how far round from the middle of the disc the landmark rests, toward its card (`faceBiasDeg`), and how far it closes in (`focusFitRingRadii`) | `tuning.orbitCam` |
 | What each card of a page points at on its body: a latitude and a longitude for a card that should mean something (About's Rockets is the launch pad, each section of the resume a pod of the station), and where the rest point, evenly round the body | `design/worlds/landmarks.ts`; the ring: `tuning.deck` (`defaultLatDeg`, `defaultLonDeg`) |
+| The leaders from the cards to the body: the line, its casing and the stations (colours, widths), in the stylesheet; how big a station is | `.leaders` in `src/styles/global.css`; `tuning.deck.stopRadiusPx` |
 | Changing between cameras and making room for the panel: seconds from chase view to orbit view, how quickly the view slides over | `tuning.cameraRig` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 | Orbit assist: how fast and how far out a ship that lets go is eased onto a ring, how early a ship flying at a planet is swung round it | `tuning.assist` |

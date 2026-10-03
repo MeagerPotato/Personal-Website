@@ -479,6 +479,16 @@ export class Galaxy implements System {
     return true;
   }
 
+  /**
+   * The radius of body `id`'s GROUND as it is drawn, u: its radius, or less for planned work's
+   * maquette (0 for an unknown id). Whoever draws to the body's EDGE on screen measures with it:
+   * a body's reach in the simulation is its solid, out to its rings and signs.
+   */
+  ground(id: string): number {
+    const view = this.views.find((candidate) => candidate.body.id === id);
+    return view ? view.body.radius * (view.world?.share ?? 1) : 0;
+  }
+
   dispose(): void {
     for (const view of this.views.splice(0)) {
       view.planet?.dispose();

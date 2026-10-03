@@ -143,7 +143,8 @@ Each display frame:
 
 Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
 only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
-picker → labels → sky → stars → dust → the map's look → jobs → prompt → debug overlays. The
+picker → labels → leaders → sky → stars → dust → the map's look → jobs → prompt → debug
+overlays. The
 camera comes after everything it looks at (the ship AND the planets), so that it sees this
 frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
 star map comes BEFORE the galaxy, which draws every body at the size the map asks for.
@@ -174,6 +175,25 @@ With no card open it wanders on from where it is. It only ever turns ROUND the b
 never changes. A ship that arrives, and a view that comes back from the star map, start facing
 it; under reduced motion the turn is a cut. None of it is state: it follows from the deck
 (`setDeck`), which follows from the URL.
+
+**The leaders** (`ui/Leaders.ts`) are what the deck adds to the picture: a line from every card
+to the body, in ONE `<svg>` in the engine's mount, which lies under the page's content (a line
+seems to come out from under its card) and is hidden from assistive technology. They are
+decoration: nothing in them can be pressed, and nothing is said. The system comes after the
+labels because it needs this frame's picture, and it decides nothing about where anything is:
+the body's disc comes from the same map of the screen the picker and the names read
+(`BodiesOnScreen.disc()`), measured out to the body's GROUND (`Galaxy.ground()`: the map has a
+world out to its rings and signs, and planned work's maquette is smaller than its body), and the
+open card's landmark is put on screen through the same camera (`pointAt`). That is how a line
+follows a planet that turns and travels. In the overview every card's line runs straight from
+the card (the middle of its title row, on the edge that faces the body, as `setDeck` gave it) to
+the nearest point of the limb: all of them make for the middle of the disc, so no two can cross.
+With a card open only its line is left, and its end slides from the limb to the landmark with
+the orbit camera's `focus` (0 to 1: how far it has closed in). They show only while the ship is
+docked at the deck's body, the orbit camera is in charge and has arrived (`CameraRig.settled`:
+no blend is under way), and the star map is put away. What is written is rounded to tenths of a
+pixel and written only when it changed: a view at rest writes nothing. How they look is the
+stylesheet's (`.leaders`); `dispose()` takes the SVG away, so a rebuilt engine has one set.
 
 The mix itself (`mixPose`) is made for the long way out to the map. **Distance mixes by ratio:**
 from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u, so pulling out is one
@@ -470,8 +490,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   two things: what the cards leave free (`setPanelInset`, re-measured in the same task as the
   change, since nothing in the deck moves by width, height or position) and the deck itself
   (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
-  which card is open), which gives the wheel to the cards and tells the orbit camera what to
-  face (section 4).
+  which card is open), which gives the wheel to the cards, tells the orbit camera what to
+  face and gives every card its leader (section 4).
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered
@@ -591,7 +611,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
   in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
   44 px; the deck (`cards.spec.ts`: two columns, no card over another or outside the window, at
-  three sizes and with each card open; the wheel, the keys, Esc and Back among cards). They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
+  three sizes and with each card open; the wheel, the keys, Esc and Back among cards; a leader
+  from every card to one disc in the middle of what the cards leave free, the open card's to
+  its landmark on its card's side of that disc, none on the map, one set after a rebuild). They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
   they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
   CSP, 404). Looks and feel are judged there and on real phones; a number in a test cannot say

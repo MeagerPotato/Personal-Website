@@ -2165,6 +2165,84 @@ main > .resume-intro > .card-title--quiet {
   }
 
   /*
+   * THE LEADERS (universe/ui/Leaders.ts): a line from each card of the deck to the body the
+   * cards stand round, drawn as a route line that ends in a station. The engine makes them and
+   * says where each one runs; this is how they look. One SVG over the canvas and under the page,
+   * so a line seems to come out from under its card. `data-shown`: the body is framed.
+   * `data-on`: this card has its line now. `data-open`: its card is the open one, the line ends
+   * on what the card points at, and its station is butter: "here".
+   */
+  .leaders {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .leaders:not([data-shown]),
+  .leader:not([data-on]) {
+    visibility: hidden;
+  }
+
+  .leader__casing,
+  .leader__line {
+    fill: none;
+    stroke-linecap: round;
+  }
+
+  /* A rim of the dark round the line, so that it reads on a white peak as on the night sky. */
+  .leader__casing {
+    stroke: var(--color-space-950);
+    stroke-width: calc(var(--line) + 0.25rem);
+  }
+
+  .leader__line {
+    stroke: var(--theme-base);
+    stroke-width: var(--line);
+  }
+
+  /* A station on the limb: a navy disc in a white ring, which reads on the sky and on the ground. */
+  .leader__stop {
+    fill: var(--color-space-900);
+    stroke: var(--color-ink-high);
+    stroke-width: 2px;
+  }
+
+  /*
+   * The open card's: the butter dot that stands before its title, now on the body. Butter meets
+   * navy and never the world (a white peak, a pale pad): a rim of the dark, as wide as the
+   * line's, painted under the dot.
+   */
+  .leader[data-open] .leader__stop {
+    fill: var(--color-focus);
+    stroke: var(--color-space-950);
+    stroke-width: 0.25rem;
+    paint-order: stroke;
+  }
+
+  @media (forced-colors: active) {
+    .leader__casing {
+      stroke: Canvas;
+    }
+
+    .leader__line {
+      stroke: CanvasText;
+    }
+
+    .leader__stop {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+
+    .leader[data-open] .leader__stop {
+      fill: Highlight;
+      stroke: Canvas;
+    }
+  }
+
+  /*
    * The engine's own interactive DOM sits between the world and the page's chrome. The layer
    * itself takes no clicks: whatever is not a control belongs to the world.
    */

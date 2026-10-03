@@ -230,6 +230,11 @@ export class CameraRig implements System {
     return this.mode;
   }
 
+  /** No change of camera is under way: the picture is the mode in charge's own. */
+  get settled(): boolean {
+    return this.progress >= 1;
+  }
+
   /** The shape of the view right now, the free part of it included. A LIVE object: do not keep copies. */
   get shape(): ViewShape {
     return this.view;

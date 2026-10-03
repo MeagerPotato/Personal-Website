@@ -252,6 +252,26 @@ describe('the camera rig, changing modes', () => {
     expect(a.updates).toBe(asked);
   });
 
+  it('says when no change of view is under way: the picture is the mode in charge’s own', () => {
+    const a = new Looking(0, 0, 10, 50);
+    const b = new Looking(100, 1, 30, 40);
+    const { rig } = rigWith(a);
+    expect(rig.settled).toBe(true);
+    rig.use(b, 1);
+    expect(rig.settled).toBe(false);
+    for (let i = 0; i < 59; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.settled).toBe(false);
+    for (let i = 0; i < 2; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.settled).toBe(true);
+    // Turned back halfway, it is under way again; a cut is settled at once.
+    rig.use(a, 1);
+    for (let i = 0; i < 30; i += 1) rig.frameUpdate(frame(1 / 60));
+    rig.use(b, 1);
+    expect(rig.settled).toBe(false);
+    rig.use(a, 0);
+    expect(rig.settled).toBe(true);
+  });
+
   it('blends LIVE: both views keep following their subjects while it runs', () => {
     const chase = new Looking(0, 0, 10, 50, 60); // its subject flies along +Z at 60 u/s
     const orbit = new Looking(0, 0, 10, 50);

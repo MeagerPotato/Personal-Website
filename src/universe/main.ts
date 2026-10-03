@@ -23,6 +23,7 @@ import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
 import { Labels } from './ui/Labels';
+import { Leaders } from './ui/Leaders';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
@@ -93,8 +94,9 @@ export interface Booted {
   setInset(inset: ViewInset, cut: boolean): void;
   /**
    * The page's content stands round the docked body as cards, or (null) it does not (api.ts,
-   * `setDeck`). While a deck is set the wheel is the page's, and the orbit camera turns to the
-   * landmark of the card that is open (`cut`: at once).
+   * `setDeck`). While a deck is set the wheel is the page's, every card has a leader to the body
+   * (ui/Leaders.ts), and the orbit camera turns to the landmark of the card that is open (`cut`:
+   * at once).
    */
   setDeck(deck: Deck | null, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
@@ -338,6 +340,7 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  const themes = familiesOf(manifest);
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
   // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
   // whatever it is beside. Drawn so below; the names keep off it as drawn.
@@ -393,6 +396,32 @@ export function boot(
       }),
     );
   }
+
+  // A line from each card of the page's deck to the body the cards stand round, while that body
+  // is framed and nothing is in the way: the orbit view, arrived, and no star map.
+  engine.add(
+    new Leaders({
+      mount: options.mount,
+      deck: () => deck,
+      framed: (body, out) =>
+        body === framed &&
+        rig.active === orbit &&
+        rig.settled &&
+        !(starMap.weight > 0) &&
+        // Out to the edge of its GROUND, as that is drawn: the map of the screen has a world
+        // out to its rings and signs, and planned work's maquette is smaller than its body.
+        onScreen.disc(surroundings.orbits.indexOf(body), galaxy.ground(body), out),
+      landmark: (body, index, out) => {
+        const count = deck?.cards.length ?? 0;
+        const key = deck?.cards[index]?.key ?? '';
+        const at = landmarkOf(LANDMARKS, body, key, index, count, tuning.deck);
+        return galaxy.landmark(body, at, mark) && onScreen.pointAt(mark.x, mark.z, out, mark.y);
+      },
+      focus: () => orbit.focus,
+      themeOf: (body) => themes.get(body),
+      params: tuning.deck,
+    }),
+  );
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));

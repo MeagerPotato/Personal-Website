@@ -352,6 +352,11 @@ describe('a landmark on an emblem world', () => {
       planned.radius * tuning.world.plannedScale,
       6,
     );
+    // And the galaxy says how big a body's ground is drawn, for whoever draws to its edge.
+    expect(galaxy.ground(planned.id)).toBeCloseTo(planned.radius * tuning.world.plannedScale, 12);
+    const about = real.bodies.find((body) => body.id === 'page/about');
+    expect(galaxy.ground('page/about')).toBe(about?.radius);
+    expect(galaxy.ground('project/gone')).toBe(0);
     galaxy.dispose();
   });
 });

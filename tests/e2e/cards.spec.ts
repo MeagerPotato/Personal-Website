@@ -3,7 +3,8 @@
 // belongs to; the URL's fragment says which one is open, and none is the overview. What is
 // measured here is what the stylesheet and the shell promise each other: two columns and nothing
 // on top of anything, the fragment as the one state, and a keyboard that never rests on something
-// it cannot see.
+// it cannot see. And what the engine adds to them: a leader from every card to the body
+// (src/universe/ui/Leaders.ts), which for the open card ends on what that card points at.
 //
 // The desktop projects run at 1280 x 800 and see the deck. Run this file as a spec:
 //   npx playwright test tests/e2e/cards.spec.ts
@@ -14,8 +15,10 @@ import {
   collectErrors,
   engineReady,
   expect,
+  loseContext,
   openUniverse,
   pageContent,
+  rebuilt,
   softNavigate,
   test,
   universe,
@@ -132,6 +135,112 @@ async function notch(page: Page, dy: number): Promise<void> {
   await page.mouse.move(640, 400);
   await page.mouse.wheel(0, dy);
   await page.waitForTimeout(450);
+}
+
+/** A leader: which card's it is (0 is the first section), and where it runs, in window px. */
+interface Lead {
+  card: number;
+  open: boolean;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}
+
+/**
+ * The leaders as a visitor sees them (ui/Leaders.ts), in the cards' order: each from its card
+ * to the body. Read in one task, so all from one frame of the engine. Null while they are away
+ * or on their way in or out.
+ */
+const leaders = (page: Page): Promise<Lead[] | null> =>
+  page.evaluate(() => {
+    const all = document.querySelectorAll('#universe-host svg.leaders');
+    // One engine, one set: an engine that is taken down takes its own with it.
+    if (all.length > 1) throw new Error(`${all.length} sets of leaders`);
+    const svg = all[0];
+    if (!svg) return null;
+    const style = getComputedStyle(svg);
+    if (style.visibility !== 'visible' || style.opacity !== '1') return null;
+    const origin = svg.getBoundingClientRect();
+    return [...svg.querySelectorAll('g.leader')].flatMap((group, card) => {
+      if (getComputedStyle(group).visibility !== 'visible') return [];
+      const line = group.querySelector('.leader__line')?.getAttribute('d') ?? '';
+      const [x1 = NaN, y1 = NaN, x2 = NaN, y2 = NaN] = (line.match(/-?[\d.]+/g) ?? []).map(Number);
+      return [
+        {
+          card,
+          open: group.hasAttribute('data-open'),
+          from: { x: origin.left + x1, y: origin.top + y1 },
+          to: { x: origin.left + x2, y: origin.top + y2 },
+        },
+      ];
+    });
+  });
+
+const count = async (page: Page): Promise<number> => (await leaders(page))?.length ?? 0;
+
+/**
+ * The circle the leaders of an overview end on. Each line says "the middle of the body is
+ * somewhere along me": `x`, `y` is the point nearest all of them (least squares), `off` how far
+ * the worst line passes from it, `radius` how far from it the lines stop, and `spread` how much
+ * they differ in that. A disc seen from all round: `off` and `spread` are nothing.
+ */
+function discOf(lines: Lead[]) {
+  let [a, b, c, p, q] = [0, 0, 0, 0, 0];
+  const normals = lines.map(({ from, to }) => {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    const nx = -(to.y - from.y) / length;
+    const ny = (to.x - from.x) / length;
+    const d = nx * from.x + ny * from.y;
+    a += nx * nx;
+    b += nx * ny;
+    c += ny * ny;
+    p += nx * d;
+    q += ny * d;
+    return { nx, ny, d };
+  });
+  const x = (c * p - b * q) / (a * c - b * b);
+  const y = (a * q - b * p) / (a * c - b * b);
+  const radii = lines.map(({ to }) => Math.hypot(to.x - x, to.y - y));
+  return {
+    x,
+    y,
+    radius: Math.min(...radii),
+    spread: Math.max(...radii) - Math.min(...radii),
+    off: Math.max(...normals.map(({ nx, ny, d }) => Math.abs(nx * x + ny * y - d))),
+  };
+}
+
+/** The middle, across, of what the cards leave free: where the camera holds the body. */
+const middleOf = ({ free, width }: { free: { left: number; right: number }; width: number }) =>
+  (free.left + width - free.right) / 2;
+
+/**
+ * The open card's leader, once it is the only one and its end has come to rest (within a pixel
+ * between two looks a quarter of a second apart): the camera has turned to what the card points
+ * at and closed in, and holds it there while the body goes on turning.
+ */
+async function openLeader(page: Page): Promise<Lead> {
+  const seen: { lead: Lead | null } = { lead: null };
+  await expect
+    .poll(
+      async () => {
+        // The engine draws on animation frames: after two, it has drawn since the last look.
+        await page.evaluate(
+          () =>
+            new Promise<void>((done) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => done()));
+            }),
+        );
+        const now = (await leaders(page)) ?? [];
+        const only = now.length === 1 && now[0]?.open ? now[0] : null;
+        const last = seen.lead;
+        seen.lead = only;
+        return only && last ? Math.hypot(only.to.x - last.to.x, only.to.y - last.to.y) : NaN;
+      },
+      { intervals: [250], timeout: 30_000 },
+    )
+    .toBeLessThan(1);
+  if (!seen.lead) throw new Error('no leader');
+  return seen.lead;
 }
 
 async function seriousIssues(page: Page): Promise<string[]> {
@@ -527,6 +636,155 @@ test.describe('on a wide screen', () => {
         expect(apart, control).toBe(true);
       }
     }
+  });
+
+  test('every card has a leader to the body, and the open card’s ends on what it points at', async ({
+    page,
+  }) => {
+    test.slow();
+    await openUniverse(page, '/about/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+
+    // One for every section and none for the head, once the ship is in orbit and the view rests.
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+    const overview = await layout(page);
+    const lines = (await leaders(page)) ?? [];
+    expect(lines.map(({ card, open }) => ({ card, open }))).toEqual(
+      ABOUT.map((_, card) => ({ card, open: false })),
+    );
+    // Each begins on the edge of its card that faces the body, halfway up its title row (44 px)...
+    /**
+     * How far a leader begins from that place on card `box`, whose title row is `row` px. (The
+     * shell measures the cards in whole pixels, where they will rest and not where an animation
+     * has them: a box that is 307.2 px wide may put its line most of a pixel under its edge.)
+     */
+    const astray = (line: Lead, box: Box | undefined, row: number, width: number): number =>
+      box === undefined
+        ? NaN
+        : Math.hypot(
+            line.from.x - (box.left < width / 2 ? box.right : box.left),
+            line.from.y - (box.top + row / 2),
+          );
+    for (const line of lines) {
+      const box = overview.cards[line.card + 1];
+      expect(astray(line, box, 44, overview.width), `leader ${line.card}`).toBeLessThan(1.5);
+    }
+    // ...and they all make for one point and stop equally short of it: the limb of the body,
+    // which the camera holds in the middle of what the cards leave free. (So no two cross.)
+    const disc = discOf(lines);
+    expect(disc.off).toBeLessThan(1);
+    expect(disc.spread).toBeLessThan(1.5);
+    expect(disc.radius).toBeGreaterThan(40);
+    expect(Math.abs(disc.x - middleOf(overview))).toBeLessThan(3);
+
+    // A card open on the right: its leader alone, from the open card (a title row of 52 px)...
+    await title(page, 'robots').click();
+    const right = await openLeader(page);
+    let open = await layout(page);
+    expect(right.card).toBe(3);
+    expect(astray(right, open.cards[4], 52, open.width)).toBeLessThan(1.5);
+    // ...to what the card points at: a place on the body, round from the middle of its disc
+    // toward the card. (The body is as big with a card open as without: the camera closes in as
+    // much as the free part narrows, so the overview's disc, moved across, is the measure.)
+    expect(Math.hypot(right.to.x - middleOf(open), right.to.y - disc.y)).toBeLessThan(disc.radius);
+    expect(right.to.x - middleOf(open)).toBeGreaterThan(disc.radius / 8);
+    // Its station is butter, as the ring before the open card's title is: here.
+    const butter = await page.evaluate(() => {
+      const stop = document.querySelector('#universe-host .leader[data-open] .leader__stop');
+      const ring = document.querySelector('#robots > a');
+      return {
+        stop: stop && getComputedStyle(stop).fill,
+        ring: ring && getComputedStyle(ring, '::before').backgroundColor,
+      };
+    });
+    expect(butter.stop).toBe(butter.ring);
+    expect(butter.stop).toMatch(/^rgb/);
+
+    // One on the left, straight from the first: the body is turned the other way round.
+    await title(page, 'berkeley').click();
+    const left = await openLeader(page);
+    open = await layout(page);
+    expect(left.card).toBe(1);
+    expect(astray(left, open.cards[2], 52, open.width)).toBeLessThan(1.5);
+    expect(Math.hypot(left.to.x - middleOf(open), left.to.y - disc.y)).toBeLessThan(disc.radius);
+    expect(middleOf(open) - left.to.x).toBeGreaterThan(disc.radius / 8);
+
+    // Closed again, every card has its line back.
+    await page.keyboard.press('Escape');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+
+    // A planet that travels round its sun, in another family: five cards, five lines to its
+    // limb, in the colour of the band on its cards.
+    /** The colour of the lines, and of the band on the first section's card (in the left column). */
+    const family = () =>
+      page.evaluate(() => {
+        const line = document.querySelector('#universe-host .leader[data-on] .leader__line');
+        const card = document.querySelector('#main > section[data-card]');
+        return {
+          line: line && getComputedStyle(line).stroke,
+          band: card && getComputedStyle(card).borderRightColor,
+        };
+      });
+    const home = await family();
+    expect(home.line).toBe(home.band);
+    await softNavigate(page, '/projects/fishai/');
+    await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
+    await expect.poll(() => count(page)).toBe(5);
+    const planet = discOf((await leaders(page)) ?? []);
+    expect(planet.off).toBeLessThan(1);
+    expect(planet.spread).toBeLessThan(1.5);
+    const away = await family();
+    expect(away.line).toBe(away.band);
+    expect(away.line).not.toBe(home.line);
+  });
+
+  test('the leaders keep off the star map, and leave with the ship', async ({ page }) => {
+    await openUniverse(page, '/about/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+
+    // The map is another way of looking at the world: no card points at anything on it.
+    await page.keyboard.press('m');
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+    await expect.poll(() => leaders(page)).toBeNull();
+    await page.keyboard.press('m');
+    await expect(html(page)).not.toHaveAttribute('data-map');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+
+    // And with a card open, the one line: gone on the map, back when it closes. (The focus is
+    // on the card's title, where a key is the page's: the Map button it is.)
+    await title(page, 'security').click();
+    await expect.poll(() => count(page)).toBe(1);
+    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await expect(html(page)).toHaveAttribute('data-map', 'open');
+    await expect.poll(() => leaders(page)).toBeNull();
+    await page.keyboard.press('Escape');
+    await expect(html(page)).not.toHaveAttribute('data-map');
+    await expect.poll(() => count(page)).toBe(1);
+
+    // The ship leaves: the page closes, and nothing points at a body nobody is at.
+    await prompt(page).click();
+    await expect(html(page)).toHaveAttribute('data-panel', 'closed');
+    await expect.poll(() => leaders(page)).toBeNull();
+  });
+
+  test('the leaders are back after the engine is rebuilt, one set of them', async ({ page }) => {
+    await page.goto(`${universe('/about/')}#robots`);
+    await engineReady(page);
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect.poll(() => count(page)).toBe(1);
+
+    test.skip(!(await loseContext(page)), 'this browser cannot lose a context on request');
+    await expect.poll(() => rebuilt(page)).toBe(true);
+    await engineReady(page);
+
+    // The new engine was told the deck again (api.ts): the open card's line, and (`leaders`
+    // throws on two sets) the old engine's went with it.
+    await expect.poll(() => count(page)).toBe(1);
+    expect((await leaders(page))?.[0]).toMatchObject({ card: 3, open: true });
+    await page.keyboard.press('Escape');
+    await expect(html(page)).not.toHaveAttribute('data-card-open');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
   });
 
   test('a resize across the breakpoint keeps the card, in whichever layout the window has', async ({

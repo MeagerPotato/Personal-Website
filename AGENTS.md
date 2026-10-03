@@ -18,8 +18,9 @@ and every v0.1 page exist (home, about, resume, contact, projects, systems) and 
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
 narrow ones). On a wide screen (1280 x 576 px and up) a destination's content is a **deck of cards**
-round the docked body: every section a short card; opening one (a click, the wheel, the keys,
-`/about/#rockets`) shows it in full and turns the camera to that card's landmark. **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
+round the docked body: every section a short card with a **leader** to the body; opening one (a
+click, the wheel, the keys, `/about/#rockets`) shows it in full and turns the camera to that
+card's landmark, where its leader then ends. **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
 **galaxy is built from the real `/universe.json`**: every body (the planets and moons, the suns,
 home, the station, the satellite and the relays) drawn as its **emblem world** (`design/worlds/`:
@@ -251,7 +252,8 @@ that names no body, a card its page cannot have, a part that has moved on). The 
 they are a body's id and a heading's id, which is a fragment people link to. Judge it in flight:
 `sim/landmarks.ts` is the arithmetic, `Galaxy.landmark()` puts it in the world through the mesh's
 own transform, and `OrbitCam.face()` does the turn (`tuning.orbitCam`: `faceOmega`,
-`faceMaxRadPerSec`, `faceBiasDeg`, `focusFitRingRadii`).
+`faceMaxRadPerSec`, `faceBiasDeg`, `focusFitRingRadii`). The open card's leader ends on it
+(`ui/Leaders.ts`), so what a card points at is there to see.
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,
