@@ -83,7 +83,12 @@ export const FISHAI: TestPage = {
   title: 'fishai',
   current: '/projects/',
   currentValue: 'true',
-  main: '<h1 tabindex="-1">FishAI</h1><h2 id="the-bots">The bots</h2>',
+  // Cards, as the built pages have them (src/components/Card.astro): a head with the <h1>, then
+  // a section whose title links to its own fragment.
+  main:
+    '<div data-card><h1 tabindex="-1">FishAI</h1></div>' +
+    '<section data-card aria-labelledby="the-bots">' +
+    '<h2 id="the-bots"><a href="#the-bots">The bots</a></h2><p>Monet.</p></section>',
   extraHead:
     '<meta property="og:image" content="https://allenkh.com/x.jpg" data-page-head>' +
     '<script type="application/ld+json" data-page-head>{"@type":"SoftwareSourceCode"}</script>',

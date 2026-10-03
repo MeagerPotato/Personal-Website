@@ -1,14 +1,21 @@
 // How much of the viewport the page's chrome covers, so that the engine can put what matters in
-// the middle of what is LEFT (universe/camera/CameraRig.ts). The info panel is a column on the
-// right on wide screens and a sheet rising from the bottom on a phone held upright
-// (src/styles/global.css); the top bar is a row of chips over the sky, except on that same phone,
-// where it is two rows of solid plates with the HUD's own row (the Map button, the dock prompt)
-// hanging under it.
+// the middle of what is LEFT (universe/camera/CameraRig.ts). The page's content is a deck of
+// cards on both sides of the body on a wide screen (deck.ts), else a column on the right, or a
+// sheet rising from the bottom on a phone held upright (src/styles/global.css); the top bar is a
+// row of chips over the sky, except on that same phone, where it is two rows of solid plates
+// with the HUD's own row (the Map button, the dock prompt) hanging under it.
+
+import { DECK, deckInset } from './deck';
 
 export interface PanelInset {
   /** CSS pixels covered, measured from the right edge and from the bottom edge. */
   right: number;
   bottom: number;
+  /**
+   * CSS pixels covered from the LEFT edge: the left column of a deck of cards. 0 in every other
+   * layout (the panel is on the right, the sheet at the bottom).
+   */
+  left: number;
   /**
    * How far down the LINKS of the top bar reach. The engine's names over the planets must not lie
    * on them (on a phone the bar is two rows tall), nor may the star map.
@@ -33,8 +40,9 @@ export interface PanelInset {
 /**
  * The same query as the stylesheet's bottom sheet: narrow, and tall enough to share. A phone
  * held sideways has no height to split, so it gets the side panel and a one-row bar instead.
+ * (panel-inset.test.ts reads the stylesheet and holds the two together, and DECK likewise.)
  */
-const NARROW = '(max-width: 47.99rem) and (min-height: 30.01rem)';
+export const NARROW = '(max-width: 47.99rem) and (min-height: 30.01rem)';
 
 /**
  * The HUD's row under the bar, in rem: a gap of --space-3, then a 44 px chip (global.css,
@@ -65,16 +73,23 @@ export function panelInset(
   cover = 0,
 ): PanelInset {
   if (!open || panel.offsetWidth === 0 || panel.offsetHeight === 0) {
-    return { top, right: 0, bottom: 0, frameTop: 0 };
+    return { top, right: 0, bottom: 0, left: 0, frameTop: 0 };
   }
   return narrow
     ? {
         top,
         right: 0,
         bottom: Math.max(0, viewport.height - panel.offsetTop),
+        left: 0,
         frameTop: Math.max(0, cover),
       }
-    : { top, right: Math.max(0, viewport.width - panel.offsetLeft), bottom: 0, frameTop: 0 };
+    : {
+        top,
+        right: Math.max(0, viewport.width - panel.offsetLeft),
+        bottom: 0,
+        left: 0,
+        frameTop: 0,
+      };
 }
 
 /**
@@ -122,52 +137,77 @@ export function mirrorInset(
   root: { style: Pick<CSSStyleDeclaration, 'setProperty' | 'removeProperty'> },
   inset: PanelInset | null,
 ): void {
-  for (const side of ['top', 'right', 'bottom'] as const) {
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
     const name = `--panel-inset-${side}`;
     if (inset) root.style.setProperty(name, `${inset[side]}px`);
     else root.style.removeProperty(name);
   }
 }
 
+/** What watching the panel gives back. */
+export interface InsetWatch {
+  stop(): void;
+  /**
+   * Measure again now. Whatever resizes the panel or the window is seen without asking; a card
+   * that opens moves the columns of a deck inside a panel that stays as it is (cards.ts).
+   */
+  refresh(): void;
+}
+
+/** How far the body keeps from the cards beside it, in rem (--space-6). */
+const DECK_GAP_REM = 1.5;
+
 /**
  * Report the inset now and whenever it changes: the panel opens or closes (`data-panel` on
- * <html>), the sheet is expanded, the window is resized. `first` is true for the very first
- * report, which the camera should cut to rather than slide to. Returns the stop function.
+ * <html>), the sheet is expanded, the window is resized, or somebody asks (`refresh`). `first`
+ * is true for the very first report, which the camera should cut to rather than slide to.
  */
 export function watchPanelInset(
   onChange: (inset: PanelInset, first: boolean) => void,
   doc: Document = document,
-): () => void {
+): InsetWatch {
   const panel = doc.querySelector<HTMLElement>('.panel');
   const bar = doc.querySelector<HTMLElement>('.masthead');
   const controls = bar ? [...bar.querySelectorAll<HTMLElement>('a, button')] : [];
   const footer = doc.querySelector<HTMLElement>('.footer');
   const footControls = footer ? [...footer.querySelectorAll<HTMLElement>('a, button')] : [];
   const view = doc.defaultView;
-  if (!panel || !view) return () => undefined;
+  if (!panel || !view) return { stop: () => undefined, refresh: () => undefined };
 
   const root = doc.documentElement;
   const narrow = view.matchMedia(NARROW);
+  const wide = view.matchMedia(DECK);
   let last: PanelInset | null = null;
 
   const report = (): void => {
     const reach = barReach(controls);
     const rem = Number.parseFloat(view.getComputedStyle(root).fontSize) || 16;
     const cover = Math.round(reach + HUD_ROW_REM * rem);
-    const inset = panelInset(
-      panel,
-      root.dataset.panel === 'open',
-      narrow.matches,
-      { width: view.innerWidth, height: view.innerHeight },
-      reach,
-      cover,
-    );
+    const open = root.dataset.panel === 'open';
+    const viewport = { width: view.innerWidth, height: view.innerHeight };
+    // A deck: the page's cards in two columns, the head first (the same test as the stylesheet's).
+    const cards =
+      open && wide.matches
+        ? panel.querySelectorAll<HTMLElement>(':scope > main > [data-card]')
+        : [];
+    const head = cards[0];
+    const inset = head
+      ? deckInset(
+          head,
+          (cards.length > 1 && cards[cards.length - 1]) || null,
+          panel,
+          viewport,
+          reach,
+          DECK_GAP_REM * rem,
+        )
+      : panelInset(panel, open, narrow.matches, viewport, reach, cover);
     const foot = footReach(footControls);
     if (foot) inset.foot = foot;
     if (
       last &&
       last.right === inset.right &&
       last.bottom === inset.bottom &&
+      last.left === inset.left &&
       last.top === inset.top &&
       last.frameTop === inset.frameTop &&
       last.foot?.right === foot?.right &&
@@ -189,9 +229,16 @@ export function watchPanelInset(
   view.addEventListener('resize', report);
   report();
 
-  return () => {
-    attributes.disconnect();
-    size.disconnect();
-    view.removeEventListener('resize', report);
+  let watching = true;
+  return {
+    stop() {
+      watching = false;
+      attributes.disconnect();
+      size.disconnect();
+      view.removeEventListener('resize', report);
+    },
+    refresh() {
+      if (watching) report();
+    },
   };
 }

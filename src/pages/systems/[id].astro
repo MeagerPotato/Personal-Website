@@ -2,11 +2,13 @@
 // A sun and the planets that orbit it: a solar system's, or one of the two suns of a binary star.
 // A binary itself has no page here: the projects index is its page (it shows both suns).
 import type { InferGetStaticPropsType } from 'astro';
-import { getCollection, render } from 'astro:content';
+import { getCollection } from 'astro:content';
+import Card from '../../components/Card.astro';
 import Crumbs from '../../components/Crumbs.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
 import Base from '../../layouts/Base.astro';
+import { systemCards } from '../../site/cards';
 import { breadcrumbLd, pageTitle } from '../../site/seo';
 import { sunPages, systemView, visibleProjects } from '../../site/view-models';
 
@@ -21,7 +23,10 @@ const { entry } = Astro.props;
 const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
 const system = systemView(entry, systems, projects);
-const { Content } = await render(entry);
+const cards = systemCards(entry, {
+  link: system.link !== undefined,
+  twin: system.twin !== undefined,
+});
 ---
 
 <Base
@@ -29,39 +34,47 @@ const { Content } = await render(entry);
   description={system.tagline}
   jsonLd={[breadcrumbLd(system.crumbs, { label: system.name, href: system.href })]}
 >
-  <Crumbs crumbs={system.crumbs} />
+  <div data-card>
+    <Crumbs crumbs={system.crumbs} />
 
-  <PageHeader
-    eyebrow={system.eyebrow}
-    title={system.name}
-    lede={system.tagline}
-    theme={system.theme}
-  />
-
-  {system.link && (
-    <ul class="actions">
-      <li>
-        <a class="button button--primary" href={system.link.href} rel="noopener">
-          {system.link.label}
-          <span class="button__host">{system.link.host}</span>
-        </a>
-      </li>
-    </ul>
-  )}
-
-  <div class="prose">
-    <Content />
+    <PageHeader
+      eyebrow={system.eyebrow}
+      title={system.name}
+      lede={system.tagline}
+      theme={system.theme}
+    />
   </div>
 
-  {system.twin && (
-    <p class="twin">
-      One of the two suns of <a href={system.twin.binary.href}>{system.twin.binary.label}</a>; it
-      circles the centre opposite <a href={system.twin.other.href}>{system.twin.other.label}</a>.
-    </p>
+  {cards.about && (
+    <Card {...cards.about.card}>
+      {system.link && (
+        <ul class="actions">
+          <li>
+            <a class="button button--primary" href={system.link.href} rel="noopener">
+              {system.link.label}
+              <span class="button__host">{system.link.host}</span>
+            </a>
+          </li>
+        </ul>
+      )}
+
+      {cards.about.html !== '' && (
+        <div class="prose">
+          <Fragment set:html={cards.about.html} />
+        </div>
+      )}
+
+      {system.twin && (
+        <p class="twin">
+          One of the two suns of <a href={system.twin.binary.href}>{system.twin.binary.label}</a>;
+          it circles the centre opposite
+          <a href={system.twin.other.href}>{system.twin.other.label}</a>.
+        </p>
+      )}
+    </Card>
   )}
 
-  <section class="section" aria-labelledby="system-planets">
-    <h2 id="system-planets">Planets</h2>
+  <Card {...cards.planets} class="section">
     <ProjectCards cards={system.planets} />
-  </section>
+  </Card>
 </Base>

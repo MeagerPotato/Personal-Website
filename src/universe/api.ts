@@ -81,6 +81,31 @@ export interface UniverseOptions {
   debug?: { perf?: boolean; tweak?: boolean };
 }
 
+/**
+ * One card of a deck, as the engine needs to know it: which one (`key`: the id of its heading),
+ * where it is (the middle of the inner edge of its title row, the edge towards the body, in CSS
+ * px in the window), and which side of the body it stands on (-1 left, 1 right).
+ */
+export interface DeckCard {
+  key: string;
+  x: number;
+  y: number;
+  side: -1 | 1;
+}
+
+/**
+ * The page's content laid out as cards on both sides of the body its page belongs to, instead of
+ * in a panel or a sheet beside the world. The web layer lays the cards out and says which one is
+ * open; `open: null` means none is (all of them show, short).
+ */
+export interface Deck {
+  /** The body the cards stand round (an id of `/universe.json`), or null: the page has none. */
+  body: string | null;
+  cards: readonly DeckCard[];
+  /** The `key` of the card that is open, or null. */
+  open: string | null;
+}
+
 export type UniverseEvents = {
   /** The first frame is on screen. */
   ready: undefined;
@@ -146,9 +171,11 @@ export interface Universe {
    */
   snapshot(): unknown;
   /**
-   * How much of the viewport the info panel covers, in CSS pixels from the right and from the
-   * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
-   * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
+   * How much of the viewport the page's content covers, in CSS pixels from the right and from
+   * the bottom edge (the info panel, the sheet) and from the `left` one (content that stands on
+   * both sides of the body). The engine keeps what matters in the middle of what is left, without
+   * distorting it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout
+   * of a page.
    *
    * `top` is how far down the links of the page's top bar reach: the names over the bodies keep
    * clear of them, and so does the star map. `frameTop` is how much of the top the camera leaves
@@ -163,11 +190,20 @@ export interface Universe {
       top?: number;
       right?: number;
       bottom?: number;
+      left?: number;
       frameTop?: number;
       foot?: { right: number; top: number };
     },
     options?: { cut?: boolean },
   ): void;
+  /**
+   * The page's content is a deck of cards round the docked body (`Deck`), or (null) it is not.
+   * Like the inset it is the web layer's word, not the engine's state: it is kept here and a
+   * rebuilt engine is told again. While a deck is set the wheel is the page's, for stepping from
+   * card to card: scrolling out does not open the star map (M and the Map button do, and over the
+   * open map the wheel is the map's). `cut`: at once, as for the inset.
+   */
+  setDeck(deck: Deck | null, options?: { cut?: boolean }): void;
   setPaused(paused: boolean): void;
   dispose(): void;
 }
@@ -200,6 +236,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let last: Snapshot | null = null;
   /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
   let inset: ViewInset = {};
+  /** And on the page's cards, likewise. */
+  let deck: Deck | null = null;
   /** Likewise the map: a rebuilt engine opens on what the visitor was looking at. */
   let mapOpen = false;
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
@@ -297,6 +335,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     try {
       current = boot(options, hooks, { tier, forced }, snapshot);
       current.setInset(inset, true);
+      current.setDeck(deck, true);
       current.setMapOpen(mapOpen, true);
       current.engine.setPaused(paused);
     } catch (error) {
@@ -364,6 +403,11 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       inset = { ...next };
       // The panel itself does not slide under reduced motion (global.css); neither does the view.
       current?.setInset(inset, cut || options.reducedMotion === true);
+    },
+    setDeck: (next, { cut = false } = {}) => {
+      // A copy: the caller's cards may be measured again into the same objects.
+      deck = next && { ...next, cards: next.cards.map((card) => ({ ...card })) };
+      current?.setDeck(deck, cut || options.reducedMotion === true);
     },
     setPaused: (value) => {
       paused = value;

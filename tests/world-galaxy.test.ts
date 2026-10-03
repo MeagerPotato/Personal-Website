@@ -296,3 +296,67 @@ describe('the real galaxy, drawn from its rows', () => {
     expect(disposed).toHaveBeenCalledTimes(made);
   });
 });
+
+describe('a landmark on an emblem world', () => {
+  const DEG = Math.PI / 180;
+  const bodyOf = (id: string) => {
+    const found = real.bodies.find((body) => body.id === id);
+    if (!found) throw new Error(`no body '${id}'`);
+    return found;
+  };
+
+  it('is on the ground that turns, and goes round with it', () => {
+    const { galaxy, node, world } = setup();
+    galaxy.frameUpdate(frame(1));
+    const out = new Vector3();
+    const middle = node('page/about').position;
+    const turning = world('page/about').getObjectByName('turning');
+    if (!turning) throw new Error('About Me does not turn');
+
+    // The launch pad: far north, out at the ground.
+    expect(galaxy.landmark('page/about', { lat: 80, lon: 30 }, out)).toBe(true);
+    expect(out.distanceTo(middle)).toBeCloseTo(bodyOf('page/about').radius, 6);
+    expect(out.y).toBeCloseTo(bodyOf('page/about').radius * Math.sin(80 * DEG), 6);
+    // As far round as its longitude and the ground's own turn together.
+    const round = (): number => Math.atan2(out.x - middle.x, out.z - middle.z);
+    const turned = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
+    expect(round()).toBeCloseTo(turned(30 * DEG + turning.rotation.y), 9);
+
+    galaxy.frameUpdate(frame(2, 1));
+    galaxy.landmark('page/about', { lat: 80, lon: 30 }, out);
+    expect(round()).toBeCloseTo(turned(30 * DEG + turning.rotation.y), 9);
+    // What is held (the Circle Line and its stops) never turns: a landmark on it neither.
+    galaxy.landmark('page/about', { lat: 0, lon: 144, alt: 0.35, hold: true }, out);
+    expect(round()).toBeCloseTo(144 * DEG, 9);
+    expect(out.distanceTo(middle)).toBeCloseTo(1.35 * bodyOf('page/about').radius, 6);
+    galaxy.dispose();
+  });
+
+  it('holds still on a body nothing of which turns, and is as small as planned work is drawn', () => {
+    const { galaxy, node } = setup();
+    galaxy.frameUpdate(frame(1));
+    const out = new Vector3();
+    // The Resume station holds its pose: a pod is where its row puts it, turn or no turn.
+    galaxy.landmark('page/resume', { lat: 0, lon: 90 }, out);
+    const station = node('page/resume').position;
+    expect(Math.atan2(out.x - station.x, out.z - station.z)).toBeCloseTo(90 * DEG, 9);
+    galaxy.frameUpdate(frame(9, 8));
+    galaxy.landmark('page/resume', { lat: 0, lon: 90 }, out);
+    expect(Math.atan2(out.x - station.x, out.z - station.z)).toBeCloseTo(90 * DEG, 9);
+
+    // Planned work is a maquette at plannedScale of its size: so is where its landmarks are.
+    const planned = real.bodies.find((body) => body.planned === true && body.kind === 'planet');
+    if (!planned) throw new Error('the galaxy has no planned planet');
+    galaxy.landmark(planned.id, { lat: 10, lon: 200 }, out);
+    expect(out.distanceTo(node(planned.id).position)).toBeCloseTo(
+      planned.radius * tuning.world.plannedScale,
+      6,
+    );
+    // And the galaxy says how big a body's ground is drawn, for whoever draws to its edge.
+    expect(galaxy.ground(planned.id)).toBeCloseTo(planned.radius * tuning.world.plannedScale, 12);
+    const about = real.bodies.find((body) => body.id === 'page/about');
+    expect(galaxy.ground('page/about')).toBe(about?.radius);
+    expect(galaxy.ground('project/gone')).toBe(0);
+    galaxy.dispose();
+  });
+});

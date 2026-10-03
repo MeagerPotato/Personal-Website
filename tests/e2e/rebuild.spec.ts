@@ -4,30 +4,19 @@
 // page last asked of the engine (here: the star map) still in force.
 
 import type { Page } from '@playwright/test';
-import { engineReady, expect, openUniverse, test, watchText } from './support';
+import {
+  engineReady,
+  expect,
+  loseContext,
+  openUniverse,
+  rebuilt,
+  test,
+  watchText,
+} from './support';
 
 const html = (page: Page) => page.locator('html');
 const prompt = (page: Page) => page.locator('.dock-prompt');
 const pathOf = (page: Page): string => new URL(page.url()).pathname;
-
-/** Take the context away, the way a browser would. Answers false where that cannot be done. */
-function loseContext(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');
-    if (!canvas) return false;
-    canvas.setAttribute('data-e2e-canvas', 'lost');
-    // The canvas has a context already, and asking again hands back that very one.
-    const lose = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
-    lose?.loseContext();
-    return Boolean(lose);
-  });
-}
-
-const rebuilt = (page: Page): Promise<boolean> =>
-  page.evaluate(() => {
-    const canvas = document.querySelector('#universe-host canvas');
-    return canvas !== null && canvas.getAttribute('data-e2e-canvas') !== 'lost';
-  });
 
 test('a lost WebGL context is rebuilt, docked where it was, with the page still open', async ({
   page,
