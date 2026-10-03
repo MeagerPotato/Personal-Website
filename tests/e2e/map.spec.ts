@@ -412,23 +412,21 @@ function againAtRest(changes: readonly NameChange[]): string[] {
 const STEPS_PER_SECOND = 60;
 
 /**
- * Research is at the bottom edge of the galaxy, and all its work is planned: the planet Sports
- * Analysis, and Kalshi, its moon. 610 s into a visit (planted: the time is part of what a page
- * keeps) the planet is on its way round to due south of its sun, and its moon to due south of it:
- * the very bottom of everything, under the screen's last row of names and the Plain version chip.
- * Fingers bring them in, as a visitor's would: two spread about the sun, and the map slides (at
- * the edge of the galaxy it would rather do that than show empty space past it: sim/mapView.ts,
- * clampView); one drags the sun back to the middle of the map, as far as the map goes; twice, and
- * the map is all the way in. Both names show, wholly on the screen. (Measured headless over a
- * whole turn of the binary, in this view, each look taken afresh: before a name had other places
- * than below its body or above it, the two never showed together, and neither showed most of the
- * time; now both show two times in three on a 360 px phone and four in five on a Pixel 7, and
- * the planet's alone nearly all the rest. The moments in between are not this one.)
+ * Research is at the top edge of the galaxy (since 2026-10-03: until then it was at the bottom),
+ * and all its work is planned: the planet Sports Analysis, and Kalshi, its moon. 495 s into a
+ * visit (planted: the time is part of what a page keeps) the planet comes round to due north of
+ * its sun, and its moon to due north of it: the very top of everything, under the top bar and
+ * the Close map button. Fingers bring them in, as a visitor's would: two spread about the sun,
+ * and the map slides (at the edge of the galaxy it would rather do that than show empty space
+ * past it: sim/mapView.ts, clampView); one drags the sun back to the middle of the map, as far as
+ * the map goes; twice, and the map is nine times as close. Both names show, wholly on the screen.
+ * (Tried in the browser at five moments of the planet's turn, on both phones: 140, 320, 430, 495
+ * and 610 s into a visit, the planet to every side of its sun; both names showed at each.)
  */
 async function researchUpClose(page: Page): Promise<void> {
   await openUniverse(page, '/');
   const first = await keptNow(page);
-  await loadWith(page, { ...first, steps: 610 * STEPS_PER_SECOND }, '/');
+  await loadWith(page, { ...first, steps: 495 * STEPS_PER_SECOND }, '/');
   await openButton(page).tap();
   await mapOpen(page, 'Research');
   const size = page.viewportSize() ?? { width: 412, height: 839 };
@@ -576,30 +574,35 @@ test.describe('on a laptop', () => {
     const before = await bodyOf(nameOf(page, 'Software'));
     const clear = await clearOfNames(page);
 
-    // The real galaxy (home and three systems round it) is about as wide as it is tall: fitted
-    // top to bottom, it leaves a laptop's screen room on either side. From empty space (the lower
-    // right, between Research and the Projects binary: nobody's), to the left.
-    expect(clear(1000, 600)).toBe(true);
-    await page.mouse.move(1000, 600);
+    // The real galaxy (home and three systems round it) is not twice as wide as it is tall:
+    // fitted top to bottom, it leaves a laptop's screen some room on either side, about a hundred
+    // pixels each way. From empty space (the lower right corner, past the Projects binary:
+    // nobody's), to the left, by half of that.
+    expect(clear(1200, 730)).toBe(true);
+    await page.mouse.move(1200, 730);
     await page.mouse.down();
-    await page.mouse.move(950, 600, { steps: 8 });
-    await page.mouse.move(900, 600, { steps: 8 });
+    await page.mouse.move(1175, 730, { steps: 8 });
+    await page.mouse.move(1150, 730, { steps: 8 });
     await page.mouse.up();
     const after = await bodyOf(nameOf(page, 'Software'));
-    expect(after.x - before.x).toBeGreaterThan(-105);
-    expect(after.x - before.x).toBeLessThan(-95);
+    expect(after.x - before.x).toBeGreaterThan(-55);
+    expect(after.x - before.x).toBeLessThan(-45);
     expect(Math.abs(after.y - before.y)).toBeLessThan(3);
 
-    // However far it is dragged, the galaxy stays on the screen: past it is only empty space.
-    expect(clear(900, 600)).toBe(true);
-    await page.mouse.move(900, 600);
+    // However far it is dragged, the galaxy stays on the screen: past it is only empty space, and
+    // the map stops with the galaxy's edge a name's height inside its own.
+    expect((await clearOfNames(page))(1150, 730)).toBe(true);
+    await page.mouse.move(1150, 730);
     await page.mouse.down();
-    await page.mouse.move(100, 600, { steps: 16 });
+    await page.mouse.move(350, 730, { steps: 16 });
     await page.mouse.up();
     const home = await bodyOf(nameOf(page, 'About Me'));
     expect(home.x).toBeGreaterThan(0);
     const software = await bodyOf(nameOf(page, 'Software'));
-    expect(after.x - software.x).toBeLessThan(400);
+    expect(after.x - software.x).toBeGreaterThan(0);
+    expect(after.x - software.x).toBeLessThan(200);
+    const hackathons = await bodyOf(nameOf(page, 'Hackathons'));
+    expect(hackathons.x).toBeGreaterThan(0);
 
     // It was a drag, not a click: the ship goes nowhere, and the map stays.
     await expect(html(page)).toHaveAttribute('data-map', 'open');
@@ -702,8 +705,9 @@ test.describe('on a phone', () => {
     const home = await bodyOf(nameOf(page, 'About Me'));
 
     // Two fingers spread from 40 px apart to 120, beside the home planet, wherever they come down
-    // clear of every name: three times as close, the galaxy is taller than a phone's map as well
-    // as wider, and the map can go up and down (measured: more than 60 px either way).
+    // clear of every name: three times as close, the galaxy is wider than a phone's map, though
+    // not as tall. About the home planet, at its bottom edge, the map comes to rest against that
+    // edge, and has room to go up from there (the finger's way down) as well as across.
     const offsets = [
       { x: 0, y: -40 },
       { x: 0, y: 40 },

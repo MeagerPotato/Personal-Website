@@ -683,7 +683,7 @@ describe('declutter, with places', () => {
     expect(tries(true)).toBe(without);
   });
 
-  it('together, tries some 4,000 places a call at most, and after a search that found nothing rests', () => {
+  it('together, tries some 16,000 places a call at most, and after a search that found nothing rests', () => {
     // Nine systems' names, eight places each, in five slots that hold one name each: every way of
     // placing them shows five. The greedy pass shows five, and the search cannot do better.
     const SLOTS = 5;
@@ -699,8 +699,8 @@ describe('declutter, with places', () => {
     expect(shown(boxes).filter(Boolean)).toHaveLength(SLOTS);
     // It ran out of tries, all its passes together (and a label's worth more, at most, to see
     // whether the rest have room at all).
-    expect(boxes.tally[0]).toBeGreaterThan(3500);
-    expect(boxes.tally[0]).toBeLessThanOrEqual(4000 + 9 * 8);
+    expect(boxes.tally[0]).toBeGreaterThan(15500);
+    expect(boxes.tally[0]).toBeLessThanOrEqual(16000 + 9 * 8);
     // The next nine calls (frames) it does not search again, while as many show and wait...
     for (let call = 0; call < 9; call += 1) {
       declutter(boxes, PARAMS, undefined, NINE);
