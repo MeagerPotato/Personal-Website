@@ -17,6 +17,14 @@ import {
   toSitePath,
 } from '../scripts/lib/html.mjs';
 import {
+  MAX_CARDS,
+  cardProblems,
+  childrenOf,
+  elementsOf,
+  homeCardProblems,
+  idsOf,
+} from '../scripts/lib/cards.mjs';
+import {
   CLOSE_UP_BUDGET,
   CLOSE_UP_CHUNK,
   CLOSE_UP_MARKERS,
@@ -31,6 +39,7 @@ import {
   resumePdfProblems,
   sha256,
 } from '../scripts/lib/resume-pdf.mjs';
+import { MAX_CARDS as PAGE_HAS_ROOM_FOR } from '../src/site/cards';
 import { routes } from '../src/site/routes';
 
 describe('parseAttributes', () => {
@@ -220,6 +229,166 @@ describe('mainContent', () => {
   });
 });
 
+describe('the card contract', () => {
+  const head =
+    '<div data-card><header class="page-header"><h1 tabindex="-1">About</h1></header></div>';
+  const card = (id: string, body = '<p>Text.</p>', title = id) =>
+    `<section data-card class="prose" aria-labelledby="${id}"> ` +
+    `<h2 id="${id}"> <a href="#${id}">${title}</a> </h2> ${body} </section>`;
+  const page = (main: string) =>
+    '<!doctype html><html lang="en"><head><title>t</title></head><body>' +
+    `<a class="skip-link" href="#main">Skip</a><div id="universe-host"></div>` +
+    `<main id="main" tabindex="-1" data-flight-keys="off"> ${main} </main><footer>f</footer></body></html>`;
+  const cards = (count: number) =>
+    Array.from({ length: count }, (_, index) => card(`s${index + 1}`)).join('');
+
+  it('passes a head and its section cards, as the pages are built', () => {
+    expect(cardProblems(page(head + card('rockets') + card('robots')))).toEqual([]);
+    // A head alone is a page too, and so is a title with a drawing before its link.
+    expect(cardProblems(page(head))).toEqual([]);
+    const sun =
+      '<section data-card class="section system" aria-labelledby="system-software" data-theme="sky">' +
+      '<h2 id="system-software"><span class="sun-dot" aria-hidden="true"></span> ' +
+      '<a href="#system-software">Software</a></h2><p>Code.</p></section>';
+    expect(cardProblems(page(head + sun))).toEqual([]);
+    // A quiet title is a title like any other.
+    const quiet =
+      '<section data-card aria-labelledby="project-glance"><h2 id="project-glance" ' +
+      'class="card-title--quiet"><a href="#project-glance">At a glance</a></h2><dl></dl></section>';
+    expect(cardProblems(page(head + quiet))).toEqual([]);
+  });
+
+  it('has room for as many section cards as the pages may have', () => {
+    expect(MAX_CARDS).toBe(PAGE_HAS_ROOM_FOR);
+    expect(cardProblems(page(head + cards(MAX_CARDS)))).toEqual([]);
+    expect(cardProblems(page(head + cards(MAX_CARDS + 1)))).toEqual([
+      '9 section cards; a page has room for 8',
+    ]);
+  });
+
+  it('refuses anything in <main> that is not in a card', () => {
+    expect(cardProblems(page(`${head}<p>Loose.</p>${card('a')}`))).toEqual([
+      'child 2 of <main> (<p>) is not a card: everything inside <main> goes into a card',
+    ]);
+    expect(cardProblems(page(''))).toEqual([
+      '<main> is empty: a page is a head card and section cards',
+    ]);
+  });
+
+  it('wants the head first: a <div> with the one <h1>', () => {
+    expect(cardProblems(page(card('a') + head))).toEqual([
+      expect.stringMatching(/^child 1 of <main> \(<section>\) must be the head/),
+      expect.stringMatching(/^child 2 of <main> \(<div>\) must be a <section data-card>/),
+    ]);
+    expect(cardProblems(page('<div data-card><p>No heading.</p></div>'))).toEqual([
+      expect.stringMatching(
+        /must be the head, a <div data-card> holding the one <h1> \(it holds 0\)/,
+      ),
+    ]);
+    // The page's heading is the head's: not a section's as well.
+    expect(cardProblems(page(head + card('a', '<h1>Again</h1>')))).toEqual([
+      expect.stringMatching(/^child 2 of <main> \(<section>\) holds an <h1>/),
+    ]);
+  });
+
+  it('wants every section card to open with its title: an <h2 id> linked to itself', () => {
+    const problems = (section: string) => cardProblems(page(head + section));
+    expect(
+      problems(
+        '<section data-card aria-labelledby="a"><p>Text.</p><h2 id="a"><a href="#a">A</a></h2></section>',
+      ),
+    ).toEqual([expect.stringMatching(/must open with its title, an <h2 id>/)]);
+    expect(problems('<section data-card><h2><a href="#a">A</a></h2></section>')).toEqual([
+      expect.stringMatching(/must open with its title, an <h2 id>/),
+    ]);
+    // No link, a link to somewhere else, two links.
+    expect(problems('<section data-card aria-labelledby="a"><h2 id="a">A</h2></section>')).toEqual([
+      'child 2 of <main> (<section>): the title "a" must hold exactly one link, to its own fragment (href="#a")',
+    ]);
+    expect(
+      problems(
+        '<section data-card aria-labelledby="a"><h2 id="a"><a href="/systems/a/">A</a></h2></section>',
+      ),
+    ).toHaveLength(1);
+    expect(
+      problems(
+        '<section data-card aria-labelledby="a"><h2 id="a"><a href="#a">A</a> <a href="#a">again</a></h2></section>',
+      ),
+    ).toHaveLength(1);
+    // A section is named by its title.
+    expect(problems('<section data-card><h2 id="a"><a href="#a">A</a></h2></section>')).toEqual([
+      'child 2 of <main> (<section>) must be named by its title (aria-labelledby="a")',
+    ]);
+  });
+
+  it('refuses an id used twice in the page: a card is found by its fragment', () => {
+    expect(cardProblems(page(head + card('a') + card('a')))).toEqual([
+      expect.stringMatching(/the id "a" is used 2 times in the page/),
+      expect.stringMatching(/the id "a" is used 2 times in the page/),
+    ]);
+    // Anywhere in the page: a heading called "Main" would take the id of <main> itself.
+    expect(cardProblems(page(head + card('main')))).toEqual([
+      expect.stringMatching(/the id "main" is used 2 times in the page/),
+    ]);
+    // An id inside a card that is its own is fine.
+    expect(cardProblems(page(head + card('a', '<h3 id="a-1">Smaller</h3>')))).toEqual([]);
+  });
+
+  it('refuses a card inside a card, and state on a card', () => {
+    expect(cardProblems(page(head + card('a', card('b'))))).toEqual([
+      'child 2 of <main> (<section>) has a card inside it: cards do not nest',
+    ]);
+    for (const state of ['tabindex="-1"', 'hidden', 'aria-expanded="false"']) {
+      const stateful = card('a').replace('<section data-card', `<section data-card ${state}`);
+      expect(cardProblems(page(head + stateful))).toEqual([
+        expect.stringMatching(/a card carries no state \(state goes on <html>\)/),
+      ]);
+    }
+    expect(
+      cardProblems(page(head.replace('<div data-card', '<div data-card hidden'))),
+    ).toHaveLength(1);
+  });
+
+  it('says so when the markup inside <main> does not balance', () => {
+    expect(cardProblems(page(`${head}<section data-card><p>Open.</section>`))).toEqual([
+      expect.stringMatching(/^its cards cannot be read: <\/section> where <p> is still open/),
+    ]);
+    expect(() => cardProblems('<p>no main</p>')).toThrow(/one <main>/);
+  });
+
+  it('keeps the home page free of cards: its welcome text is one panel', () => {
+    const home = page('<div data-home><h1>Hi</h1><p>Welcome.</p></div>');
+    expect(homeCardProblems(home)).toEqual([]);
+    expect(homeCardProblems(page(head))).toEqual([
+      'the home page has a card: it is the one page whose <main> is not a list of cards',
+    ]);
+    // Deep inside counts too.
+    expect(homeCardProblems(page('<div><section data-card></section></div>'))).toHaveLength(1);
+  });
+
+  it('reads elements with their depth, what they hold, and every id of a page', () => {
+    const html =
+      '<!-- <p id="no"> --><div id="a" class="x"><p>One<br>two <img src="/a.png" alt="a > b"></p>' +
+      '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg></div><script>var s = "<p id=\'no\'>";</script><p id="b">B</p>';
+    expect(elementsOf(html).map(({ name, depth }) => [name, depth])).toEqual([
+      ['div', 0],
+      ['p', 1],
+      ['br', 2],
+      ['img', 2],
+      ['svg', 1],
+      ['path', 2],
+      ['script', 0],
+      ['p', 0],
+    ]);
+    expect(childrenOf(html).map((element) => element.name)).toEqual(['div', 'script', 'p']);
+    expect(childrenOf(html)[2]).toEqual({ name: 'p', attrs: { id: 'b' }, inner: 'B', depth: 0 });
+    expect(idsOf(html)).toEqual(['a', 'b']);
+    expect(() => elementsOf('<div><p>Open.</div>')).toThrow('</div> where <p> is still open');
+    expect(() => elementsOf('<div>')).toThrow('<div> is never closed');
+    expect(() => elementsOf('</div>')).toThrow('</div> closes nothing');
+  });
+});
+
 describe("the resume's PDF", () => {
   const html = (main: string, head = '') =>
     `<head><title>Resume</title>${head}</head><body><main id="main">${main}</main><footer>f</footer>`;
@@ -273,6 +442,25 @@ describe("the resume's PDF", () => {
       print,
     );
     expect(printedContent(page('R', 'i', 'b', 'e'))).not.toMatch(/page-header|screen-only|actions/);
+  });
+
+  it('ignores a quiet title too, which paper leaves out, and no title that is printed', () => {
+    // The resume as cards: the head, the first card under its quiet title, a section.
+    const page = (quiet: string, shown: string) =>
+      html(
+        '<div data-card><header class="page-header"><h1 tabindex="-1">Resume</h1></header></div>' +
+          '<section data-card class="resume-intro" aria-labelledby="resume-contact"> ' +
+          `<h2 id="resume-contact" class="card-title--quiet"> <a href="#resume-contact">${quiet}</a> </h2>` +
+          '<p class="resume-name">Allen Hsieh</p></section>' +
+          '<section data-card class="resume-section" aria-labelledby="resume-skills"> ' +
+          `<h2 id="resume-skills"> <a href="#resume-skills">${shown}</a> </h2><p>Python</p></section>`,
+      );
+    const print = resumeFingerprint(page('Contact and PDF', 'Skills'), CSS);
+    expect(resumeFingerprint(page('How to reach me', 'Skills'), CSS)).toBe(print);
+    expect(resumeFingerprint(page('Contact and PDF', 'Tools'), CSS)).not.toBe(print);
+    const printed = printedContent(page('Contact and PDF', 'Skills'));
+    expect(printed).not.toMatch(/card-title--quiet|Contact and PDF/);
+    expect(printed).toContain('<a href="#resume-skills">Skills</a>');
   });
 
   it('refuses a stylesheet without its print section', () => {

@@ -263,7 +263,16 @@ transit map.
   colour on every page.
 - **The projects page:** each solar system is a line whose first station, the terminus, is its
   sun, with the family's glyph cut out of it like a line's bullet on a transit map. The tagline is
-  the sun's caption.
+  the sun's caption, and under it one line, "The Software system" (`sm`, 600), is the way to the
+  sun's own page.
+- **A section's title is a link to itself** (`/about/#rockets` is that section). It looks like
+  the heading it is, `ink.high` and not underlined; a mouse lights it in the family's light and
+  underlines it. Its room for a finger (44 px) lies round the words and takes no space. A part
+  of a page with no heading of its own (a project's facts, the opening of About, the resume's
+  contact line) has a **quiet title**: a heading for a screen reader, unseen until its link has
+  the keyboard's focus, when it shows as a small label (`sm`, 600) on a plate of the ground in
+  the gap above its part, so that nothing on the page moves. On paper a title is plain black
+  words and a quiet title is gone.
 - **A project's page:** the facts are a legend plate (`surface.panel`, a 4 px band in the family,
   a ledge), their labels in the family's light, in caps; what it is built with is a row of tags
   tinted in the family (12 %) with a hairline edge; the cover sits in a hairline frame.

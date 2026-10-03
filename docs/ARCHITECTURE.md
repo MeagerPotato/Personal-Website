@@ -39,6 +39,7 @@ the attributes back to plain. Nothing reloads: the content was in the DOM all al
 ```
 src/content/**  (Markdown + resume.yaml)
    |  Astro content collections, schemas from src/site/schemas.ts (plain Zod)
+   |  src/site/cards.ts             which cards a page has; a text cut at its ## headings  (pure)
    v
 src/pages/*.astro --------------------------> dist/**/index.html      the content, for both modes
    |
@@ -56,6 +57,15 @@ so adding a project never moves an existing planet. Systems sit on a honeycomb o
 ring, so a new system moves no other, and nothing but those keys can move one (a test pins orders
 1 to 8 until `galaxy.lock.json` does). The build refuses rooms that no longer fit the tripwires
 (a system no wider than `maxSystemRadius`, and `minSystemGap` between two).
+
+Inside `<main>` a page is a list of **cards** (AGENTS.md, invariant 11): a head with the one
+`<h1>`, then at most eight sections, each opening with a heading whose words link to the card's
+own fragment, so `/about/#rockets` names a card. `src/site/sections.ts` cuts a text's rendered
+HTML at its `##` headings (a scanner that counts the open tags: no Markdown plugin),
+`src/site/cards.ts` says which cards each kind of page has and refuses a ninth, and
+`components/Card.astro` is the markup. Every layout of today draws a card as a plain block, so a
+page still reads as one column; the cards are what a layout that stands them round a planet
+will take hold of.
 
 The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
 `/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
@@ -494,7 +504,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   history rules, the panel, the swap contract, the hint card, the announcer.
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
-  page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
+  page identical outside `<main>` and `[data-page-head]` and, inside `<main>`, the cards that
+  invariant 11 describes (`scripts/lib/cards.mjs`), nothing dev-only (`/lab`, lil-gui) and
   no `TODO(copy)` in `dist/`; and every old URL in `_redirects` (`/systems/code/`) is one exact
   path, 301, to a page of the build that no page links past (`scripts/lib/redirects.mjs`).
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries

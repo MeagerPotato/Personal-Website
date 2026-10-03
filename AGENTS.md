@@ -85,7 +85,11 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
     page is byte-identical, and every page has exactly one `<h1>`. The router (Phase 2) swaps only
     those parts, so this is what makes a soft navigation end in the same DOM as a hard one. One
     documented exception: `aria-current` on the main nav, derived by `src/site/nav.ts` on both
-    sides. The plain-only 404 is exempt. `verify-dist` enforces all of it.
+    sides. The plain-only 404 is exempt. `verify-dist` enforces all of it. Inside `<main>`, every
+    page but home and the 404 is a list of cards: a first `<div data-card>` with the one `<h1>`,
+    then at most eight `<section data-card>`, each starting with an `<h2 id>` whose text links to
+    its own fragment. Nothing writes inside `<main>` at run time: state goes on `<html>`.
+    `verify-dist` enforces the shape.
 
 Invariants 5, 6, 7 and 10 (its import rule) are lint rules (`eslint.config.js`); `tests/lint-boundaries.test.ts`
 proves they still bite. **Flat-config gotcha:** a later block's rule _replaces_ an earlier block's
@@ -288,6 +292,13 @@ belongs in the main nav is one line in `src/config/site.ts`. For search engines 
 previews, pass `jsonLd` (nodes from `src/site/seo.ts`) and, if the page has a picture of its
 own, `image`; otherwise it gets the site's card, `/og/default.png`, which
 `src/site/og.ts` draws from the tokens. Any new per-page `<head>` node needs `data-page-head`.
+Everything in `<main>` goes into cards: a first `<div data-card>` with `Crumbs` and `PageHeader`,
+then `Card` components (`MarkdownCards` for Markdown split by `sectionize`,
+`src/site/sections.ts`). Eight at most; the head holds the sign, the `<h1>` and the lede only.
+Which cards a page has, and the id and title of each one that is not a Markdown heading, is
+`src/site/cards.ts`: ids are API (they are the page's fragments), and a title the page would not
+show on its own is `quiet` (a heading for screen readers, seen only while its link has the
+focus, and never on paper).
 
 **The panel's one rule.** In universe mode the panel's state is a function of the URL
 (`src/shell/panel.ts`): every page except the home page is a destination, its panel is open, and
@@ -328,6 +339,10 @@ optional `cover: { src: ./cover.png, alt }` (without one the page shows its plan
 `projects/days2meet/index.md`.
 Images are served as AVIF with a WebP fallback at three widths (`components/Shot.astro`), so
 commit one good source image, at least 1200 px wide, and let the build do the rest.
+A page has room for eight cards: At a glance, The story, one per `##`, Gallery, Moons, Connected
+by motorway. The text is cut at its `##` headings (`sectionize`), so each is plain words at the
+top level of the text, and a ninth card fails the build: merge two sections. Pictures go in
+`cover` and `gallery`, never in the text (the build refuses a text with one).
 
 **Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
 Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.
