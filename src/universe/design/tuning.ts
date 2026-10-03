@@ -13,6 +13,7 @@ import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
+import type { InstrumentParams } from '../sim/instruments';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 import type { Terrain, TerrainName } from '../sim/world/ground';
@@ -513,6 +514,51 @@ export const tuning = {
     /** The ship is a marker: never shorter than twice this (CSS px). */
     shipRadiusPx: 9,
   } satisfies StarMapParams & MapCamParams & MapLookParams,
+
+  /**
+   * THE FLIGHT DECK (ui/FlightDeck.ts, sim/instruments.ts): the cluster of instruments at the
+   * bottom of the view, laid out as Kerbal Space Program's. It only READS the simulation. How it
+   * LOOKS, and where it sits, is CSS (`.flight-deck`); these decide when it has room and what
+   * its gauges count as full.
+   */
+  instruments: {
+    /**
+     * The free view (the viewport less the info panel) has to be this big, in rem [width,
+     * height], for the whole cluster: 768 by 576 px at the usual type size...
+     */
+    fullMinRem: [48, 36],
+    /** ...and this big for the strip in the Map button's row (296 by 320 px). Less: no deck. */
+    stripMinRem: [18.5, 20],
+    /**
+     * The ship is IN a system from this many of its radii from its centre, and until it is this
+     * many out: the horizon of the ball wears that system's family (and `ink.low` between them).
+     */
+    enterRadii: 1,
+    leaveRadii: 1.3,
+    /** u/s. Slower than this the prograde mark is put away: a ship at rest is going nowhere. */
+    progradeMinSpeed: 2,
+    /** u/s² that read as one g: a unit is a metre, so the Earth's own. */
+    gUnit: 9.81,
+    /**
+     * The g arc is full at this many g, and past it the peg lights. By hand the ship pulls 3.5 g
+     * from rest, 6.6 boosting and up to 12.3 in a full turn at a boosting pilot's top speed; the
+     * autopilot pulls about 60: playful, and true.
+     */
+    gFull: 15,
+    /** 1/s. How quickly the g arc follows; the throttle arc follows at the flame's own rate. */
+    gOmega: 10,
+    throttleOmega: 14,
+    /** ASSIST lights once the orbit assist does more than this share of the flying (0 to 1). */
+    assistOn: 0.05,
+    /**
+     * u/s. One, two and three chevrons beside the speed from these on. A boosting pilot's best
+     * is 81, so a chevron always means the autopilot has the ship.
+     */
+    warpTiers: [82, 300, 600],
+    /** The digits change at most this often a second; under reduced motion, this often. */
+    digitsHz: 10,
+    digitsHzReduced: 4,
+  } satisfies InstrumentParams,
 
   /**
    * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many
