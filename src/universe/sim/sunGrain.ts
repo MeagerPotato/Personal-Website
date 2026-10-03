@@ -1,12 +1,12 @@
+import { noise3 } from './gradientNoise';
 import type { Point } from './meshBuilder';
-import { noise3 } from './skyNoise';
 import { SUN_RING_RADII, SUN_TONE, type SunSurfaceLook } from './sunSurface';
 
 /**
  * THE CPU TWIN OF A SUN'S SURFACE: what the sun's shader (design/shaders/toonFlat.ts, SUN) draws
  * at a place on its ball, as numbers a test can hold. The shader evaluates the very same noise
  * (design/shaders/noise.ts: gradient noise on an integer lattice, hashed with pcg3d, which gives
- * the same lattice on every driver; its twin is sim/skyNoise.ts) and the same cuts, so the
+ * the same lattice on every driver; its twin is sim/gradientNoise.ts) and the same cuts, so the
  * shares measured here are the picture's. NOTHING THE ENGINE SHIPS IMPORTS THIS.
  *
  * `n` is a unit direction in the sun's own space; `offset` the sun's place in the noise

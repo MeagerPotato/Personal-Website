@@ -1,16 +1,17 @@
 /**
- * THE SKY'S NOISE: gradient noise on an integer lattice, hashed with pcg3d, and the two sums
- * built on it. It is the noise the look pass was designed with ("Deep light", docs/DESIGN.md):
- * the baked sky's shader evaluates the very same function on the GPU (integer hashing gives the
- * same lattice on every driver), and this is its twin on the CPU, for the tests that hold the
- * sky to its gates. NOTHING THE ENGINE SHIPS IMPORTS IT: the planets and the suns use the seeded
- * simplex noise that is already in the bundle (sim/noise.ts). This one has no seed, a caller
- * moves its domain instead.
+ * GRADIENT NOISE on an integer lattice, hashed with pcg3d, and the fractal sum built on it: the
+ * noise the look pass draws with ("Deep light", docs/DESIGN.md). The shaders that cut a sun's
+ * surface and a world's clouds into round cells evaluate the very same function on the GPU
+ * (design/shaders/noise.ts; integer hashing gives the same lattice on every driver), and this is
+ * its twin on the CPU, for the tests that hold those pictures to their shares (sim/sunGrain.ts,
+ * sim/clouds.ts). The sky has none of it: no clouds there (Allen, 2026-10-03). The planets'
+ * terrain is the seeded simplex noise of sim/noise.ts; this one has no seed, a caller moves its
+ * domain instead.
  *
- * Pure, and bit for bit the recipe's (tested against its values).
+ * Pure, and bit for bit the look pass's reference (tested against its values).
  */
 
-// The 12 edge midpoints of a cube, as the recipe orders them.
+// The 12 edge midpoints of a cube, in the shader's order (NOISE_GRAD).
 // prettier-ignore
 const GRAD = [
   1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1, 0, 1, 0, 1, -1, 0, 1,

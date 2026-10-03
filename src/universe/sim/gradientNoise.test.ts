@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { fbm3, noise3 } from './skyNoise';
+import { fbm3, noise3 } from './gradientNoise';
 
-// The recipe's own values (the look pass's CPU twin, `look/sky.js`: noise3, fbm3 with 3 octaves
-// and no offset, fbm3 with 2 octaves and offset 1), at five points near and far from the origin.
-// The baked sky's shader computes the same function, so these are what keep the three in step.
+// The reference's own values (the look pass's first CPU twin: noise3, fbm3 with 3 octaves and no
+// offset, fbm3 with 2 octaves and offset 1), at five points near and far from the origin. The
+// shaders of the suns and of the clouds compute the same function (design/shaders/noise.ts), so
+// these are what keep the three in step.
 const GOLDEN: ReadonlyArray<readonly [[number, number, number], number, number, number]> = [
   [[0.1, 0.2, 0.3], -0.4213652235277772, 0.3705548079597147, 0.40712302021285635],
   [[-1.7, 2.4, 5.9], -0.08130393137227808, 0.5552800728766922, 0.6309934664741508],
@@ -12,8 +13,8 @@ const GOLDEN: ReadonlyArray<readonly [[number, number, number], number, number, 
   [[100.3, 50.7, -25.1], -0.1942226212873944, 0.47006928293609185, 0.3799952341085048],
 ];
 
-describe('the sky’s noise', () => {
-  it('is the recipe’s, to the last bit', () => {
+describe('the look’s gradient noise', () => {
+  it('is the reference’s, to the last bit', () => {
     for (const [[x, y, z], noise, coarse, fine] of GOLDEN) {
       expect(noise3(x, y, z)).toBe(noise);
       expect(fbm3(x, y, z, 3)).toBe(coarse);

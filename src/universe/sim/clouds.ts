@@ -1,11 +1,11 @@
+import { fbm3 } from './gradientNoise';
 import type { Point } from './meshBuilder';
 import { hashSeed } from './rng';
-import { fbm3 } from './skyNoise';
 
 /**
  * THE CPU TWIN OF A WORLD'S CLOUDS: what the cloud shader (design/shaders/air.ts) draws at a
  * place on the skin, as numbers a test can hold. The shader evaluates the very same noise
- * (design/shaders/noise.ts; its twin is sim/skyNoise.ts) and the same cuts, so the shares
+ * (design/shaders/noise.ts; its twin is sim/gradientNoise.ts) and the same cuts, so the shares
  * measured here are the picture's. NOTHING THE ENGINE SHIPS IMPORTS THIS but the types and
  * `cloudCut`, `cloudSeed` and `cloudOffset`, which lay a world's clouds out for the shader.
  *
@@ -24,7 +24,10 @@ export interface CloudLook {
   readonly core: number;
 }
 
-/** The domain offset of the clouds' fractal sum (sim/skyNoise.ts, `fbm3`): the shader's CLOUD_OFFSET. */
+/**
+ * The domain offset of the clouds' fractal sum (`fbm3`, sim/gradientNoise.ts): the shader's
+ * CLOUD_OFFSET.
+ */
 export const CLOUD_FBM_OFFSET = 1;
 
 /** A world's own number, from its name: where in the noise its clouds are cut from. Under 10. */

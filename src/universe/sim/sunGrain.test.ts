@@ -117,7 +117,7 @@ describe('the picture on a sun’s ball (the twin of the shader’s)', () => {
 
   it('is the shader’s arithmetic: the same noise, offsets and ring', () => {
     const { fragmentShader } = toonFlat;
-    // The twin's noise is sim/skyNoise.ts; the shader's is its GLSL, constant for constant.
+    // The twin's noise is sim/gradientNoise.ts; the shader's is its GLSL, constant for constant.
     expect(fragmentShader).toContain(gradientNoise);
     expect(gradientNoise).toContain('v * 1664525u + 1013904223u');
     expect(gradientNoise).toContain('f * f * f * (f * (f * 6.0 - 15.0) + 10.0)');

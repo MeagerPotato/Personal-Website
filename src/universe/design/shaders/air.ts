@@ -222,7 +222,7 @@ export const airCloud = {
 
     ${gradientNoise}
 
-    // The fractal sum of sim/skyNoise.ts (fbm3), to the last constant, moved by its offset 1.
+    // The fractal sum of sim/gradientNoise.ts (fbm3), to the last constant, moved by its offset 1.
     float fbm(vec3 q) {
       q += vec3(7.31, 3.17, 5.59);
       float amplitude = 0.5;

@@ -1,7 +1,7 @@
 /**
  * NOISE for the shaders that draw light with structure ("Deep light", docs/DESIGN.md): gradient
  * noise on an integer lattice, hashed with pcg3d. Integer hashing gives the same lattice on
- * every driver, so the CPU twin (sim/skyNoise.ts, `noise3`: the same function, to the last
+ * every driver, so the CPU twin (sim/gradientNoise.ts, `noise3`: the same function, to the last
  * constant) says what the GPU draws, and a test can hold the picture to its numbers.
  *
  * A chunk, not a shader: a fragment shader brings it in on a line of its own and calls

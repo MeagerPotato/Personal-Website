@@ -1379,7 +1379,7 @@ export const tuning = {
        * of smooth noise at these frequencies on the unit sphere, the weight of the coarse one,
        * and the three thresholds that cut the sum into four tones (about 15 / 45 / 30 / 10
        * percent, so that the middle of the ball is the family's base). The thresholds are the
-       * 15th, 60th and 90th percentiles of THIS noise (sim/skyNoise.ts, about -1 to 1),
+       * 15th, 60th and 90th percentiles of THIS noise (sim/gradientNoise.ts, about -1 to 1),
        * measured over seven suns: a change to the frequencies or the weight wants them measured
        * again (sim/sunGrain.test.ts holds the shares). The frequencies are low on purpose: a
        * tone lies in round CELLS a fifth to a third of the ball across, and the fine layer only
