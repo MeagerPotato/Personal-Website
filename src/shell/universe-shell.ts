@@ -6,6 +6,7 @@ import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
 import { startAnnouncer } from './announcer';
+import { showAnchor } from './cards';
 import { readDestinations } from './destinations';
 import { startFollowing, type Following } from './follow';
 import { startHints } from './hints';
@@ -73,6 +74,8 @@ export async function start(): Promise<void> {
       panel?.sync(url.pathname);
       following?.routeChanged(url.pathname);
     },
+    // The page stays and the reader moves within it: nothing for the panel or the ship to do.
+    onAnchor: (id) => showAnchor(id),
   });
   panel = startPanel({
     homePath: routes.home(),

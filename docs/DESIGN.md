@@ -267,7 +267,9 @@ transit map.
   sun's own page.
 - **A section's title is a link to itself** (`/about/#rockets` is that section). It looks like
   the heading it is, `ink.high` and not underlined; a mouse lights it in the family's light and
-  underlines it. Its room for a finger (44 px) lies round the words and takes no space. A part
+  underlines it. Its room for a finger (44 px) lies round the words and takes no space. A link
+  to a section lands it a step (`space-6`) below the top of what scrolls, the window or the
+  panel, as a page's first line stands, and in the universe it adds no step to Back. A part
   of a page with no heading of its own (a project's facts, the opening of About, the resume's
   contact line) has a **quiet title**: a heading for a screen reader, unseen until its link has
   the keyboard's focus, when it shows as a small label (`sm`, 600) on a plate of the ground in

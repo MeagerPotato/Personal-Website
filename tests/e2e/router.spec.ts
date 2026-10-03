@@ -158,6 +158,45 @@ test('closing a page opened from the sky leaves no trail', async ({ page }) => {
   await expect(heading(page)).toHaveText('Resume');
 });
 
+// A part of a page is a reading position, not a page (router.ts, `anchor`): its link moves the
+// reader and REPLACES the fragment, so that Back and Close go on meaning "leave this page".
+test('a section link scrolls the panel there, adds no entry, and Close still leaves', async ({
+  page,
+  isMobile,
+}) => {
+  // Where a page is one column that scrolls: the side panel, and on the phone its sheet.
+  if (!isMobile) await page.setViewportSize({ width: 1100, height: 800 });
+  await openUniverse(page, '/');
+  await navLink(page, 'About').click();
+  await expect(heading(page)).toHaveText('About Me');
+  const entries = await page.evaluate(() => history.length);
+  // How far the section's heading is below the top of the panel, which is what scrolls.
+  const below = () =>
+    page.evaluate(() => {
+      const top = (id: string) => document.getElementById(id)?.getBoundingClientRect().top ?? NaN;
+      return Math.round(top('rockets') - top('main'));
+    });
+  expect(await below()).toBeGreaterThan(200);
+
+  // It lands at the top of the panel, a step below the edge (the heading's scroll margin).
+  await page.locator('#rockets > a').click();
+  await expect(page).toHaveURL(/\/about\/#rockets$/);
+  await expect.poll(below).toBeLessThanOrEqual(32);
+  expect(await below()).toBeGreaterThanOrEqual(0);
+  expect(await page.evaluate(() => history.length)).toBe(entries);
+  await expect(heading(page)).toHaveText('About Me');
+
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(html(page)).toHaveAttribute('data-panel', 'closed');
+  expect(pathOf(page)).toBe('/');
+  // Close was Back, as if no section had been visited, and Forward is the page where it was read.
+  expect(await page.evaluate(() => history.length)).toBe(entries);
+  await page.goForward();
+  await expect(heading(page)).toHaveText('About Me');
+  await expect(page).toHaveURL(/\/about\/#rockets$/);
+  await expect.poll(below).toBeLessThanOrEqual(32);
+});
+
 test('a deep link opens docked, takes no focus, and Escape leaves for the sky', async ({
   page,
 }) => {

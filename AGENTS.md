@@ -72,6 +72,8 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
    router's own rule: **a soft navigation is only an optimisation of a hard one.** Both must end
    in the same DOM, and on any doubt (failed fetch, non-HTML, a new deploy, a plain-only page)
    the router lets the browser load the page normally. Plain mode never loads the router.
+   The fragment is a reading position, not a page: `router.anchor()` replaces it in the entry
+   that is showing (same state, no new entry), and a same-page link goes through it.
 8. **Colours live in `src/universe/design/tokens.ts` and nowhere else.** CSS reads them as custom
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
    a lit surface is exactly the token hex and 3D matches the DOM.
@@ -308,9 +310,15 @@ home). Only the home page's welcome text is a toggle. State lives on `<html>` as
 destination's panel: Back would stop meaning what it looks like.
 
 **Link to something the router must leave alone.** It already leaves alone other sites, files
-(any path with an extension), downloads, `target`, modified clicks, and anchors on the page that is
-showing. For anything else (the mode switches are the example), add `data-router-ignore` to the
-link or to an ancestor.
+(any path with an extension), downloads, `target`, modified clicks, and "Skip to content" (a
+fragment that names no place inside `<main>`). For anything else (the mode switches are the
+example), add `data-router-ignore` to the link or to an ancestor.
+
+**Link to a part of the page that is showing.** An ordinary `<a href="#id">`, as every card's
+title is. In universe mode the router takes it (`samePageAnchor`, `src/shell/navigation.ts`):
+it replaces the fragment, never pushes it, and tells `onAnchor`, whose listener shows the part
+(`src/shell/cards.ts`: the panel scrolls to it). Anything else that changes the part being read
+calls `router.anchor(id)`, and never writes the URL itself (invariant 7).
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under

@@ -382,6 +382,13 @@ main > [data-card] > h2 > a:focus-visible {
   outline-offset: 0.3125rem;
 }
 
+/* Where a link to a card lands (a fragment, in the window or in the panel): its title a step
+   below the top of what scrolls, as a page's first line is, not against the edge. A quiet title
+   stands that far above its card already. */
+main > [data-card] > h2:not(.card-title--quiet) {
+  scroll-margin-top: var(--space-6);
+}
+
 /*
  * A QUIET title names a card the page never gave a heading (the facts at the top of a project,
  * the opening lines of the About page). In one column it would only say what the eye already

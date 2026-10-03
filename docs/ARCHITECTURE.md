@@ -409,6 +409,13 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   asked for by a dock that the pilot has already left again is called off (`router.cancel`), and
   a route that went home only BECAUSE the pilot left does not call the ship back from wherever
   the pilot was going.
+- **A part of a page is a reading position** (`shell/router.ts`, `shell/cards.ts`). The fragment
+  says which part of the page that is showing the visitor is at (`/about/#rockets`), and it never
+  gets a history entry of its own: a link to a part of this page, and `router.anchor()`, replace
+  it in the entry that is showing, so Back and Close go on leaving the page. The router tells
+  `onAnchor` (for such a link, for Back and Forward between two fragments, for one typed into the
+  address bar), and its listener shows the part: in the panel and the sheet it scrolls there. The
+  panel and the ship hear nothing, because the page did not change.
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered
