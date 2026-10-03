@@ -322,7 +322,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   the obstacles, because it is most often right beside the very body whose name it is: a name it
   would lie under glides just past it, away from its body (`glidePast` in `sim/declutter.ts`), or
   goes ABOVE its body, with the same patience as declutter, so a name does not hop about while
-  the ship circles its body. Only on the map (`onMap`, which holds still) does a name have more
+  the ship circles its body. Where the ship is AT a body (its marker on the body's own disc:
+  parked beside home, where a first visit starts), that body's name glides as far as it takes
+  past the two of them (`patienceAt`). Only on the map (`onMap`, which holds still) does a name have more
   than one PLACE: below its body or above it (one with no room below, the sheet, an edge, a
   control, goes above too), BESIDE it like a station's name on a transit map (the side towards
   the middle of the view first), or slid along it, away from a screen edge it would cross, as
@@ -338,7 +340,13 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   `labels.max`, and no name that waits to show, however important, takes its room. A place a name
   is not at must have room to spare from the edges of the view before it takes it, so nothing
   hops back and forth (a name with no such place takes one without, unless its body is on its way
-  out). A planet's or a moon's tag never lies on a sun or the home planet, the landmarks the map
+  out). A body that circles another gets its name on the map once its orbit is
+  `labels.orbitMinPx` wide on screen (closer in, its name and its parent's take turns at the
+  same places; zooming in brings it; never the target's or the keyboard's). And while the view
+  carries a body across the screen faster than `labels.sweptPxPerSec` (a finger, a pinch, a held
+  key), no name is slid along its body, and a planet's or a moon's keeps the place it has or
+  goes, and none comes; a system's may still come and change places, so the landmarks stay named
+  under the fingers. A planet's or a moon's tag never lies on a sun or the home planet, the landmarks the map
   is read by; a system's only as a last resort (`covers`: what a place lies on, `liesOn`), and
   where one lies on another system's sun the systems' search tries every way of placing them all
   for one that leaves fewer there (right on a disc counts far worse than a gap off it). The

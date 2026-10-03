@@ -1179,9 +1179,10 @@ describe('buildUniverse', () => {
   });
 
   describe('a system placed by hand beside the honeycomb', () => {
-    // Slot 5's pocket, drawn in along the line to home: 776.9 u from the centres of slots 1 and 3,
-    // which leaves a system here room to reach 165.9 u (data/layout.ts, handPlace).
-    const DRAWN_IN: [number, number] = [218, 813];
+    // Slot 5's pocket, drawn in along the line to home: 768.2 u from the centre of slot 1 and
+    // 768.7 u from slot 3's, which leaves a system here room to reach 157.2 u (data/layout.ts,
+    // handPlace). Where the real Research stands (tests/places.test.ts).
+    const DRAWN_IN: [number, number] = [214, 800];
     const galaxy = (research: Partial<SystemInput>, extra: ProjectInput[] = []): UniverseInput =>
       v01({
         systems: [
@@ -1222,24 +1223,96 @@ describe('buildUniverse', () => {
     it('fails the build when it outgrows the room its place has, and says where the room is', () => {
       const roomy = buildUniverse(galaxy({}, bigPlanets(1)));
       const reach = roomy.systems.find((entry) => entry.id === 'research')?.radius ?? NaN;
-      expect(reach).toBeLessThanOrEqual(165.93);
+      expect(reach).toBeLessThanOrEqual(157.16);
       const problems = problemsOf(galaxy({}, bigPlanets(3)));
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toContain('system "research" is placed by hand at (218, 813)');
-      expect(problems[0]).toContain('776.93 u from the centre of slot 3');
-      expect(problems[0]).toContain('it has room to reach 165.93 u, and it reaches');
+      expect(problems[0]).toContain('system "research" is placed by hand at (214, 800)');
+      expect(problems[0]).toContain('768.16 u from the centre of slot 1');
+      expect(problems[0]).toContain('it has room to reach 157.16 u, and it reaches');
       expect(problems[0]).toContain('towards the centre of its own slot 5 at (319.33, 1191.76)');
       expect(problems[0]).toContain('No other system moves either way');
       // On its slot's centre the same system has all the room the build gives any system.
       expect(problemsOf(galaxy({ position: 'auto' }, bigPlanets(3)))).toEqual([]);
     });
 
+    it('keeps the promise built for real: a system as large as systems get in each slot beside it', () => {
+      // What the room is for. Every system given bodies until the build would refuse the next
+      // (large planets, then medium, then small; Research then moons round its planet too): Code
+      // (slot 1) and Hackathons (slot 3) as large as the build lets any system grow, Research
+      // with all the reach its place has room for. The build has no complaint, and Research is
+      // the gap clear of each neighbour, as it would be of one of the full 460 u.
+      const base = galaxy({});
+      const SIZES = ['l', 'm', 's'] as const;
+      const filled = (id: string, moonsOf?: string): ProjectInput[] => {
+        const more: ProjectInput[] = [];
+        const fill = (make: (size: (typeof SIZES)[number], name: string) => ProjectInput): void => {
+          for (const size of SIZES) {
+            for (;;) {
+              const next = make(size, `${id}-${size}-${more.length}`);
+              const tried = { ...base, projects: [...base.projects, ...more, next] };
+              if (problemsOf(tried).length > 0) break;
+              more.push(next);
+            }
+          }
+        };
+        fill((size, name) => project(name, { system: id, size }));
+        if (moonsOf) fill((size, name) => project(`${name}-moon`, { parent: moonsOf, size }));
+        return more;
+      };
+      const input: UniverseInput = {
+        ...base,
+        projects: [
+          ...base.projects,
+          ...filled('code'),
+          ...filled('hackathons'),
+          ...filled('research', 'sports-analysis'),
+        ],
+      };
+      expect(problemsOf(input)).toEqual([]);
+      const manifest = buildUniverse(input);
+      const of = (id: string) => {
+        const found = manifest.systems.find((entry) => entry.id === id);
+        if (!found) throw new Error(`no system ${id}`);
+        return found;
+      };
+      const research = of('research');
+      expect(research.position).toEqual(DRAWN_IN);
+      // As far as it can reach in the room its place has (157.16 u): not even a small planet or
+      // a small moon more would fit.
+      expect(research.radius).toBeLessThanOrEqual(157.16);
+      for (const oneMore of [
+        project('question-more', { system: 'research', size: 's' }),
+        project('market-more', { parent: 'sports-analysis', size: 's' }),
+      ]) {
+        expect(
+          problemsOf({ ...input, projects: [...input.projects, oneMore] }).join('\n'),
+          oneMore.id,
+        ).toContain('it has room to reach 157.16 u, and it reaches');
+      }
+      for (const id of ['code', 'hackathons']) {
+        const neighbour = of(id);
+        // As large as the build lets a system grow: a small planet more would pass 460 u.
+        expect(neighbour.radius, id).toBeGreaterThan(L.maxSystemRadius - 30);
+        expect(neighbour.radius, id).toBeLessThanOrEqual(L.maxSystemRadius);
+        const apart = Math.hypot(
+          neighbour.position[0] - research.position[0],
+          neighbour.position[1] - research.position[1],
+        );
+        // Edge to edge, as built; and with the neighbour the whole 460 u and Research the whole
+        // of its room, which no body happens to be the size to fill.
+        expect(apart - neighbour.radius - research.radius, id).toBeGreaterThanOrEqual(
+          L.minSystemGap,
+        );
+        expect(apart - L.maxSystemRadius - 157.16, id).toBeGreaterThanOrEqual(L.minSystemGap);
+      }
+    });
+
     it('fails the build when the place lies in the room of a slot that is not its own', () => {
-      // The same place under order 2: slot 5's centre is 392 u away, and whoever takes that slot
+      // The same place under order 2: slot 5's centre is 406 u away, and whoever takes that slot
       // later may be 460 u across.
       const problems = problemsOf(galaxy({ order: 2 }));
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toContain('392.08 u from the centre of slot 5');
+      expect(problems[0]).toContain('405.67 u from the centre of slot 5');
       expect(problems[0]).toContain('it has no room at all');
       expect(problems[0]).toContain('towards the centre of its own slot 2 at (-178.59, -666.49)');
     });
@@ -1259,14 +1332,16 @@ describe('buildUniverse', () => {
     });
 
     it('is held to it whether or not anything stands in the other slot yet', () => {
-      // No Hackathons: slot 3 is empty, and still promised to whoever comes.
+      // No Code: slot 1, the nearest, is empty, and still promised to whoever comes.
       const input = galaxy({}, bigPlanets(3));
+      const kept = new Set(['hackathons', 'research']);
       const alone: UniverseInput = {
         ...input,
-        systems: input.systems.filter((entry) => entry.id !== 'hackathons'),
-        projects: input.projects.filter((entry) => entry.system !== 'hackathons'),
+        systems: input.systems.filter((entry) => kept.has(entry.id)),
+        projects: input.projects.filter((entry) => kept.has(entry.system ?? '')),
       };
-      expect(problemsOf(alone).join(' ')).toContain('776.93 u from the centre of slot 3');
+      expect(alone.systems.map((entry) => entry.order)).toEqual([3, 5]);
+      expect(problemsOf(alone).join(' ')).toContain('768.16 u from the centre of slot 1');
     });
 
     it('answers to the tripwire alone in a galaxy with no system on the honeycomb', () => {

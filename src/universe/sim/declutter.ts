@@ -428,8 +428,16 @@ function placeFrom(
  * far stands, and the names that show stay where they are if it found none better. Over a whole
  * turn at rest, today's galaxy searches in fewer than one frame in a hundred, a few dozen tries
  * at most; one of eight systems, on a phone, some 2,000 a search (tests/map-names/).
+ *
+ * 16,000 since 2026-10-03 (4,000 before). A search cut short is made again and again, and finds
+ * the same nothing: a galaxy of eight on a 412 px phone, zoomed in once, with the home planet's
+ * name free to glide past the ship beside it (ui/Labels.ts, `patienceAt`), hit 4,000 in 2,846 of
+ * its 2,849 searches of a turn and left a system's tag on another's sun in one look of ten. With
+ * room to finish, it searches five times a turn and leaves none. A try is some 24 ns on a laptop,
+ * and the longest search measured took 1.4 ms there: a small part of a frame, also on a phone
+ * several times slower.
  */
-const TOGETHER_TRIES = 4000;
+const TOGETHER_TRIES = 16000;
 
 /**
  * A search that found no better way is made again this many calls of `declutter` (frames) later,

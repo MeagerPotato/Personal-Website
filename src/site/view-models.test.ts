@@ -63,8 +63,11 @@ const planetsOf = (node: SystemNode | undefined): PlanetNode[] =>
 
 const COVER = { src: 'cover.png', alt: 'A picture' };
 
-// Allen's tree: Projects, a binary star whose suns are Software (primary) and Hardware; Research,
-// whose only work is planned; and Hackathons. Listed out of order on purpose.
+// Allen's tree as it was first built: Projects, a binary star whose suns are Software (primary)
+// and Hardware; Research, whose only work is planned; and Hackathons. Listed out of order on
+// purpose. Research keeps `order` 2 HERE, before Hackathons' 3, although the real one is 5 since
+// 2026-10-03 (docs/PLAN.md §5.4): only so can a test tell "last because all of it is planned"
+// from "last because its order is".
 const TREE: SystemLike[] = [
   { id: 'research', data: { name: 'Research', tagline: 'Questions.', theme: 'lilac', order: 2 } },
   { id: 'hardware', data: { name: 'Hardware', tagline: 'Rockets and robots.' } },
@@ -418,7 +421,7 @@ describe('a binary star in the project tree', () => {
   });
 
   it('puts a system with no built work yet last, so the first screen is finished work', () => {
-    // Research (every planet planned) is slot 2, but follows Hackathons (slot 3).
+    // Research (every planet planned) is slot 2 in this fixture, but follows Hackathons (slot 3).
     expect(tree.map((system) => system.id)).toEqual(['projects', 'hackathons', 'research']);
     // Once something in it is built, it takes its place in the galaxy's order again.
     const built = buildProjectTree(TREE, [

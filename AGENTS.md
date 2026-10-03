@@ -49,9 +49,10 @@ solar systems** arrived on 2026-09-30 and is built (docs/PLAN.md §4.1 and §9):
 home. **Projects is a binary star**, two suns (Software and Hardware) circling one slot, with
 `/projects/` as its page and a page for each sun; the old `/systems/code/` answers 301 to
 `/systems/software/` (`public/_redirects`). **Research** (all of it planned) and **Hackathons**
-are systems of one sun. Research stands where Allen drew it on 2026-10-03, in the upper left of
-the star map above Hackathons: slot 5, **placed by hand** inside that slot's room (docs/PLAN.md
-§5.4, "Research, placed by hand"; `tests/places.test.ts` pins where every system stands).
+are systems of one sun. Research stands in the upper left of the star map, above Hackathons, as
+near as the layout lets a system stand to where Allen's arrow ended on 2026-10-03 (149 u from its
+tip): slot 5, **placed by hand** inside that slot's room (docs/PLAN.md §5.4, "Research, placed by
+hand"; `tests/places.test.ts` pins where every system stands).
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -352,11 +353,14 @@ Research is the one that does. The place must be inside the system's OWN slot's 
 (`handPlace`, `src/universe/data/layout.ts`) holds it to leaving every other slot the room of a
 full-size system, so that the next system still moves nobody, and its message says which slot
 is crowded and which way to move. What a hand-placed system gives up is room of its own to grow
-(Research: 165.9 u of reach where it stands, 112.2 u used, so one more planet or moon of any
-size still fits). Moving a system that exists is a galaxy move: every visitor finds it
-somewhere else and each saved pose is dropped once (`galaxyKey`), so run `npm run journeys` and
-`npm run map-names`, look at the map's first view on a laptop and a phone, and update
-`tests/places.test.ts` on purpose.
+(Research: 157.2 u of reach where it stands, 112.2 u used, so one more planet of the usual size
+or one more moon still fits, and a large planet does not). Moving a system that exists is a
+galaxy move: every visitor finds it somewhere else and each saved pose is dropped once
+(`galaxyKey`), so run `npm run journeys` and `npm run map-names`, look at the map's first view
+on a laptop and a phone, and update `tests/places.test.ts` on purpose. A place also decides how
+close a laptop's map opens, and the names' samples in `npm test` (`tests/map-names/`) feel that
+within a few units: try the places round the one you mean before settling on it (docs/PLAN.md
+§5.4, "Why (214, 800)").
 
 **A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
 file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no
