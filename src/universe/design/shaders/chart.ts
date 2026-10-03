@@ -83,13 +83,16 @@ export const chart = {
         vec3 alpha = uWeight * uDistrict.yzw;
         over(uOuter[i], alpha.x * cover(reach * uDistrict.x, r));
         over(uInner[i], alpha.y * cover(reach, r));
-        // A whole number of dashes round the ring, each as near its length as that allows.
-        float dashes = max(1.0, floor(TURN * reach / (uDash.y + uDash.z) + 0.5));
-        float along = abs(fract(atan(from.x, from.y + 1e-5) / TURN * dashes) - 0.5) * TURN * reach / dashes;
-        over(
-          uRing[i],
-          alpha.z * cover(0.5 * uDash.x, abs(r - reach)) * cover(0.5 * uDash.y, along)
-        );
+        // A whole number of dashes round the ring, each as near its length as that allows. Only
+        // the pixels within reach of the ring work out where on it they are.
+        if (abs(r - reach) < 0.5 * uDash.x + 1.0) {
+          float dashes = max(1.0, floor(TURN * reach / (uDash.y + uDash.z) + 0.5));
+          float along = abs(fract(atan(from.x, from.y + 1e-5) / TURN * dashes) - 0.5) * TURN * reach / dashes;
+          over(
+            uRing[i],
+            alpha.z * cover(0.5 * uDash.x, abs(r - reach)) * cover(0.5 * uDash.y, along)
+          );
+        }
       }
 
       vec3 under = sRGBTransferEOTF(vec4(uUnder, 1.0)).rgb;
