@@ -416,8 +416,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
 | The sky's navy: how quickly it lightens toward the horizon. Nothing else: the sky has no glows of colour and no gas ("Deep light", below) | `tuning.backdrop` |
-| What the sky adds to the navy: the Milky Way's haze (where its great circle lies, its two banks, its twelve clumps, its dark lane, its cream bulge), the fifteen far galaxies, the ceiling on luminance, the calm strip along the horizon, how much of it shows while docked and on the star map, the panorama's size by tier | `tuning.look.sky` (the painting: `shaders/skyBake.ts`; the river's shape, for the haze and for the stars alike: `sim/milkyWay.ts`) |
-| Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`, or a class's own), the five classes (`classes`, `hero`: brightness, core, halos, spikes), how much of each class lies along the Milky Way (`bandShare`), where the eight heroes and the six clusters are (three of the clusters are the sky's compass: one at each system's bearing from home), the double stars (`pairs`), twinkle, a hero's breath, drift (0: the sky is painted) | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
+| What the sky adds to the navy: the Milky Way's haze (where its great circle lies, its two banks, its twelve clumps, its dark lane, where its bulge is and how far the haze swells there), the fifteen far galaxies, the ceiling on luminance, the calm strip along the horizon, how much of it shows while docked and on the star map, the panorama's size by tier | `tuning.look.sky` (the painting: `shaders/skyBake.ts`; the river's shape, for the haze and for the stars alike: `sim/milkyWay.ts`) |
+| Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`, or a class's own), the five classes (`classes`, `hero`: brightness, core, halos, spikes), how much of each class lies along the Milky Way (`bandShare`), the stars of the Milky Way's bulge (`bulge`: how many more, in which warm tints), where the eight heroes and the six clusters are (three of the clusters are the sky's compass: one at each system's bearing from home) and how a cluster is made (`cluster`: its bright heart), the double stars (`pairs`), twinkle, a hero's breath, drift (0: the sky is painted) | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
@@ -536,19 +536,22 @@ flat.
 
 **As built so far: the groundwork (step 0). Nothing looks different yet.**
 
-- **26 tokens**, all engine only: three more star temperatures (`color.star.hot`, `amber`,
-  `ember`); the dim tones under `color.nebula`: the Milky Way's haze (`band.deep`, `mid`, `lit`
-  and `rim`, the cream of its bulge) and, for each of the five families, a `mid` and a `lit`,
-  which paint the star map's districts and nothing in the sky; the air of worlds
-  (`color.air.<biome>`, every biome with a sea); `color.shading.dusk` and `night`; and
-  `color.window`. (There were 36: every family also had a `deep` and a `rim` for its gas, and
-  they went with the gas on 2026-10-03. The group keeps its name.) They are **left out of the
-  CSS mirror** (`ENGINE_ONLY` in `src/site/tokens-css.ts`): no stylesheet reads them, and plain
-  pages do not carry them.
+- **25 tokens**, all engine only: three more star temperatures (`color.star.hot`, `amber`,
+  `ember`); the dim tones under `color.nebula`: the Milky Way's haze (`band.deep`, `mid` and
+  `lit`: three tones of the navy's own blue, and no warm one) and, for each of the five
+  families, a `mid` and a `lit`, which paint the star map's districts and nothing in the sky;
+  the air of worlds (`color.air.<biome>`, every biome with a sea); `color.shading.dusk` and
+  `night`; and `color.window`. (There were 36: every family also had a `deep` and a `rim` for
+  its gas, and they went with the gas on 2026-10-03. The haze's own fourth tone, a cream `rim`
+  for its bulge, went that day too, when the bulge was made of stars instead. The group keeps
+  its name.) They are **left out of the CSS mirror** (`ENGINE_ONLY` in
+  `src/site/tokens-css.ts`): no stylesheet reads them, and plain pages do not carry them.
 - **What the palette promises** (`src/site/look-colours.test.ts`): the haze's `deep` and `mid`
   sit barely above space (under 1.4:1 and 1.8:1 on `space.900`: a haze under stars, never a
-  shape), each tone of its ramp is lighter than the one before, and its `rim` is a light (6:1
-  or more), or it would only grey the bulge; a district's `mid` is a quiet plate (between 1.4:1
+  shape), each tone of its ramp is lighter than the one before, even the brightest stays under
+  3:1 (never a mark), and every one is the navy's own hue (blue over green over red, the blue
+  half again the red or more): the ramp has no warm tone and no grey one; a district's `mid` is
+  a quiet plate (between 1.4:1
   and 2.5:1) and its `lit` has more than one and a half times that contrast, or the two steps
   would be one; the families are told apart by their
   `lit` (the closest pair over 7 CIEDE2000: sky and lilac under deuteranopia, 7.1 when the
@@ -573,13 +576,17 @@ flat.
 different, and since Allen chose "No clouds, rich stars" the thing the sky is made of: the
 numbers here are that day's.
 
-- **Five classes, six temperatures.** 8,645 stars with a mouse on the medium and high tiers
-  (6,400 dust, 1,500 field, 260 bright, 64 mid, 385 in six clusters, 28 in fourteen double
-  stars, 8 heroes); 4,341 on a phone (half of each class and cluster; the heroes and the
-  doubles are the same everywhere), and half again on the low tier, which also has no mid
-  class (4,309 with a mouse, 2,173 on a phone). About 1,400 are in the first frame at home.
-  The ordinary star is still far fainter than the old points were (a dust star peaks at 0.16
-  to 0.46 of its tint) and a few are much brighter: the sky has a range. Tints by weight:
+- **Five classes, six temperatures.** 9,311 stars with a mouse on the medium and high tiers
+  (6,400 dust, 1,500 field, 260 bright, 64 mid, 666 more in the Milky Way's bulge, 385 in six
+  clusters, 28 in fourteen double stars, 8 heroes); 4,674 on a phone (half of each class, of
+  the bulge and of each cluster; the heroes and the doubles are the same everywhere), and half
+  again on the low tier, which also has no mid class (4,642 with a mouse, 2,340 on a phone).
+  About 1,900 are in the first frame at home.
+  The ordinary star is still far fainter than the old points were, and **the dust has a wide
+  range of its own**: a dust star peaks anywhere from 0.07 to 0.56 of its tint, most of them
+  faint, the brightest as bright as a field star. (At 0.16 to 0.46 it was dots of one size and
+  one brightness, which read as grain, as a texture laid over the sky, and a river of them as
+  a stripe.) A few stars are much brighter: the sky has a range. Tints by weight:
   white 30, cool 20, hot 17, warm 15, amber 12, ember 6 percent, and a class may have its own:
   the dust is whiter and cooler (a faint star looks white), the bright and the mid carry the
   colour (more of them hot, amber and ember). No star wears a family colour.
@@ -587,13 +594,26 @@ numbers here are that day's.
   the bright and a fifth of the mid lie along the great circle the haze is painted on, placed
   by the very functions that paint it (`sim/milkyWay.ts`): dense where it has a clump, thin
   between, and four fifths of them missing in its dark lane. So the band is stars first, and
-  its rift is made of missing stars, not of paint.
+  its rift is made of missing stars and of no paint at all. Across the river the stars fall
+  away as the haze does: each of its two banks holds stars in proportion to its mass (its
+  weight times its width; by weight alone the narrow bank held half of them, a hard core with
+  banks that stopped short).
+- **The bulge is a crowd of stars.** Where the river is thickest (in the first frame, between
+  the top bar's two groups of chips; `look.sky.band.core` says where) it gains 666 more stars,
+  520 dust, 130 field and 16 bright, in an oval on the river, **in warm tints** (half of them
+  warm, the rest amber, white and ember; no blue one), with the dark lane cut through them as
+  through the rest. Its oval holds more of its own stars than of the river's, and more stars
+  than any other stretch of the river. That is all the warmth the bulge has: the haze under it
+  is the same blue as everywhere (below).
 - **A compass of clusters.** Six small clusters; three of them sit **at the bearing from home
   of each system** (Projects, Research, Hackathons), 20 degrees under the horizon, where the
   sky is emptiest, each in the star temperature nearest its family (hot, white, cool: there is
   no green star and no violet one). The sky is at infinity, so the bearing holds from
-  everywhere. A cluster is separate stars and nothing under them: no light, no halo. Home has
-  none: home is where the viewer stands.
+  everywhere. A cluster is separate stars and nothing under them: no light, no halo, and no
+  haze of the river's either (its middle stays 8 degrees and more from every cluster). **A
+  cluster has a heart**: three bright stars close in, seven field stars round them, and the
+  dust across its whole width, brighter toward the middle. (Sixty faint dots of one size read
+  as a patch of grain.) Home has none: home is where the viewer stands.
 - **Double stars.** Fourteen pairs anywhere in the sky, a bright one and a fainter companion
   seven to ten pixels away, blue-white beside amber or white beside cool. Found by looking,
   never noise; they do not twinkle.
@@ -611,8 +631,8 @@ numbers here are that day's.
   emptiest), one beside a docked body clear of its panel, one or two toward each system
   (`tests/look.test.ts` projects them through each view). And every sixth of the sky's round
   holds three or more of hero, galaxy and cluster: a slow look round always finds something.
-- **Calm.** About an eighth of the dust, field and bright stars twinkle (a thousand of them, as
-  many as shimmered when the sky held 5,000 stars); a hero breathes by 6
+- **Calm.** About an eighth of the dust, field and bright stars twinkle (some 1,100 of them,
+  about as many as shimmered when the sky held 5,000 stars); a hero breathes by 6
   percent over 5 to 9 seconds, each at its own pace. Under reduced motion neither happens. On
   the star map the stars dim to `map.starOpacity` (0.2: a faint star is then under the chart's
   grid dots) and **lose their spikes** (rule 8). Nothing drifts: the stars lie where the haze
@@ -623,9 +643,9 @@ numbers here are that day's.
   star there would be fatter.
 - **Still to judge in the lab** (the `stars` subject: a sheet of each class at 1:1, one tint or
   the mix, the heroes as a view of another height draws them, and the stars as the map shows
-  them) and in flight: whether 8,645 is the right number (`starfield.count` scales the dust,
-  the classes their own), and whether sixty-four small six-pointed stars are too many of one
-  shape.
+  them) and in flight: whether 9,311 is the right number (`starfield.count` scales the dust,
+  the classes their own, `bulge.counts` the bulge), and whether sixty-four small six-pointed
+  stars are too many of one shape.
 
 **As built: round and smooth (steps 2b and 2c, 2026-10-02).** Allen saw step 2's Software sun,
 a ball whose tones fell in sharp triangular facets, and said: "I want some more rounded texture
@@ -784,12 +804,19 @@ cloud. What carries the sky now is the stars (step 1, above); this is what lies 
   family's `deep` and `rim`. From the bake: its tier switches. Nothing of it is left behind a
   flag.
 - **What is in it.** **The Milky Way**: the river of stars, and under it a faint haze along
-  the same great circle, tilted 14 degrees so that it rises to the right across the first
-  frame instead of lying along the horizon. Across it a narrow bank and a wide one; along it
-  twelve clumps, so it is brighter here and thinner there; a **dark lane** beside its middle,
-  swinging from side to side, which darkens the haze by a third at most (more read as a streak
-  of smoke) and hides four fifths of the stars in it; and a **cream bulge** toward Projects,
-  12 percent cream (30 read brown). **Fifteen far galaxies**, the same on every tier, each in
+  the same great circle, tilted 16 degrees and highest at azimuth -62, so that it **crosses
+  the first frame as a diagonal**: it climbs 76 px across the middle half of that view (five
+  degrees), from the left edge until it leaves through the top behind the nav. (Tilted 14 and
+  highest at -55 it lay nearly level there, and read as a horizontal bar of blue fog.) Across
+  it a narrow bank and a wide one; along it twelve clumps, so it is brighter here and thinner
+  there. The haze is **one family of tones, the navy's own blue**, and it comes in softly: it
+  reaches its full cover only where the river is brightest (`band.gain` 0.5), so it has no
+  lower edge. A **dark lane** runs beside its middle, swinging from side to side: it hides
+  four fifths of the stars in it and **paints nothing** (darkening the haze there, by a third,
+  drew faint streaks along the river, which read as layers). At the **bulge** the haze only
+  swells, in the same blue, an oval 9 degrees by 5.5: the bulge is made of stars (above). A
+  cream haze there, tried first, with no more stars in it than the river beside it, read as a
+  grey smear across the navy. **Fifteen far galaxies**, the same on every tier, each in
   two star tints (a disc and a nucleus): four showpieces (a spiral seen nearly face on in the
   first frame at home, and one toward each system) and eleven small ones; spirals with
   two arms, lenses seen edge on with a dark lane along them, plain ellipses. None is amber or
@@ -798,30 +825,40 @@ cloud. What carries the sky now is the stars (step 1, above); this is what lies 
   is run through noise and nothing is cut into levels, because the edge of a level that
   follows noise is a contour line, and contour lines are what read as waves. A gate holds it:
   from one texel of the largest panorama to the next the haze changes by less than 0.006 of
-  linear luminance (measured: 0.0037, under three code values of blue; a level cut into it
-  would be a step of 0.01 or more).
+  linear luminance (measured: 0.0027, about two code values of blue; a level cut into it
+  would be a step of 0.01 or more). Two more hold its colour: wherever the river alone adds
+  light, blue leads green by 1.8 times and green leads red; and with a lane that hides
+  nothing the light is the same to the last bit (the lane is in the stars alone).
 - **Light is added, never replaced** (rule 3). The panorama holds what the sky ADDS to the
   navy; the backdrop draws the navy gradient it always drew and adds the panorama on top, times
   an exposure. At exposure 0 the sky is navy and stars.
 - **Calm where the work is** (rule 7), held by `tests/sky-gates.test.ts` on the CPU's twin of
   the picture and measured again on the GPU's own from the seven views (the lab's `sky` subject
   prints them): **the horizon strip stays near navy** (under 0.03 of linear luminance within 6
-  degrees of the horizon, where planets and orbit lines sit; measured 0.019: the sky's light
+  degrees of the horizon, where planets and orbit lines sit; measured 0.018: the sky's light
   only comes in over the first 12 degrees), **no pixel of the sky is brighter than 0.19**
   (the brightest measured: 0.167, a galaxy's nucleus; the butter focus ring still reads over
   3:1 there), the brightest twentieth of every view stays under 0.04 and its brightest
-  thousandth under 0.10, and **more than four fifths of the sky carry no added light at all**
-  (87 percent). The haze alone never adds more than 0.10, and at its brightest must add 0.05,
-  so that it is there (measured: 0.082). As measured: the first frame p95 0.026, p99.9 0.064
-  (with the gas, and from a view pitched seven degrees lower, 0.075 and 0.153); the loudest
-  view, between systems with the river across it, 0.034 and 0.083. **Docked, the sky is half
-  of itself** (`exposureDocked` 0.5: the view is closer and the panel wants quiet; p95 0.007),
+  thousandth under 0.10 (as a wide screen shows the view, and as a phone held upright does:
+  about the middle third of it and no more), **more than four fifths of the sky carry no added
+  light at all** (91 percent), and **no haze lies behind a cluster** (within two sigmas of
+  each, under half a thousandth: less than a code value of the darkest navy). The haze alone
+  never adds more than 0.10, and at its brightest, the bulge, must add 0.05, so that it is
+  there (measured: 0.053, as faint as that gate lets it be; with the cream it was 0.082). As
+  measured: the first frame p95 0.027, p99.9 0.059 (with the gas, and from a view pitched
+  seven degrees lower, 0.075 and 0.153); the loudest wide view, between systems with the river
+  across it, 0.031 and 0.059. The loudest of all is the first frame on a phone, 0.039 and
+  0.059: the bulge sits in the middle of that frame, and a narrow screen shows little else of
+  the sky above the planet. **Docked, the sky is half of itself** (`exposureDocked` 0.5: the
+  view is closer and the panel wants quiet; p95 0.007),
   and **on the star map 0.28 of itself** (rule 8: the map stays flat, and looks straight down
   at empty sky anyway). The exposure eases over about a second; a cut under reduced motion.
 - **The stars and the haze are one picture.** The star list lays its river from the functions
   the haze is painted with (`sim/milkyWay.ts`), and the panorama's alpha says how much of a
   star shows at each place: less in the dark lane, for every star, whichever class laid it
-  there. **The sky does not drift** (`starfield.driftRadPerSec` is 0): the stars would slide
+  there. (So the lane acts on a river star twice: four fifths of them are left out where it
+  runs, and one that is left there is dimmed, at the lane's middle to a ninth of its light.)
+  **The sky does not drift** (`starfield.driftRadPerSec` is 0): the stars would slide
   off their own haze. Twinkle and the heroes' breathing are all that moves.
 - **It arrives after the first frame.** The first frame is the navy and all the stars, the
   river among them. The panorama is then painted on the GPU a band of 64 rows a frame, and
@@ -840,11 +877,18 @@ cloud. What carries the sky now is the stars (step 1, above); this is what lies 
 - **Still to judge** (the lab's `sky` subject: the seven views, the plain numbers of `look.sky`
   as sliders (its tables of banks, clumps and galaxies are edited in `tuning.ts`), `rebake
   sky`, `copy look.sky as JSON`; in flight, `?tweak` has the same): how loud
-  the haze is (`band.gain` 0.65), above all at the bulge toward Projects, the one place where
-  it shows as a pale streak of its own and so the one thing left that could still be taken
-  for a cloud (`band.core.mix`, and the clumps at longitudes 52 and 74); and how loud the sky
-  is as a whole (`intensity` 0.9). **Not yet measured on a phone:** the bake's time and its
-  memory. Until two real phones have run it, this stays on the preview.
+  the haze is (`band.gain` 0.5), above all at the bulge, where it swells into a soft blue
+  glow behind the crowd of stars (`band.core.glow` 0.9; the stars themselves are
+  `starfield.bulge`): the one place where the haze is more than a faint band, and so the one
+  thing left that could still be taken for a cloud; and how loud the sky is as a whole
+  (`intensity` 0.9). **Known, and left as they are:** two far galaxies stand beside the HUD in
+  a first frame of 1280 x 800 (the spiral at azimuth -10 some 45 px from "About this site",
+  the one at -64 just under the Map button). The bars are placed in CSS px from the corners
+  and the sky scales with the view's height, so where a galaxy meets them differs by window;
+  no place near either is free of the heroes, the strip and the frame's edge at once. And the
+  star map's sky is nearly bare by design (`map.starOpacity` 0.2). **Not yet measured on a
+  phone:** the bake's time and its memory. Until two real phones have run it, this stays on
+  the preview.
 
 **As built: worlds with air (step 4).** A world with a sea has air now, and its day ends in a
 dusk. Everything of it is round: the day after it was first drawn, Allen asked for "the planets

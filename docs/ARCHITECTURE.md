@@ -659,8 +659,10 @@ decision of 2026-10-03, docs/DESIGN.md, "Deep light") is
 one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it
 from `tuning.look.sky` by `design/skyRecipe.ts` (pure). It is the same program on every tier,
 with no noise and no levels in it: every term is a Gaussian or a sine of where the texel is.
-Its colours (the haze's four tones, the six star tints) and the lengths of its two tables are
+Its colours (the haze's three tones, the six star tints) and the lengths of its two tables are
 uniforms: with constant counts Direct3D's compiler unrolls the loops and takes longer over it.
+The haze is only ever mixed up its own ramp: its dark lane is not painted (it is the fourth
+number, below), and its bulge is a swell of the same tones.
 It is drawn into a panorama (an equal-area cylinder: u is the
 azimuth, v the sine of the elevation; sRGB, 8 bits, 2048 x 1024, or 1536 x 768 on the low
 tier: a tier is only a size) whose alpha says how much of a star shows there (less in the
@@ -691,16 +693,20 @@ with a cut, not a second fade. `parseSnapshot` drops it, so a page load fades ag
 panorama itself follows from the tuning and the tier, like every planet's mesh.
 
 **The sky's twin on the CPU** is `sim/skyOracle.ts`: the same program, expression for
-expression, which nothing shipped imports. The Milky Way's shape (its frame, its two banks, its
-clumps, its lane, its bulge) is `sim/milkyWay.ts`, pure, which the oracle AND the star list
-read: the haze and the river of stars are laid from the same functions, so they cannot drift
-apart. `tests/sky-gates.test.ts` holds the oracle to golden values and to the sky's gates from
-the seven views of `sim/skyDirections.ts`: the horizon strip, the percentiles, the ceiling,
-how much of the sky stays empty, that the haze is faint and yet there, and that it has no edge
-(no step from one texel to the next: what a level cut into it would be). The lab's `sky`
-subject reads the GPU's own panorama
+expression, which nothing shipped imports. The Milky Way's shape (its frame, its two banks and
+how its stars are shared between them, its clumps, its lane, its bulge) is `sim/milkyWay.ts`,
+pure, which the oracle AND the star list read: the haze and the river of stars are laid from
+the same functions, so they cannot drift apart. `tests/sky-gates.test.ts` holds the oracle
+still (a table of its own values: a regression pin, which a change to the oracle or the recipe
+has to move on purpose; it is no second opinion) and holds the sky to its gates from the seven
+views of `sim/skyDirections.ts`, each as a wide screen shows it and as a phone held upright
+does: the horizon strip, the percentiles, the ceiling, how much of the sky stays empty, that
+the haze is faint and yet there, that it is blue everywhere and never darkened, that none of
+it lies behind a cluster, and that it has no edge (no step from one texel to the next: what a
+level cut into it would be). What checks the oracle against something other than itself is
+the GPU: the lab's `sky` subject reads the GPU's own panorama
 back and prints the same numbers (`html[data-sky-y]`), and with `?parity=1` the difference
-between the two (`html[data-sky-parity]`: a sixth of a code value on average, the dither's own,
+between the two (`html[data-sky-parity]`: a seventh of a code value on average, the dither's own,
 and 1.1 code values at worst, on every tier). A change to the recipe changes the shader and
 the oracle together, or that number says so.
 
@@ -709,7 +715,9 @@ classes of `tuning.starfield` into parallel arrays: a direction, a class, a tint
 a phase. It is handed the Milky Way too (`tuning.look.sky.band`): a class's `bandShare` of its
 stars is laid along the river by trying places until one is kept, in proportion to the haze's
 own clumps there and thinned in its dark lane (`sim/milkyWay.ts`), the rest anywhere; then the
-clusters (three of them at the systems' bearings from home), the double stars, and the heroes
+Milky Way's bulge (more dust, field and bright stars in an oval on the river, in warm tints:
+the bulge is these stars), the clusters (three of them at the systems' bearings from home;
+each a few bright stars, then field stars, then dust), the double stars, and the heroes
 last, at the places the table gives. How many depends on the pointer and the tier, which are known before the renderer
 exists, so the list is built once in the constructor of `world/Starfield.ts` and nothing about
 it is state: a rebuilt engine makes the same sky. It is drawn as one instanced quad a star

@@ -528,10 +528,18 @@ Node 24 (`.node-version` is `24`, so CI, Workers Builds (default 24.18.0) and lo
   edge was the contour line that read as a wave. The gates that mean something stayed (no
   pixel of the sky above luminance 0.19, the calm strip along the horizon, names and the focus
   ring readable over it) and the sky is calmer than with the gas (the brightest twentieth of
-  the first frame at 0.026, it was 0.075). The lazy JavaScript went from 211.9 to 209.3 KiB of
-  220. **Still Allen's:** to fly it; how loud the Milky Way's haze is at its bulge toward
-  Projects, the one place where it shows as a pale streak of its own; and whether any of the
-  look pass reaches `main`. Not yet run on a real phone.
+  the first frame at 0.027, it was 0.075). The lazy JavaScript went from 211.9 to 209.3 KiB of
+  220. A review of that sky the same day found its bulge a grey smear (a cream haze, off the
+  navy, with no more stars in it than the river beside it), the river lying level across the
+  first frame like a bar of fog, faint streaks where its dark lane was painted into the haze,
+  and dust and clusters of equal dots that read as grain. So, still that day: **the bulge is a
+  crowd of 666 warm stars** over a swell of the same blue haze (the cream tone is gone from the
+  tokens), the lane is missing stars and no paint, the river is tilted a little more and turned
+  so that it crosses the first frame as a diagonal, the haze is fainter and comes in softly,
+  the dust runs from barely there to a field star's brightness, and each cluster has a bright
+  heart. That makes 9,311 stars, and the lazy JavaScript 209.6 KiB. **Still Allen's:** to fly
+  it; how loud the haze is at the bulge, the one place where it is more than a faint band; and
+  whether any of the look pass reaches `main`. Not yet run on a real phone.
 - **Single-letter shortcuts (WCAG 2.1.4): decided 2026-09-23.** W, A, S, D, E and M (and `+`/`-` on the map) are one-key shortcuts. WCAG 2.1.4 asks that such shortcuts can be turned off, remapped, or only work while one control has the focus, mainly for people who drive a computer by voice, whose dictated words can arrive as keystrokes. Here they never act inside the page's text (the panel) or a form field, nothing they do is destructive or hard to undo (the ship moves, the map opens, a dock can be left again), and plain mode, one link away on every page and chosen once for the whole visit, is a complete version of every page with no shortcuts at all: WCAG's "conforming alternate version". So no settings screen is added. Recorded in docs/DESIGN.md (accessibility bar).
 
 ## 10. First actions after approval
