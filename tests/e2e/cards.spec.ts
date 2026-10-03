@@ -115,6 +115,37 @@ function problems({ cards, stage }: { cards: Box[]; stage: Box }): string[] {
   return found;
 }
 
+/**
+ * Every section's card in the overview (a stub): how much of it is left under its title row for
+ * what it holds (`under`, in px, inside its hairlines), and how far the middle of its title is
+ * from the middle of the card (`off`).
+ */
+const stubs = (page: Page): Promise<{ under: number; off: number }[]> =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('#main > [data-card]:not(:first-child)')].map((card) => {
+      const box = card.getBoundingClientRect();
+      const row = card.querySelector(':scope > h2')?.getBoundingClientRect();
+      const words = card.querySelector(':scope > h2 > a')?.getBoundingClientRect();
+      const hairline = Number.parseFloat(getComputedStyle(card).borderBottomWidth);
+      return {
+        under: row ? box.bottom - hairline - row.bottom : NaN,
+        off: words ? Math.abs((words.top + words.bottom - box.top - box.bottom) / 2) : NaN,
+      };
+    }),
+  );
+
+/**
+ * The stubs that show a sliver of what they hold. A stub is its title and the start of its text
+ * (a line of it is 22 px) or, with no room for that, its title alone in the middle of the card,
+ * as a chip is: the stylesheet's promise for a window 576 px tall under a tall head.
+ */
+const slivers = (cards: { under: number; off: number }[]): string[] =>
+  cards.flatMap(({ under, off }, index) => {
+    if (under >= 26) return [];
+    if (under < 0.5 && off < 1) return [];
+    return [`stub ${index + 1}: ${under.toFixed(1)} px under its title, ${off.toFixed(1)} px off`];
+  });
+
 /** What the deck writes on <html>, and the fragment it follows from. */
 const state = (page: Page) =>
   page.evaluate(() => ({
@@ -277,6 +308,7 @@ test.describe('on a wide screen', () => {
       const overview = await layout(page);
       expect(overview.cards).toHaveLength(ABOUT.length + 1);
       expect(problems(overview), `${at}, the overview`).toEqual([]);
+      expect(slivers(await stubs(page)), `${at}, the overview`).toEqual([]);
 
       for (const [index, id] of ABOUT.entries()) {
         await title(page, id).click();
@@ -308,6 +340,13 @@ test.describe('on a wide screen', () => {
       await softNavigate(page, path);
       const overview = await layout(page);
       expect(problems(overview), `${path}, the overview`).toEqual([]);
+      const short = await stubs(page);
+      expect(slivers(short), `${path}, the overview`).toEqual([]);
+      // FishAI's head (crumbs, a sign, a lede) leaves the two sections under it no room for a
+      // line: titles alone. The three beside it show the start of what they hold.
+      if (path === '/projects/fishai/') {
+        expect(short.map(({ under }) => under < 0.5)).toEqual([true, true, false, false, false]);
+      }
       const ids = await page
         .locator('#main > [data-card] > h2')
         .evaluateAll((titles) => titles.map((heading) => heading.id));

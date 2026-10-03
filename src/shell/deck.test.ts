@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MAX_CARDS as PAGE_HAS_ROOM_FOR } from '../site/cards';
+import { tokens } from '../universe/design/tokens';
 import {
   anchorOf,
   deckInset,
@@ -109,6 +110,36 @@ describe('which column a card stands in', () => {
     );
     // ...and nothing may scroll a stub, not even the focus.
     expect(block).toMatch(/LOAD-BEARING: clip, not hidden\.[^\n]*\*\/\n {6}overflow: clip;/);
+  });
+
+  it('makes a stub with no room for a line of its text its title alone', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    // A stub's title row: its height is a switch, between the row's own and the whole card's.
+    const rule =
+      /\n {4}html\[data-mode='universe'\]:not\(\[data-card-open\]\) main > \[data-card\]:not\(:first-child\) > h2\[id\] \{\n {6}height: clamp\(var\(--title-h\), calc\(\(([\d.]+)rem - 100%\) \* (\d+)\), calc\(100% \+ var\(--space-3\)\)\);\n {4}\}/.exec(
+        block,
+      );
+    expect(rule).not.toBeNull();
+    const limit = Number(rule?.[1]) * 16;
+    const steep = Number(rule?.[2]);
+    // What the declaration reads: a title row (a chip less its two hairlines), and the space
+    // under a stub's text, which is the card's bottom padding.
+    const chip = Number(/--chip-h: ([\d.]+)rem;/.exec(block)?.[1]) * 16;
+    expect(block).toContain('--title-h: calc(var(--chip-h) - 2px);');
+    expect(block).toContain('padding: 0 var(--space-4) var(--space-3);');
+    const title = chip - 2;
+    const under = Number.parseFloat(tokens.space[3]) * 16;
+    /** What it comes to for a stub `card` px tall: 100% is what is inside its hairlines and padding. */
+    const row = (card: number): number => {
+      const inside = card - 2 - under;
+      return Math.max(title, Math.min((limit - inside) * steep, inside + under));
+    };
+    // A stub as short as a chip, FishAI's two at 1280 x 576, and the tallest that a line of
+    // text does not fit in: the row is the whole card inside its hairlines, so everything the
+    // card holds is under the cut and the title stands in the middle.
+    expect([44, 59.5, 71].map(row)).toEqual([42, 57.5, 69]);
+    // From 72 px a line shows (About's right column at 1280 x 576 is 76.8): a title row.
+    expect([72, 76.8, 120, 176].map(row)).toEqual([42, 42, 42, 42]);
   });
 });
 

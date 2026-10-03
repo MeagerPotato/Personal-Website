@@ -387,7 +387,10 @@ of, is in the table under The 3D world.
   - **a stub** (the overview): its title row, 44 px, with a 10 px station ring in the family's
     base before the words (`base`, 600), then the start of its section at `sm` in `ink.mid`
     under a fade to the plate. The stubs of a column share its height, at most
-    `--stub-max` each (7.5 to 11rem). The plate is the panel's (`surface.panel` at 96 %), with no
+    `--stub-max` each (7.5 to 11rem); one left under 72 px, with no room for a line of its
+    text, is its title alone in the middle of the card, never a sliver of what it holds (the
+    two under a project's head in a window 576 px tall). The plate is the panel's
+    (`surface.panel` at 96 %), with no
     blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
     cards read as the ends of lines to it;
   - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
