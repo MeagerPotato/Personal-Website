@@ -53,8 +53,17 @@ export const systemSchema = <Reference extends z.ZodType>({
        * of Projects' suns does: Software sky, Hardware coral); without one it wears its binary's.
        */
       theme: z.enum(THEME_KEYS).optional(),
-      /** Slot in the galaxy, from 1 (0 is home). NEVER reuse or renumber: it IS the position. */
+      /**
+       * Slot in the galaxy, from 1 (0 is home). NEVER renumber a system, nor give it the order of
+       * another: it IS the position. A new system takes the lowest order none holds. (Moved once
+       * at Allen's word: Research, from 2 to 5 on 2026-10-03, docs/PLAN.md §5.4.)
+       */
       order: z.number().int().min(1).optional(),
+      /**
+       * Left out (or 'auto'): on its slot's centre. [x, z] places it by hand somewhere else in
+       * its OWN slot's room, x to the left on the star map and z up it: the build refuses a place
+       * that takes room from another slot (data/layout.ts, handPlace), and nothing else moves.
+       */
       position: z.union([z.literal('auto'), z.tuple([z.number(), z.number()])]).optional(),
       /** A binary star: its two suns, PRIMARY FIRST (the projects index is shown from it). */
       suns: z.array(reference('systems')).length(2).optional(),

@@ -11,6 +11,10 @@ import { createRng } from '../sim/rng';
 // moon, widens the rings from that planet outwards. Angles never change. Phase 3's
 // galaxy.lock.json pins even that.
 //
+// A system's place is its slot's centre, unless its file places it by hand (`position: [x, z]`):
+// then it stands there, inside its own slot's room, and the build holds it clear of every other
+// slot's (handPlace). Either way no other system moves, now or when one is added.
+//
 // One exception reaches further: in a BINARY STAR (binaryOrbits) each sun circles the centre at a
 // radius set by the OTHER family's reach (so that both reach equally far from it). A planet or a
 // moon added under one sun widens that family's reach, which moves the other sun's orbit radius,
@@ -123,6 +127,7 @@ const TIE = 1e-3;
  * with 4, 2,137 with 6, 2,265 with 8 (with room for a binary star in every slot: 2026-09-30).
  *
  * Slot k is computed from slots 0 to k - 1 alone: adding systems never moves one already placed.
+ * (A system may stand elsewhere in its slot's room than on this centre: `handPlace`.)
  */
 export function slotPosition(order: number): [number, number] {
   if (!Number.isInteger(order) || order < 0) throw new RangeError(`no slot ${order}`);
@@ -174,6 +179,81 @@ export function slotRoomProblems(): string[] {
     );
   }
   return problems;
+}
+
+/**
+ * How many slots a system placed by hand is held clear of (`handPlace`): the first 24. The
+ * honeycomb fills outwards from its hub (slot 1), and every slot within `SLOTS_KEPT_WITHIN` of
+ * the hub is among them (data/layout.test.ts)...
+ */
+export const SLOTS_KEPT = 24;
+/** ...u from the hub: no slot after the first `SLOTS_KEPT` is nearer to it than this. */
+export const SLOTS_KEPT_WITHIN = 2800;
+/**
+ * u from the hub. A place by hand this near it, or nearer, is measured against every slot whose
+ * room it could reach into: any slot it is not measured against is more than 1,100 u away, and
+ * two full-size systems with their gap need `slotRoom`, 1,071 u (data/layout.test.ts holds the
+ * sum). Further out the build refuses a place by hand rather than vouch for it (data/build.ts):
+ * this is twice as far out as the galaxy the journeys are measured in.
+ */
+export const HAND_PLACE_WITHIN = 1700;
+
+export interface HandPlace {
+  /** The slot, other than the system's own, whose centre is nearest... */
+  readonly slot: number;
+  /** ...and how far that centre is, u. */
+  readonly distance: number;
+  /**
+   * How far a system here may reach and still leave every other slot the room the honeycomb
+   * promised it. Below its real reach, the build refuses the place; below 0, the place lies in
+   * another slot's own room.
+   */
+  readonly room: number;
+  /** How far the place is from the hub of the honeycomb (slot 1), u: `HAND_PLACE_WITHIN`. */
+  readonly fromHub: number;
+}
+
+/**
+ * A SYSTEM PLACED BY HAND (`position: [x, z]` in its file) keeps its slot (`order`) and sits
+ * somewhere else in that slot's room: drawn in towards its neighbours, where the slot's centre
+ * would stand apart (Research, 2026-10-03: docs/PLAN.md §5.4). What it may never do is take room
+ * that was promised to ANOTHER slot. Every other slot keeps what `slotRoomProblems` says it has:
+ * a system of the largest size the build accepts, `minSystemGap` clear of whatever is beside it.
+ * So the place must be at least that far (maxSystemRadius + minSystemGap, and the slack of
+ * rounding) from the centre of every other slot, plus the hand-placed system's own reach:
+ * `room` is how much reach that leaves it.
+ *
+ * Then nothing else in the galaxy can tell that it was placed by hand. A system in any other
+ * slot, there now or added later, grows to full size without meeting it, and no slot moves. The
+ * one that pays is the hand-placed system itself: it has `room` to grow into, where its slot's
+ * centre has room for anything the build accepts, and the build says so the day it outgrows the
+ * place (data/build.ts). Its own slot is left out of the reckoning: nobody else can hold that
+ * `order`, so the room it gives up is its own.
+ *
+ * Against the home system the build's tripwire is enough (the home system is as big as it is),
+ * and so it is between two systems that are both placed by hand.
+ *
+ * `room` is only the whole truth within `HAND_PLACE_WITHIN` of the hub (`fromHub`): the slots
+ * measured against are the first `SLOTS_KEPT`.
+ */
+export function handPlace(order: number, position: readonly [number, number]): HandPlace {
+  let slot = 0;
+  let distance = Infinity;
+  for (let other = 1; other <= SLOTS_KEPT; other += 1) {
+    if (other === order) continue;
+    const [x, z] = slotPosition(other);
+    const apart = Math.hypot(position[0] - x, position[1] - z);
+    if (apart >= distance) continue;
+    slot = other;
+    distance = apart;
+  }
+  const [hubX, hubZ] = slotPosition(1);
+  return {
+    slot,
+    distance,
+    room: distance - L.maxSystemRadius - L.minSystemGap - SLOT_SLACK,
+    fromHub: Math.hypot(position[0] - hubX, position[1] - hubZ),
+  };
 }
 
 /** Slots already worked out, and the limits they were worked out for (the harness varies them). */

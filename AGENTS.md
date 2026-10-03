@@ -39,8 +39,8 @@ names are real links, and pointing at one only brings its link forward. A first-
 a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
 the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
-"cluster"), the autopilot docks every journey in today's galaxy of four systems (median 3.0 s,
-p90 4.1 s, the slowest 6.2 s, since the emblem worlds' solids reach past their radii), and every way a journey is handed back at speed (Stop, a key, the web layer
+"cluster"), the autopilot docks every journey in today's galaxy of four systems (median 2.9 s,
+p90 4.0 s, the slowest 5.8 s, since Research moved up beside the others on 2026-10-03), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
 journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
@@ -52,7 +52,10 @@ solar systems** arrived on 2026-09-30 and is built (docs/PLAN.md §4.1 and §9):
 home. **Projects is a binary star**, two suns (Software and Hardware) circling one slot, with
 `/projects/` as its page and a page for each sun; the old `/systems/code/` answers 301 to
 `/systems/software/` (`public/_redirects`). **Research** (all of it planned) and **Hackathons**
-are systems of one sun.
+are systems of one sun. Research stands in the upper left of the star map, above Hackathons, as
+near as the layout lets a system stand to where Allen's arrow ended on 2026-10-03 (149 u from its
+tip): slot 5, **placed by hand** inside that slot's room (docs/PLAN.md §5.4, "Research, placed by
+hand"; `tests/places.test.ts` pins where every system stands).
 Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 ## Invariants
@@ -418,8 +421,27 @@ and the build says so (see "What checks content"). So can a planned project's wo
 built: its maquette grows to full size, and `tests/world-reach.test.ts` gives its new reach.
 
 **Add a solar system (a passion).** `src/content/systems/<id>.md` with `name`, `tagline`, `theme`
-(a colour family from `tokens.color.system`) and the next unused `order`. **Never renumber
-`order`:** it is the system's place in the galaxy.
+(a colour family from `tokens.color.system`) and the lowest `order` no system holds (2 today:
+the orders taken are 1, 3 and 5). **Never renumber `order`, and never give a system another's:**
+it is the system's place in the galaxy, slot k of the honeycomb (`slotPosition`,
+`src/universe/data/layout.ts`), and a new system moves no other. Add its line to the place pin,
+`tests/places.test.ts`. (One `order` has ever changed, at Allen's word: Research's, from 2 to 5
+on 2026-10-03.)
+
+**Place a system by hand.** Only when Allen says where: a system stands on its slot's centre
+unless its file gives `position: [x, z]` (x is to the LEFT on the star map, z up it), and
+Research is the one that does. The place must be inside the system's OWN slot's room: the build
+(`handPlace`, `src/universe/data/layout.ts`) holds it to leaving every other slot the room of a
+full-size system, so that the next system still moves nobody, and its message says which slot
+is crowded and which way to move. What a hand-placed system gives up is room of its own to grow
+(Research: 157.2 u of reach where it stands, 112.2 u used, so one more planet of the usual size
+or one more moon still fits, and a large planet does not). Moving a system that exists is a
+galaxy move: every visitor finds it somewhere else and each saved pose is dropped once
+(`galaxyKey`), so run `npm run journeys` and `npm run map-names`, look at the map's first view
+on a laptop and a phone, and update `tests/places.test.ts` on purpose. A place also decides how
+close a laptop's map opens, and the names' samples in `npm test` (`tests/map-names/`) feel that
+within a few units: try the places round the one you mean before settling on it (docs/PLAN.md
+§5.4, "Why (214, 800)").
 
 **A binary star, and its suns.** Two suns circling one slot (`systems/projects.md`): the binary's
 file has `name`, `theme`, `order` and `suns: [primary, secondary]`, no tagline and no text, and no

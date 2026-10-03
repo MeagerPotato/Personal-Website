@@ -361,7 +361,7 @@ export function boot(
       new Labels({
         overlay: options.overlay,
         screen: onScreen.map,
-        bodies: surroundings.orbits.ids.map((id) => {
+        bodies: surroundings.orbits.ids.map((id, row) => {
           const body = byId.get(id);
           return {
             title: body?.title ?? id,
@@ -369,6 +369,8 @@ export function boot(
             planned: body?.planned === true,
             href: body?.docks === false ? body.href : undefined,
             theme: families.get(id),
+            // What it circles: close in on the map, such a body goes unnamed (`orbitMinPx`).
+            parent: surroundings.orbits.parent[row] ?? -1,
           };
         }),
         params: tuning.labels,

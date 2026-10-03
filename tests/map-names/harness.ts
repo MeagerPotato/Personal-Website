@@ -357,12 +357,13 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
   const options: LabelsOptions = {
     overlay,
     screen: onScreen.map,
-    bodies: bodies.map((body) => ({
+    bodies: bodies.map((body, row) => ({
       title: body.title,
       kind: body.kind,
       planned: body.planned === true,
       href: body.docks === false ? body.href : undefined,
       theme: families.get(body.id),
+      parent: orbits.parent[row] ?? -1,
     })),
     params: tuning.labels,
     view: rig.shape,
