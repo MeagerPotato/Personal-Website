@@ -85,7 +85,7 @@ because the zeros name no database: wait for the merge before §3.
    | --- | --- |
    | Project / Worker name | `allenkh-journal` (**must match** `name` in `sites/journal/wrangler.jsonc`, or the build fails) |
    | Production branch | `main` |
-   | Root directory | `sites/journal` |
+   | Root directory | `sites/journal` (it may sit under **Advanced settings**; if it is left empty the build fails at `npm ci`, "can only install with an existing package-lock.json") |
    | Build command | `cd .. && npm ci && npm run build --workspace=journal` |
    | Deploy command | `npx wrangler deploy` |
    | Builds for non-production branches (Preview builds) | **off** |
@@ -126,7 +126,10 @@ before you do can claim it. Without the secret, setup is switched off entirely.
    ```
 
 2. The Worker → **Settings** → **Variables and secrets** → **Add** → type **Secret**, name
-   `SETUP_TOKEN`, the code as its value → **Deploy**.
+   `SETUP_TOKEN`, the code as its value → **Deploy**. This is the section at the top level of
+   **Settings**, not the one of the same name under **Settings** → **Build**: a build variable
+   never reaches the running Worker, and setup then answers "Setup is switched off (no
+   SETUP_TOKEN)".
 
 Keep the code until §6 is done. After setup it opens nothing (a journal that exists refuses a
 second setup), so you may delete the secret then, or leave it.

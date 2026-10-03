@@ -125,7 +125,7 @@ cron drains and retries.
 | **S0** | The workspace, the design and editor packages, CI (`.github/workflows/sites.yml`) | Done (commit 0abd946) |
 | **J1** | The journal: encryption, sync, offline app, every screen of decisions 6 to 8 | Done (commit 0abd946) |
 | **J2** | The daily reminder (Web Push), the crypto design written down, the runbook | Done |
-| **J3** | Launch: Allen follows the runbook; the journal goes live | Waiting on Allen |
+| **J3** | Launch: Allen follows the runbook; the journal goes live | Done 2026-10-01 |
 | **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Done |
 | **B2** | Comments, held for approval | Done |
 | **B3** | Email subscriptions, double opt-in, and a new post by email | Built; sending waits on Allen's choice (§7) |
@@ -175,8 +175,6 @@ cron drains and retries.
 
 ## 7. Open items for Allen
 
-- **J3:** the journal's Cloudflare setup ([runbook](runbooks/cloudflare-setup.md)), whenever
-  convenient.
 - **B4:** the blog's Cloudflare setup ([runbook](runbooks/blog-setup.md)).
 - **The blog's email** (B3). Built for Cloudflare's own Email Service, which sends from a Worker
   with no API key but needs Workers Paid ($5 a month, 3,000 emails included) to reach readers;

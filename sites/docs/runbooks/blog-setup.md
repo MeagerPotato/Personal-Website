@@ -83,7 +83,7 @@ builds fail until this is on `main`: wait for the merge before §3.
    | --- | --- |
    | Project / Worker name | `allenkh-blog` (**must match** `name` in `sites/blog/wrangler.jsonc`) |
    | Production branch | `main` |
-   | Root directory | `sites/blog` |
+   | Root directory | `sites/blog` (it may sit under **Advanced settings**; if it is left empty the build fails at `npm ci`, "can only install with an existing package-lock.json") |
    | Build command | `cd .. && npm ci && npm run build --workspace=blog` |
    | Deploy command | `npx wrangler deploy` |
    | Builds for non-production branches (Preview builds) | **off** |
@@ -116,7 +116,10 @@ address first can claim it. While the studio has a passkey the code opens nothin
    ```
 
 2. The Worker → **Settings** → **Variables and secrets** → **Add** → type **Secret**, name
-   `SETUP_TOKEN`, the code as its value → **Deploy**.
+   `SETUP_TOKEN`, the code as its value → **Deploy**. This is the section at the top level of
+   **Settings**, not the one of the same name under **Settings** → **Build**: a build variable
+   never reaches the running Worker, and setup then answers "Setup is switched off (no
+   SETUP_TOKEN)".
 
 ## 5. Put it on blog.allenkh.com
 
