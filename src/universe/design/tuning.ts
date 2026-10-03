@@ -14,6 +14,7 @@ import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
 import type { InstrumentParams } from '../sim/instruments';
+import type { MiniMapParams } from '../sim/minimap';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 import type { Terrain, TerrainName } from '../sim/world/ground';
@@ -559,6 +560,54 @@ export const tuning = {
     digitsHz: 10,
     digitsHzReduced: 4,
   } satisfies InstrumentParams,
+
+  /**
+   * THE MINIMAP (ui/MiniMap.ts, sim/minimap.ts): the star map at another size, beside the flight
+   * deck. It looks at the whole galaxy, or at the system the ship is in; a press on a mark flies
+   * there. How it LOOKS is CSS (`.minimap`); these are the star map's own knobs (`map`, above)
+   * at its scale, and what is its own.
+   */
+  minimap: {
+    /**
+     * The view: fitted to the galaxy or to one system (and the ship, wherever it is), fitMargin
+     * times the room that needs plus fitPadPx on every side (CSS px: no names here, only room
+     * for a mark at the edge to be whole), and never closer than spanMin world units across.
+     */
+    spanMin: 100,
+    zoomOutPastFit: 1,
+    fitMargin: 1.05,
+    fitPadPx: 8,
+    /** 1/s. How quickly the view eases from one scope to the other. A cut under reduced motion. */
+    viewOmega: 8,
+    /**
+     * No mark is smaller than this (radius, CSS px), by kind. From the galaxy only the suns and
+     * home are worth a mark (0: true size, which is nothing there); inside a system its planets,
+     * docks and moons are too. A relay is never a mark: nothing docks at it.
+     */
+    minRadiusPx: {
+      galaxy: { sun: 5.5, home: 5.5, planet: 0, moon: 0, station: 0, satellite: 0, link: 0 },
+      system: { sun: 5.5, home: 5.5, planet: 2.5, moon: 1.75, station: 2, satellite: 2, link: 0 },
+    },
+    /** A body that circles another shows once their marks are this far apart (CSS px)... */
+    clearPx: 1,
+    /** ...and no mark under this (radius, CSS px) is drawn at all. */
+    minVisiblePx: 1.5,
+    /**
+     * A system off the frame is a mark at the rim, rimInsetPx inside the edge in its direction
+     * and rimRadiusPx in radius: always one press away. (Keep rimInsetPx under fitPadPx, or a
+     * system at the edge of the galaxy is pinned on the view that shows all of it.)
+     */
+    rimInsetPx: 7,
+    rimRadiusPx: 4.5,
+    /** CSS px. A finger near two marks aims at one only if the other is this much further off. */
+    ambiguityPx: 8,
+    /** A journey's line goes through at most this many points of the autopilot's path. */
+    routePoints: 32,
+    /** The marks are put in place this often a second; the ship, every frame. */
+    bodiesHz: 5,
+    /** CSS px. The ship's chevron, tip to tail. */
+    shipPx: 10,
+  } satisfies MiniMapParams,
 
   /**
    * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many
