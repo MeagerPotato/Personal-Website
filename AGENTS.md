@@ -39,7 +39,12 @@ the URL and the panel know nothing about. **The systems sit close together** (th
 "cluster"), the autopilot docks every journey in today's galaxy of four systems (median 2.9 s,
 p90 4.0 s, the slowest 5.8 s, since Research moved up beside the others on 2026-10-03), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
-journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
+journeys` is its gate. **The flight deck and the minimap** are built: KSP's cluster at the bottom
+centre (ball, speed, heading, throttle and g, two lamps), which only reads the simulation
+(`sim/instruments.ts`) and shows whenever the ship is not docked; and a minimap at the bottom
+right, the star map's maths at another size (`sim/minimap.ts`), whose marks fly the ship there,
+with the way and the seconds of a journey drawn on it. A phone has a strip in the Map button's
+row, and no minimap. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
 are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
@@ -270,8 +275,27 @@ machine (`state/appMachine.ts`: flight, autopilot, approach, docked) in step wit
 simulation then does, and reports it as events, delivered with the frame. Both directions are
 **idempotent** on purpose: the visitor may dock from inside the world and the web layer follows,
 or the route may change and the ship follows, and telling either side what it already knows is
-never an error. Interactive DOM made by the engine (the prompt, later the labels) goes into
-`#universe-overlay`, never into `#universe-host`, which is hidden from assistive technology.
+never an error. DOM made by the engine that a pointer, a keyboard or a screen reader uses (the
+prompt, the names, the Map button) goes into `#universe-overlay`, never into `#universe-host`,
+which is hidden from assistive technology. What is only a picture of things real controls already
+offer (the flight deck, `ui/FlightDeck.ts`; the minimap, `ui/MiniMap.ts`) goes there too,
+`aria-hidden`, with nothing focusable inside. The deck reads the simulation and asks the navigator
+for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on the canvas.
+
+**The deck only reads; add an instrument.** A read-out is a pure function in
+`sim/instruments.ts` with a test (an instrument never shows a number the simulation does not
+have), an element `ui/FlightDeck.ts` makes, and its look in the stylesheet (the drawing carries
+classes and data attributes only). The deck never asks the navigator for anything and gets no
+button: what acts is the prompt. Whether it shows and how big it is are `deckShows` and
+`deckLayout`, never a media query; the minimap is there wherever the deck has its full size, and
+asks the deck. The minimap (`ui/MiniMap.ts`, maths in `sim/minimap.ts`) never gets a rule the
+star map lacks: the same view, the same rule for sizes, the same picking, and a press on it is
+`pickRow`. Neither keeps anything a rebuild could lose, so neither has a snapshot field. The
+camera never moves for the deck: its plate (`--deck-size`) has the room a resting ship leaves
+under its fins, and `tests/deck-room.test.ts` holds the stylesheet to the chase camera, the
+rocket and its hover, so a change to any of them (`tuning.chaseCam`, `tuning.camera`,
+`tuning.ship`, `design/models/rocket.ts`) fails there until `--deck-size` has the room there is
+now.
 
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
@@ -308,7 +332,10 @@ link or to an ancestor.
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
-either another job. The one exception: the home system's family is butter, which is why a
+either another job. (A lamp of the flight deck that the simulation lights wears the cream face
+too, though nobody pressed it; and butter is also the target on the deck's ball, the ring round
+it on the minimap, and a journey's line and seconds there.) The one
+exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
 Check 360 px wide, and check print if the resume could be affected.

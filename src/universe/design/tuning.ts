@@ -13,6 +13,8 @@ import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
+import type { InstrumentParams } from '../sim/instruments';
+import type { MiniMapParams } from '../sim/minimap';
 import type { PlanetLook } from '../sim/planet';
 import type { FlightParams } from '../sim/types';
 import type { Terrain, TerrainName } from '../sim/world/ground';
@@ -537,6 +539,103 @@ export const tuning = {
     /** The ship is a marker: never shorter than twice this (CSS px). */
     shipRadiusPx: 9,
   } satisfies StarMapParams & MapCamParams & MapLookParams,
+
+  /**
+   * THE FLIGHT DECK (ui/FlightDeck.ts, sim/instruments.ts): the cluster of instruments at the
+   * bottom of the view, laid out as Kerbal Space Program's. It only READS the simulation. How it
+   * LOOKS, and where it sits, is CSS (`.flight-deck`); these decide when it has room and what
+   * its gauges count as full.
+   */
+  instruments: {
+    /**
+     * The free view (the viewport less the info panel) has to be this big, in rem [width,
+     * height], for the whole cluster: 768 by 576 px at the usual type size...
+     */
+    fullMinRem: [48, 36],
+    /** ...and this big for the strip in the Map button's row (296 by 320 px). Less: no deck. */
+    stripMinRem: [18.5, 20],
+    /**
+     * The ship is IN a system from this many of its radii from its centre, and until it is this
+     * many out: the horizon of the ball wears that system's family (and `ink.low` between them).
+     */
+    enterRadii: 1,
+    leaveRadii: 1.3,
+    /** u/s. Slower than this the prograde mark is put away: a ship at rest is going nowhere. */
+    progradeMinSpeed: 2,
+    /** u/s² that read as one g: a unit is a metre, so the Earth's own. */
+    gUnit: 9.81,
+    /**
+     * The g arc is full at this many g, and past it the peg lights. By hand the ship pulls 3.5 g
+     * from rest, 6.6 boosting and up to 12.3 in a full turn at a boosting pilot's top speed; the
+     * autopilot pulls about 60: playful, and true.
+     */
+    gFull: 15,
+    /** 1/s. How quickly the g arc follows; the throttle arc follows at the flame's own rate. */
+    gOmega: 10,
+    throttleOmega: 14,
+    /** ASSIST lights once the orbit assist does more than this share of the flying (0 to 1). */
+    assistOn: 0.05,
+    /**
+     * u/s. One, two and three chevrons beside the speed from these on. A boosting pilot's best
+     * is 81, so a chevron always means the autopilot has the ship.
+     */
+    warpTiers: [82, 300, 600],
+    /** The digits change at most this often a second; under reduced motion, this often. */
+    digitsHz: 10,
+    digitsHzReduced: 4,
+  } satisfies InstrumentParams,
+
+  /**
+   * THE MINIMAP (ui/MiniMap.ts, sim/minimap.ts): the star map at another size, beside the flight
+   * deck. It looks at the whole galaxy, or at the system the ship is in; a press on a mark flies
+   * there. How it LOOKS is CSS (`.minimap`); these are the star map's own knobs (`map`, above)
+   * at its scale, and what is its own.
+   */
+  minimap: {
+    /**
+     * The view: fitted to the galaxy or to one system (and the ship, wherever it is), fitMargin
+     * times the room that needs plus fitPadPx on every side (CSS px: no names here, only room
+     * for a mark at the edge to be whole), and never closer than spanMin world units across.
+     */
+    spanMin: 100,
+    zoomOutPastFit: 1,
+    fitMargin: 1.05,
+    fitPadPx: 8,
+    /** 1/s. How quickly the view eases from one scope to the other. A cut under reduced motion. */
+    viewOmega: 8,
+    /**
+     * No mark is smaller than this (radius, CSS px), by kind. From the galaxy only the suns and
+     * home are worth a mark (0: true size, which is nothing there); inside a system its planets,
+     * docks and moons are too. A relay is never a mark: nothing docks at it.
+     */
+    minRadiusPx: {
+      galaxy: { sun: 5.5, home: 5.5, planet: 0, moon: 0, station: 0, satellite: 0, link: 0 },
+      system: { sun: 5.5, home: 5.5, planet: 2.5, moon: 1.75, station: 2, satellite: 2, link: 0 },
+    },
+    /** A body that circles another shows once their marks are this far apart (CSS px)... */
+    clearPx: 1,
+    /** ...and no mark under this (radius, CSS px) is drawn at all. */
+    minVisiblePx: 1.5,
+    /**
+     * A system off the frame is a mark at the rim, rimInsetPx inside the edge in its direction
+     * and rimRadiusPx in radius: always one press away. (Keep rimInsetPx under fitPadPx, or a
+     * system at the edge of the galaxy is pinned on the view that shows all of it.)
+     */
+    rimInsetPx: 7,
+    rimRadiusPx: 4.5,
+    /** CSS px. A finger near two marks aims at one only if the other is this much further off. */
+    ambiguityPx: 8,
+    /** A journey's line goes through at most this many points of the autopilot's path. */
+    routePoints: 32,
+    /** The marks are put in place this often a second; the ship, every frame. */
+    bodiesHz: 5,
+    /**
+     * CSS px. The ship's chevron, tip to tail: a little bigger than a sun's mark (11 px across),
+     * so that it is the first thing found among a system's rings, and still itself on top of a
+     * mark it is at.
+     */
+    shipPx: 13,
+  } satisfies MiniMapParams,
 
   /**
    * QUALITY (core/quality/). On a phone the budget is pixels, so a tier is mostly "how many

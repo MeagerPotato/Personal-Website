@@ -18,8 +18,9 @@
  * Three words of the vocabulary never change meaning (section 2 says it in full):
  *   butter      = HERE: the current page, the keyboard's focus, the body the ship is headed for,
  *                 and what acts on the body at hand (the E key cap of "Orbit FishAI", "Stop")
- *   cream face  = ON: a toggle that is switched on (no other control's face is ink.high; the
- *                 small key caps that name a key, W or M, are keys, not faces)
+ *   cream face  = ON: a toggle that is switched on, or a lamp of the flight deck that the
+ *                 simulation lit (no other control's face is ink.high; the small key caps that
+ *                 name a key, W or M, are keys, not faces)
  *   translate   = how anything moves on hover or press, never transform (the engine owns that)
  *
  * Structure:  0. the typeface (Outfit) and its measured fallback
@@ -1826,14 +1827,16 @@ main > .resume-name + .resume-contact {
 
    Three rules hold every piece of it together:
    - BUTTER MEANS "HERE": the current page (a bar under its name), the keyboard's focus (the
-     ring), the body the ship is headed for (the one filled name tag), and what acts on the
-     body at hand: the E key cap of "Orbit FishAI" (the one key cap that is not white, because
-     it is the prompt's action, not a key being named) and "Stop".
+     ring), the body the ship is headed for (the one filled name tag, and its mark on the flight
+     deck's ball), and what acts on the body at hand: the E key cap of "Orbit FishAI" (the one
+     key cap that is not white, because it is the prompt's action, not a key being named) and
+     "Stop".
    - THE CREAM FACE MEANS "ON": a control whose face is filled in ink.high is a toggle that is
      switched on, and no other control's face ever is: the Map button while the map is open,
      the sheet's Shrink while the sheet is up (data-panel-size), the welcome button while its text
-     shows (aria-expanded). The one exception is not a control: the small key caps that name a
-     key (W, Shift, M) are drawn as the white keys they are.
+     shows (aria-expanded). Two things that are not controls wear it too: a lamp of the flight
+     deck (ASSIST, AUTO) that the simulation has lit, which is on though nobody pressed it; and
+     the small key caps that name a key (W, Shift, M), drawn as the white keys they are.
    - MOVEMENT USES THE translate PROPERTY, NEVER transform. The engine writes transform on the
      names and the touch controls every frame, and the prompt is centred with translate: a
      hover lift or a press written as transform would throw them across the screen. Any lift
@@ -1863,6 +1866,26 @@ main > .resume-name + .resume-contact {
     );
     /* The Map button's width, or more: what sits beside it in its row keeps clear by this much. */
     --map-chip: 6rem;
+    /*
+     * The flight deck (universe/ui/FlightDeck.ts). Its round plate is sized by the view's HEIGHT:
+     * 64 px in a view 576 px tall, 78 at 650, 91 at 720, 112 from 832 up. That is what keeps its
+     * top under the ship in a short window, with the camera left exactly where it is. A ship at
+     * rest hovers, and at the bottom of each bob its fins reach 81.3 % of the way down a view
+     * (tests/deck-room.test.ts works it out from the chase camera and the model, and a browser's
+     * pixels agree): the plate has the 18.75svh under that, less the cluster's own 2.25rem (the
+     * chips above and below it, and the gap at the bottom) and 0.5rem of air. (Only the flame of
+     * a boost from rest reaches lower than the fins, by about 1.5 % of the view for a fifth of a
+     * second: begun at the very bottom of a bob, its tip is behind the speed pill that long.)
+     * --deck-half is half of the cluster's width; --deck-top is how far its top is from the
+     * bottom of the view (100 to 148 px), for whatever has to keep above it.
+     */
+    --deck-size: clamp(4rem, calc(18.75svh - 2.75rem), 7rem);
+    --deck-half: 7.5rem;
+    --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
+    --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
+    /* The minimap beside it (universe/ui/MiniMap.ts), by the view's height too: 132 px across in
+       a view up to 660 px tall, 144 at 720, 160 at 800, 168 from 840 up. */
+    --minimap-size: clamp(8.25rem, 20svh, 10.5rem);
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
@@ -2613,6 +2636,8 @@ main > .resume-name + .resume-contact {
     white-space: nowrap;
     cursor: pointer;
     translate: var(--prompt-x) 0;
+    /* It steps beside the flight deck and back (below): a slide, not a jump. */
+    transition: translate var(--motion-base) var(--motion-ease-out);
     animation: dock-prompt-in var(--motion-base) var(--motion-ease-out);
   }
 
@@ -2634,10 +2659,11 @@ main > .resume-name + .resume-contact {
       0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
   }
 
-  /* Pressed: the chip drops onto its ledge. */
+  /* Pressed: the chip drops onto its ledge, at once. */
   .dock-prompt:active {
     translate: var(--prompt-x) var(--ledge);
     box-shadow: none;
+    transition-duration: 0s;
   }
 
   .dock-prompt span {
@@ -2742,7 +2768,885 @@ main > .resume-name + .resume-contact {
   }
 
   html[data-motion='reduced'] .dock-prompt {
+    transition: none;
     animation: none;
+  }
+
+  /*
+   * THE FLIGHT DECK (universe/ui/FlightDeck.ts): Kerbal Space Program's cluster of instruments at
+   * the bottom centre of the view, drawn flat. A round plate with a ball in it (a globe that turns
+   * with the heading and leans with the ship), the throttle up its left side and the g up its
+   * right, the speed on a pill above it, the heading on a chip below, and a lamp on each shoulder.
+   *
+   * It only READS the simulation. Nothing in it is a control, so nothing in it has a ledge, a
+   * hover or a focus ring, and the whole of it is hidden from assistive technology: what it shows
+   * is said by real controls already. The engine decides whether it shows (`data-shown`) and how
+   * big it is (`data-layout`, from the view the panel leaves free: no media query decides it);
+   * this is how it looks. The drawing carries classes and data attributes only: every fill and
+   * stroke is here.
+   *
+   * It is placed with `left`, never centred by translate: translate is its arrival's.
+   */
+  .flight-deck {
+    position: absolute;
+    bottom: var(--deck-gap);
+    left: calc(50% - var(--deck-half));
+    width: calc(2 * var(--deck-half));
+    height: calc(var(--deck-size) + 1.5rem);
+    color: var(--color-ink-high);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Leaving, it fades, and is then gone for a pointer too. */
+    transition:
+      opacity var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  /* Only the instruments take a press, and do nothing with it, so that nothing behind a plate is
+     picked unseen: the gaps between them are the world's. (The overlay hands the pointer to each
+     of its children by its id, so this names the id too.) */
+  #universe-overlay > .flight-deck:not([data-layout='strip']) {
+    pointer-events: none;
+  }
+
+  /* (The minimap comes and goes the same way: its own rules are further down.) */
+  :is(.flight-deck, .minimap)[hidden] {
+    display: none;
+  }
+
+  :is(.flight-deck, .minimap):not([data-shown]) {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* While it fades nothing of it takes a press: what it covered is the world's again at once. */
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]),
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]) * {
+    pointer-events: none;
+  }
+
+  /* Arriving is an animation, like the prompt's and the card's: no transition on the way in. */
+  :is(.flight-deck, .minimap)[data-shown] {
+    transition: none;
+    animation: flight-deck-in var(--motion-slow) var(--motion-ease-out);
+  }
+
+  @keyframes flight-deck-in {
+    from {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+  }
+
+  .flight-deck > * {
+    position: absolute;
+    pointer-events: auto;
+    /* A finger on an instrument steers nothing, and must not scroll or zoom the page either. */
+    touch-action: none;
+  }
+
+  /* The speed, the heading and the lamps: chips on the plate, above the round plate's rim. */
+  .flight-deck__speed,
+  .flight-deck__hdg,
+  .flight-deck__lamp {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+  }
+
+  .flight-deck__speed {
+    top: 0;
+    left: calc(50% - 3.5rem);
+    gap: var(--space-1);
+    width: 7rem;
+    height: 1.625rem;
+  }
+
+  .flight-deck__hdg {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    gap: 0.375rem;
+    width: fit-content;
+    min-width: 4.5rem;
+    height: 1.375rem;
+    margin-inline: auto;
+    padding-inline: var(--space-2);
+  }
+
+  /* Whole numbers in a box of three digits, set to the right: the unit beside them never moves. */
+  .flight-deck b {
+    font-weight: inherit;
+  }
+
+  .flight-deck__speed b {
+    min-width: 3ch;
+    text-align: right;
+  }
+
+  .flight-deck small {
+    color: var(--color-ink-mid);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  /* Chevrons before the speed, one for each of the autopilot's speeds it has reached (82, 300,
+     600 u/s: the pilot's own drive never gets to the first). At the pill's left end, out of the
+     flow, so that the number does not move when they come. */
+  .flight-deck__warp {
+    position: absolute;
+    top: calc(50% - 0.3125rem);
+    left: var(--space-2);
+    width: 1.125rem;
+    height: 0.625rem;
+    fill: none;
+    stroke: var(--color-ink-high);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .flight-deck__warp path {
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-warp='1'] .flight-deck__warp path:first-child,
+  .flight-deck[data-warp='2'] .flight-deck__warp path:not(:last-child),
+  .flight-deck[data-warp='3'] .flight-deck__warp path {
+    opacity: 1;
+  }
+
+  /* The lamps, ASSIST and AUTO, one on each shoulder. Off: a quiet chip. */
+  .flight-deck__lamp {
+    top: 0.1875rem;
+    width: 3.75rem;
+    height: 1.25rem;
+    color: var(--color-ink-mid);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition:
+      color var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck__lamp[data-lamp='assist'] {
+    left: 0;
+  }
+
+  .flight-deck__lamp[data-lamp='auto'] {
+    right: 0;
+  }
+
+  /* Lit: the cream face, "on". The simulation switched it, nobody pressed it (2, the vocabulary). */
+  .flight-deck__lamp[data-on] {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+  }
+
+  /* The round plate, with the boost pad's ring: the two round things of the HUD are one family. */
+  .flight-deck__plate {
+    top: 0.8125rem;
+    left: calc(50% - var(--deck-size) / 2);
+    width: var(--deck-size);
+    height: var(--deck-size);
+    border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+    border-radius: 50%;
+    background: var(--hud);
+  }
+
+  /* The drawing covers the plate, ring and all, and one unit of it is one CSS px: the engine
+     sets its viewBox to the plate's own size (FlightDeck.ts, shape). */
+  .flight-deck__dial {
+    position: absolute;
+    top: -0.1875rem;
+    left: -0.1875rem;
+    display: block;
+    width: calc(100% + 0.375rem);
+    height: calc(100% + 0.375rem);
+  }
+
+  /*
+   * The ball: a globe seen from the pilot's seat, in two tones as KSP's is. The sky half is the
+   * LIGHTER one (surface.line), as a sky is, over a ground half as dark as the space behind the
+   * plate (space.900): 1.75:1 apart, the most these navies have to give (on surface.raised the
+   * two read as one in the browser). The horizon carries the division all the same: 3 px, in the
+   * family of the system the ship is in (`data-theme`; lilac, the deepest, is 3.6:1 on the sky)
+   * and in ink.mid between systems, brighter than the hairlines so that it is the horizon there
+   * too. Meridians and the rim are ink.low hairlines (3.8:1 on the sky, 6.7 on the ground).
+   * src/site/contrast.test.ts reads both faces from here and holds every mark to them.
+   */
+  .flight-deck__sky {
+    fill: var(--color-surface-line);
+  }
+
+  .flight-deck__ground {
+    fill: var(--color-space-900);
+  }
+
+  .flight-deck__line,
+  .flight-deck__rim {
+    fill: none;
+    stroke: var(--color-ink-low);
+    stroke-width: 1;
+  }
+
+  .flight-deck__horizon {
+    stroke: var(--color-ink-mid);
+    stroke-width: 3;
+  }
+
+  .flight-deck[data-theme] .flight-deck__horizon {
+    stroke: var(--theme-base);
+  }
+
+  /* N, E, S and W, on the sky: never under 12 px, upright, each on a navy rim (the stroke,
+     painted first: half of it shows) that parts it from the meridian it rides. The engine fades
+     a letter as it turns away from the nose, and out where the target is (its `opacity`). */
+  .flight-deck__letter {
+    fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    font-size: 0.75rem;
+    text-anchor: middle;
+  }
+
+  .flight-deck__letter[data-off],
+  .flight-deck__mark[data-off] {
+    display: none;
+  }
+
+  /*
+   * The marks on the ball, each a shape of its own with a navy rim under it (the same shape,
+   * wider), so that it reads on either half and across the horizon: the nose (fixed), prograde
+   * (a ring with a dot, where the ship is really going), home (a house) and the target. THE
+   * TARGET IS BUTTER, "here": the body the ship is headed for, as its name tag is. Its ring is
+   * whole while a journey or an approach is locked on, and dashed for a body that is only within
+   * reach. A mark behind the ship is pinned at the rim on its side, and loses its dot.
+   */
+  .flight-deck__mark,
+  .flight-deck__nose {
+    color: var(--color-ink-high);
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .flight-deck__mark[data-mark='target'] {
+    color: var(--color-focus);
+  }
+
+  .flight-deck__under {
+    stroke: var(--color-space-950);
+    stroke-width: 4.5;
+  }
+
+  .flight-deck__over {
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .flight-deck__nose .flight-deck__under {
+    stroke-width: 5.5;
+  }
+
+  .flight-deck__nose .flight-deck__over {
+    stroke-width: 2.5;
+  }
+
+  .flight-deck__dot {
+    fill: currentColor;
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    paint-order: stroke;
+  }
+
+  .flight-deck__mark[data-behind] .flight-deck__dot {
+    display: none;
+  }
+
+  .flight-deck__mark[data-mark='target']:not([data-lock]) .flight-deck__over {
+    stroke-dasharray: 3.4;
+    stroke-linecap: butt;
+  }
+
+  /*
+   * The arcs: the throttle up the left, the g up the right. A faint track, and a fill in ink.high
+   * that the engine lengthens (stroke-dasharray). The throttle turns coral, the flame's colour,
+   * while boosting (5.7:1 on the plate over white); past a full g arc a peg lights at its top.
+   * Wider than it looks for a mouse, which gets each arc's name as a tooltip.
+   */
+  .flight-deck__arc path {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  .flight-deck__arc .flight-deck__hit {
+    stroke: transparent;
+    stroke-width: 12;
+    pointer-events: stroke;
+  }
+
+  .flight-deck__track {
+    stroke: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
+  }
+
+  .flight-deck__fill {
+    stroke: var(--color-ink-high);
+    transition: stroke var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-boost] [data-arc='throttle'] .flight-deck__fill {
+    stroke: var(--color-system-coral-base);
+  }
+
+  .flight-deck__peg {
+    fill: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
+    transition: fill var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-peg] .flight-deck__peg {
+    fill: var(--color-ink-high);
+  }
+
+  html[data-motion='reduced'] :is(.flight-deck, .minimap),
+  html[data-motion='reduced'] :is(.flight-deck, .minimap) * {
+    transition: none;
+    animation: none;
+  }
+
+  /* Forced colours: the plates are the page's ground, the marks its text, and what is lit (a
+     lamp, the target, the boost) the system's highlight. An <svg> keeps its own colours unless
+     told, so it is told. */
+  @media (forced-colors: active) {
+    .flight-deck__warp,
+    .flight-deck__dial {
+      forced-color-adjust: none;
+    }
+
+    .flight-deck__sky,
+    .flight-deck__ground {
+      fill: Canvas;
+    }
+
+    .flight-deck__warp,
+    .flight-deck__line,
+    .flight-deck__rim,
+    .flight-deck__horizon,
+    .flight-deck[data-theme] .flight-deck__horizon,
+    .flight-deck__fill {
+      stroke: CanvasText;
+    }
+
+    .flight-deck__letter {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .flight-deck__mark,
+    .flight-deck__nose {
+      color: CanvasText;
+    }
+
+    .flight-deck__under,
+    .flight-deck__dot {
+      stroke: Canvas;
+    }
+
+    .flight-deck__track {
+      stroke: GrayText;
+    }
+
+    .flight-deck__peg {
+      fill: GrayText;
+    }
+
+    .flight-deck[data-peg] .flight-deck__peg {
+      fill: CanvasText;
+    }
+
+    .flight-deck__mark[data-mark='target'] {
+      color: Highlight;
+    }
+
+    .flight-deck[data-boost] [data-arc='throttle'] .flight-deck__fill {
+      stroke: Highlight;
+    }
+
+    .flight-deck__lamp[data-on],
+    .flight-deck .flight-deck__lit {
+      forced-color-adjust: none;
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+  }
+
+  /*
+   * THE STRIP (`data-layout='strip'`): a view too small for the cluster (a phone, either way up;
+   * a window under 48rem by 36rem) has the same deck with less on it, as one pill in the Map
+   * button's row, top left, where no thumb flies. The ball, with its horizon, north, the nose
+   * and the target; beside it the speed, over the heading or, while a lamp is lit, that lamp's
+   * name on the cream face. One size in every state and at every width (the narrow end of the
+   * type scale), so nothing jumps; the prompt, the boost pad, the corner chip and the camera are
+   * where they were. The whole pill takes a press, and does nothing with it.
+   *
+   * It is the Map button's opposite number: as far from the left edge as the button is from the
+   * right one (--space-6 for a mouse, --space-4 for a finger and in a short, narrow window: the
+   * button's own rules, below, move both).
+   */
+  .flight-deck[data-layout='strip'] {
+    --text-xs: var(--text-narrow-xs);
+    --text-sm: var(--text-narrow-sm);
+
+    top: calc(var(--panel-inset-top, 4rem) + var(--space-3));
+    bottom: auto;
+    left: max(var(--space-6), env(safe-area-inset-left));
+    display: grid;
+    grid-template: 1.125rem 1.125rem / 2.25rem minmax(0, 1fr);
+    align-content: center;
+    align-items: center;
+    justify-items: end;
+    gap: 0.125rem var(--space-2);
+    width: 7.75rem;
+    height: 2.75rem;
+    padding: 0 0.625rem 0 0.1875rem;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .flight-deck[data-layout='strip'] > * {
+    position: static;
+  }
+
+  /* The ball fills its plate, which needs no ring of its own inside the pill's round end. */
+  .flight-deck[data-layout='strip'] .flight-deck__plate {
+    position: relative;
+    top: 0;
+    left: 0;
+    grid-row: 1 / -1;
+    grid-column: 1;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 0;
+    background: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__dial {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Not on a ball this small: the letters, eleven of the meridians (north stays, at 2 px), home
+     and prograde, and the target's ring (its dot is the mark; behind the ship, its ring alone).
+     Not in the pill: the arcs, the chevrons, and the two lamps (the lit one is named below). */
+  .flight-deck[data-layout='strip']
+    :is(
+      .flight-deck__letter,
+      .flight-deck__line:not([data-north]),
+      .flight-deck__mark:not([data-mark='target']),
+      .flight-deck__arc,
+      .flight-deck__peg,
+      .flight-deck__warp,
+      .flight-deck__lamp
+    ),
+  .flight-deck[data-layout='strip']
+    .flight-deck__mark:not([data-behind])
+    :is(.flight-deck__under, .flight-deck__over) {
+    display: none;
+  }
+
+  .flight-deck[data-layout='strip'] :is(.flight-deck__line, .flight-deck__horizon) {
+    stroke-width: 2;
+  }
+
+  /* The speed, and under it the heading: words on the pill, no plates of their own. */
+  .flight-deck[data-layout='strip'] :is(.flight-deck__speed, .flight-deck__hdg) {
+    grid-column: 2;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__hdg {
+    grid-row: 2;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  /* The strip's one lamp (`.flight-deck__lit`): the name of whichever is lit, on the cream face,
+     where the heading was. With none lit it is empty, and not there. */
+  .flight-deck__lit {
+    display: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__lit:not(:empty) {
+    grid-row: 2;
+    grid-column: 2;
+    display: block;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .flight-deck[data-layout='strip']:has(.flight-deck__lit:not(:empty)) .flight-deck__hdg {
+    display: none;
+  }
+
+  /* A first visit: the how-to-fly card speaks first (held sideways, a finger's card has this very
+     corner), and the strip arrives when it has gone. */
+  html[data-engine='ready'][data-panel='closed']:has(.flight-hint:not([hidden]))
+    .flight-deck[data-layout='strip'] {
+    visibility: hidden;
+    animation: none;
+  }
+
+  /*
+   * ROOM FOR THE DECK, without moving the camera. While it is SEATED (shown, at full size:
+   * `data-seated`) the prompt steps beside it, to its left, where KSP has its buttons: above the
+   * deck it would lie on the ship in a short window. Its right end keeps 12 px clear of the
+   * cluster, and "Flying to" steps aside as it does in a phone's Map button row (heard, not
+   * seen): the AUTO lamp and the target on the ball say it. Where the prompt rests (`bottom`) is
+   * whatever each pointer's rule says, as before.
+   */
+  html:has(.flight-deck[data-seated]) .dock-prompt {
+    --prompt-x: calc(-100% - var(--deck-half) - var(--space-3));
+
+    max-width: calc(50% - var(--deck-half) - var(--space-3) - var(--space-6));
+  }
+
+  html:has(.flight-deck[data-seated]) .dock-prompt__lead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ...and a mouse's how-to-fly card, which a narrow window brings over the deck's left end,
+     keeps 12 px above it: lifted by up to 36 px, as the deck grows with the view. (A finger's
+     card is under the top bar, or waits below the ship where there is no deck at full size.) */
+  @media (pointer: fine) {
+    html[data-mode='universe'][data-engine='ready'][data-panel='closed']:has(
+        .flight-deck[data-seated]
+      )
+      .flight-hint:not([hidden]) {
+      bottom: max(
+        calc(var(--prompt-bottom) + 2.75rem + var(--space-3)),
+        calc(var(--deck-top) + var(--space-3))
+      );
+    }
+  }
+
+  /*
+   * THE MINIMAP (universe/ui/MiniMap.ts): the star map at another size, at the bottom right of
+   * the view. A square of the map's own ground (the page's dot grid, twice as fine) over a
+   * caption that says what it shows: the galaxy, or the system the ship is in. It is there
+   * wherever the deck has its full size, flying or docked, and goes while the star map is open.
+   *
+   * A sun and the home planet are their family's GLYPH, filled, with a navy rim; planets, docks
+   * and moons are discs in their family; planned work is hollow and dashed; the circles they
+   * travel on are hairlines in the family; a system that is off the map is its glyph in outline,
+   * pinned at the rim in its direction; the ship is a cream chevron. A pointer AIMS at a mark (a
+   * cream ring round it, its name in the caption) and flies there on release; a press where
+   * nothing is opens the star map. So the plate has a ledge, as whatever can be pressed has, and
+   * drops onto it while pressed. It is hidden from assistive technology: the names in the sky
+   * and the Map button are the real controls for all of it.
+   *
+   * BUTTER IS "HERE", as everywhere: a ring round the body the ship is at or headed for, the way
+   * that is left of a journey (a line from the ship to that ring), and the seconds it still
+   * takes, at the end of the caption.
+   *
+   * The drawing carries classes and data attributes only: every fill and stroke is here, and
+   * src/site/contrast.test.ts reads the map's ground from here and holds every mark to it.
+   */
+  .minimap {
+    position: absolute;
+    right: max(var(--space-6), env(safe-area-inset-right));
+    bottom: var(--deck-gap);
+    width: var(--minimap-size);
+    overflow: hidden;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-md);
+    color: var(--color-ink-mid);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    white-space: nowrap;
+    /* A finger on the map aims: it never scrolls or zooms the page, nor selects the caption. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Leaving, it fades, and is then gone for a pointer too. */
+    transition:
+      opacity var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  /* Under a finger it sits above the boost pad, 12 px clear of it, pad or no pad: it does not
+     jump when the first touch brings the pad out. */
+  @media (pointer: coarse) {
+    .minimap {
+      bottom: calc(var(--boost-pad-bottom) + var(--boost-pad-size) + var(--space-3));
+    }
+  }
+
+  @media (hover: hover) {
+    .minimap:hover {
+      border-color: var(--color-ink-low);
+    }
+  }
+
+  /* Pressed: the plate drops onto its ledge. (The engine measures a pointer against where the
+     plate rests, so what was aimed at stays aimed at.) */
+  .minimap:active {
+    translate: 0 var(--ledge);
+    box-shadow: none;
+  }
+
+  .minimap[data-pick] {
+    cursor: pointer;
+  }
+
+  /* The map: one unit of the drawing is one CSS px (the engine sets its viewBox to this size). */
+  .minimap__map {
+    display: block;
+    width: calc(var(--minimap-size) - 2px);
+    height: calc(var(--minimap-size) - 2px);
+    background: var(--color-space-900)
+      radial-gradient(circle, var(--color-space-700) 0.0625rem, transparent 0.09375rem) 0 0 /
+      0.75rem 0.75rem;
+  }
+
+  /* A mark: its family's fill, and a navy rim (the stroke, painted first: half of it shows). */
+  .minimap__mark {
+    fill: var(--theme-base);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* Planned work, not built yet: hollow and dashed, as its name tag is. */
+  .minimap__mark[data-planned] {
+    fill: var(--color-space-900);
+    stroke: var(--color-ink-low);
+    stroke-width: 1;
+    stroke-dasharray: 2 1.5;
+    paint-order: normal;
+  }
+
+  /* A system that is off the map: its glyph in outline, at the rim in its direction. */
+  .minimap__mark[data-pin] {
+    fill: var(--color-space-900);
+    stroke: var(--theme-base);
+    stroke-width: 1.5;
+    paint-order: normal;
+  }
+
+  .minimap__orbit {
+    fill: none;
+    stroke: var(--theme-base);
+    stroke-width: 1;
+    stroke-opacity: 0.35;
+  }
+
+  /* The mark a pointer aims at: a cream ring round it. */
+  .minimap__aim {
+    fill: none;
+    stroke: var(--color-ink-high);
+    stroke-width: 1.5;
+  }
+
+  /* "Here": the ring round the body the ship is at or headed for, and the way there. */
+  .minimap__here,
+  .minimap__route {
+    fill: none;
+    stroke: var(--color-focus);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /*
+   * Locked on: the ring closes in on its mark, once, here and on the deck's ball (whose ring is
+   * whole from the moment a journey or an approach is locked on). The stylesheet's doing alone:
+   * it plays when a ring appears, and a journey sent on to another body while it flies keeps the
+   * ring it has.
+   */
+  .minimap__here:not([data-off]),
+  .flight-deck__mark[data-lock] :is(.flight-deck__under, .flight-deck__over) {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: lock-on var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes lock-on {
+    from {
+      scale: 1.6;
+    }
+  }
+
+  /* (The minimap's ring is stilled by the rule for all of the deck and the minimap, above; the
+     ball's ring is named more exactly than that rule reaches.) */
+  html[data-motion='reduced'] .flight-deck__mark[data-lock] * {
+    animation: none;
+  }
+
+  .minimap__ship {
+    fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* What is no longer drawn (a moon the scale has no room for, a ring) fades where it was, and
+     is then gone; what comes back is there at once, and fades in. */
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here) {
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here)[data-off] {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility 0s linear var(--motion-fast);
+  }
+
+  /* The caption: what the map shows, in quiet ink behind its family's glyph (the galaxy has no
+     family, and no glyph); or, in bright ink, a body: the one a pointer aims at, else the one a
+     journey is headed for, with the seconds it still takes. 13 px, like a name in the sky; a
+     name too long for it gives way, and what follows it never does. */
+  .minimap__caption {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.5rem;
+    padding-inline: var(--space-2);
+  }
+
+  .minimap__caption i {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--theme-base);
+    clip-path: var(--theme-glyph);
+    scale: var(--theme-glyph-scale);
+  }
+
+  .minimap__caption:not([data-theme]) i {
+    display: none;
+  }
+
+  .minimap__caption b {
+    overflow: hidden;
+    min-width: 0;
+    font-weight: inherit;
+    text-overflow: ellipsis;
+  }
+
+  .minimap__caption[data-lit] b {
+    color: var(--color-ink-high);
+  }
+
+  /* The seconds a journey still takes: butter, at the caption's end, each digit as wide as the
+     next. */
+  .minimap__caption small {
+    flex: none;
+    margin-left: auto;
+    color: var(--color-focus);
+    font-size: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .minimap__caption small:empty {
+    display: none;
+  }
+
+  /* "Planned" after the name of planned work (universe/ui/planned.ts), as on its name tag; the
+     comma before it is for a screen reader, and nothing here is read out. */
+  .minimap__note {
+    flex: none;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .minimap__sep {
+    display: none;
+  }
+
+  /* Forced colours: the map is the page's ground and its marks the page's text; what is hollow
+     stays hollow. An <svg> keeps its own colours unless told, so it is told. */
+  @media (forced-colors: active) {
+    .minimap__map {
+      forced-color-adjust: none;
+      background: Canvas;
+    }
+
+    .minimap__mark,
+    .minimap__ship {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .minimap__mark:is([data-planned], [data-pin]) {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+
+    .minimap__orbit {
+      stroke: GrayText;
+      stroke-opacity: 1;
+    }
+
+    .minimap__aim {
+      stroke: CanvasText;
+    }
+
+    .minimap__here,
+    .minimap__route {
+      stroke: Highlight;
+    }
+
+    .minimap__caption i {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
   }
 
   /*
@@ -2840,6 +3744,11 @@ main > .resume-name + .resume-contact {
       justify-content: center;
       min-width: var(--map-chip);
       padding-left: var(--space-4);
+    }
+
+    /* ...and the deck's strip, at the other end of the row, as far in. */
+    .flight-deck[data-layout='strip'] {
+      left: max(var(--space-4), env(safe-area-inset-left));
     }
   }
 
@@ -3306,6 +4215,10 @@ main > .resume-name + .resume-contact {
 
     .map-toggle {
       right: max(var(--space-4), env(safe-area-inset-right));
+    }
+
+    .flight-deck[data-layout='strip'] {
+      left: max(var(--space-4), env(safe-area-inset-left));
     }
   }
 
