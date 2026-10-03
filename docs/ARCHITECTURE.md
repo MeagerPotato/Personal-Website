@@ -531,7 +531,7 @@ run there is a reason to look, not a locked door.
 | Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
-| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it, with the baked sky on it: every key of `look.sky` as a slider, `rebake sky`, `copy look.sky as JSON`, what the view measures (`html[data-sky-y]`), and with `parity=1` the GPU against the CPU oracle. The `stars` subject looks out the same way at the stars: the sky's own, or a sheet of one class (`starKind`) in one tint or the mix, drawn as a view of another height would draw them (`starRows`), or as the star map shows them (`starMap`). The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
+| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it, with the baked sky on it: the plain numbers of `look.sky` as sliders (its tables of clumps and galaxies are edited in `tuning.ts`), `rebake sky`, `copy look.sky as JSON`, what the view measures (`html[data-sky-y]`), and with `parity=1` the GPU against the CPU oracle. The `stars` subject looks out the same way at the stars: the sky's own, or a sheet of one class (`starKind`) in one tint or the mix, drawn as a view of another height would draw them (`starRows`), or as the star map shows them (`starMap`). The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
 | The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and each sun, the star map; and the lab's sky from the seven views, and its stars (a sheet of each class, the heroes at two view heights and on the low tier, the stars as the map shows them), and its suns (a living sun of each family, on the low tier and as the map shows it, and the Hardware sun). `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
@@ -611,7 +611,7 @@ in the lighting flag every vertex already has: `aUnlit` is 6 plus the sun's own 
 (`sim/sunSurface.ts`, `sunFlag`; under 16), which every reader of the flag still sees as
 "glows" (above one and a half). Only the toon shader's SUN variant (a material a sun family,
 `Galaxy.sunSurfaceOf`) asks "above four?", and there draws the surface per pixel: two layers
-of gradient noise on the ball (`design/shaders/noise.ts`, a chunk the baked sky shares) at
+of gradient noise on the ball (`design/shaders/noise.ts`, a chunk the worlds' clouds share) at
 the place the sun's number says, cut by three thresholds into the four tones of a ladder of
 six, stepped down toward the limb, with three spots laid over, every edge soft and never
 thinner than a pixel; `uFlatness` takes it to the base. `sim/sunGrain.ts` is the same
@@ -654,12 +654,17 @@ frame and has as many districts as the manifest has systems (a `#define`). Neith
 neither is picked, and neither is on the bloom guest list.
 
 **The sky is baked once, on the GPU, after the first frame** (`world/SkyBake.ts`). What the sky
-adds to the navy (the Milky Way, the massifs of gas at the systems' bearings, far galaxies) is
+adds to the navy (the Milky Way's haze and fifteen far galaxies; no gas and no clouds: Allen's
+decision of 2026-10-03, docs/DESIGN.md, "Deep light") is
 one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it
-from `tuning.look.sky` by `design/skyRecipe.ts` (pure; a tier's layers are `#define`s, so a tier
-compiles only what it paints). It is drawn into a panorama (an equal-area cylinder: u is the
+from `tuning.look.sky` by `design/skyRecipe.ts` (pure). It is the same program on every tier,
+with no noise and no levels in it: every term is a Gaussian or a sine of where the texel is.
+Its colours (the haze's four tones, the six star tints) and the lengths of its two tables are
+uniforms: with constant counts Direct3D's compiler unrolls the loops and takes longer over it.
+It is drawn into a panorama (an equal-area cylinder: u is the
 azimuth, v the sine of the elevation; sRGB, 8 bits, 2048 x 1024, or 1536 x 768 on the low
-tier) whose alpha says how clear the sky is, for the stars. The steps, each of which must not
+tier: a tier is only a size) whose alpha says how much of a star shows there (less in the
+Milky Way's dark lane). The steps, each of which must not
 hold a frame up:
 
 1. `paint()` is called once the first frame is out: the event `sky: baking` goes to the shell
@@ -670,40 +675,54 @@ hold a frame up:
    `sim/skySchedule.ts` decides (pure, tested): after a frame of `bandSlowMs` or longer only
    every second frame paints one. A frame that painted a band is not fed to the governor
    (`Engine.excuseFrame()`): the bake is the engine's own doing, not the device being slow.
-3. When the last band is in: `sky: ready`, and the backdrop cross-fades (`uReveal`) from the old
-   analytic glows to the panorama over `revealSec`. `setSky()` in `design/materials.ts` hands
-   the panorama, the reveal and the exposure to the backdrop AND the stars, which share those
-   three uniforms. The exposure follows `setView(docked, calm)`: the navigator's mode and the
+3. When the last band is in: `sky: ready`, and the panorama's light comes in over `revealSec`.
+   Until then the sky is the navy and the stars (all of them: the river of stars is there in
+   the first frame). `setSky()` in `design/materials.ts` hands the panorama, the reveal and the
+   exposure to the backdrop AND the stars, which share those three uniforms (the backdrop reads
+   the panorama and `uExposure`, which already carries the reveal; the stars the panorama and
+   `uReveal`). The exposure follows `setView(docked, calm)`: the navigator's mode and the
    star map's calm, eased.
 4. If anything fails (no render target, a compile error) the sky is `off`:
-   the old glows stay, and nothing else notices. `intensity` 0 is the same path.
+   it stays navy and stars, and nothing else notices. `intensity` 0 is the same path.
 
 Nothing of it is state but one bit: **`skyRevealed` is a snapshot field**, so an engine rebuilt
 in the same tab (a lost context, a demoted tier) paints the same panorama again and shows it
 with a cut, not a second fade. `parseSnapshot` drops it, so a page load fades again. The
 panorama itself follows from the tuning and the tier, like every planet's mesh.
 
-**The sky's twin on the CPU** is `sim/skyOracle.ts` (with `sim/skyNoise.ts`): the same recipe,
-texel by texel, which nothing shipped imports. `tests/sky-gates.test.ts` holds it to the spec's
-golden values and to the luminance gates (the horizon strip, the percentiles, the ceiling) from
-the seven views of `sim/skyDirections.ts`; the lab's `sky` subject reads the GPU's own panorama
+**The sky's twin on the CPU** is `sim/skyOracle.ts`: the same program, expression for
+expression, which nothing shipped imports. The Milky Way's shape (its frame, its two banks, its
+clumps, its lane, its bulge) is `sim/milkyWay.ts`, pure, which the oracle AND the star list
+read: the haze and the river of stars are laid from the same functions, so they cannot drift
+apart. `tests/sky-gates.test.ts` holds the oracle to golden values and to the sky's gates from
+the seven views of `sim/skyDirections.ts`: the horizon strip, the percentiles, the ceiling,
+how much of the sky stays empty, that the haze is faint and yet there, and that it has no edge
+(no step from one texel to the next: what a level cut into it would be). The lab's `sky`
+subject reads the GPU's own panorama
 back and prints the same numbers (`html[data-sky-y]`), and with `?parity=1` the difference
-between the two (`html[data-sky-parity]`: a fifth of a code value on average, the dither's own;
-under four thousandths in linear light at worst). A change to the recipe changes the shader and
+between the two (`html[data-sky-parity]`: a sixth of a code value on average, the dither's own,
+and 1.1 code values at worst, on every tier). A change to the recipe changes the shader and
 the oracle together, or that number says so.
 
 **The stars are a list, then one draw.** `sim/starList.ts` (pure, seeded) turns the star
 classes of `tuning.starfield` into parallel arrays: a direction, a class, a tint, a brightness,
-a phase. How many depends on the pointer and the tier, which are known before the renderer
+a phase. It is handed the Milky Way too (`tuning.look.sky.band`): a class's `bandShare` of its
+stars is laid along the river by trying places until one is kept, in proportion to the haze's
+own clumps there and thinned in its dark lane (`sim/milkyWay.ts`), the rest anywhere; then the
+clusters (three of them at the systems' bearings from home), the double stars, and the heroes
+last, at the places the table gives. How many depends on the pointer and the tier, which are known before the renderer
 exists, so the list is built once in the constructor of `world/Starfield.ts` and nothing about
 it is state: a rebuilt engine makes the same sky. It is drawn as one instanced quad a star
 (`stars` in `design/shaders/sky.ts`): the vertex shader puts the quad at the star's direction
 on the far plane and sizes it in CSS px by class; the fragment shader sums a core, halos and
 spikes. `createStarMaterial` lays the classes out as the shader's tables, a row a class. Points
 could not do it: a point's size is capped by the GPU and a point has no angle. A star also
-reads the panorama's alpha at its own direction, in the vertex shader, and dims behind gas.
+reads the panorama's alpha at its own direction, in the vertex shader, and dims in the Milky
+Way's dark lane. `sim/skyDirections.ts` projects a direction into each of the seven views
+(`pointOf`), which is how `tests/look.test.ts` holds a hero in every view, clear of the bars.
 
-**Tokens only the engine paints with** (the sky's gas, air, the extra star temperatures, dusk
+**Tokens only the engine paints with** (the Milky Way's haze and the star map's districts,
+air, the extra star temperatures, dusk
 and night, a lit window) are left out of the CSS mirror: `ENGINE_ONLY` in
 `src/site/tokens-css.ts`, passed by `Head.astro`. The engine reads `tokens` itself, never the
 CSS, so a plain page does not carry custom properties that no stylesheet reads. A new token that
