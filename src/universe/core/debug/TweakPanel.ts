@@ -37,7 +37,13 @@ export class TweakPanel implements System {
   private lastRecording: Recording | null = null;
   private replay: ReplaySource | null = null;
 
-  constructor(private readonly targets: { input: InputSystem; ship: ShipSystem }) {
+  constructor(
+    private readonly targets: {
+      input: InputSystem;
+      ship: ShipSystem;
+      sky: { paint(repaint: boolean): void };
+    },
+  ) {
     this.gui.domElement.setAttribute('data-flight-keys', 'off');
     this.gui.domElement.style.top = '4.75rem'; // below the HUD's top bar
     for (const block of LIVE_BLOCKS) {
@@ -46,7 +52,15 @@ export class TweakPanel implements System {
       addControls(folder, tuning[block] as unknown as Record<string, unknown>, refreshToonLook);
     }
 
+    // The look pass. Most of the sky's numbers are baked into its panorama: move them, then
+    // repaint. (Its exposure keys are read every frame.)
+    const look = this.gui.addFolder('look');
+    look.close();
+    addControls(look, tuning.look as unknown as Record<string, unknown>, refreshToonLook);
+
     const actions = {
+      'rebake sky': () => this.targets.sky.paint(true),
+      'copy look as JSON': () => copyText(JSON.stringify({ look: tuning.look }, null, 2)),
       'copy tuning as JSON': () => copyText(this.snapshot()),
       'record / stop': () => this.toggleRecording(),
       'replay the last recording': () => this.startReplay(),

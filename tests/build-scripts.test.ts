@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalUrl,
@@ -22,7 +23,16 @@ import {
   CLOSE_UP_MARKERS,
   closeUpProblems,
 } from '../scripts/lib/closeup.mjs';
+import { isShaderModule, squeezeGlsl, squeezeTemplates } from '../scripts/lib/glsl-squeeze.mjs';
 import { parseRedirects, redirectProblems } from '../scripts/lib/redirects.mjs';
+import {
+  ENGINE_INCLUDES,
+  KEEP_MATERIALS,
+  dietThree,
+  isThreeBuild,
+  keptChunks,
+  readChunks,
+} from '../scripts/lib/three-diet.mjs';
 import {
   RESUME_PDF,
   printSection,
@@ -480,3 +490,261 @@ function sourceFiles(dir: string): string[] {
     return /\.(ts|astro)$/.test(entry.name) ? [path] : [];
   });
 }
+
+// THE GLSL SQUEEZE (scripts/lib/glsl-squeeze.mjs): builds ship the shaders without their comments
+// and indentation. What it must never do is change the program.
+describe('squeezeGlsl', () => {
+  it('drops comments and the whitespace that separates nothing', () => {
+    const squeezed = squeezeGlsl(`
+      // The header says what the uniforms are.
+      uniform float uTime; /* seconds */
+      void main() {
+        float wave = 0.5 + 0.5 * sin( uTime );
+        gl_FragColor = vec4( wave, 0.0, 0.0, 1.0 );
+      }
+    `);
+    expect(squeezed).toBe(
+      'uniform float uTime;void main(){float wave=0.5+0.5*sin(uTime);' +
+        'gl_FragColor=vec4(wave,0.0,0.0,1.0);}',
+    );
+  });
+
+  it('keeps the space between two words, and between signs that would join', () => {
+    expect(squeezeGlsl('uniform   vec3\n uColor ;')).toBe('uniform vec3 uColor;');
+    expect(squeezeGlsl('float a = b - -c;')).toBe('float a=b- -c;');
+    expect(squeezeGlsl('float a = b + +c;')).toBe('float a=b+ +c;');
+    expect(squeezeGlsl('float a = b\n  - -c;')).toBe('float a=b- -c;');
+    // A block comment separates two words as a space does.
+    expect(squeezeGlsl('return/* the lit side */color;')).toBe('return color;');
+    expect(squeezeGlsl('float x = 1. - .5;')).toBe('float x=1.-.5;');
+  });
+
+  it('gives every preprocessor line a line of its own, as written', () => {
+    const squeezed = squeezeGlsl(`
+      #define GLOW_COUNT 4
+      uniform vec3 uGlow[GLOW_COUNT];
+      vec3 tap() {
+        #ifdef MASKED
+          return a * b;
+        #else
+          return a;
+        #endif
+      }
+      void main() {
+        gl_FragColor = vec4(tap(), 1.0);
+        #include <colorspace_fragment>
+      }
+    `);
+    expect(squeezed).toBe(
+      [
+        '',
+        '#define GLOW_COUNT 4',
+        'uniform vec3 uGlow[GLOW_COUNT];vec3 tap(){',
+        '#ifdef MASKED',
+        'return a*b;',
+        '#else',
+        'return a;',
+        '#endif',
+        '}void main(){gl_FragColor=vec4(tap(),1.0);',
+        '#include <colorspace_fragment>',
+        '}',
+      ].join('\n'),
+    );
+    // A macro with arguments is not a macro without them: the space in a directive stays.
+    expect(squeezeGlsl('#define sq (x)')).toBe('\n#define sq (x)\n');
+  });
+
+  it('leaves an interpolation alone: in its line when inside one, on its own line when it had one', () => {
+    const count = '$' + '{GLOW_COUNT}';
+    expect(squeezeGlsl(`  #define GLOW_COUNT ${count}\n  float a;`)).toBe(
+      `\n#define GLOW_COUNT ${count}\nfloat a;`,
+    );
+    // What a lone one puts there is not known: it may end in a comment or a directive.
+    const noise = '$' + '{ noise }';
+    expect(squeezeGlsl(`float a;\n  ${noise}\n  float b;`)).toBe(`float a;\n${noise}\nfloat b;`);
+    const twice = '$' + '{ scale * 2 }';
+    // A sign beside one keeps its space: what it holds may start or end with a sign of its own
+    // (`1.0 - ${x}` with x = -0.5 must not become `1.0--0.5`).
+    expect(squeezeGlsl(`float a = ${twice} + 1.0; // twice`)).toBe(`float a=${twice} +1.0;`);
+    expect(squeezeGlsl(`float a = 1.0 - ${twice};`)).toBe(`float a=1.0- ${twice};`);
+    expect(squeezeGlsl(`float a = 1.0\n  - ${twice};`)).toBe(`float a=1.0- ${twice};`);
+    expect(squeezeGlsl(`vec2 a = vec2(${twice}, ${twice});`)).toBe(
+      `vec2 a=vec2(${twice},${twice});`,
+    );
+    // Braces, quotes and templates inside one are JavaScript, and none of the shader's business.
+    const nested = '$' + '{ pick({ a: "}" }, `$' + '{b} // not a comment`) }';
+    expect(squeezeGlsl(`x = ${nested};`)).toBe(`x=${nested};`);
+  });
+
+  it('refuses what it cannot keep whole', () => {
+    expect(() => squeezeGlsl('#define TWO \\\n  lines')).toThrow(/backslash/);
+    expect(() => squeezeGlsl('float a = $' + '{ never;')).toThrow(/never closes/);
+  });
+});
+
+describe('squeezeTemplates', () => {
+  it('squeezes the template literals tagged glsl, and nothing else in the module', () => {
+    const module = [
+      '/** Uniforms: uTime. */',
+      'export const COUNT = 4;',
+      'export const sky = {',
+      '  vertexShader: /* glsl */ `',
+      '    void main() {',
+      '      gl_Position = vec4( position, 1.0 ); // far away',
+      '    }',
+      '  `,',
+      '  note: `  not   a shader  // and not a comment `,',
+      '};',
+    ].join('\n');
+    expect(squeezeTemplates(module)).toBe(
+      [
+        '/** Uniforms: uTime. */',
+        'export const COUNT = 4;',
+        'export const sky = {',
+        '  vertexShader: /* glsl */ `void main(){gl_Position=vec4(position,1.0);}`,',
+        '  note: `  not   a shader  // and not a comment `,',
+        '};',
+      ].join('\n'),
+    );
+  });
+
+  it('only applies to the shader modules', () => {
+    expect(isShaderModule('C:\\repo\\src\\universe\\design\\shaders\\sky.ts')).toBe(true);
+    expect(isShaderModule('/repo/src/universe/design/shaders/toonFlat.ts?v=1')).toBe(true);
+    expect(isShaderModule('/repo/src/universe/design/shaders/sky.test.ts')).toBe(false);
+    expect(isShaderModule('/repo/src/universe/design/materials.ts')).toBe(false);
+    expect(isShaderModule('/repo/src/universe/design/shaders/deep/sky.ts')).toBe(false);
+  });
+
+  // The real shaders: whatever is written there, the squeeze must give back the same program.
+  const SHADERS = join(import.meta.dirname, '../src/universe/design/shaders');
+  const modules = readdirSync(SHADERS).filter((name) => isShaderModule(`/${SHADERS}/${name}`));
+  /** Every tagged literal's text in a module. (No shader holds a backtick of its own.) */
+  const literals = (source: string): string[] =>
+    [...source.matchAll(/\/\*\s*glsl\s*\*\/\s*`([^`]*)`/g)].map((match) => match[1] ?? '');
+  const uncommented = (glsl: string): string =>
+    glsl.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, '');
+  const words = (glsl: string): string[] => glsl.match(/[A-Za-z_]\w*/g) ?? [];
+
+  it('finds the shaders', () => {
+    expect(modules.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it.each(modules)('%s: the same program, without its comments', (name) => {
+    const source = readFileSync(join(SHADERS, name), 'utf8');
+    const before = literals(source);
+    const after = literals(squeezeTemplates(source));
+    expect(before.length).toBeGreaterThan(0);
+    expect(after).toHaveLength(before.length);
+    for (const [i, squeezed] of after.entries()) {
+      const written = uncommented(before[i] ?? '');
+      // Nothing but whitespace and comments went: character for character, the rest is there...
+      expect(squeezed.replace(/\s+/g, '')).toBe(written.replace(/\s+/g, ''));
+      // ...and two words that were apart are still apart: the same words, in the same order.
+      expect(words(squeezed)).toEqual(words(written));
+      expect(squeezed).not.toMatch(/\/\/|\/\*/);
+      expect(squeezed.length).toBeLessThan((before[i] ?? '').length);
+      // A directive has its line to itself (three.js resolves an include only at a line's start).
+      for (const line of squeezed.split('\n')) {
+        if (line.includes('#')) expect(line).toMatch(/^#\w+( [^;]*)?$/);
+      }
+    }
+    // Squeezing what is squeezed changes nothing.
+    expect(squeezeTemplates(squeezeTemplates(source))).toBe(squeezeTemplates(source));
+  });
+});
+
+// THE THREE.JS DIET (scripts/lib/three-diet.mjs): builds ship three without the GLSL of the
+// materials nobody uses. What it must never do is take away something the engine compiles.
+describe('dietThree', () => {
+  const ROOT = join(import.meta.dirname, '..');
+  // Wherever three is installed (a worktree finds the main checkout's): its build folder.
+  const build = dirname(createRequire(import.meta.url).resolve('three'));
+  const three = readFileSync(join(build, 'three.module.js'), 'utf8');
+  const { chunks } = readChunks(three);
+  const kept = keptChunks(chunks);
+  const dieted = dietThree(three);
+
+  /** Every module of the engine and the shell that ships (no tests). */
+  const sources = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      return /\.ts$/.test(entry.name) && !/\.test\.ts$/.test(entry.name) ? [path] : [];
+    });
+  const engine = [...sources(join(ROOT, 'src/universe')), ...sources(join(ROOT, 'src/shell'))].map(
+    (path) => ({ path, text: readFileSync(path, 'utf8') }),
+  );
+
+  it('only reads the one file', () => {
+    expect(isThreeBuild('C:\\repo\\node_modules\\three\\build\\three.module.js')).toBe(true);
+    expect(isThreeBuild('/repo/node_modules/three/build/three.module.js?v=1')).toBe(true);
+    expect(isThreeBuild('/repo/node_modules/three/build/three.core.js')).toBe(false);
+    expect(isThreeBuild('/repo/src/universe/main.ts')).toBe(false);
+  });
+
+  it('keeps the basic program whole, and what the renderer and the engine paste in', () => {
+    expect(chunks.size).toBeGreaterThan(120);
+    // The basic program and everything it includes: a new three.js that includes more shows here.
+    expect(kept.size).toBe(64);
+    for (const name of ['meshbasic_vert', 'meshbasic_frag', 'common', 'project_vertex']) {
+      expect(kept.has(name), name).toBe(true);
+    }
+    for (const name of kept) {
+      const text = chunks.get(name)?.text ?? '';
+      expect(text.length, name).toBeGreaterThan(0);
+      expect(dieted.includes(JSON.stringify(text)), name).toBe(true);
+    }
+  });
+
+  it('empties the rest, and leaves an #error where a dropped program was', () => {
+    const after = readChunks(dieted).chunks;
+    expect(after.size).toBe(chunks.size);
+    let saved = 0;
+    for (const [name, chunk] of chunks) {
+      if (kept.has(name)) continue;
+      const text = after.get(name)?.text ?? 'missing';
+      if (/_(vert|frag)$/.test(name)) expect(text).toMatch(/^#error \w+: dropped by scripts/);
+      else expect(text).toBe('');
+      saved += chunk.text.length - text.length;
+    }
+    expect(saved).toBeGreaterThan(100_000);
+    // Nothing else moved: the same lines, and only chunk lines differ.
+    const before = three.split('\n');
+    const lines = dieted.split('\n');
+    expect(lines).toHaveLength(before.length);
+    const changed = lines.filter((line, index) => line !== before[index]);
+    expect(changed).toHaveLength(chunks.size - kept.size);
+    for (const line of changed) expect(line).toMatch(/^(var|const) [\w$]+ = "[^"]*";$/);
+  });
+
+  it('refuses a three.js it cannot read', () => {
+    expect(() => dietThree('export const nothing = 1;')).toThrow(/no `const ShaderChunk/);
+    expect(() => dietThree('const ShaderChunk = {\n\tcommon: common,\n};')).toThrow(/no text/);
+  });
+
+  it('the engine uses no built-in material but the kept ones', () => {
+    const imported = new Set<string>();
+    for (const { text } of engine) {
+      for (const match of text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from 'three'/g)) {
+        for (const name of (match[1] ?? '').split(','))
+          imported.add(name.replace(/\btype\b/, '').trim());
+      }
+    }
+    const materials = [...imported].filter((name) => /Material$/.test(name)).sort();
+    const allowed = ['Material', 'ShaderMaterial', ...KEEP_MATERIALS];
+    expect(materials.filter((name) => !allowed.includes(name))).toEqual([]);
+    expect(materials).toContain('ShaderMaterial');
+  });
+
+  it('the engine includes no chunk but the kept ones, and asks three for no shadow or background', () => {
+    const included = new Set<string>();
+    for (const { path, text } of engine) {
+      for (const match of text.matchAll(/#include <(\w+)>/g)) included.add(match[1] ?? '');
+      // Shadows compile the depth program; a texture as the scene's background compiles its own.
+      expect(text, path).not.toMatch(/shadowMap\.enabled|castShadow|\.background\s*=\s*[a-z]/);
+    }
+    expect([...included].sort()).toEqual([...ENGINE_INCLUDES].sort());
+    for (const name of included) expect(kept.has(name), name).toBe(true);
+  });
+});

@@ -16,6 +16,8 @@ describe('the palette', () => {
     expect(colorOf('star.warm')).toEqual(hexToLinear(color.star.warm));
     expect(colorOf('biome.dune.high')).toEqual(hexToLinear(color.biome.dune.high));
     expect(colorOf('biome.primer.shore')).toEqual(hexToLinear(color.biome.primer.shore));
+    // A lit window: one colour of the tokens, not a group.
+    expect(colorOf('lamp.window')).toEqual(hexToLinear(color.window));
   });
 
   it('throws on a path that names no colour, saying which', () => {
@@ -28,6 +30,8 @@ describe('the palette', () => {
       'biome.nowhere.sea',
       'biome.dune.top',
       'ramp.base',
+      'lamp.door',
+      'lamp.window.lit',
       'hex',
     ]) {
       expect(() => colorOf(path), path).toThrow(`'${path}'`);
