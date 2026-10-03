@@ -11,16 +11,16 @@ import { tuning } from './tuning';
  * out as GLSL constants, and the tokens it paints with as linear colours. The shader and its
  * constants are the same on every tier: a tier is only the size of the panorama.
  *
- * The haze's tones run deep, mid, lit, rim; the star tints are numbered in the order of
+ * The haze's tones run deep, mid, lit; the star tints are numbered in the order of
  * `tokens.color.star`. All angles are degrees.
  */
 
-const BAND_TONES = ['deep', 'mid', 'lit', 'rim'] as const;
+const BAND_TONES = ['deep', 'mid', 'lit'] as const;
 const STAR_TINTS = Object.keys(tokens.color.star) as StarKey[];
 const GALAXY_KIND = { ellipse: 0, lens: 1, spiral: 2 } as const;
 const RAD = Math.PI / 180;
 
-/** The haze's ramp as the shader's `uBand` holds it: four linear colours end to end. */
+/** The haze's ramp as the shader's `uBand` holds it: three linear colours end to end. */
 export function skyBand(): number[] {
   return BAND_TONES.flatMap((tone) => hexToLinear(tokens.color.nebula.band[tone]));
 }
@@ -28,6 +28,16 @@ export function skyBand(): number[] {
 /** The star tints as the shader's `uStar` holds them: six linear colours end to end. */
 export function skyStars(): number[] {
   return STAR_TINTS.flatMap((tint) => hexToLinear(tokens.color.star[tint]));
+}
+
+/**
+ * A star tint's number in the shader's `uStar`. A tint that is not a token is refused here: its
+ * number would be -1, and the shader would read outside the array.
+ */
+function tintIndex(tint: string): number {
+  const index = (STAR_TINTS as readonly string[]).indexOf(tint);
+  if (index < 0) throw new RangeError(`skyRecipe: no star tint "${tint}"`);
+  return index;
 }
 
 /** A GLSL float: a whole number needs its point. */
@@ -68,10 +78,10 @@ export function skyConstants(look: SkyLook = tuning.look.sky): string {
     one('BAND_BASE', band.base),
     one('BANKS', ...narrow, ...wide),
     one('MEANDER', ...band.meanderDeg),
-    one('CORE', band.core.lonDeg, band.core.sigmaDeg, band.core.mix),
+    one('CORE', band.core.lonDeg, ...band.core.sigmaDeg, band.core.glow),
     one('LANE_OFF', ...band.lane.offsetDeg),
     one('LANE_W', ...band.lane.widthDeg),
-    one('LANE', band.lane.dark, band.lane.hide),
+    one('LANE_HIDE', band.lane.hide),
     table('CLUMP', band.clumps),
     table(
       'GC',
@@ -105,7 +115,7 @@ export function skyConstants(look: SkyLook = tuning.look.sky): string {
     ),
     table(
       'GT',
-      galaxies.map((galaxy) => [STAR_TINTS.indexOf(galaxy.disc), STAR_TINTS.indexOf(galaxy.core)]),
+      galaxies.map((galaxy) => [tintIndex(galaxy.disc), tintIndex(galaxy.core)]),
       true,
     ),
   ].join('\n');
@@ -130,7 +140,6 @@ export function skyColours(): SkyColours {
       deep: hexToLinear(nebula.band.deep),
       mid: hexToLinear(nebula.band.mid),
       lit: hexToLinear(nebula.band.lit),
-      rim: hexToLinear(nebula.band.rim),
     },
     stars: Object.fromEntries(STAR_TINTS.map((tint) => [tint, hexToLinear(star[tint])])),
   };

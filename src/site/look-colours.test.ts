@@ -11,17 +11,27 @@ import { contrast, luminance, over } from './contrast';
 
 describe('the Milky Way’s haze (color.nebula.band)', () => {
   const space = tokens.color.space[900];
-  const { deep, mid, lit, rim } = tokens.color.nebula.band;
+  const { deep, mid, lit } = tokens.color.nebula.band;
 
-  it('keeps the haze barely above space, and its bulge a clear cream', () => {
+  it('keeps the haze barely above space, and in the navy’s own blue from end to end', () => {
     // deep and mid are where almost all of the river is: a haze under stars, never a shape.
     expect(contrast(deep, space)).toBeLessThan(1.4);
     expect(contrast(mid, space)).toBeLessThan(1.8);
     // Each tone is lighter than the one under it, or the ramp is not a ramp.
-    const steps = [deep, mid, lit, rim].map((tone) => contrast(tone, space));
+    const steps = [deep, mid, lit].map((tone) => contrast(tone, space));
     expect(steps).toEqual([...steps].sort((a, b) => a - b));
-    // rim is mixed in a little at the bulge: it has to be a light, or it would only grey it.
-    expect(contrast(rim, space)).toBeGreaterThanOrEqual(6);
+    // Even the brightest is a dim blue, far under any ink: the haze never reads as a mark.
+    expect(contrast(lit, space)).toBeLessThan(3);
+    // Three tones and no warm one. A cream tone for the river's bulge was tried: over the
+    // navy it made a grey smear. The bulge is warm in its STARS (the star temperatures).
+    expect(Object.keys(tokens.color.nebula.band)).toEqual(['deep', 'mid', 'lit']);
+    for (const tone of [deep, mid, lit]) {
+      const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(tone.slice(at, at + 2), 16));
+      // Blue leads, red is least: the navy's own hue.
+      expect(b, tone).toBeGreaterThan(g ?? 0);
+      expect(g, tone).toBeGreaterThan(r ?? 0);
+      expect((b ?? 0) / (r ?? 1), tone).toBeGreaterThan(1.5);
+    }
   });
 });
 

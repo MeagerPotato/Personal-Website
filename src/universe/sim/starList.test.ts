@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { STAR_KIND_COUNT } from '../design/shaders/sky';
 import { tokens } from '../design/tokens';
 import { tuning } from '../design/tuning';
-import { bandFrame, clumpAt, laneAt, meanderAt } from './milkyWay';
-import { directionOf } from './skyDirections';
+import { bandFrame, clumpAt, laneAt, meanderAt, narrowShare } from './milkyWay';
+import { directionOf, wrapDeg } from './skyDirections';
 import { buildStarList, STAR_KINDS, starCounts, type StarKind, type StarList } from './starList';
 
 const recipe = tuning.starfield;
@@ -69,26 +69,56 @@ const SCATTERED = [
   ],
 ] as const;
 const scattered = SCATTERED[3][2];
-const clusterTotal = recipe.clusters.reduce((sum, cluster) => sum + cluster.count, 0);
+/** Then the Milky Way's bulge: more of the three plain classes, class by class. */
+const bulge = recipe.bulge.counts;
+const BULGE = [
+  ['dust', scattered, scattered + bulge.dust],
+  ['field', scattered + bulge.dust, scattered + bulge.dust + bulge.field],
+  [
+    'bright',
+    scattered + bulge.dust + bulge.field,
+    scattered + bulge.dust + bulge.field + bulge.bright,
+  ],
+] as const;
+const bulgeTotal = bulge.dust + bulge.field + bulge.bright;
 /** Then the clusters, the double stars (a primary, then its companion), and the heroes. */
-const pairsFrom = scattered + clusterTotal;
+const clustersFrom = BULGE[2][2];
+const clusterTotal = recipe.clusters.reduce((sum, cluster) => sum + cluster.count, 0);
+const pairsFrom = clustersFrom + clusterTotal;
+
+/** The same sky with a dark lane that hides no star. */
+const open = buildStarList(
+  recipe,
+  { ...band, lane: { ...band.lane, hide: 0 } },
+  { coarse: false, low: false },
+);
+
+/** erf, by Simpson's rule: good to eight places for the arguments used here. */
+function erf(x: number): number {
+  const n = 200;
+  const h = x / n;
+  let sum = 1 + Math.exp(-x * x);
+  for (let k = 1; k < n; k += 1) sum += (k % 2 === 1 ? 4 : 2) * Math.exp(-((k * h) ** 2));
+  return ((2 / Math.sqrt(Math.PI)) * h * sum) / 3;
+}
 
 describe('how many stars', () => {
   it('has a row in the shader for every kind', () => {
     expect(STAR_KINDS).toHaveLength(STAR_KIND_COUNT);
   });
 
-  it('is 8,645 with a mouse on the medium and high tiers', () => {
+  it('is 9,311 with a mouse on the medium and high tiers', () => {
     expect(starCounts(recipe, { coarse: false, low: false })).toEqual({
       dust: 6400,
       field: 1500,
       bright: 260,
       mid: 64,
       hero: 8,
+      bulge: { dust: 520, field: 130, bright: 16 },
       clusters: [70, 55, 80, 60, 60, 60],
       pairs: 14,
     });
-    expect(full.count).toBe(8645);
+    expect(full.count).toBe(9311);
   });
 
   it('halves every class on a phone, and again on the low tier, which has no mid', () => {
@@ -98,6 +128,7 @@ describe('how many stars', () => {
       bright: 130,
       mid: 32,
       hero: 8,
+      bulge: { dust: 260, field: 65, bright: 8 },
       clusters: [35, 28, 40, 30, 30, 30],
       pairs: 14,
     });
@@ -107,6 +138,7 @@ describe('how many stars', () => {
       bright: 130,
       mid: 0,
       hero: 8,
+      bulge: { dust: 260, field: 65, bright: 8 },
       clusters: [35, 28, 40, 30, 30, 30],
       pairs: 14,
     });
@@ -116,13 +148,14 @@ describe('how many stars', () => {
       bright: 65,
       mid: 0,
       hero: 8,
+      bulge: { dust: 130, field: 33, bright: 4 },
       clusters: [18, 14, 20, 15, 15, 15],
       pairs: 14,
     });
     // The heroes and the doubles are the look, and cost a quad each: all of them, everywhere.
-    expect(listOf(true, false).count).toBe(4341);
-    expect(listOf(false, true).count).toBe(4309);
-    expect(listOf(true, true).count).toBe(2173);
+    expect(listOf(true, false).count).toBe(4674);
+    expect(listOf(false, true).count).toBe(4642);
+    expect(listOf(true, true).count).toBe(2340);
   });
 
   it('builds exactly the stars it counts, of the kinds it counts', () => {
@@ -131,16 +164,26 @@ describe('how many stars', () => {
         const list = listOf(coarse, low);
         const counts = starCounts(recipe, { coarse, low });
         const clusters = counts.clusters.reduce((sum, n) => sum + n, 0);
-        const fieldInClusters = counts.clusters.reduce(
-          (sum, n) => sum + Math.min(n, recipe.cluster.fieldCount),
+        // A cluster's first stars are its heart: bright ones, then field ones, then dust.
+        const { brightCount, fieldCount } = recipe.cluster;
+        const brightInClusters = counts.clusters.reduce(
+          (sum, n) => sum + Math.min(n, brightCount),
           0,
         );
-        expect(indicesOf(list, 'dust')).toHaveLength(counts.dust + clusters - fieldInClusters);
+        const fieldInClusters = counts.clusters.reduce(
+          (sum, n) => sum + Math.min(Math.max(n - brightCount, 0), fieldCount),
+          0,
+        );
+        expect(indicesOf(list, 'dust')).toHaveLength(
+          counts.dust + counts.bulge.dust + clusters - brightInClusters - fieldInClusters,
+        );
         // A double star is a bright one and a field one.
         expect(indicesOf(list, 'field')).toHaveLength(
-          counts.field + fieldInClusters + counts.pairs,
+          counts.field + counts.bulge.field + fieldInClusters + counts.pairs,
         );
-        expect(indicesOf(list, 'bright')).toHaveLength(counts.bright + counts.pairs);
+        expect(indicesOf(list, 'bright')).toHaveLength(
+          counts.bright + counts.bulge.bright + brightInClusters + counts.pairs,
+        );
         expect(indicesOf(list, 'mid')).toHaveLength(counts.mid);
         expect(indicesOf(list, 'hero')).toHaveLength(8);
         expect(list.tints).toHaveLength(list.count);
@@ -151,7 +194,7 @@ describe('how many stars', () => {
   it('has no double star when there is no pair of tints to draw one in', () => {
     const none = { ...recipe, pairs: { ...recipe.pairs, tints: [] } };
     expect(starCounts(none, { coarse: false, low: false }).pairs).toBe(0);
-    expect(buildStarList(none, band, { coarse: false, low: false }).count).toBe(8645 - 28);
+    expect(buildStarList(none, band, { coarse: false, low: false }).count).toBe(9311 - 28);
   });
 });
 
@@ -204,7 +247,21 @@ describe('the list of stars', () => {
       );
     }
     expect(classes.dust.yExp).toBeGreaterThan(1);
-    expect(scattered).toBe(full.count - clusterTotal - recipe.pairs.count * 2 - 8);
+    expect(scattered).toBe(full.count - bulgeTotal - clusterTotal - recipe.pairs.count * 2 - 8);
+  });
+
+  it('makes the dust of every brightness from barely there to a field star’s', () => {
+    // Dust of one brightness read as grain, and a river of it as a stripe: the faintest dust
+    // is under a fifth of the brightest, the brightest is as bright as a field star, and the
+    // sky really holds both ends.
+    const [lo, hi] = classes.dust.yRange;
+    expect(hi / lo).toBeGreaterThan(5);
+    expect(hi).toBeGreaterThan(classes.field.yRange[0]);
+    const ys = Array.from(full.brightness.subarray(0, recipe.count));
+    const share = (from: number, to: number): number =>
+      ys.filter((y) => y >= from && y < to).length / ys.length;
+    expect(share(lo, lo * 2)).toBeGreaterThan(0.3);
+    expect(share(classes.field.yRange[0], hi + 1e-6)).toBeGreaterThan(0.05);
   });
 
   it('draws each class in its own temperatures, by their weights', () => {
@@ -248,6 +305,35 @@ describe('the list of stars', () => {
     }
   });
 
+  it('lays the river’s stars across it as its haze is bright across it', () => {
+    // The haze's cross-section is two banks, exp(-(y / sigma)^2) times a weight: a bank's
+    // stars are in proportion to its MASS (weight times sigma). So, of the river's dust, the
+    // share within `a` degrees of its middle is erf(a / sigma) of each bank's; of the dust
+    // scattered anywhere, the share of the sphere such a strip is. (Without the lane, which
+    // takes stars out of one side.)
+    const [[s1, w1], [s2, w2]] = band.banks;
+    const inRiver = classes.dust.bandShare;
+    const within = (a: number): number => {
+      let near = 0;
+      for (let i = 0; i < recipe.count; i += 1) if (Math.abs(onRiver(open, i).yy) < a) near += 1;
+      return near / recipe.count;
+    };
+    const want = (a: number, narrow: number): number =>
+      inRiver * (narrow * erf(a / s1) + (1 - narrow) * erf(a / s2)) +
+      (1 - inRiver) * Math.sin(a * RAD);
+    for (const a of [s1, s2]) {
+      const share = want(a, narrowShare(band));
+      const slack = 3.5 * Math.sqrt((share * (1 - share)) / recipe.count);
+      expect(Math.abs(within(a) - share), `within ${a} degrees`).toBeLessThan(slack);
+    }
+    // A bank chosen by its weight alone would crowd the narrow one: a hard core, and banks
+    // that stop short. That reading is ruled out by ten deviations and more.
+    const byWeight = want(s1, w1 / (w1 + w2));
+    expect(byWeight - within(s1)).toBeGreaterThan(
+      10 * Math.sqrt((byWeight * (1 - byWeight)) / recipe.count),
+    );
+  });
+
   it('crowds the river into its clumps', () => {
     // Dust in the river, by 20 degrees of its length: the densest stretch has more than twice
     // the stars of the thinnest, and they are where the recipe's clumps are.
@@ -276,35 +362,168 @@ describe('the list of stars', () => {
       return n;
     };
     // The same river with a lane that hides nothing has more than twice the dust in it.
-    const open = buildStarList(
-      recipe,
-      { ...band, lane: { ...band.lane, hide: 0 } },
-      {
-        coarse: false,
-        low: false,
-      },
-    );
     expect(inLane(full)).toBeGreaterThan(0);
     expect(inLane(full)).toBeLessThan(inLane(open) * 0.5);
   });
 
+  it('adds the bulge’s stars after the scattered ones, class by class, each in its range', () => {
+    for (const [name, from, to] of BULGE) {
+      const kind = STAR_KINDS.indexOf(name);
+      const [lo, hi] = classes[name].yRange;
+      for (let i = from; i < to; i += 1) {
+        expect(full.kinds[i]).toBe(kind);
+        expect(full.brightness[i]).toBeGreaterThanOrEqual(lo - 1e-6);
+        expect(full.brightness[i]).toBeLessThanOrEqual(hi + 1e-6);
+      }
+    }
+    expect(bulgeTotal).toBe(666);
+  });
+
+  it('makes the bulge an oval of stars on the river, as wide as the haze swells', () => {
+    // Where the haze swells by exp(-(lon / along)^2 - (y / across)^2), the stars are drawn
+    // from that very Gaussian: deviations of along / sqrt 2 and across / sqrt 2. (Without the
+    // lane, which takes stars out of one side.)
+    const { lonDeg, sigmaDeg } = band.core;
+    const [along, across] = sigmaDeg;
+    const us: number[] = [];
+    const vs: number[] = [];
+    for (let i = scattered; i < clustersFrom; i += 1) {
+      const at = onRiver(open, i);
+      us.push(wrapDeg(at.lonDeg - lonDeg) / (along * Math.SQRT1_2));
+      vs.push(at.yy / (across * Math.SQRT1_2));
+    }
+    for (const xs of [us, vs]) {
+      const mean = xs.reduce((sum, x) => sum + x, 0) / xs.length;
+      const deviation = Math.sqrt(xs.reduce((sum, x) => sum + (x - mean) ** 2, 0) / xs.length);
+      // In deviations: the oval is centred on the bulge's place, and as wide as it says.
+      expect(Math.abs(mean)).toBeLessThan(0.2);
+      expect(Math.abs(deviation - 1)).toBeLessThan(0.1);
+      // Five deviations is one star in 1.7 million.
+      expect(Math.max(...xs.map(Math.abs))).toBeLessThan(5);
+    }
+  });
+
+  it('makes the bulge warm with its STARS: the bulge’s palette by weight, and no blue star', () => {
+    const { palette } = recipe.bulge;
+    const total = palette.reduce((sum, [, weight]) => sum + weight, 0);
+    const tints = full.tints.slice(scattered, clustersFrom);
+    for (const [tint, weight] of palette) {
+      const want = weight / total;
+      const share = tints.filter((t) => t === tint).length / tints.length;
+      expect(Math.abs(share - want), tint).toBeLessThan(
+        3.5 * Math.sqrt((want * (1 - want)) / tints.length),
+      );
+    }
+    const keys = palette.map(([tint]) => tint as string);
+    expect(tints.every((tint) => keys.includes(tint))).toBe(true);
+    expect(keys).not.toContain('cool');
+    expect(keys).not.toContain('hot');
+    // Four in five of them are a warm temperature; of the river's own dust, under a third.
+    const warmth = (of: Palette): number =>
+      of
+        .filter(([tint]) => ['warm', 'amber', 'ember'].includes(tint))
+        .reduce((sum, [, weight]) => sum + weight, 0) / of.reduce((sum, [, w]) => sum + w, 0);
+    expect(warmth(palette)).toBeGreaterThan(0.8);
+    expect(warmth(classes.dust.palette)).toBeLessThan(0.34);
+  });
+
+  it('crowds the bulge: more of its own stars in its oval than the river has anywhere', () => {
+    // The stars inside one sigma of an oval the bulge's size, laid on the river at a longitude.
+    const { lonDeg, sigmaDeg } = band.core;
+    const [along, across] = sigmaDeg;
+    const inOval = (from: number, to: number, lon: number): number => {
+      let n = 0;
+      for (let i = from; i < to; i += 1) {
+        const at = onRiver(full, i);
+        if ((wrapDeg(at.lonDeg - lon) / along) ** 2 + (at.yy / across) ** 2 < 1) n += 1;
+      }
+      return n;
+    };
+    const own = inOval(scattered, clustersFrom, lonDeg);
+    const river = inOval(0, scattered, lonDeg);
+    // The bulge is its stars: they outnumber the river's own there...
+    expect(own).toBeGreaterThan(river * 1.5);
+    // ...and no stretch of the river, at any of its clumps, is as crowded as the bulge.
+    for (const [lon] of band.clumps) {
+      if (Math.abs(wrapDeg(lon - lonDeg)) < 2 * along) continue;
+      expect(inOval(0, scattered, lon) * 1.5, `the clump at ${lon}`).toBeLessThan(own + river);
+    }
+  });
+
+  it('runs the dark lane through the bulge as through the rest of the river', () => {
+    const inLane = (list: StarList<string>): number => {
+      let n = 0;
+      for (let i = scattered; i < clustersFrom; i += 1) {
+        const at = onRiver(list, i);
+        if (laneAt(band, at.phi, at.yy) > 0.5) n += 1;
+      }
+      return n;
+    };
+    expect(inLane(full)).toBeGreaterThan(0);
+    expect(inLane(full)).toBeLessThan(inLane(open) * 0.6);
+  });
+
   it('gathers each cluster round its centre, mostly in its own tint', () => {
-    let from = scattered;
+    let from = clustersFrom;
     for (const cluster of recipe.clusters) {
       const centre = directionOf(cluster.azDeg, cluster.elDeg);
       let own = 0;
       for (let i = from; i < from + cluster.count; i += 1) {
         // A two-dimensional Gaussian: five sigma is one star in 270,000.
         expect(apart(directionAt(full, i), centre)).toBeLessThan(5 * cluster.sigmaDeg);
-        expect(full.brightness[i]).toBeGreaterThanOrEqual(recipe.cluster.yBase - 1e-6);
-        expect(full.brightness[i]).toBeLessThanOrEqual(recipe.cluster.yBase + recipe.cluster.yGain);
-        expect(full.kinds[i]).toBeLessThanOrEqual(STAR_KINDS.indexOf('field'));
         if (full.tints[i] === cluster.tint) own += 1;
       }
       expect(own / cluster.count).toBeGreaterThan(recipe.cluster.tintShare - 0.1);
       from += cluster.count;
     }
     expect(from).toBe(pairsFrom);
+  });
+
+  it('gives each cluster a heart: bright stars close in, and fainter ones falling away', () => {
+    // Sixty faint dots of one size read as a patch of grain. A cluster's first stars are
+    // bright ones in its middle, then field stars round them, then dust across its width.
+    const look = recipe.cluster;
+    const [brightLo, brightHi] = classes.bright.yRange;
+    expect(look.brightCount).toBeGreaterThanOrEqual(2);
+    expect(look.heart).toBeLessThan(0.5);
+    const near: number[] = [];
+    const far: number[] = [];
+    let from = clustersFrom;
+    for (const cluster of recipe.clusters) {
+      const centre = directionOf(cluster.azDeg, cluster.elDeg);
+      for (let k = 0; k < cluster.count; k += 1) {
+        const i = from + k;
+        const sigmas = apart(directionAt(full, i), centre) / cluster.sigmaDeg;
+        const y = full.brightness[i] ?? 0;
+        const kind = STAR_KINDS[full.kinds[i] ?? 0];
+        if (k < look.brightCount) {
+          expect(kind).toBe('bright');
+          expect(y).toBeGreaterThanOrEqual(brightLo - 1e-6);
+          expect(y).toBeLessThanOrEqual(brightHi + 1e-6);
+          // Within `heart` of the cluster's width (five of ITS sigmas, as above).
+          expect(sigmas).toBeLessThan(5 * look.heart);
+          continue;
+        }
+        expect(y).toBeGreaterThanOrEqual(look.yBase - 1e-6);
+        expect(y).toBeLessThanOrEqual(look.yBase + look.yGain);
+        if (k < look.brightCount + look.fieldCount) {
+          expect(kind).toBe('field');
+          expect(sigmas).toBeLessThan(5 * look.heart * 2);
+          continue;
+        }
+        expect(kind).toBe('dust');
+        if (sigmas < 1) near.push(y);
+        else if (sigmas > 1.5) far.push(y);
+      }
+      from += cluster.count;
+    }
+    // The dust is brighter toward the middle: no equal dots.
+    const mean = (ys: readonly number[]): number => ys.reduce((sum, y) => sum + y, 0) / ys.length;
+    expect(near.length).toBeGreaterThan(50);
+    expect(far.length).toBeGreaterThan(50);
+    expect(mean(near)).toBeGreaterThan(mean(far) * 1.3);
+    // Every heart is brighter than any of its cluster's dust can be... and than most dust is.
+    expect(brightLo).toBeGreaterThan(look.yBase + look.yGain);
   });
 
   it('sets fourteen double stars: a bright one, and a fainter one a hair away in another tint', () => {
@@ -374,6 +593,10 @@ describe('the list of stars', () => {
     // About a thousand: as many as shimmered before the sky had this many stars.
     expect(twinkling).toBeGreaterThan(800);
     expect(twinkling).toBeLessThan(1200);
+    // ...and with the bulge's stars and the clusters', which twinkle as often, still about that.
+    const all = Array.from(full.twinkles).filter((t) => t === 1).length;
+    expect(all).toBeGreaterThan(twinkling);
+    expect(all).toBeLessThan(1200);
     for (const i of [...indicesOf(full, 'mid'), ...indicesOf(full, 'hero')]) {
       expect(full.twinkles[i]).toBe(0);
     }

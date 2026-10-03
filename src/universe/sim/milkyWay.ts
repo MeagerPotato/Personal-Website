@@ -5,7 +5,8 @@ import { frameOf, wrapDeg } from './skyDirections';
  * THE MILKY WAY'S SHAPE: a river along a great circle of the sky. Its haze is baked into the
  * sky's panorama (design/shaders/skyBake.ts; the CPU twin is sim/skyOracle.ts) and its stars are
  * laid by the star list (sim/starList.ts), both from these functions of `tuning.look.sky.band`,
- * so the stars lie where the haze is and thin out where its dark lane runs.
+ * so the stars lie where the haze is, crowd where it swells (the bulge) and thin out where the
+ * dark lane runs. The lane is in the stars alone: the haze is never darkened.
  *
  * All of it is closed form: sums of sines and Gaussians along and across the circle. No noise
  * and no levels, so nothing in it has an edge. The shader writes the same expressions in GLSL:
@@ -61,8 +62,24 @@ export function laneAt(band: SkyBand, phi: number, yy: number): number {
   return Math.exp(-((yy - middle) / width) * ((yy - middle) / width));
 }
 
-/** The warm bulge at a longitude in degrees, 0 to 1. */
-export function bulgeAt(band: SkyBand, lonDeg: number): number {
-  const d = wrapDeg(lonDeg - band.core.lonDeg) / band.core.sigmaDeg;
-  return Math.exp(-d * d);
+/**
+ * The share of the river's stars that belong to its narrow bank. A bank's stars are in
+ * proportion to its MASS (its weight times its width), not to its weight alone: only then is
+ * the stars' cross-section the haze's (`profileAt`), whose two banks have peaks in the ratio of
+ * their weights.
+ */
+export function narrowShare(band: SkyBand): number {
+  const [[s1, w1], [s2, w2]] = band.banks;
+  return (s1 * w1) / (s1 * w1 + s2 * w2);
+}
+
+/**
+ * The bulge, 0 to 1: an oval on the river's middle, at a longitude in degrees and `yy` degrees
+ * off the middle. 1 at its heart.
+ */
+export function bulgeAt(band: SkyBand, lonDeg: number, yy: number): number {
+  const [along, across] = band.core.sigmaDeg;
+  const a = wrapDeg(lonDeg - band.core.lonDeg) / along;
+  const b = yy / across;
+  return Math.exp(-(a * a + b * b));
 }

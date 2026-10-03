@@ -8,10 +8,12 @@ import { fullscreenVertex } from './post';
  * half, v is (y + 1) / 2. RGB is the light the sky ADDS to the navy; alpha is how much of a star
  * shows there (1 = clear sky; less in the Milky Way's dark lane).
  *
- * The picture is two things and no more: THE MILKY WAY, a faint smooth haze along a great circle
- * with a dark lane through it and a cream bulge, under the river of stars that the star list
- * lays along the same circle; and FAR GALAXIES, small ellipses in star tints. No gas, no clouds:
- * nothing here is noise and nothing is cut into levels, so nothing has an edge. Every term is a
+ * The picture is two things and no more: THE MILKY WAY, a faint smooth haze along a great circle,
+ * under the river of stars that the star list lays along the same circle; and FAR GALAXIES,
+ * small ellipses in star tints. The haze has ONE family of tones, the navy's own blues: it
+ * swells at the river's bulge (which is made of stars, sim/starList.ts) and it is never
+ * darkened, the dark lane being stars left out and nothing painted. No gas, no clouds: nothing
+ * here is noise and nothing is cut into levels, so nothing has an edge. Every term is a
  * Gaussian or a sine of where the texel is. The light is then limited (a ceiling on luminance,
  * a calm strip along the horizon).
  *
@@ -20,14 +22,15 @@ import { fullscreenVertex } from './post';
  * the two texel by texel. CHANGE THEM TOGETHER.
  *
  * `constants` (design/skyRecipe.ts) is `tuning.look.sky` as GLSL: the Milky Way's frame (BAND_P
- * its pole, BAND_B1 and BAND_B2 the vectors its longitude is measured from) and numbers, the
- * table of its clumps (CLUMP: longitude, sigma, weight) and of the galaxies (GC, GE1, GE2 a
+ * its pole, BAND_B1 and BAND_B2 the vectors its longitude is measured from) and numbers (CORE
+ * is the bulge: its longitude, its sigma along and across the river, its swell), the table of
+ * its clumps (CLUMP: longitude, sigma, weight) and of the galaxies (GC, GE1, GE2 a
  * galaxy's frame; GP its semi-major axis, axis ratio, and the cosine and sine of its turn; GK
  * its kind, the cosine of the angle past which it is not looked at, its gain; GT the star tints
  * of its disc and its nucleus). The same program on every tier.
  *
  * Uniforms: uDeep, uHorizon (linear: the navy's two ends) and uFalloff (backdrop.horizonFalloff);
- * uBand[4] (linear: the haze's ramp: deep, mid, lit, rim); uStar[6] (linear: the star tints, in
+ * uBand[3] (linear: the haze's ramp: deep, mid, lit); uStar[6] (linear: the star tints, in
  * the tokens' order); uLoop[2] (how many galaxies and clumps: uniforms, because with constant
  * counts Direct3D's compiler unrolls the loops and takes longer over it). Geometry: the one
  * triangle that covers the target (shaders/post.ts).
@@ -38,7 +41,7 @@ export const skyBake = {
     uniform vec3 uDeep;
     uniform vec3 uHorizon;
     uniform float uFalloff;
-    uniform vec3 uBand[4];
+    uniform vec3 uBand[3];
     uniform vec3 uStar[6];
     uniform int uLoop[2];
     varying vec2 vUv;
@@ -68,14 +71,15 @@ export const skyBake = {
         float clump = BAND_BASE;
         for (int i = 0; i < uLoop[1]; i++) clump += CLUMP[i].z * exp(-sq(wrap180(lon - CLUMP[i].x) / CLUMP[i].y));
         float lane = exp(-sq((yy - (LANE_OFF.x + LANE_OFF.y * sin(3.0 * phi + 0.7) + LANE_OFF.z * sin(7.0 * phi + 2.1))) / (LANE_W.x + LANE_W.y * sin(4.0 * phi + 1.3))));
-        float bq = clamp(prof * clump * BAND_GAIN, 0.0, 1.0);
+        // The bulge: an oval on the river's middle where the haze swells, in the tones it has
+        // everywhere (the bulge's own light is a crowd of warm stars: sim/starList.ts).
+        float swell = CORE.w * exp(-(sq(wrap180(lon - CORE.x) / CORE.y) + sq(yy / CORE.z)));
+        float bq = clamp((prof * clump + swell) * BAND_GAIN, 0.0, 1.0);
         vec3 v = mix(uBand[0], uBand[1], ss(0.04, 0.55, bq));
         v = mix(v, uBand[2], 0.45 * ss(0.5, 1.0, bq));
-        // The cream bulge, and the lane: a little darker, and most of its stars hidden.
-        v = mix(v, uBand[3], exp(-sq(wrap180(lon - CORE.x) / CORE.y)) * CORE.z * ss(0.4, 1.0, bq));
-        v *= 1.0 - LANE.x * lane * ss(0.05, 0.35, bq);
-        add = 0.95 * ss(0.0, 0.22, bq) * max(v - navy, 0.0);
-        occ = 1.0 - LANE.y * lane * ss(0.0, 0.25, bq);
+        add = 0.95 * ss(0.0, 0.5, bq) * max(v - navy, 0.0);
+        // The lane paints nothing: it hides the stars that are there.
+        occ = 1.0 - LANE_HIDE * lane * ss(0.0, 0.25, bq);
       }
 
       // Far galaxies: a disc with a soft rim and a tight nucleus, in two star tints. A spiral's
@@ -89,8 +93,13 @@ export const skyBake = {
         float ga = GP[i].x, gb = GP[i].x * GP[i].y, r2 = sq(x / ga) + sq(y / gb);
         if (r2 > 4.0) continue;
         float r = sqrt(r2), disc = exp(-2.6 * r) * (1.0 - ss(0.82, 1.18, r)), core = exp(-28.0 * r2);
-        if (GK[i].x == 2.0) disc *= 0.45 + 0.9 * (0.5 + 0.5 * cos(2.0 * atan(y / gb, x / ga) - 6.2 * log(r + 0.12))) * ss(0.08, 0.5, r);
-        else if (GK[i].x == 1.0) {
+        if (GK[i].x == 2.0) {
+          // The arms begin at r = 0.08: nearer the middle there is no angle to ask for (GLSL
+          // gives atan of two zeros no value), and none is asked.
+          float arms = 0.0;
+          if (r > 0.08) arms = (0.5 + 0.5 * cos(2.0 * atan(y / gb, x / ga) - 6.2 * log(r + 0.12))) * ss(0.08, 0.5, r);
+          disc *= 0.45 + 0.9 * arms;
+        } else if (GK[i].x == 1.0) {
           float dark = exp(-sq(y / (0.2 * gb))) * ss(0.05, 0.5, 1.0 - min(1.0, r2 / 1.1));
           disc *= 1.0 - 0.6 * dark;
           core *= 1.0 - 0.3 * dark;

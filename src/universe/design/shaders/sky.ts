@@ -96,8 +96,10 @@ export const STAR_KIND_COUNT = 5;
  * two halos), uArm (length and gain of the spikes, length and gain of the line across) and
  * uThick (the sigma across a spike, and across the line across); uProfile (exponent, taper);
  * uBloomMask (shared, see materials.ts) and uUnder (linear: the navy the stars are added to);
- * uPano (shared with the backdrop) and uReveal (0 until the sky is baked, then 1): a star in the
- * Milky Way's dark lane is dimmed by the panorama's alpha there.
+ * uPano (shared with the backdrop) and uReveal (0 until the sky is baked, then eased up to 1
+ * with the sky's own light over `look.sky.revealSec`, world/SkyBake.ts; a cut under reduced
+ * motion): a star in the Milky Way's dark lane is dimmed by the panorama's alpha there, and
+ * comes to that as the lane itself appears.
  *
  * Light adds up in LINEAR light, and where the picture goes straight to the canvas (no
  * post-processing: uBloomMask 0) the blend happens after encoding, which would make every faint

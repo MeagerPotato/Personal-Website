@@ -496,7 +496,7 @@ describe('the sky’s bake', () => {
     const { uniforms, fragmentShader } = material;
     const declared = (name: string): number =>
       Number(new RegExp(`uniform \\w+ ${name}\\[(\\d+)\\]`).exec(fragmentShader)?.[1]);
-    // Colours go in end to end, three numbers each: the haze's four tones, the six star tints.
+    // Colours go in end to end, three numbers each: the haze's three tones, the six star tints.
     expect(uniforms.uBand?.value).toHaveLength(declared('uBand') * 3);
     expect(uniforms.uStar?.value).toHaveLength(declared('uStar') * 3);
     expect(declared('uStar')).toBe(Object.keys(tokens.color.star).length);
@@ -519,6 +519,28 @@ describe('the sky’s bake', () => {
     expect(loops).toEqual(['for (int i = 0; i < uLoop[1];', 'for (int i = 0; i < uLoop[0];']);
     // The dither's hash is the one place a pseudo-random number is made: half a code of it.
     expect(fragmentShader).toContain('(hash12(gl_FragCoord.xy) - 0.5) / 255.0');
+  });
+
+  it('paints the haze in its three tones and darkens none of it', () => {
+    const { fragmentShader } = createSkyBakeMaterial();
+    // Three tones, all of them the navy's blue: no fourth is declared, and none is read.
+    expect(fragmentShader).toContain('uniform vec3 uBand[3];');
+    const read = Array.from(fragmentShader.matchAll(/uBand\[(\d)\]/g), (match) => match[1]);
+    expect(read).toEqual(['3', '0', '1', '2']);
+    // The river's colour is only ever mixed up its ramp: nothing multiplies it down (a lane
+    // darkened in the haze drew streaks), and the lane's one number hides stars.
+    expect(fragmentShader).not.toMatch(/\bv \*= /);
+    expect(fragmentShader).toContain('occ = 1.0 - LANE_HIDE * lane');
+    expect(fragmentShader).toContain('const float LANE_HIDE=');
+  });
+
+  it('asks no angle at a galaxy’s very middle', () => {
+    // atan(0, 0) is undefined in GLSL. A spiral's arms begin at r = 0.08, and the angle is
+    // only asked for from there out.
+    const { fragmentShader } = createSkyBakeMaterial();
+    const angles = fragmentShader.match(/[^\n]*atan\(y \/ gb, x \/ ga\)[^\n]*/g) ?? [];
+    expect(angles).toHaveLength(1);
+    expect(angles[0]).toMatch(/^\s*if \(r > 0\.08\) arms = /);
   });
 
   it('the backdrop and the stars read one sky', () => {

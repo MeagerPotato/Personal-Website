@@ -26,8 +26,10 @@ import type {
   LampToken,
   RimTone,
   SkyLook,
+  StarBulge,
   StarClass,
   StarCluster,
+  StarClusterLook,
   StarPairs,
   StarPalette,
   SunTone,
@@ -899,10 +901,6 @@ export const tuning = {
      */
     count: 6400,
     countCoarse: 3200,
-    /** @deprecated The classes below size the stars: nothing reads this (the old points did). */
-    sizeMin: 1.1,
-    /** @deprecated As sizeMin. */
-    sizeMax: 3.4,
     /**
      * Six temperatures: [token name under color.star, share of the stars]. A class with a
      * `palette` of its own (below) is drawn from that instead.
@@ -915,11 +913,10 @@ export const tuning = {
       ['amber', 0.12],
       ['ember', 0.06],
     ] satisfies StarPalette,
-    /** @deprecated Each class has its own brightness range: nothing reads this. */
-    brightnessMin: 0.45,
     /**
      * This share of the dust, field and bright stars dims and comes back, by up to twinkleDepth:
-     * about a thousand stars, as many as shimmered when the sky held 5,000.
+     * about a thousand stars, as many as shimmered when the sky held 5,000 (the bulge's stars
+     * and the clusters' twinkle as often: about 1,100 in all).
      */
     twinkleShare: 0.12,
     twinkleDepth: 0.55,
@@ -942,12 +939,15 @@ export const tuning = {
      * `scaleRows` high. `bandShare` is the share of the class laid along the Milky Way, where
      * its haze is. `palette`: the class's own tints. Dust is whiter and cooler than the rest (a
      * faint star looks white) and the bright ones carry the colour. Dust has no count of its
-     * own: it takes `count` (and `countCoarse`) above.
+     * own: it takes `count` (and `countCoarse`) above. Its range is WIDE and most of it is
+     * faint: dust of one brightness and one size read as grain, as a texture laid on the sky,
+     * and a river of it as a stripe; from barely there to as bright as a field star, it reads
+     * as stars at every distance.
      */
     classes: {
       dust: {
-        yRange: [0.16, 0.46],
-        yExp: 2,
+        yRange: [0.07, 0.56],
+        yExp: 2.6,
         sigmaPx: 0.62,
         coreGain: 0.9,
         bandShare: 0.7,
@@ -1047,16 +1047,20 @@ export const tuning = {
     ] satisfies readonly HeroStar[],
     /**
      * Six Gaussian clusters of stars: where, how wide (degrees), how many, and their tint. The
-     * last three are THE SKY'S COMPASS: one at the bearing FROM HOME of each system (azimuth =
+     * first three mark nothing, and stand clear of the Milky Way (the first is 12 degrees above
+     * the river's middle: nearer, it had the river's haze behind it). The last three are THE
+     * SKY'S COMPASS: one at the bearing FROM HOME of each system (azimuth =
      * 90 - the layout's bearing; `system` says whose), 20 degrees under the horizon, where the
      * sky is emptiest. The sky is at infinity, so a bearing is right from home and the same from
      * everywhere. Each wears the star temperature nearest its family (there is no green star and
      * no violet one, and no star wears a family's colour); Hardware shares the bearing of its
      * binary, and home has none: home is where the viewer stands. A cluster is separate stars
-     * and nothing else: no light under it, no halo.
+     * and nothing else: no light under it, no halo. `system` is a note for the reader (and for
+     * tests/look.test.ts, which holds each azimuth to the layout): nothing in the engine reads
+     * it, `azDeg` is what places the cluster.
      */
     clusters: [
-      { azDeg: -88, elDeg: 21, sigmaDeg: 1.1, count: 70, tint: 'hot' },
+      { azDeg: -88, elDeg: 27, sigmaDeg: 1.1, count: 70, tint: 'hot' },
       { azDeg: 146, elDeg: 20, sigmaDeg: 0.9, count: 55, tint: 'amber' },
       { azDeg: 30, elDeg: 9, sigmaDeg: 1.3, count: 80, tint: 'white' },
       { azDeg: -45, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'hot', system: 'projects' },
@@ -1064,11 +1068,41 @@ export const tuning = {
       { azDeg: 75, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'cool', system: 'hackathons' },
     ] satisfies readonly StarCluster[],
     /**
-     * A star of a cluster: its brightness is yBase + yGain * random^yExp * exp(-falloff * r), r
-     * its distance from the middle in sigmas; `tintShare` of them wear the cluster's tint, the
-     * rest any; the first `fieldCount` are drawn as field stars, the rest as dust.
+     * How a cluster is made. It has a HEART: its first `brightCount` stars are bright ones (the
+     * bright class's range of brightness) within `heart` of its width, the next `fieldCount`
+     * are field stars within twice that, and the rest are dust across its whole width, of
+     * brightness yBase + yGain * random^yExp * exp(-falloff * r), r the distance from the
+     * middle in sigmas. `tintShare` of them wear the cluster's tint, the rest any. Sixty faint
+     * dots of one size read as a patch of grain; two or three bright stars with the faint ones
+     * falling away round them read as a cluster.
      */
-    cluster: { yBase: 0.22, yGain: 0.5, yExp: 3, falloff: 0.5, tintShare: 0.6, fieldCount: 5 },
+    cluster: {
+      yBase: 0.14,
+      yGain: 0.6,
+      yExp: 1.3,
+      falloff: 1.1,
+      tintShare: 0.6,
+      fieldCount: 7,
+      brightCount: 3,
+      heart: 0.4,
+    } satisfies StarClusterLook,
+    /**
+     * THE MILKY WAY'S BULGE, in stars: where the river is thickest (`look.sky.band.core` says
+     * where, and how wide the oval is) it gains this many more of each plain class, in these
+     * warm tints (halved with a finger and on the low tier, as every class is). This is the
+     * whole of the bulge's light and of its warmth: the haze only swells there, in its own
+     * blue (a cream haze with no more stars in it than the river beside it read as a smear,
+     * and off the palette). The dark lane runs through it as through the rest of the river.
+     */
+    bulge: {
+      counts: { dust: 520, field: 130, bright: 16 },
+      palette: [
+        ['warm', 0.5],
+        ['amber', 0.28],
+        ['ember', 0.07],
+        ['white', 0.15],
+      ],
+    } satisfies StarBulge,
     /**
      * Double stars, anywhere in the sky: a bright primary and a fainter companion `sepDeg` away
      * (seven to ten pixels: found by looking, never noise), drawn as a bright and a field star,
@@ -1138,23 +1172,42 @@ export const tuning = {
       /**
        * The Milky Way: a river of stars along a great circle, and a faint haze under them
        * (sim/milkyWay.ts says what each number does; the stars are laid from these too). Its
-       * pole is tilted `tiltDeg` from straight up, toward azimuth `poleAzDeg`, so that it rises
-       * to the right across the first frame instead of lying along the horizon. Across it: a
-       * narrow bank and a wide one (`banks`: [sigma in degrees, weight]). Along it: `base`
-       * everywhere and twelve `clumps` ([longitude, sigma, weight], degrees), its middle
-       * wandering by `meanderDeg`. `core`: the cream bulge. `lane`: the dark rift.
+       * pole is tilted `tiltDeg` from straight up, toward azimuth `poleAzDeg`: the river is
+       * highest (`tiltDeg` up) at the azimuth opposite, -62, crosses the horizon a quarter turn
+       * to either side, and in the first frame climbs about ten degrees, from the left edge
+       * until it leaves through the top. Across it: a narrow bank and a wide one (`banks`:
+       * [sigma in degrees, weight]). Along it: `base` everywhere and twelve `clumps`
+       * ([longitude, sigma, weight], degrees), its middle wandering by `meanderDeg`. `core`:
+       * the bulge, an oval on the river (`sigmaDeg`: along it and across it) where the haze
+       * swells by `glow`. `lane`: the dark rift.
        *
-       * Three things these numbers hold, each of which was tried the other way: the lane
-       * darkens the haze by a third at most (more read as a streak of smoke) and hides four
-       * fifths of the stars in it, so the rift is made of missing stars and not of paint; the
-       * bulge is 12 percent cream (30 read brown); and nothing here is cut into levels or run
-       * through noise, because a level's edge that follows noise is a contour line, and contour
-       * lines read as waves.
+       * What these numbers hold, each of which was tried the other way:
+       *  - THE HAZE HAS ONE FAMILY OF TONES, the navy's own blue. The bulge is made of stars
+       *    (`starfield.bulge`); a cream haze there, with no more stars in it than the river
+       *    beside it, read as a grey smear.
+       *  - THE LANE IS MISSING STARS AND NO PAINT. A lane darkened in the haze drew faint
+       *    streaks along the river, which read as layers. `hide` 0.8 acts twice: four fifths
+       *    of the river's and the bulge's own stars are left out where it runs, and whatever
+       *    star is left there, of any class, is dimmed through the panorama's alpha, at the
+       *    lane's middle to a ninth of its light.
+       *  - THE RIVER CROSSES THE FIRST FRAME AS A DIAGONAL (tests/look.test.ts holds its
+       *    climb), and its haze has no lower edge: at `gain` 0.5 it rises to its full cover
+       *    only where the river is brightest. Lying level across the first frame, at 0.65, it
+       *    read as a bar of blue fog.
+       *  - IT STAYS CLEAR OF THE CLUSTERS (`starfield.clusters`): the river's middle comes no
+       *    nearer one than 8 degrees, and no haze lies within two sigmas of any. The nearest
+       *    are the compass cluster of Hackathons (azimuth 75, 20 degrees under the horizon,
+       *    where the river is at -11: the clump above it, at longitude 238, is the weakest of
+       *    the twelve for that reason) and the white one at azimuth 30. More tilt, or a pole
+       *    nearer azimuth 110, lays the river's haze under the first; a pole nearer 125, under
+       *    the second, and the river level across the first frame again.
+       *  - Nothing here is cut into levels or run through noise: a level's edge that follows
+       *    noise is a contour line, and contour lines read as waves.
        */
       band: {
-        tiltDeg: 14,
-        poleAzDeg: 125,
-        gain: 0.65,
+        tiltDeg: 16,
+        poleAzDeg: 118,
+        gain: 0.5,
         banks: [
           [2.8, 0.5],
           [7.5, 0.5],
@@ -1170,13 +1223,13 @@ export const tuning = {
           [146, 9, 0.5],
           [172, 12, 0.6],
           [205, 14, 0.8],
-          [238, 10, 1],
+          [238, 10, 0.4],
           [262, 13, 0.6],
           [300, 16, 0.9],
           [336, 10, 0.6],
         ],
-        core: { lonDeg: 72, sigmaDeg: 26, mix: 0.12 },
-        lane: { offsetDeg: [1.2, 1.6, 0.8], widthDeg: [1.4, 0.5], dark: 0.3, hide: 0.8 },
+        core: { lonDeg: 120, sigmaDeg: [9, 5.5], glow: 0.9 },
+        lane: { offsetDeg: [1.2, 1.6, 0.8], widthDeg: [1.4, 0.5], hide: 0.8 },
       },
       /**
        * Fifteen far galaxies, the same on every tier: where, how large (`radiusDeg`: the

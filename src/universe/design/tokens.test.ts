@@ -31,11 +31,11 @@ describe('design tokens', () => {
     );
   });
 
-  it('gives every family the two tones of its district, and the Milky Way its four', () => {
+  it('gives every family the two tones of its district, and the Milky Way its three', () => {
     expect(Object.keys(tokens.color.nebula).sort()).toEqual([...THEME_KEYS, 'band'].sort());
     for (const family of THEME_KEYS) {
       expect(Object.keys(tokens.color.nebula[family]), family).toEqual(['mid', 'lit']);
     }
-    expect(Object.keys(tokens.color.nebula.band)).toEqual(['deep', 'mid', 'lit', 'rim']);
+    expect(Object.keys(tokens.color.nebula.band)).toEqual(['deep', 'mid', 'lit']);
   });
 });

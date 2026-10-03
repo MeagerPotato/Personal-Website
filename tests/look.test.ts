@@ -3,7 +3,7 @@ import { readRealInput } from '../scripts/journeys/galaxies';
 import { buildUniverse } from '../src/universe/data/build';
 import { tokens } from '../src/universe/design/tokens';
 import { tuning } from '../src/universe/design/tuning';
-import { clumpAt, clumpPeak } from '../src/universe/sim/milkyWay';
+import { bandFrame, clumpAt, clumpPeak, meanderAt } from '../src/universe/sim/milkyWay';
 import { createOrbitTable } from '../src/universe/sim/orbits';
 import {
   SKY_POSES,
@@ -22,8 +22,9 @@ import { trafficDots } from '../src/universe/sim/traffic';
 
 const real = buildUniverse(readRealInput(true));
 const { sky, sun, air } = tuning.look;
-const { classes, heroes, clusters, palette, pairs } = tuning.starfield;
+const { classes, heroes, clusters, palette, pairs, bulge } = tuning.starfield;
 const STAR_TINTS = Object.keys(tokens.color.star);
+const RAD = Math.PI / 180;
 
 /** Where a place in the sky falls in one of the seven views, 1280 x 800 CSS px: [x, y] or null. */
 const WIDTH = 1280;
@@ -35,6 +36,44 @@ function seenAt(
   const point = pointOf(SKY_POSES[name], directionOf(place.azDeg, place.elDeg), WIDTH / HEIGHT);
   if (!point || Math.abs(point[0]) > 1 || Math.abs(point[1]) > 1) return null;
   return [((point[0] + 1) / 2) * WIDTH, ((1 - point[1]) / 2) * HEIGHT];
+}
+
+/** The direction of the Milky Way's middle at a longitude round it, degrees. */
+function riverAt(lonDeg: number): [number, number, number] {
+  const { band } = sky;
+  const { pole, b1, b2 } = bandFrame(band);
+  const phi = lonDeg * RAD;
+  const lat = meanderAt(band, phi) * RAD;
+  const c = Math.cos(lat) * Math.cos(phi);
+  const s = Math.cos(lat) * Math.sin(phi);
+  const up = Math.sin(lat);
+  return [
+    c * b1[0] + s * b2[0] + up * pole[0],
+    c * b1[1] + s * b2[1] + up * pole[1],
+    c * b1[2] + s * b2[2] + up * pole[2],
+  ];
+}
+
+/** Where the river's middle crosses a column of a view (x in CSS px of 1280): its y, or null. */
+function riverY(name: SkyPoseName, x: number): number | null {
+  let before: [number, number] | null = null;
+  for (let lon = 0; lon <= 360; lon += 0.25) {
+    const point = pointOf(SKY_POSES[name], riverAt(lon), WIDTH / HEIGHT);
+    const here: [number, number] | null = point
+      ? [((point[0] + 1) / 2) * WIDTH, ((1 - point[1]) / 2) * HEIGHT]
+      : null;
+    if (
+      before &&
+      here &&
+      (before[0] - x) * (here[0] - x) <= 0 &&
+      Math.abs(here[0] - before[0]) < 40
+    ) {
+      const t = (x - before[0]) / (here[0] - before[0] || 1);
+      return before[1] + (here[1] - before[1]) * t;
+    }
+    before = here;
+  }
+  return null;
 }
 
 describe('the sky’s compass', () => {
@@ -132,15 +171,73 @@ describe('the sky’s tables', () => {
     for (let lon = 0; lon < 360; lon += 1) thinnest = Math.min(thinnest, clumpAt(band, lon));
     expect(thinnest / clumpPeak(band)).toBeGreaterThan(0.2);
     expect(thinnest / clumpPeak(band)).toBeLessThan(0.5);
-    // The lane is made of missing stars more than of paint; the bulge is a little cream.
-    expect(band.lane.hide).toBeGreaterThan(band.lane.dark);
+    // The lane is made of missing stars and of NOTHING else: it has no paint to give. (A lane
+    // darkened in the haze drew faint streaks along the river, which read as layers.)
+    expect(Object.keys(band.lane).sort()).toEqual(['hide', 'offsetDeg', 'widthDeg']);
+    expect(band.lane.hide).toBeGreaterThan(0.5);
     expect(band.lane.hide).toBeLessThan(1);
     expect(band.lane.widthDeg[0]).toBeGreaterThan(Math.abs(band.lane.widthDeg[1]));
-    expect(band.core.mix).toBeLessThanOrEqual(0.15);
-    // It rises to the right across the first frame: its crest lies right of where that view
-    // faces (azimuth grows to the left), higher than the horizon strip reaches.
+    // Its crest lies right of where the first view faces (azimuth grows to the left), higher
+    // than the horizon strip reaches.
     expect(wrapDeg(band.poleAzDeg + 180 - SKY_POSES.first.yawDeg)).toBeLessThan(0);
     expect(band.tiltDeg).toBeGreaterThan(sky.stripDeg[1]);
+  });
+
+  it('runs the river across the first frame as a diagonal, never level', () => {
+    // Lying level, the river read as a horizontal bar of fog. Across the middle half of the
+    // first frame it climbs 70 px or more to the right (five degrees of that view), and it is
+    // in the top third from the left edge until it leaves through the top, behind the nav.
+    const left = riverY('first', WIDTH * 0.25);
+    const right = riverY('first', WIDTH * 0.75);
+    expect(left).not.toBeNull();
+    expect(right).not.toBeNull();
+    expect((left ?? 0) - (right ?? 0)).toBeGreaterThan(70);
+    for (const x of [40, WIDTH * 0.25, WIDTH * 0.5, WIDTH * 0.75, WIDTH - 280]) {
+      const y = riverY('first', x);
+      expect(y, `x ${x}`).not.toBeNull();
+      expect(y ?? 0, `x ${x}`).toBeGreaterThan(0);
+      expect(y ?? 0, `x ${x}`).toBeLessThan(HEIGHT / 3);
+    }
+  });
+
+  it('makes the bulge of stars, on the river, in the first frame between the bars', () => {
+    const { band } = sky;
+    // The haze has no tone for the bulge: it swells there, and that is all it does.
+    expect(Object.keys(band.core).sort()).toEqual(['glow', 'lonDeg', 'sigmaDeg']);
+    expect(band.core.glow).toBeGreaterThan(0);
+    // An oval inside the river's wide bank: a part of the river, not a thing beside it.
+    expect(band.core.sigmaDeg[1]).toBeLessThan(band.banks[1][0]);
+    // Its light is stars: several hundred more where it is, most of them warm.
+    expect(bulge.counts.dust).toBeGreaterThan(bulge.counts.field);
+    expect(bulge.counts.field).toBeGreaterThan(bulge.counts.bright);
+    expect(bulge.counts.bright).toBeGreaterThan(0);
+    expect(bulge.counts.dust + bulge.counts.field + bulge.counts.bright).toBeGreaterThan(500);
+    for (const [tint] of bulge.palette) expect(STAR_TINTS).toContain(tint);
+    expect(bulge.palette.reduce((sum, [, share]) => sum + share, 0)).toBeCloseTo(1, 9);
+    expect(bulge.palette[0]?.[0]).toBe('warm');
+    // Its heart is in the first frame, under the top bar and between its two groups of chips
+    // (the left ones end at x 291, the main nav starts at x 914; both are 58 px high).
+    const [x, y] = pointOf(SKY_POSES.first, riverAt(band.core.lonDeg), WIDTH / HEIGHT) ?? [9, 9];
+    const at: [number, number] = [((x + 1) / 2) * WIDTH, ((1 - y) / 2) * HEIGHT];
+    expect(at[0]).toBeGreaterThan(291 + 100);
+    expect(at[0]).toBeLessThan(914 - 100);
+    expect(at[1]).toBeGreaterThan(58);
+    expect(at[1]).toBeLessThan(HEIGHT / 4);
+  });
+
+  it('keeps the river’s middle eight degrees and more from every cluster', () => {
+    // A cluster is separate stars on plain navy: no haze behind it, and no river's stars
+    // among its own. (tests/sky-gates.test.ts measures the haze there.)
+    for (const cluster of clusters) {
+      const centre = directionOf(cluster.azDeg, cluster.elDeg);
+      let nearest = Infinity;
+      for (let lon = 0; lon < 360; lon += 0.5) {
+        const d = riverAt(lon);
+        const cos = d[0] * centre[0] + d[1] * centre[1] + d[2] * centre[2];
+        nearest = Math.min(nearest, Math.acos(Math.min(1, cos)) / RAD);
+      }
+      expect(nearest, `the cluster at ${cluster.azDeg}, ${cluster.elDeg}`).toBeGreaterThan(8);
+    }
   });
 
   it('bakes a panorama twice as wide as high, in whole bands, on every tier', () => {

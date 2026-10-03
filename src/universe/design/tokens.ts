@@ -124,10 +124,11 @@ export const tokens = {
      * wear them. Each family has the two tones of its district on the star map's chart (`mid`
      * the plate out past a system's reach, about 2:1 on space.900; `lit` the plate at its
      * reach); a family is told apart by its lit (src/site/look-colours.test.ts), and always by
-     * where it sits and by the names. `band` is the Milky Way's haze, a ramp of four: deep and
-     * mid barely above space (1.1:1 and 1.6:1 on space.900), lit where the river is densest,
-     * and rim the cream of its bulge. Nothing else in the sky wears a colour of these: the sky
-     * is navy, stars and far galaxies, and those are `star` tints.
+     * where it sits and by the names. `band` is the Milky Way's haze, a ramp of three in the
+     * navy's own blue: deep and mid barely above space (1.1:1 and 1.6:1 on space.900), and lit
+     * where the river is densest. It has no warm tone: the river's bulge is warm because its
+     * STARS are (`star.warm`, `amber`, `ember`), never its haze. Nothing else in the sky wears
+     * a colour of these: the sky is navy, stars and far galaxies, and those are `star` tints.
      */
     nebula: {
       coral: { mid: '#4d3651', lit: '#975851' },
@@ -135,7 +136,7 @@ export const tokens = {
       mint: { mid: '#1f4a52', lit: '#4d8f7b' },
       sky: { mid: '#244172', lit: '#41709b' },
       lilac: { mid: '#373062', lit: '#6c4c7c' },
-      band: { deep: '#111836', mid: '#2a3358', lit: '#575b84', rim: '#e6d5b4' },
+      band: { deep: '#111836', mid: '#2a3358', lit: '#575b84' },
     },
     /** ENGINE ONLY. The air of a world, by biome. Primer (planned clay) has none. */
     air: {

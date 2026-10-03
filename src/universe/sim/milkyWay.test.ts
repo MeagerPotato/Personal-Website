@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { SkyBand } from '../design/lookTypes';
 import { tuning } from '../design/tuning';
-import { bandFrame, bulgeAt, clumpAt, clumpPeak, laneAt, meanderAt, profileAt } from './milkyWay';
+import {
+  bandFrame,
+  bulgeAt,
+  clumpAt,
+  clumpPeak,
+  laneAt,
+  meanderAt,
+  narrowShare,
+  profileAt,
+} from './milkyWay';
 import { azimuthDeg, elevationDeg, wrapDeg } from './skyDirections';
 
 const { band } = tuning.look.sky;
@@ -15,7 +24,7 @@ const plain: SkyBand = {
   meanderDeg: [0, 0, 0, 0],
   base: 0.25,
   clumps: [[40, 10, 0.5]],
-  lane: { offsetDeg: [2, 0, 0], widthDeg: [1.5, 0], dark: 0.3, hide: 0.8 },
+  lane: { offsetDeg: [2, 0, 0], widthDeg: [1.5, 0], hide: 0.8 },
 };
 
 describe('the Milky Way’s frame', () => {
@@ -99,11 +108,57 @@ describe('the river’s shape', () => {
     }
   });
 
-  it('has a warm bulge round one longitude', () => {
+  it('shares its stars between the banks by their mass, so their cross-section is the haze’s', () => {
+    const [[s1, w1], [s2, w2]] = band.banks;
+    const share = narrowShare(band);
+    expect(share).toBeCloseTo((s1 * w1) / (s1 * w1 + s2 * w2), 12);
+    // Two banks of one weight: the wider holds as many more stars as it is wider.
+    expect(
+      narrowShare({
+        ...band,
+        banks: [
+          [2, 0.5],
+          [6, 0.5],
+        ],
+      }),
+    ).toBeCloseTo(0.25, 12);
+    // Two banks of one width: by their weights.
+    expect(
+      narrowShare({
+        ...band,
+        banks: [
+          [3, 0.9],
+          [3, 0.1],
+        ],
+      }),
+    ).toBeCloseTo(0.9, 12);
+    // Stars drawn that often from each bank (a Gaussian of deviation sigma / sqrt 2) are as
+    // dense, at every distance from the middle, as the haze is bright: one constant between.
+    const density = (yy: number): number =>
+      (share / s1) * Math.exp(-((yy / s1) ** 2)) + ((1 - share) / s2) * Math.exp(-((yy / s2) ** 2));
+    const k = density(0) / profileAt(band, 0);
+    for (const yy of [0.5, 2, 5, 9, 15]) {
+      expect(density(yy) / profileAt(band, yy)).toBeCloseTo(k, 12);
+    }
+    // By weight alone (half and half here) the narrow bank would hold too many: a hard core.
+    expect(share).toBeLessThan(w1 / (w1 + w2));
+  });
+
+  it('swells into a bulge: an oval on its middle, round one longitude', () => {
     const { lonDeg, sigmaDeg } = band.core;
-    expect(bulgeAt(band, lonDeg)).toBe(1);
-    expect(bulgeAt(band, lonDeg + sigmaDeg)).toBeCloseTo(1 / Math.E, 12);
-    expect(bulgeAt(band, lonDeg + 180)).toBeLessThan(1e-12);
+    const [along, across] = sigmaDeg;
+    expect(bulgeAt(band, lonDeg, 0)).toBe(1);
+    expect(bulgeAt(band, lonDeg + along, 0)).toBeCloseTo(1 / Math.E, 12);
+    expect(bulgeAt(band, lonDeg - along, 0)).toBeCloseTo(1 / Math.E, 12);
+    expect(bulgeAt(band, lonDeg, across)).toBeCloseTo(1 / Math.E, 12);
+    expect(bulgeAt(band, lonDeg, -across)).toBeCloseTo(1 / Math.E, 12);
+    expect(bulgeAt(band, lonDeg + along, across)).toBeCloseTo(Math.exp(-2), 12);
+    expect(bulgeAt(band, lonDeg + 180, 0)).toBeLessThan(1e-12);
+    expect(bulgeAt(band, lonDeg, 40)).toBeLessThan(1e-12);
+    // It lies along the river, and is round enough to be a bulge and not a streak of it (a
+    // glow three and more times as long as it was wide read as a smear).
+    expect(along).toBeGreaterThan(across);
+    expect(along / across).toBeLessThan(2);
   });
 
   it('has no seam: every term comes round to itself where the longitude wraps', () => {
@@ -112,7 +167,11 @@ describe('the river’s shape', () => {
     expect(laneAt(band, Math.PI, 1.3)).toBeCloseTo(laneAt(band, -Math.PI, 1.3), 12);
     expect(clumpAt(band, 180)).toBeCloseTo(clumpAt(band, -180), 12);
     expect(clumpAt(band, 359.5)).toBeCloseTo(clumpAt(band, -0.5), 12);
-    expect(bulgeAt(band, 180)).toBeCloseTo(bulgeAt(band, -180), 12);
+    // A bulge that sits on the wrap is whole on both sides of it.
+    const wrapped: SkyBand = { ...band, core: { ...band.core, lonDeg: 178 } };
+    expect(bulgeAt(wrapped, -177, 1)).toBeCloseTo(bulgeAt(wrapped, 173, 1), 12);
+    expect(bulgeAt(wrapped, 180, 0)).toBeCloseTo(bulgeAt(wrapped, -180, 0), 12);
+    expect(bulgeAt(wrapped, 183, 0)).toBeGreaterThan(0.5);
     // A clump whose reach crosses the wrap is whole on both sides of it.
     const across: SkyBand = { ...plain, clumps: [[355, 10, 0.5]] };
     expect(clumpAt(across, 5)).toBeCloseTo(clumpAt(across, 345), 12);

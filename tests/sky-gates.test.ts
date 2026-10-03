@@ -21,10 +21,11 @@ import { createSkyOracle, luminance, navyAt } from '../src/universe/sim/skyOracl
 
 // THE BAKED SKY, HELD TO ITS GATES (docs/DESIGN.md, "Deep light"). The oracle (sim/skyOracle.ts)
 // is the CPU twin of the shader that bakes the sky (design/shaders/skyBake.ts); the lab compares
-// the two texel by texel on a GPU (`/lab/?subject=sky&parity=1`). Here the oracle is held to the
-// recipe's own values, and the sky it describes to what was promised of it: no gas and no edge
-// anywhere, calm where the planets are, never brighter than its ceiling, quieter than the stars
-// that carry it, and readable under every mark laid over it.
+// the two texel by texel on a GPU (`/lab/?subject=sky&parity=1`). Here the oracle is held still
+// (a table of its own values: a change to it is seen, and has to be meant), and the sky it
+// describes is held to what was promised of it: no gas and no edge anywhere, one family of
+// tones, calm where the planets are, plain navy behind every cluster, never brighter than its
+// ceiling, quieter than the stars that carry it, and readable under every mark laid over it.
 
 const look = tuning.look.sky;
 const colours = skyColours();
@@ -45,29 +46,38 @@ const percentile = (sorted: Float64Array, share: number): number =>
   sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * share))] ?? 0;
 
 describe('the sky’s oracle', () => {
-  // `texel(directionOf(azimuth, elevation))` of the recipe the look was designed with: the river
-  // at its crest (in its lane, and above it), the lane at its darkest, the river under the
-  // horizon; a spiral's nucleus (in the river) and one of its arms, a lens and its disc, an
-  // ellipse, a small spiral low in the sky; the horizon, the strip, and empty sky.
+  // `texel(directionOf(azimuth, elevation))`, AS THE ORACLE ITSELF GAVE IT when this table was
+  // written: a regression pin, not a second opinion. It holds the oracle still, so that a
+  // change to it (or to the recipe) shows here and is meant; what checks the oracle against
+  // something other than itself is the lab's parity with the GPU's bake, and the gates below.
+  // The rows: the river at its crest (in its lane) and above it; the bulge's heart, and its
+  // edge above and along the river; the lane at its darkest; the river at its lowest, under the
+  // horizon; a spiral's nucleus (on the river) and one of its arms, a lens and its disc, an
+  // ellipse, a small spiral low in the sky; the horizon, the strip, empty sky above and below,
+  // and the middle of a compass cluster.
   // prettier-ignore
   const GOLDEN: ReadonlyArray<readonly [az: number, el: number, r: number, g: number, b: number, occ: number]> = [
-    [-55, 14, 0.013043235, 0.017492851, 0.048037927, 0.437319892],
-    [-55, 16, 0.008549743, 0.012267767, 0.039310923, 0.948470393],
-    [-180, -10, 0.006192567, 0.008519979, 0.025019672, 0.200000003],
-    [125, -14, 0.012449941, 0.017334181, 0.049801102, 0.511989421],
-    [-10, 12, 0.171989677, 0.160619176, 0.147254431, 0.248324615],
-    [-11, 13, 0.027160462, 0.034653543, 0.060583473, 0.690658882],
-    [96, 8, 0.150380128, 0.145694803, 0.137631009, 1],
-    [97, 7.7, 0.018447325, 0.016266837, 0.012514074, 1],
-    [186, 8, 0.167258031, 0.159621837, 0.146487049, 1],
+    [-62, 15, 0.012931419, 0.018195191, 0.053569785, 0.203049562],
+    [-62, 18, 0.002373697, 0.003493196, 0.01220522, 0.951918733],
+    [-31, 12.5, 0.043177112, 0.049434883, 0.114888293, 0.858298875],
+    [-31, 18, 0.009546094, 0.013553021, 0.041193142, 0.999879174],
+    [-22, 12, 0.015993026, 0.022343959, 0.064161443, 0.96607315],
+    [68, -9, 0.00389774, 0.005517043, 0.017281391, 0.200000009],
+    [118, -16.5, 0.010589815, 0.014978854, 0.044971825, 0.687022922],
+    [-10, 12, 0.172206204, 0.16063035, 0.145591617, 0.792031556],
+    [-11, 13, 0.024922149, 0.031342053, 0.048102527, 0.339364875],
+    [96, 8, 0.150380129, 0.145694802, 0.137630989, 1],
+    [97, 7.7, 0.01844732, 0.016266829, 0.012514035, 1],
+    [186, 8, 0.167258636, 0.159621918, 0.146481925, 1],
     [4, -22, 0.171769935, 0.159394855, 0.138922518, 1],
     [0, 0, 0, 0, 0, 1],
-    [-30, 4, 0.000528295, 0.000758489, 0.00293774, 1],
+    [-30, 4, 0.000058887, 0.000086458, 0.000385098, 1],
     [145, 60, 0, 0, 0, 1],
     [20, -40, 0, 0, 0, 1],
+    [75, -20, 0.000038017, 0.000062996, 0.000303913, 1],
   ];
 
-  it('is the recipe’s, texel for texel', () => {
+  it('is what it was, texel for texel', () => {
     for (const [az, el, r, g, b, occ] of GOLDEN) {
       texel(directionOf(az, el), out);
       expect(out[0], `r at ${az}, ${el}`).toBeCloseTo(r, 8);
@@ -81,8 +91,8 @@ describe('the sky’s oracle', () => {
     const a = [0, 0, 0, 0];
     // Far from every galaxy the sky is the river's alone...
     for (const [az, el] of [
-      [-55, 14],
-      [125, -14],
+      [-62, 15],
+      [118, -16.5],
       [145, 60],
     ] as const) {
       expect(texel(directionOf(az, el), out)).toEqual(river(directionOf(az, el), a));
@@ -103,6 +113,56 @@ describe('the sky’s oracle', () => {
     const odd = { ...look, galaxies: [{ ...look.galaxies[0], disc: 'mauve' }] };
     expect(() => createSkyOracle(odd as unknown as typeof look, colours)).toThrow(/no star tint/);
   });
+
+  it('paints the haze in one family of tones: blue everywhere, and brightest at the bulge', () => {
+    // The haze is the navy's own blue from its faintest to its brightest. A warm or a grey
+    // tone in it (a cream bulge was tried) reads as a smear on the navy. Wherever the river
+    // alone adds light, blue leads green by a wide margin, and green leads red.
+    const a = [0, 0, 0, 0];
+    let seen = 0;
+    let brightest = 0;
+    let heart = 0;
+    for (let az = -180; az < 180; az += 1) {
+      for (let el = -40; el <= 40; el += 1) {
+        const [r = 0, g = 0, b = 0] = river(directionOf(az, el), a);
+        const y = luminance(a);
+        if (y < 0.0005) continue;
+        seen += 1;
+        expect(b, `blue at ${az}, ${el}`).toBeGreaterThan(g * 1.8);
+        expect(g, `green at ${az}, ${el}`).toBeGreaterThan(r);
+        if (y > brightest) {
+          brightest = y;
+          heart = az;
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(1000);
+    // Its brightest place is the bulge (azimuth -31), in the first frame.
+    expect(Math.abs(heart - -31)).toBeLessThanOrEqual(4);
+  });
+
+  it('never darkens the haze: the dark lane hides stars, and paints nothing', () => {
+    // A lane darkened in the haze drew faint streaks along the river, which read as layers.
+    // With a lane that hides nothing, the light is the same to the last bit; only the fourth
+    // number (how much of a star shows) knows the lane.
+    const open = createSkyOracle(
+      { ...look, band: { ...look.band, lane: { ...look.band.lane, hide: 0 } } },
+      colours,
+    );
+    const a = [0, 0, 0, 0];
+    let hidden = 0;
+    for (let az = -180; az < 180; az += 3) {
+      for (let el = -30; el <= 30; el += 1.5) {
+        const at = directionOf(az, el);
+        texel(at, out);
+        open(at, a);
+        expect([out[0], out[1], out[2]]).toEqual([a[0], a[1], a[2]]);
+        expect(a[3]).toBe(1);
+        if ((out[3] ?? 1) < 0.5) hidden += 1;
+      }
+    }
+    expect(hidden).toBeGreaterThan(20);
+  });
 });
 
 describe('the sky’s recipe, as the shader reads it', () => {
@@ -121,15 +181,19 @@ describe('the sky’s recipe, as the shader reads it', () => {
     // Every float has its point (GLSL has no implicit conversion), every tint its number.
     expect(text).toContain('const float STRIP0=0.0;');
     expect(text).toContain('const vec4 BANKS=vec4(2.8,0.5,7.5,0.5);');
-    expect(text).toContain('const vec2 LANE=vec2(0.3,0.8);');
+    // The lane has one number to give, how much it hides; the bulge, where it is, its two
+    // widths and its swell.
+    expect(text).toContain('const float LANE_HIDE=0.8;');
+    expect(text).not.toMatch(/const \w+ LANE=/);
+    expect(text).toContain('const vec4 CORE=vec4(120.0,9.0,5.5,0.9);');
     expect(text).toMatch(/const vec3 CLUMP\[12\]=vec3\[12\]\(vec3\(28\.0,10\.0,0\.5\),/);
     // The first galaxy: a spiral (2) with a hot disc (3) and a warm nucleus (0).
     expect(text).toMatch(/const ivec2 GT\[15\]=ivec2\[15\]\(ivec2\(3,0\),/);
     expect(text).toMatch(/const vec3 GK\[15\]=vec3\[15\]\(vec3\(2\.0,0\.99\d+,1\.0\),/);
   });
 
-  it('hands over the colours it names: four tones of haze, six star tints', () => {
-    expect(skyBand()).toHaveLength(4 * 3);
+  it('hands over the colours it names: three tones of haze, six star tints', () => {
+    expect(skyBand()).toHaveLength(3 * 3);
     expect(skyStars()).toHaveLength(Object.keys(tokens.color.star).length * 3);
     for (const channel of [...skyBand(), ...skyStars()]) {
       expect(channel > 0 && channel <= 1).toBe(true);
@@ -137,7 +201,8 @@ describe('the sky’s recipe, as the shader reads it', () => {
     // The oracle is given the same, by name.
     expect(Object.keys(colours.stars)).toEqual(Object.keys(tokens.color.star));
     expect(skyStars().slice(0, 3)).toEqual([...(colours.stars.warm ?? [])]);
-    expect(skyBand().slice(9)).toEqual([...colours.band.rim]);
+    expect(Object.keys(colours.band)).toEqual(['deep', 'mid', 'lit']);
+    expect(skyBand().slice(6)).toEqual([...colours.band.lit]);
   });
 
   it('is the same program on every tier: a tier is only a size', () => {
@@ -149,12 +214,20 @@ describe('the sky’s recipe, as the shader reads it', () => {
     expect(skyConstants()).not.toMatch(/#define/);
   });
 
-  it('refuses a number that is not one, and an empty table', () => {
+  it('refuses a number that is not one, an empty table, and a tint that is no star’s', () => {
     expect(() => skyConstants({ ...look, intensity: Number.NaN })).toThrow(/not finite/);
     expect(() => skyConstants({ ...look, galaxies: [] })).toThrow(/needs a row/);
     expect(() => skyConstants({ ...look, band: { ...look.band, clumps: [] } })).toThrow(
       /needs a row/,
     );
+    // An unknown tint has no number in the shader's table: -1 would read outside it.
+    for (const key of ['disc', 'core']) {
+      const odd = { ...look, galaxies: [{ ...look.galaxies[0], [key]: 'mauve' }] };
+      expect(() => skyConstants(odd as unknown as typeof look), key).toThrow(
+        /no star tint "mauve"/,
+      );
+    }
+    expect(skyConstants()).not.toMatch(/ivec2\([^)]*-/);
   });
 });
 
@@ -182,26 +255,32 @@ describe('the sky’s gates', () => {
     }
   }
 
-  // The seven views (sim/skyDirections.ts), each at its own exposure.
-  const PW = 240;
-  const PH = 150;
-  const poses = SKY_POSE_NAMES.map((name) => {
-    const pose = SKY_POSES[name];
-    const values = new Float64Array(PW * PH);
-    for (let j = 0; j < PH; j += 1) {
-      for (let i = 0; i < PW; i += 1) {
-        const ray = rayOf(pose, ((i + 0.5) / PW) * 2 - 1, 1 - ((j + 0.5) / PH) * 2, PW / PH);
-        values[j * PW + i] = totalY(ray, pose.exposure);
+  // The seven views (sim/skyDirections.ts), each at its own exposure, on a grid of the view's
+  // own shape.
+  const viewsAt = (pw: number, ph: number, shape: string) =>
+    SKY_POSE_NAMES.map((name) => {
+      const pose = SKY_POSES[name];
+      const values = new Float64Array(pw * ph);
+      for (let j = 0; j < ph; j += 1) {
+        for (let i = 0; i < pw; i += 1) {
+          const ray = rayOf(pose, ((i + 0.5) / pw) * 2 - 1, 1 - ((j + 0.5) / ph) * 2, pw / ph);
+          values[j * pw + i] = totalY(ray, pose.exposure);
+        }
       }
-    }
-    values.sort();
-    return {
-      name,
-      p95: percentile(values, 0.95),
-      p999: percentile(values, 0.999),
-      max: values[values.length - 1] ?? 0,
-    };
-  });
+      values.sort();
+      return {
+        name: `${name}, ${shape}`,
+        p95: percentile(values, 0.95),
+        p999: percentile(values, 0.999),
+        max: values[values.length - 1] ?? 0,
+      };
+    });
+  // As a wide screen shows them (1280 by 800), and as a phone held upright does (360 by 780):
+  // that is the middle third of the wide view and no more, so whatever sits in the middle of a
+  // view fills more of it. The river's bulge sits in the middle of the first frame.
+  const wide = viewsAt(240, 150, 'wide');
+  const upright = viewsAt(90, 195, 'upright');
+  const poses = [...wide, ...upright];
   const worst = (key: 'p95' | 'p999' | 'max'): number =>
     Math.max(...poses.map((pose) => pose[key]));
 
@@ -209,19 +288,44 @@ describe('the sky’s gates', () => {
     expect(strip).toBeLessThanOrEqual(0.03);
   });
 
-  it('no view is loud: p95 at most 0.04, p99.9 at most 0.10', () => {
+  it('no view is loud, wide or upright: p95 at most 0.04, p99.9 at most 0.10', () => {
+    expect(poses).toHaveLength(2 * SKY_POSE_NAMES.length);
     for (const pose of poses) {
       expect(pose.p95, `p95 of ${pose.name}`).toBeLessThanOrEqual(0.04);
       expect(pose.p999, `p99.9 of ${pose.name}`).toBeLessThanOrEqual(0.1);
     }
-    // And the sky is there: the loudest view is not far under its gate.
-    expect(worst('p95')).toBeGreaterThan(0.02);
+    // And the sky is there: on a wide screen the loudest view is not far under its gate.
+    expect(Math.max(...wide.map((pose) => pose.p95))).toBeGreaterThan(0.02);
+    expect(Math.max(...upright.map((pose) => pose.p95))).toBeGreaterThan(0.02);
   });
 
   it('the Milky Way’s haze is faint under its stars, and it is there', () => {
     // The most the haze alone adds, anywhere: the stars are what a visitor sees, not the haze.
     expect(haze).toBeGreaterThan(0.05);
     expect(haze).toBeLessThan(0.1);
+  });
+
+  it('no haze lies behind a cluster: its stars stand on plain navy', () => {
+    // At a cluster's middle and one and two of its sigmas out, the river adds less than a
+    // code value of the darkest navy (the measure of empty sky, above).
+    const RAD = Math.PI / 180;
+    for (const cluster of tuning.starfield.clusters) {
+      const where = `the cluster at ${cluster.azDeg}, ${cluster.elDeg}`;
+      expect(luminance(river(directionOf(cluster.azDeg, cluster.elDeg), a)), where).toBeLessThan(
+        0.0005,
+      );
+      for (const sigmas of [1, 2]) {
+        for (let turn = 0; turn < 12; turn += 1) {
+          const angle = (turn / 12) * 2 * Math.PI;
+          const reach = sigmas * cluster.sigmaDeg;
+          const at = directionOf(
+            cluster.azDeg + (reach * Math.cos(angle)) / Math.cos(cluster.elDeg * RAD),
+            cluster.elDeg + reach * Math.sin(angle),
+          );
+          expect(luminance(river(at, a)), `${sigmas} sigma from ${where}`).toBeLessThan(0.0005);
+        }
+      }
+    }
   });
 
   it('the haze has no edge: nowhere does it step from one texel to the next', () => {

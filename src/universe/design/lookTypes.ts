@@ -63,17 +63,28 @@ export interface SkyBand {
   /** How bright the river is along its length: this much everywhere, plus the clumps. */
   readonly base: number;
   readonly clumps: ReadonlyArray<readonly [lonDeg: number, sigmaDeg: number, weight: number]>;
-  /** The warm bulge: where along the circle, how wide, and how far the haze goes toward cream. */
-  readonly core: { readonly lonDeg: number; readonly sigmaDeg: number; readonly mix: number };
+  /**
+   * The bulge, the river's heart: an oval on its middle at `lonDeg`, exp(-(lon / along)^2 -
+   * (lat / across)^2) with `sigmaDeg` = [along, across]. It is MADE OF STARS: the star list
+   * crowds it with stars in warm tints (`tuning.starfield.bulge`). The haze has no colour for
+   * it: it only swells there, by `glow`, in the tones it has everywhere.
+   */
+  readonly core: {
+    readonly lonDeg: number;
+    readonly sigmaDeg: readonly [along: number, across: number];
+    readonly glow: number;
+  };
   /**
    * The dark lane: its middle runs offsetDeg[0] off the river's, swinging by [1] and [2]; it is
-   * widthDeg[0] wide, swinging by [1]. It darkens the haze by `dark` at most and hides `hide`
-   * of the stars in it.
+   * widthDeg[0] wide, swinging by [1]. It is made of MISSING STARS and of nothing else: no
+   * paint (a lane darkened in the haze drew streaks along it, which read as layers). `hide`
+   * acts on the stars twice: the river's and the bulge's own stars are laid that much thinner
+   * where it runs, and whatever star is left there, of any class, is dimmed through the
+   * panorama's alpha (at the lane's middle, where 0.2 of it is clear, to a ninth of its light).
    */
   readonly lane: {
     readonly offsetDeg: readonly [number, number, number];
     readonly widthDeg: readonly [number, number];
-    readonly dark: number;
     readonly hide: number;
   };
 }
@@ -111,9 +122,39 @@ export interface StarCluster {
   readonly tint: StarKey;
   /**
    * The system (its id in the galaxy) whose bearing from home this cluster stands at: the sky's
-   * compass. Left out for a cluster that marks nothing.
+   * compass. Left out for a cluster that marks nothing. It is a NOTE, and nothing in the engine
+   * reads it: `azDeg` is what places the cluster, and tests/look.test.ts holds the two together
+   * (the azimuth is 90 minus the layout's bearing of that system from home).
    */
   readonly system?: string;
+}
+
+/**
+ * How a cluster's stars are made (`tuning.starfield.cluster`). A cluster has a HEART: its first
+ * `brightCount` stars are bright ones (the bright class's range) within `heart` of its width,
+ * the next `fieldCount` are field stars within twice that, and the rest are dust across the
+ * whole width, of brightness yBase + yGain * random^yExp * exp(-falloff * r), r the distance
+ * from the middle in sigmas: brighter toward the heart. `tintShare` of them wear the cluster's
+ * tint, the rest any.
+ */
+export interface StarClusterLook {
+  readonly yBase: number;
+  readonly yGain: number;
+  readonly yExp: number;
+  readonly falloff: number;
+  readonly tintShare: number;
+  readonly fieldCount: number;
+  readonly brightCount: number;
+  readonly heart: number;
+}
+
+/**
+ * The Milky Way's bulge, in stars (its place and size are `look.sky.band.core`): how many of
+ * each plain class it adds to the river there, and the tints they wear.
+ */
+export interface StarBulge {
+  readonly counts: Readonly<Record<'dust' | 'field' | 'bright', number>>;
+  readonly palette: StarPalette;
 }
 
 /** A share of each star tint: [token name under color.star, weight]. */

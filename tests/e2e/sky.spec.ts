@@ -48,20 +48,21 @@ async function pixelAt(page: Page, x: number, y: number): Promise<number[]> {
 
 /**
  * Places in the sky of the first frame at home, as shares of the view. Three in THE MILKY WAY'S
- * HAZE, where the panorama's light is: across the top of a wide view, a little lower on a phone
- * (its chips take two rows). And one of BARE sky low in the frame, where the panorama adds
- * nothing. All clear of bodies, names, the HUD and, in the lists these tests draw (the low tier's,
- * for a mouse and for a finger), of every star.
+ * HAZE, where the panorama's light is: across the top of a wide view (the first in the river's
+ * bulge, the others along it to either side), a little lower on a phone (its chips take two
+ * rows, and all three are in or beside the bulge). And one of BARE sky low in the frame, where
+ * the panorama adds nothing. All clear of bodies, names, the HUD and, in the lists these tests
+ * draw (the low tier's, for a mouse and for a finger), of every star by seven pixels or more.
  */
 const HAZE_WIDE = [
-  [0.594, 0.119],
-  [0.375, 0.1375],
-  [0.781, 0.119],
+  [0.5219, 0.115],
+  [0.6594, 0.1025],
+  [0.1938, 0.1675],
 ] as const;
 const HAZE_TALL = [
-  [0.583, 0.22],
-  [0.388, 0.256],
-  [0.68, 0.238],
+  [0.5485, 0.1859],
+  [0.3592, 0.205],
+  [0.7282, 0.1907],
 ] as const;
 const BARE = [0.9, 0.56] as const;
 
@@ -106,8 +107,8 @@ test.describe('for a visitor who asked for less motion', () => {
     await expect.poll(async () => apart(await skyAt(page), arrived)).toBeLessThanOrEqual(3);
     const before = await skyAt(page);
     expect(apart(before, arrived)).toBeLessThanOrEqual(3);
-    // And it is there: the haze lifts the navy by some forty codes of blue at these places
-    // (bare sky is 35 or so, the haze 75 and more), so a sky that never came would not pass.
+    // And it is there: the haze lifts the navy by thirty to sixty-five codes of blue at these
+    // places (bare sky is 35 or so, the haze 65 to 100), so a sky that never came would not pass.
     const [, , bare = 0] = await pixelAt(page, ...place(page, BARE));
     for (const [, , blue = 0] of before) expect(blue - bare).toBeGreaterThanOrEqual(15);
 

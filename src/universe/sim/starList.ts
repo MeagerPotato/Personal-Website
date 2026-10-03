@@ -1,5 +1,5 @@
 import type { SkyBand } from '../design/lookTypes';
-import { bandFrame, clumpAt, clumpPeak, laneAt, meanderAt } from './milkyWay';
+import { bandFrame, clumpAt, clumpPeak, laneAt, meanderAt, narrowShare } from './milkyWay';
 import { createRng, pickWeighted, type Rng } from './rng';
 import { directionOf } from './skyDirections';
 
@@ -13,8 +13,11 @@ import { directionOf } from './skyDirections';
  * looking, BRIGHT the ones they notice, MID a few with six small spikes, and the eight HEROES
  * carry six long ones. Part of each of the first four is THE MILKY WAY: a river of stars along a
  * great circle (sim/milkyWay.ts), denser in its clumps and thin where its dark lane runs; the
- * rest lie anywhere. Six small clusters, a handful of double stars and the heroes complete it.
- * A star is only a DIRECTION: world/Starfield.ts draws it at infinity.
+ * rest lie anywhere. Where the river is thickest, its BULGE is a crowd of more dust, field and
+ * bright stars in warm tints: the bulge is these stars, the haze paints no colour of its own
+ * there. Six small clusters (each a few bright stars with fainter ones falling away round
+ * them), a handful of double stars and the heroes complete it. A star is only a DIRECTION:
+ * world/Starfield.ts draws it at infinity.
  */
 
 /** The kinds, in the order the shader numbers them (design/shaders/sky.ts, `aStar.x`). */
@@ -74,6 +77,13 @@ export interface StarRecipe<Tint extends string> {
     readonly falloff: number;
     readonly tintShare: number;
     readonly fieldCount: number;
+    readonly brightCount: number;
+    readonly heart: number;
+  };
+  /** The Milky Way's bulge: how many of each plain class it adds there, and their tints. */
+  readonly bulge: {
+    readonly counts: Readonly<Record<'dust' | 'field' | 'bright', number>>;
+    readonly palette: Palette<Tint>;
   };
   readonly pairs: {
     readonly count: number;
@@ -109,17 +119,25 @@ export interface StarList<Tint extends string> {
   readonly twinkles: Uint8Array;
 }
 
+/** The plain classes the bulge adds stars of, in the order they are laid. */
+const BULGE_KINDS = ['dust', 'field', 'bright'] as const;
+
 /**
- * How many stars of each kind a tier and a pointer get from their classes; `clusters` is each
- * cluster's count and `pairs` the number of double stars (two stars each), on top of those.
+ * How many stars of each kind a tier and a pointer get from their classes; on top of those,
+ * `bulge` is what the Milky Way's bulge adds of each plain class, `clusters` each cluster's
+ * count and `pairs` the number of double stars (two stars each).
  */
 export function starCounts<Tint extends string>(
   recipe: StarRecipe<Tint>,
   options: StarListOptions,
-): Record<StarKind, number> & { clusters: number[]; pairs: number } {
+): Record<StarKind, number> & {
+  bulge: Record<(typeof BULGE_KINDS)[number], number>;
+  clusters: number[];
+  pairs: number;
+} {
   const share = (options.coarse ? 0.5 : 1) * (options.low ? 0.5 : 1);
   const part = (full: number): number => Math.round(full * share);
-  const { classes, pairs } = recipe;
+  const { classes, pairs, bulge } = recipe;
   return {
     dust: Math.round(
       (options.coarse ? recipe.countCoarse : recipe.count) * (options.low ? 0.5 : 1),
@@ -130,6 +148,11 @@ export function starCounts<Tint extends string>(
     mid: options.low ? 0 : part(classes.mid.count ?? 0),
     // A hero costs one quad, and the heroes are the look: all of them, everywhere.
     hero: recipe.heroes.length,
+    bulge: {
+      dust: part(bulge.counts.dust),
+      field: part(bulge.counts.field),
+      bright: part(bulge.counts.bright),
+    },
     clusters: recipe.clusters.map((cluster) => part(cluster.count)),
     // A double costs two quads and is found by looking: all of them, everywhere.
     pairs: pairs.tints.length > 0 ? pairs.count : 0,
@@ -170,6 +193,9 @@ export function buildStarList<Tint extends string>(
     counts.bright +
     counts.mid +
     counts.hero +
+    counts.bulge.dust +
+    counts.bulge.field +
+    counts.bulge.bright +
     counts.pairs * 2 +
     counts.clusters.reduce((sum, n) => sum + n, 0);
 
@@ -205,39 +231,62 @@ export function buildStarList<Tint extends string>(
     return [ring * Math.sin(azimuth), y, ring * Math.cos(azimuth)];
   };
 
-  // The Milky Way: a guess is a longitude anywhere round the circle and a latitude off the
-  // river's middle from one of its two banks (the haze's exp(-(y / sigma)^2) is a Gaussian of
-  // deviation sigma / sqrt 2). It is kept as often as the river is bright at that longitude and
-  // clear of the dark lane there.
   const { pole, b1, b2 } = bandFrame(band);
+  /** The direction at a longitude round the river (radians), `yy` degrees off its middle. */
+  const onRiver = (along: number, yy: number): Vec3 => {
+    const lat = (yy + meanderAt(band, along)) * RAD;
+    const c = Math.cos(lat) * Math.cos(along);
+    const s = Math.cos(lat) * Math.sin(along);
+    const up = Math.sin(lat);
+    return [
+      c * b1[0] + s * b2[0] + up * pole[0],
+      c * b1[1] + s * b2[1] + up * pole[1],
+      c * b1[2] + s * b2[2] + up * pole[2],
+    ];
+  };
+  /** How often a guess `yy` degrees off the river's middle is kept: less in the dark lane. */
+  const clear = (along: number, yy: number): number => 1 - band.lane.hide * laneAt(band, along, yy);
+
+  // The Milky Way: a guess is a longitude anywhere round the circle and a latitude off the
+  // river's middle from one of its two banks, each bank as often as its mass (the haze's
+  // exp(-(y / sigma)^2) is a Gaussian of deviation sigma / sqrt 2), so the stars' cross-section
+  // is the haze's. It is kept as often as the river is bright at that longitude and clear of
+  // the dark lane there.
   const peak = clumpPeak(band);
-  const [[narrowDeg, narrowWeight], [wideDeg, wideWeight]] = band.banks;
-  const narrowShare = narrowWeight / (narrowWeight + wideWeight);
+  const [[narrowDeg], [wideDeg]] = band.banks;
+  const narrow = narrowShare(band);
   const inRiver = (): Vec3 | null => {
     for (let guess = 0; guess < RIVER_GUESSES; guess += 1) {
       const along = rng() * TURN;
-      const sigma = rng() < narrowShare ? narrowDeg : wideDeg;
+      const sigma = rng() < narrow ? narrowDeg : wideDeg;
       const yy = gauss(rng) * sigma * Math.SQRT1_2;
-      const keep =
-        (clumpAt(band, along / RAD) / peak) * (1 - band.lane.hide * laneAt(band, along, yy));
-      if (rng() > keep) continue;
-      const lat = (yy + meanderAt(band, along)) * RAD;
-      const c = Math.cos(lat) * Math.cos(along);
-      const s = Math.cos(lat) * Math.sin(along);
-      const up = Math.sin(lat);
-      return [
-        c * b1[0] + s * b2[0] + up * pole[0],
-        c * b1[1] + s * b2[1] + up * pole[1],
-        c * b1[2] + s * b2[2] + up * pole[2],
-      ];
+      if (rng() > (clumpAt(band, along / RAD) / peak) * clear(along, yy)) continue;
+      return onRiver(along, yy);
     }
     return null;
   };
 
-  const scatter = (kind: number, cls: ClassRecipe<Tint>, n: number, twinkling: boolean): void => {
-    const palette = cls.palette ?? recipe.palette;
+  // The bulge: an oval on the river's middle (the Gaussians of sim/milkyWay.ts, bulgeAt), with
+  // the dark lane cut through it as through the rest of the river.
+  const [bulgeAlong, bulgeAcross] = band.core.sigmaDeg;
+  const inBulge = (): Vec3 => {
+    for (let guess = 1; ; guess += 1) {
+      const along = (band.core.lonDeg + gauss(rng) * bulgeAlong * Math.SQRT1_2) * RAD;
+      const yy = gauss(rng) * bulgeAcross * Math.SQRT1_2;
+      if (guess >= RIVER_GUESSES || rng() <= clear(along, yy)) return onRiver(along, yy);
+    }
+  };
+
+  const scatter = (
+    kind: number,
+    cls: ClassRecipe<Tint>,
+    n: number,
+    twinkling: boolean,
+    place: () => Vec3,
+    palette: Palette<Tint>,
+  ): void => {
     for (let k = 0; k < n; k += 1) {
-      const d = (rng() < cls.bandShare ? inRiver() : null) ?? anywhere();
+      const d = place();
       const y = between(cls.yRange, rng() ** cls.yExp);
       const i = put(d, kind, y, pickWeighted(rng, palette));
       if (cls.sizeRange) sizes[i] = between(cls.sizeRange, rng());
@@ -248,21 +297,43 @@ export function buildStarList<Tint extends string>(
     }
   };
   const { classes } = recipe;
-  scatter(DUST, classes.dust, counts.dust, true);
-  scatter(FIELD, classes.field, counts.field, true);
-  scatter(BRIGHT, classes.bright, counts.bright, true);
-  scatter(MID, classes.mid, counts.mid, false);
+  /** A class's own stars: its share along the river, the rest anywhere, in its own tints. */
+  const ofClass = (kind: number, cls: ClassRecipe<Tint>, n: number, twinkling: boolean): void =>
+    scatter(
+      kind,
+      cls,
+      n,
+      twinkling,
+      () => (rng() < cls.bandShare ? inRiver() : null) ?? anywhere(),
+      cls.palette ?? recipe.palette,
+    );
+  ofClass(DUST, classes.dust, counts.dust, true);
+  ofClass(FIELD, classes.field, counts.field, true);
+  ofClass(BRIGHT, classes.bright, counts.bright, true);
+  ofClass(MID, classes.mid, counts.mid, false);
 
+  // The bulge's stars: more of each plain class, in the bulge's warm tints.
+  BULGE_KINDS.forEach((name, kind) => {
+    scatter(kind, classes[name], counts.bulge[name], true, inBulge, recipe.bulge.palette);
+  });
+
+  // The clusters. Each has a heart: a few bright stars close in, field stars round them, then
+  // the dust across its whole width, brighter toward the middle.
   const look = recipe.cluster;
   recipe.clusters.forEach((cluster, index) => {
     const centre = directionOf(cluster.azDeg, cluster.elDeg);
     const [e1, e2] = frameRound(centre);
     const sigma = cluster.sigmaDeg * RAD;
     for (let k = 0; k < (counts.clusters[index] ?? 0); k += 1) {
-      const u = gauss(rng) * sigma;
-      const v = gauss(rng) * sigma;
+      const bright = k < look.brightCount;
+      const field = !bright && k < look.brightCount + look.fieldCount;
+      const reach = bright ? look.heart : field ? look.heart * 2 : 1;
+      const u = gauss(rng) * sigma * reach;
+      const v = gauss(rng) * sigma * reach;
       const sigmas = Math.hypot(u, v) / sigma;
-      const y = look.yBase + look.yGain * rng() ** look.yExp * Math.exp(-look.falloff * sigmas);
+      const y = bright
+        ? between(classes.bright.yRange, rng())
+        : look.yBase + look.yGain * rng() ** look.yExp * Math.exp(-look.falloff * sigmas);
       const own = rng() < look.tintShare;
       const any = pickWeighted(rng, recipe.palette);
       const i = put(
@@ -271,7 +342,7 @@ export function buildStarList<Tint extends string>(
           centre[1] + e1[1] * u + e2[1] * v,
           centre[2] + e1[2] * u + e2[2] * v,
         ],
-        k < look.fieldCount ? FIELD : DUST,
+        bright ? BRIGHT : field ? FIELD : DUST,
         y,
         own ? cluster.tint : any,
       );

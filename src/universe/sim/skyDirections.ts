@@ -129,11 +129,12 @@ export const SKY_POSES = {
     what: 'looking straight toward Research',
   },
   band: {
-    yawDeg: -100,
+    // Toward where the river is highest: its bulge is left of the middle of this view.
+    yawDeg: -60,
     pitchDeg: 10,
     fovDeg: 70,
     exposure: 1,
-    what: 'looking up along the Milky Way: the widest view',
+    what: 'looking up along the Milky Way, its bulge in view: the widest view',
   },
 } as const satisfies Record<string, SkyPose>;
 

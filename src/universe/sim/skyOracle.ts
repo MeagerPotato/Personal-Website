@@ -12,10 +12,11 @@ import { frameOf, type Direction } from './skyDirections';
  * Input: a unit direction (y up). Output: the light the sky ADDS to the navy (linear RGB) and,
  * fourth, how much of a star shows there (1 = clear sky; less in the Milky Way's dark lane).
  *
- * The picture: the Milky Way's haze (sim/milkyWay.ts: a river along a great circle, with a dark
- * lane and a cream bulge) and far galaxies, on navy. No gas: nothing here is noise and nothing
- * is cut into levels. Keep the order of every expression: the recipe's own values
- * (tests/sky-gates.test.ts) hold to nine places only while it is kept.
+ * The picture: the Milky Way's haze (sim/milkyWay.ts: a river along a great circle, swelling at
+ * its bulge, in one family of blue tones; its dark lane only hides stars) and far galaxies, on
+ * navy. No gas: nothing here is noise and nothing is cut into levels. Keep the order of every
+ * expression: the pinned values (tests/sky-gates.test.ts) hold to eight places only while it
+ * is kept.
  */
 
 /** Every colour the bake is given, linear: the shader receives the same as uniforms. */
@@ -25,7 +26,7 @@ export interface SkyColours {
   /** tuning.backdrop.horizonFalloff. */
   readonly falloff: number;
   /** The Milky Way's haze (tokens.color.nebula.band). */
-  readonly band: { readonly deep: Rgb; readonly mid: Rgb; readonly lit: Rgb; readonly rim: Rgb };
+  readonly band: { readonly deep: Rgb; readonly mid: Rgb; readonly lit: Rgb };
   /** The star tints, by key (tokens.color.star): what a far galaxy is painted with. */
   readonly stars: Readonly<Record<string, Rgb>>;
 }
@@ -102,15 +103,12 @@ export function createSkyOracle(
       const prof = profileAt(band, yy);
       const clump = clumpAt(band, lon);
       const lane = laneAt(band, phi, yy);
-      const bq = clamp(prof * clump * band.gain, 0, 1);
-      const cream = bulgeAt(band, lon) * band.core.mix * sstep(0.4, 1, bq);
-      const dark = 1 - band.lane.dark * lane * sstep(0.05, 0.35, bq);
-      const cover = 0.95 * sstep(0, 0.22, bq);
+      const swell = band.core.glow * bulgeAt(band, lon, yy);
+      const bq = clamp((prof * clump + swell) * band.gain, 0, 1);
+      const cover = 0.95 * sstep(0, 0.5, bq);
       for (let c = 0; c < 3; c += 1) {
         let v = mix(haze.deep[c] ?? 0, haze.mid[c] ?? 0, sstep(0.04, 0.55, bq));
         v = mix(v, haze.lit[c] ?? 0, 0.45 * sstep(0.5, 1, bq));
-        v = mix(v, haze.rim[c] ?? 0, cream);
-        v *= dark;
         add[c] = cover * Math.max(v - (navy[c] ?? 0), 0);
       }
       occ = 1 - band.lane.hide * lane * sstep(0, 0.25, bq);
@@ -133,12 +131,14 @@ export function createSkyOracle(
       let disc = Math.exp(-2.6 * r) * (1 - sstep(0.82, 1.18, r));
       let core = Math.exp(-28 * r2);
       if (g.kind === 'spiral') {
-        // Two arms.
-        disc *=
-          0.45 +
-          0.9 *
+        // Two arms, from r = 0.08 out: nearer the middle the shader has no angle to ask for.
+        let arms = 0;
+        if (r > 0.08) {
+          arms =
             (0.5 + 0.5 * Math.cos(2 * Math.atan2(y / g.b, x / g.a) - 6.2 * Math.log(r + 0.12))) *
             sstep(0.08, 0.5, r);
+        }
+        disc *= 0.45 + 0.9 * arms;
       } else if (g.kind === 'lens') {
         // Edge on: a dark lane along it.
         const lane =
