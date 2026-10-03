@@ -176,7 +176,7 @@ export async function start(): Promise<void> {
       if (open) root.dataset.map = 'open';
       else delete root.dataset.map;
     });
-    // For the tests and the stylesheet: `baking`, then `ready` (or `off`: the old sky stays).
+    // For the tests and the stylesheet: `baking`, then `ready` (or `off`: navy and stars only).
     universe.on('sky', ({ state }) => {
       root.dataset.sky = state;
     });

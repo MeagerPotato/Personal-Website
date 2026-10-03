@@ -44,6 +44,7 @@ import {
 import { chart } from './shaders/chart';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
+import * as sky from './shaders/sky';
 import { AIR_LIMB_STEPS, SUN_SPOTS, SUN_TONES, toonFlat } from './shaders/toonFlat';
 import { traffic } from './shaders/traffic';
 import {
@@ -490,24 +491,34 @@ describe('the blueprint edge material', () => {
 });
 
 describe('the sky’s bake', () => {
-  it('hands the shader tables as long as it declares them, on every tier', () => {
-    for (const tier of Object.values(tuning.look.sky.tiers)) {
-      const material = createSkyBakeMaterial(tier);
-      const { uniforms, fragmentShader } = material;
-      const declared = (name: string): number =>
-        Number(new RegExp(`uniform \\w+ ${name}\\[(\\d+)\\]`).exec(fragmentShader)?.[1]);
-      // Colours go in end to end, three numbers each.
-      expect(uniforms.uRamp?.value).toHaveLength(declared('uRamp') * 3);
-      expect(uniforms.uStar?.value).toHaveLength(declared('uStar') * 3);
-      expect(uniforms.uLoop?.value).toHaveLength(declared('uLoop'));
-      // The recipe is in the program, and no number of it failed to print.
-      expect(fragmentShader).toContain('const float INTENSITY=');
-      expect(fragmentShader).not.toMatch(/NaN|undefined/);
-      // It is drawn into a panorama, over nothing: no depth, no blending.
-      expect(material.depthTest).toBe(false);
-      expect(material.transparent).toBe(false);
-      material.dispose();
-    }
+  it('hands the shader tables as long as it declares them', () => {
+    const material = createSkyBakeMaterial();
+    const { uniforms, fragmentShader } = material;
+    const declared = (name: string): number =>
+      Number(new RegExp(`uniform \\w+ ${name}\\[(\\d+)\\]`).exec(fragmentShader)?.[1]);
+    // Colours go in end to end, three numbers each: the haze's four tones, the six star tints.
+    expect(uniforms.uBand?.value).toHaveLength(declared('uBand') * 3);
+    expect(uniforms.uStar?.value).toHaveLength(declared('uStar') * 3);
+    expect(declared('uStar')).toBe(Object.keys(tokens.color.star).length);
+    expect(uniforms.uLoop?.value).toHaveLength(declared('uLoop'));
+    // The recipe is in the program, and no number of it failed to print.
+    expect(fragmentShader).toContain('const float INTENSITY=');
+    expect(fragmentShader).not.toMatch(/NaN|undefined/);
+    // It is drawn into a panorama, over nothing: no depth, no blending.
+    expect(material.depthTest).toBe(false);
+    expect(material.transparent).toBe(false);
+    material.dispose();
+  });
+
+  it('paints no gas: no noise in the program, no levels, and one program for every tier', () => {
+    const { fragmentShader } = createSkyBakeMaterial();
+    // Noise cut into levels is what drew contour lines across the sky: neither is in the bake.
+    expect(fragmentShader).not.toMatch(/fbm|noise|floor\(|#define|#if/);
+    // Every loop runs as often as a uniform says (a constant count is unrolled, slowly, on D3D).
+    const loops = fragmentShader.match(/for \(int i = 0; i < [^;]+;/g) ?? [];
+    expect(loops).toEqual(['for (int i = 0; i < uLoop[1];', 'for (int i = 0; i < uLoop[0];']);
+    // The dither's hash is the one place a pseudo-random number is made: half a code of it.
+    expect(fragmentShader).toContain('(hash12(gl_FragCoord.xy) - 0.5) / 255.0');
   });
 
   it('the backdrop and the stars read one sky', () => {
@@ -515,7 +526,7 @@ describe('the sky’s bake', () => {
     const stars = createStarMaterial({ motion: false });
     // Until a panorama is there: no light of it, and no star dimmed by it.
     expect(backdrop.uniforms.uExposure?.value).toBe(0);
-    expect(stars.uniforms.uReveal).toBe(backdrop.uniforms.uReveal);
+    expect(stars.uniforms.uReveal?.value).toBe(0);
     expect(stars.uniforms.uPano).toBe(backdrop.uniforms.uPano);
     const pano = new Texture();
     setSky(pano, 0.5, 0.25);
@@ -525,10 +536,62 @@ describe('the sky’s bake', () => {
     // Without a panorama nothing of a sky shows, whatever is asked.
     setSky(null, 1, 1);
     expect(backdrop.uniforms.uPano?.value).toBeNull();
-    expect(backdrop.uniforms.uReveal?.value).toBe(0);
+    expect(stars.uniforms.uReveal?.value).toBe(0);
     expect(backdrop.uniforms.uExposure?.value).toBe(0);
     backdrop.dispose();
     stars.dispose();
     pano.dispose();
+  });
+
+  it('the backdrop is the navy and the panorama, and nothing else', () => {
+    const material = createBackdropMaterial();
+    expect(Object.keys(material.uniforms).sort()).toEqual([
+      'uBloomMask',
+      'uDeep',
+      'uExposure',
+      'uHorizon',
+      'uHorizonFalloff',
+      'uPano',
+    ]);
+    // Every uniform the shader declares is handed to it.
+    const declared = [...sky.backdrop.fragmentShader.matchAll(/uniform \w+ (\w+)/g)].map(
+      (match) => match[1],
+    );
+    expect(declared.sort()).toEqual(Object.keys(material.uniforms).sort());
+    material.dispose();
+  });
+});
+
+describe('the stars', () => {
+  it('lays a row a kind in every table of the shader', () => {
+    const material = createStarMaterial({ motion: true });
+    for (const name of ['uCore', 'uHalo', 'uArm', 'uThick']) {
+      expect(material.uniforms[name]?.value, name).toHaveLength(sky.STAR_KIND_COUNT);
+    }
+    material.dispose();
+  });
+
+  it('gives the mids a hero’s six spikes, shorter, and no line across', () => {
+    const material = createStarMaterial({ motion: true });
+    const arms = (material.uniforms.uArm?.value as Vector4[]).map((row) => row.toArray());
+    const { classes, hero } = tuning.starfield;
+    // Dust, field and bright stars have no spikes; the shader still divides by their lengths.
+    for (const row of arms.slice(0, 3)) {
+      expect([row[1], row[3]]).toEqual([0, 0]);
+      expect(Math.min(row[0] ?? 0, row[2] ?? 0)).toBeGreaterThan(0);
+    }
+    const { mid } = classes;
+    expect(arms[3]).toEqual([mid.spikeLenPx, mid.spikeGain, mid.spikeLenPx, 0]);
+    expect(arms[4]).toEqual([
+      hero.spikeLenPx,
+      hero.spikeGain,
+      hero.spikeLenPx * hero.crossLen,
+      hero.crossGain,
+    ]);
+    // Three lines of spikes for the last two kinds (the mids and the heroes); only the last
+    // one breathes.
+    expect(sky.stars.vertexShader).toContain('step(float(KINDS) - 2.5, aStar.x)');
+    expect(sky.stars.vertexShader).toContain('float hero = step(float(KINDS) - 1.5, aStar.x);');
+    material.dispose();
   });
 });

@@ -120,11 +120,16 @@ function starSheet(kind: StarKind, tint: StarTint, pose: SkyPoseName): StarList<
     );
     const [lo, hi] = cls ? cls.yRange : [1, 1];
     list.brightness[i] = lo + (hi - lo) * rng() ** (cls?.yExp ?? 1);
-    const any = pickWeighted(rng, palette);
+    const any = pickWeighted(rng, cls?.palette ?? palette);
     // The heroes of the sheet are the sky's eight: their sizes, and (mixed) their tints.
     const hero = kind === 'hero' ? heroes[i % heroes.length] : undefined;
     list.tints.push(tint !== 'mixed' ? tint : (hero?.tint ?? any));
     if (hero) list.sizes[i] = hero.size;
+    // A class whose spikes vary in length (the mids) shows its whole range of them.
+    else if (cls?.sizeRange) {
+      const [short, long] = cls.sizeRange;
+      list.sizes[i] = short + (long - short) * rng();
+    }
     list.phases[i] = rng();
     const twinkles = kind !== 'hero' && kind !== 'mid' && rng() < twinkleShare;
     list.twinkles[i] = twinkles ? 1 : 0;
@@ -300,9 +305,7 @@ export function bootLab(options: LabOptions): { dispose(): void } {
       onBand: () => engine.excuseFrame(),
     }),
   );
-  const meter = engine.add(
-    new SkyMeter(engine, backdrop, sky, options.tier, page, query.get('parity') === '1'),
-  );
+  const meter = engine.add(new SkyMeter(engine, backdrop, sky, page, query.get('parity') === '1'));
   if (!bare) {
     engine.add(
       new PerfHud(mount, engine.renderer, () => [
@@ -360,7 +363,8 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   skyFolder.add(state, 'docked').name('as while docked (half strength)').listen();
   // The recipe. Its numbers are baked into the panorama: move them, then repaint. (The exposure
   // keys are read every frame.) "sky Y" in the read-out is the luminance of the view, stars
-  // left out: p50, p95, p99.9 and the brightest pixel, against the gates 0.08, 0.16 and 0.19.
+  // left out: p50, p95, p99.9 and the brightest pixel, against the gates 0.04 (p95), 0.10
+  // (p99.9) and 0.19 (the ceiling).
   const recipe = skyFolder.addFolder('tuning.look.sky');
   recipe.close();
   addControls(recipe, tuning.look.sky as unknown as Record<string, unknown>, () => undefined);
@@ -373,9 +377,9 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // The stars alone, from the same views: the sky's own, or a sheet of one kind at 1:1, in one
   // tint or the mix, and drawn as a view of another height would draw them (a hero's spikes
   // follow the view's height).
-  // Orbit lines and their traffic in front of the sky, from the same views (the `first` one
-  // has the Projects pool behind them): how strong a line has to be to read over the gas. 0 is
-  // the tuning's own (tuning.world.orbitLineOpacity and sunTrackOpacity, under "world" below).
+  // Orbit lines and their traffic in front of the sky, from the same views: how strong a line
+  // has to be to read over the stars. 0 is the tuning's own (tuning.world.orbitLineOpacity and
+  // sunTrackOpacity, under "world" below).
   const orbitFolder = gui.addFolder('orbits (subject: orbits)');
   orbitFolder
     .add(state, 'lineOpacity', 0, 0.6, 0.01)
@@ -476,7 +480,6 @@ class SkyMeter implements System {
     private readonly engine: Engine,
     private readonly backdrop: Backdrop,
     private readonly sky: SkyBake,
-    private readonly tier: QualityTier,
     private readonly page: HTMLElement,
     private readonly parity: boolean,
   ) {}
@@ -516,7 +519,7 @@ class SkyMeter implements System {
   private compare(): Record<string, number> {
     const { width, height } = this.sky.pano;
     const look = tuning.look.sky;
-    const texel = createSkyOracle(look, skyColours(), look.tiers[this.tier]);
+    const texel = createSkyOracle(look, skyColours());
     const row = new Uint8Array(width * 4);
     const out = [0, 0, 0, 0];
     let count = 0;

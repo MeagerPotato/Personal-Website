@@ -18,7 +18,7 @@
 //                 it, and the Hardware sun, whose gears must stay readable in its halo; and
 //                 the worlds with air: each by day, home at dusk, by night (its lamps) and as
 //                 the star map shows it, on each tier, and the bodies with lamps; and orbit
-//                 lines with their traffic over the gas, at the tuning's strength and at a
+//                 lines with their traffic over the sky, at the tuning's strength and at a
 //                 stronger one, and the chart from above
 //   --perf        instead of pictures: what `?perf` reads on each tier, at home, docked, beside
 //                 a sun and on the star map
@@ -232,9 +232,9 @@ const LAB_VIEWS = [
   ['lab-lamps-bus-high', 'subject=world&world=project/hackathons-at-berkeley&turn=0', 'high'],
   ['lab-lamps-station-high', 'subject=world&world=page/resume&turn=0&near=1', 'high'],
   ['lab-lamps-satellite-high', 'subject=world&world=page/contact&turn=0&near=1', 'high'],
-  // Orbit lines and their traffic in front of the Projects pool (the `first` view), in the
-  // pool's own family and in another: at the tuning's strength, and at the stronger one the
-  // look's verdict asked to have judged (0.26, and 0.13 for a binary's sun's path).
+  // Orbit lines and their traffic in front of the sky (the `first` view), in three families:
+  // at the tuning's strength, and at the stronger one the look's verdict asked to have judged
+  // (0.26, and 0.13 for a binary's sun's path).
   ...['sky', 'coral', 'butter'].flatMap((family) => [
     [`lab-orbits-${family}-high`, `subject=orbits&pose=first&moving=0&theme=${family}`, 'high'],
     [

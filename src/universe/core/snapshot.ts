@@ -48,9 +48,9 @@ export interface Snapshot {
   readonly guarding: boolean;
   /**
    * The visitor has seen the baked sky (world/SkyBake.ts): an engine rebuilt from this snapshot
-   * paints it faster and cuts to it, instead of fading it in over the old glows a second time.
-   * Only a snapshot handed straight to a rebuild says so: one that has been AWAY starts a page,
-   * and a page opens on the old sky and fades (`parseSnapshot` reads it as false).
+   * paints it faster and cuts to it, instead of fading it in a second time. Only a snapshot
+   * handed straight to a rebuild says so: one that has been AWAY starts a page, and a page opens
+   * on navy and stars and fades the rest in (`parseSnapshot` reads it as false).
    */
   readonly skyRevealed?: boolean;
   /**

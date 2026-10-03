@@ -447,9 +447,10 @@ export function boot(
     },
     dispose: () => setToonFlatness(0),
   });
-  // The sky's gas, painted once after the first frame, a band a frame; those frames say nothing
-  // about the device, so the governor is not fed them. After the block above: it shows this
-  // frame's view. A snapshot only says whether the visitor has seen it.
+  // The baked sky (the Milky Way's haze, far galaxies), painted once after the first frame, a
+  // band a frame; those frames say nothing about the device, so the governor is not fed them.
+  // After the block above: it shows this frame's view. A snapshot only says whether the visitor
+  // has seen it.
   const sky = engine.add(
     new SkyBake({
       renderer: engine.renderer,

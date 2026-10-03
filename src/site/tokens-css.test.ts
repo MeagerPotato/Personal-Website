@@ -58,9 +58,9 @@ describe('tokensToCss', () => {
     ]) {
       expect(css, name).not.toContain(name);
     }
-    // 36 of them, and each names a token that exists: a typo here would mirror it after all.
+    // 26 of them, and each names a token that exists: a typo here would mirror it after all.
     const full = tokensToCss(tokens).split(';').length;
-    expect(full - css.split(';').length).toBe(36);
+    expect(full - css.split(';').length).toBe(26);
     for (const path of ENGINE_ONLY) {
       let at: string | TokenTree | undefined = tokens;
       for (const key of path.split('.')) at = typeof at === 'object' ? at[key] : undefined;

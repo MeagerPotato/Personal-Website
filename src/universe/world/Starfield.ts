@@ -16,7 +16,7 @@ import { buildStarList, type StarList } from '../sim/starList';
 export interface StarfieldOptions {
   coarsePointer: boolean;
   reducedMotion: boolean;
-  /** The low quality tier: half the stars, and none with a plus. */
+  /** The low quality tier: half the stars, and no mid class (the small spiked ones). */
   low: boolean;
 }
 

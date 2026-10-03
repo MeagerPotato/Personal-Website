@@ -29,10 +29,11 @@ function flatten(
 }
 
 /**
- * Tokens that only the 3D world paints with (the sky's gas, the air of worlds, the extra star
- * temperatures, dusk and night, a lit window), as dotted paths: a whole group or one key. Every
- * page passes this as `omit`, so plain mode does not carry 36 custom properties that no
- * stylesheet reads. The engine reads `tokens` itself and never the CSS.
+ * Tokens that only the 3D world paints with (the star map's districts and the Milky Way's haze,
+ * the air of worlds, the extra star temperatures, dusk and night, a lit window), as dotted
+ * paths: a whole group or one key. Every page passes this as `omit`, so plain mode does not
+ * carry 26 custom properties that no stylesheet reads. The engine reads `tokens` itself and
+ * never the CSS.
  */
 export const ENGINE_ONLY: readonly string[] = [
   'color.nebula',

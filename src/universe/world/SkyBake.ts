@@ -17,12 +17,12 @@ import { createSkyBakeMaterial, setSky } from '../design/materials';
 import { tuning } from '../design/tuning';
 import { bandCount, createSkySchedule, type SkySchedule } from '../sim/skySchedule';
 
-/** `baking`: on its way (today's glows are the sky). `ready`: painted. `off`: it cannot be. */
+/** `baking`: on its way (navy and stars until then). `ready`: painted. `off`: it cannot be. */
 export type SkyState = 'baking' | 'ready' | 'off';
 
 export interface SkyBakeOptions {
   renderer: WebGLRenderer;
-  /** What this quality tier paints: the panorama's size, and which layers (tuning.look.sky.tiers). */
+  /** What this quality tier paints: the panorama's size (tuning.look.sky.tiers). */
   tier: SkyTier;
   /**
    * The visitor has seen the sky already (an engine rebuilt after a lost context): it is painted
@@ -37,16 +37,15 @@ export interface SkyBakeOptions {
 }
 
 /**
- * THE BAKED SKY: gas cliffs under each system, a Milky Way, far galaxies (design/shaders/skyBake.ts
- * says what is in it). It is painted ONCE into a panorama, after the first frame, and from then on
- * the backdrop and the stars only read it (design/shaders/sky.ts): a texture fetch a pixel, the
- * same picture on every frame and every visit.
+ * THE BAKED SKY: the Milky Way's haze and the far galaxies (design/shaders/skyBake.ts says what
+ * is in it). It is painted ONCE into a panorama, after the first frame, and from then on the
+ * backdrop and the stars only read it (design/shaders/sky.ts): a texture fetch a pixel, the same
+ * picture on every frame and every visit.
  *
- * The first frame is never held up: the program that paints it compiles in the background
- * (seconds, on Direct3D), and the panorama is then drawn a band of rows a frame
- * (sim/skySchedule.ts). Until it is whole the sky is the navy and the old glows; then it comes in
- * over them (a cut under reduced motion, and for a visitor who has seen it). Where it cannot be
- * painted at all the old sky simply stays (`off`).
+ * The first frame is never held up: the program that paints it compiles in the background, and
+ * the panorama is then drawn a band of rows a frame (sim/skySchedule.ts). Until it is whole the
+ * sky is the navy and the stars; then its light comes in (a cut under reduced motion, and for a
+ * visitor who has seen it). Where it cannot be painted at all the sky simply stays that (`off`).
  *
  * Nothing here is state: the panorama follows from the tuning and the tokens, so an engine
  * rebuilt from a snapshot paints the same one. The snapshot only carries "seen".
@@ -88,7 +87,7 @@ export class SkyBake implements System {
       'position',
       new BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3),
     );
-    this.triangle = new Mesh(geometry, createSkyBakeMaterial(options.tier));
+    this.triangle = new Mesh(geometry, createSkyBakeMaterial());
     this.triangle.frustumCulled = false;
     this.scope.onDispose(() => {
       this.triangle.material.dispose();
@@ -124,7 +123,7 @@ export class SkyBake implements System {
     try {
       if (repaint) {
         this.triangle.material.dispose();
-        this.triangle.material = createSkyBakeMaterial(tier);
+        this.triangle.material = createSkyBakeMaterial();
       }
       // A program is compiled for where it draws: say so, or the first band compiles it again.
       renderer.setRenderTarget(this.target);
@@ -198,12 +197,12 @@ export class SkyBake implements System {
     this.scope.dispose();
   }
 
-  /** The sky cannot be painted here: the old one stays, and nothing else notices. */
+  /** The sky cannot be painted here: it stays the navy and the stars, and nothing else notices. */
   private fail(): void {
     if (this.scope.disposed) return;
     this.schedule = null;
     this.state = 'off';
     setSky(null, 0, 0);
-    if (import.meta.env.DEV) console.warn('[sky] the baked sky is off: the old glows stay');
+    if (import.meta.env.DEV) console.warn('[sky] the baked sky is off: navy and stars only');
   }
 }

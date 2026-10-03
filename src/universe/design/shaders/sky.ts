@@ -7,26 +7,20 @@
  */
 
 /**
- * Backdrop: navy that is a little lighter along the horizon (the galactic plane), plus THE BAKED
- * SKY: the light of a panorama that was painted once (shaders/skyBake.ts says what is in it, and
- * how it is laid out), added to the navy. One texture fetch a pixel. Noise is only ever baked,
- * limited and lit: run live on a calm dark sky it reads as mud, and the eye finds its lattice.
- * Dark gradients band badly in 8 bits, so the end adds half a code value of noise in display
- * space.
+ * Backdrop: navy that is a little lighter along the horizon, plus THE BAKED SKY: the light of a
+ * panorama that was painted once (shaders/skyBake.ts says what is in it, and how it is laid
+ * out), added to the navy. One texture fetch a pixel. Dark gradients band badly in 8 bits, so
+ * the end adds half a code value of noise in display space.
  *
  * Until the panorama is there (it is baked after the first frame), and wherever it cannot be
- * baked at all, the sky is the navy and a few very large, very soft glows of colour at fixed
- * places; they leave as the baked sky arrives (uReveal).
+ * baked at all, the sky is the navy and the stars: uExposure is 0, so nothing of whatever uPano
+ * holds then shows.
  *
  * Uniforms: uBloomMask (shared, see materials.ts), uDeep, uHorizon (linear colours),
- * uHorizonFalloff; uPano (the panorama: rgb the added light, alpha the star occlusion),
- * uExposure (how much of its light shows: the reveal, less while docked and on the star map) and
- * uReveal (0 the old glows, 1 the baked sky), all three shared with the stars; and per glow
- * (GLOW_COUNT of them) uGlowDirection (unit vector), uGlowColor (linear, already scaled by its
- * strength) and uGlowTightness (higher = smaller).
+ * uHorizonFalloff; uPano (the panorama: rgb the added light, alpha how much of a star shows:
+ * shared with the stars) and uExposure (how much of its light shows: the reveal, less while
+ * docked and on the star map).
  */
-export const GLOW_COUNT = 4;
-
 export const backdrop = {
   vertexShader: /* glsl */ `
     varying vec3 vDirection;
@@ -40,18 +34,12 @@ export const backdrop = {
   `,
 
   fragmentShader: /* glsl */ `
-    #define GLOW_COUNT ${GLOW_COUNT}
-
     uniform float uBloomMask;
     uniform vec3 uDeep;
     uniform vec3 uHorizon;
     uniform float uHorizonFalloff;
-    uniform vec3 uGlowDirection[GLOW_COUNT];
-    uniform vec3 uGlowColor[GLOW_COUNT];
-    uniform float uGlowTightness[GLOW_COUNT];
     uniform sampler2D uPano;
     uniform float uExposure;
-    uniform float uReveal;
 
     varying vec3 vDirection;
 
@@ -69,12 +57,6 @@ export const backdrop = {
       vec2 at = vec2(atan(direction.x, direction.z) * 0.15915494 + 0.5, direction.y * 0.5 + 0.5);
       // The azimuth jumps a whole turn at the seam: no derivative of it may pick a level.
       color += textureLod(uPano, at, 0.0).rgb * uExposure;
-      if (uReveal < 1.0) {
-        for (int i = 0; i < GLOW_COUNT; i += 1) {
-          float facing = max(dot(direction, uGlowDirection[i]), 0.0);
-          color += uGlowColor[i] * pow(facing, uGlowTightness[i]) * (1.0 - uReveal);
-        }
-      }
 
       // Half a step of noise against banding. It has to be added in DISPLAY space, and this
       // shader does not know who encodes for the display: itself (straight to the canvas) or an
@@ -98,14 +80,15 @@ export const STAR_KIND_COUNT = 5;
  * A star is a Gaussian core, up to two wider and fainter halos, and (the mid and hero kinds)
  * spikes: a line through the star whose light falls off along it as
  * (1 - t)^exponent / (1 + taper t), t from 0 at the star to 1 at the tip. The long thin tail is
- * what reads as diffraction and not as a plus sign. A mid star has two such lines (a plus); a
- * hero has three, 60 degrees apart with one upright (six arms, as a hexagonal mirror gives), and
- * a short faint one across (the mirror's struts). All sizes are CSS px; light is ADDED, and the
- * stars are not on the bloom guest list (materials.ts leaves alpha as it was).
+ * what reads as diffraction and not as a plus sign. A mid star and a hero have three such lines,
+ * 60 degrees apart with one upright (six arms, as a hexagonal mirror gives): a mid's are short,
+ * a hero's long, and a hero has a short faint line across as well (the mirror's struts). All
+ * sizes are CSS px; light is ADDED, and the stars are not on the bloom guest list (materials.ts
+ * leaves alpha as it was).
  *
  * Geometry: position (a corner of the quad, x and y each -1 or 1). Per instance: aDir (unit
- * direction), aColor (linear, brightness baked in), aStar (kind as in STAR_KINDS, size 0 to 1,
- * phase 0 to 1, twinkle 0 or 1).
+ * direction), aColor (linear, brightness baked in), aStar (kind as in STAR_KINDS, the size of
+ * its spikes 0 to 1, phase 0 to 1, twinkle 0 or 1).
  * Uniforms: uTime (s), uView (the view in CSS px), uScale (how much the px sizes below are
  * scaled in this view: x halos and spikes, y cores), uTwinkleDepth, uOpacity, uSpikes (1 flying,
  * 0 on the star map), uBreath (the share by which a hero breathes) and uBreathSec (the slowest
@@ -113,8 +96,8 @@ export const STAR_KIND_COUNT = 5;
  * two halos), uArm (length and gain of the spikes, length and gain of the line across) and
  * uThick (the sigma across a spike, and across the line across); uProfile (exponent, taper);
  * uBloomMask (shared, see materials.ts) and uUnder (linear: the navy the stars are added to);
- * uPano and uReveal (shared with the backdrop): a star behind the sky's gas is dimmed by the
- * panorama's alpha there, and one behind a dust body is gone.
+ * uPano (shared with the backdrop) and uReveal (0 until the sky is baked, then 1): a star in the
+ * Milky Way's dark lane is dimmed by the panorama's alpha there.
  *
  * Light adds up in LINEAR light, and where the picture goes straight to the canvas (no
  * post-processing: uBloomMask 0) the blend happens after encoding, which would make every faint
@@ -163,7 +146,7 @@ export const stars = {
       float breath = 1.0 + hero * uBreath * sin(uTime * 6.2831853 / pace + turn);
       // The model matrix carries the slow drift of the whole sky; the view matrix only turns.
       vec3 world = mat3(modelMatrix) * aDir;
-      // How much of the star the gas in front of it lets through (1 until the sky is baked).
+      // How much of the star shows: less in the Milky Way's dark lane (1 until the sky is baked).
       float clear = mix(1.0, textureLod(uPano, vec2(atan(world.x, world.z) * 0.15915494 + 0.5, world.y * 0.5 + 0.5), 0.0).a, uReveal);
       float seen = (0.65 + 0.35 * clear) * clear * (0.75 + 0.25 * clear);
       vColor = aColor * ((1.0 - aStar.w * uTwinkleDepth * wave) * uOpacity * breath * seen);
@@ -182,7 +165,8 @@ export const stars = {
       vCore = 0.5 / (core * core);
       vHalo = vec4(0.5 / (halo.x * halo.x), halo.y, 0.5 / (halo.z * halo.z), halo.w);
       vArm = arm;
-      vThick = vec3(0.5 / (uThick[kind] * uThick[kind]), hero);
+      // Third: 1 for the kinds with three lines of spikes (the mids and the heroes).
+      vThick = vec3(0.5 / (uThick[kind] * uThick[kind]), step(float(KINDS) - 2.5, aStar.x));
 
       vec3 direction = mat3(viewMatrix) * world;
       vec4 clip = projectionMatrix * vec4(direction, 1.0);

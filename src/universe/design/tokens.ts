@@ -120,19 +120,21 @@ export const tokens = {
       ember: '#d68960',
     },
     /**
-     * ENGINE ONLY. The painted gas of the sky: one four-tone ramp per colour family, and `band`
-     * for the Milky Way. deep and mid are the BODY of the gas (they hold the shapes, barely above
-     * space: under 1.4:1 and about 2:1 on space.900); lit is where it faces its light; rim is for
-     * hairlines and hot cores, never an area. deep and mid carry shape, not identity, and are
-     * nearly the same under deuteranopia on purpose: a family is told apart by its lit and its
-     * rim (design/tokens.test.ts), and always by where it sits and by the names.
+     * ENGINE ONLY. The dim, deep versions of the families' colours, as light far away would
+     * wear them. Each family has the two tones of its district on the star map's chart (`mid`
+     * the plate out past a system's reach, about 2:1 on space.900; `lit` the plate at its
+     * reach); a family is told apart by its lit (src/site/look-colours.test.ts), and always by
+     * where it sits and by the names. `band` is the Milky Way's haze, a ramp of four: deep and
+     * mid barely above space (1.1:1 and 1.6:1 on space.900), lit where the river is densest,
+     * and rim the cream of its bulge. Nothing else in the sky wears a colour of these: the sky
+     * is navy, stars and far galaxies, and those are `star` tints.
      */
     nebula: {
-      coral: { deep: '#26223a', mid: '#4d3651', lit: '#975851', rim: '#dc918a' },
-      butter: { deep: '#232a45', mid: '#484b69', lit: '#b4a272', rim: '#eedfb0' },
-      mint: { deep: '#122a3a', mid: '#1f4a52', lit: '#4d8f7b', rim: '#a8d7c4' },
-      sky: { deep: '#172546', mid: '#244172', lit: '#41709b', rim: '#88b5dd' },
-      lilac: { deep: '#1d1e40', mid: '#373062', lit: '#6c4c7c', rim: '#a588b6' },
+      coral: { mid: '#4d3651', lit: '#975851' },
+      butter: { mid: '#544d36', lit: '#b4a272' },
+      mint: { mid: '#1f4a52', lit: '#4d8f7b' },
+      sky: { mid: '#244172', lit: '#41709b' },
+      lilac: { mid: '#373062', lit: '#6c4c7c' },
       band: { deep: '#111836', mid: '#2a3358', lit: '#575b84', rim: '#e6d5b4' },
     },
     /** ENGINE ONLY. The air of a world, by biome. Primer (planned clay) has none. */
@@ -233,10 +235,6 @@ export const THEME_KEYS = Object.keys(tokens.color.system) as [ThemeKey, ...Them
 export type BiomeKey = keyof Tokens['color']['biome'];
 export const BIOME_KEYS = Object.keys(tokens.color.biome) as [BiomeKey, ...BiomeKey[]];
 
-/** The sky's gas ramps (`color.nebula`): the five families, and `band` for the Milky Way. */
-export type NebulaKey = keyof Tokens['color']['nebula'];
-/** The four stops of a gas ramp, darkest to lightest. */
-export type NebulaTone = keyof Tokens['color']['nebula'][NebulaKey];
 /** Star tints (`color.star`). */
 export type StarKey = keyof Tokens['color']['star'];
 /** Biomes whose worlds have air (`color.air`): every one with a sea, so never `primer`. */

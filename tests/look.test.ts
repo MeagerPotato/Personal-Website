@@ -3,18 +3,39 @@ import { readRealInput } from '../scripts/journeys/galaxies';
 import { buildUniverse } from '../src/universe/data/build';
 import { tokens } from '../src/universe/design/tokens';
 import { tuning } from '../src/universe/design/tuning';
+import { clumpAt, clumpPeak } from '../src/universe/sim/milkyWay';
 import { createOrbitTable } from '../src/universe/sim/orbits';
-import { azimuthBetween, wrapDeg } from '../src/universe/sim/skyDirections';
+import {
+  SKY_POSES,
+  azimuthBetween,
+  directionOf,
+  pointOf,
+  wrapDeg,
+  type SkyPoseName,
+} from '../src/universe/sim/skyDirections';
 import { trafficDots } from '../src/universe/sim/traffic';
 
 // `tuning.look` and the star classes are the numbers of the "flat worlds, deep light" pass
-// (docs/DESIGN.md, "Deep light"). They are written before the systems that read them, so until
-// each system arrives with its own tests, this file is what keeps the tables honest: that they
-// name things that exist, that they are the size the shaders will loop over, and that the sky's
-// compass still points at the galaxy as the build lays it out.
+// (docs/DESIGN.md, "Deep light"). This file keeps the tables honest: that they name things that
+// exist, that they are the size the shaders will loop over, that the sky's compass still points
+// at the galaxy as the build lays it out, and that every view has something in it to find.
 
 const real = buildUniverse(readRealInput(true));
 const { sky, sun, air } = tuning.look;
+const { classes, heroes, clusters, palette, pairs } = tuning.starfield;
+const STAR_TINTS = Object.keys(tokens.color.star);
+
+/** Where a place in the sky falls in one of the seven views, 1280 x 800 CSS px: [x, y] or null. */
+const WIDTH = 1280;
+const HEIGHT = 800;
+function seenAt(
+  name: SkyPoseName,
+  place: { azDeg: number; elDeg: number },
+): [number, number] | null {
+  const point = pointOf(SKY_POSES[name], directionOf(place.azDeg, place.elDeg), WIDTH / HEIGHT);
+  if (!point || Math.abs(point[0]) > 1 || Math.abs(point[1]) > 1) return null;
+  return [((point[0] + 1) / 2) * WIDTH, ((1 - point[1]) / 2) * HEIGHT];
+}
 
 describe('the sky’s compass', () => {
   const home = real.systems.find((system) => system.id === 'home');
@@ -23,71 +44,103 @@ describe('the sky’s compass', () => {
     if (!home || !system) throw new Error(`no system "${id}" in the galaxy`);
     return azimuthBetween(home.position, system.position);
   };
+  // The clusters that mark a system: the rest are only clusters.
+  const compass = clusters.flatMap((cluster) => ('system' in cluster ? [cluster] : []));
 
-  it('puts a pool of gas at the bearing of each system from home', () => {
-    // A pool is at infinity: it is right from home, and the same from everywhere. If the layout
-    // ever moves a system (tuning.layout, a system's `order`), its pool must move with it.
+  it('puts a cluster of stars at the bearing of each system from home', () => {
+    // A cluster is at infinity: it is right from home, and the same from everywhere. If the
+    // layout ever moves a system (tuning.layout, a system's `order`), its cluster moves with it.
     for (const id of ['projects', 'research', 'hackathons']) {
-      const pool = sky.pools.find((candidate) => candidate.id === id);
-      expect(pool, `a pool for ${id}`).toBeDefined();
-      expect(wrapDeg((pool?.azDeg ?? 0) - azimuthOf(id)), id).toBeCloseTo(0, 0);
+      const cluster = compass.find((candidate) => candidate.system === id);
+      expect(cluster, `a cluster for ${id}`).toBeDefined();
+      expect(wrapDeg((cluster?.azDeg ?? 0) - azimuthOf(id)), id).toBeCloseTo(0, 0);
     }
   });
 
-  it('paints each pool in its system’s family', () => {
-    for (const id of ['projects', 'research', 'hackathons']) {
-      const system = real.systems.find((candidate) => candidate.id === id);
-      expect(sky.pools.find((pool) => pool.id === id)?.family, id).toBe(system?.theme);
-    }
-    // The second sun of the Projects binary has a smaller pool of its own, in its own family,
-    // beside its binary's: a shape near that bearing, not a pointer.
-    const hardware = real.bodies.find((body) => body.id === 'system/hardware');
-    const pool = sky.pools.find((candidate) => candidate.id === 'hardware');
-    expect(pool?.family).toBe(hardware?.theme);
-    expect(Math.abs(wrapDeg((pool?.azDeg ?? 0) - azimuthOf('projects')))).toBeLessThan(20);
-  });
-
-  it('gives every system but home a pool, and home none: butter means "here"', () => {
+  it('gives every system but home a cluster, and home none: home is where the viewer stands', () => {
     const systems = real.systems.filter((system) => system.id !== 'home').map(({ id }) => id);
-    expect(
-      sky.pools
-        .map((pool) => pool.id)
-        .filter((id) => id !== 'hardware')
-        .sort(),
-    ).toEqual(systems.sort());
-    const families = [
-      ...sky.pools.flatMap((pool) => [pool.family, pool.altFamily]),
-      ...sky.arcs.map((arc) => arc.family),
-    ];
-    expect(families).not.toContain('butter');
-    // One small knot of it, high in the sky, and nothing else.
-    expect(sky.knots.filter((knot) => knot.family === 'butter')).toHaveLength(1);
+    expect(compass.map((cluster) => cluster.system).sort()).toEqual(systems.sort());
   });
 
-  it('keeps the pools below the horizon, where the chase camera looks', () => {
-    for (const pool of sky.pools) {
-      expect(pool.elDeg, pool.id).toBeLessThan(-10);
-      expect(pool.elDeg, pool.id).toBeGreaterThan(-40);
+  it('keeps the compass low, where the sky is emptiest, and in star tints only', () => {
+    for (const cluster of compass) {
+      // Under the horizon strip, and inside every flying view that faces it.
+      expect(cluster.elDeg, cluster.system).toBe(-20);
+      // A star wears a temperature, never a family's colour: the nearest the palette has.
+      expect(STAR_TINTS).toContain(cluster.tint);
+    }
+    // No two systems' clusters wear the same temperature.
+    expect(new Set(compass.map((cluster) => cluster.tint)).size).toBe(compass.length);
+    // Each is in the middle of the view that looks straight at its system.
+    for (const [pose, id] of [
+      ['proj', 'projects'],
+      ['res', 'research'],
+      ['hack', 'hackathons'],
+    ] as const) {
+      const cluster = compass.find((candidate) => candidate.system === id);
+      const at = cluster ? seenAt(pose, cluster) : null;
+      expect(at?.[0], id).toBeCloseTo(WIDTH / 2, 0);
+      expect(at?.[1], id).toBeGreaterThan(HEIGHT / 2);
     }
   });
 });
 
 describe('the sky’s tables', () => {
-  it('are the sizes the bake loops over', () => {
-    expect(sky.ridges).toHaveLength(3);
-    expect(sky.pools).toHaveLength(4);
-    expect(sky.galaxies).toHaveLength(12);
-    expect(sky.arcs).toHaveLength(3);
-    expect(sky.knots).toHaveLength(7);
+  it('holds fifteen far galaxies, in star tints that do not read brown', () => {
+    expect(sky.galaxies).toHaveLength(15);
+    expect(new Set(sky.galaxies.map((galaxy) => `${galaxy.azDeg},${galaxy.elDeg}`)).size).toBe(15);
+    for (const galaxy of sky.galaxies) {
+      const where = `${galaxy.azDeg}, ${galaxy.elDeg}`;
+      // On navy an amber or an ember galaxy is a brown smudge.
+      expect(['hot', 'warm', 'white', 'cool'], where).toContain(galaxy.disc);
+      expect(['hot', 'warm', 'white', 'cool'], where).toContain(galaxy.core);
+      expect(galaxy.disc, where).not.toBe(galaxy.core);
+      expect(galaxy.gain, where).toBeGreaterThan(0);
+      expect(galaxy.gain, where).toBeLessThanOrEqual(1);
+      expect(galaxy.axisRatio, where).toBeGreaterThan(0);
+      expect(galaxy.axisRatio, where).toBeLessThanOrEqual(1);
+      // No nucleus in the horizon strip, where planets and their names are.
+      expect(Math.abs(galaxy.elDeg), where).toBeGreaterThanOrEqual(7);
+      // Small: the largest is a few degrees across. And its disc (which ends 1.18 radii out)
+      // lies inside the cone the bake looks at it in (2.2 radii, 6 degrees at most).
+      expect(galaxy.radiusDeg, where).toBeLessThanOrEqual(2.6);
+      expect(galaxy.radiusDeg * 1.18, where).toBeLessThan(Math.min(galaxy.radiusDeg * 2.2, 6));
+    }
+    // All three kinds are there.
+    expect(new Set(sky.galaxies.map((galaxy) => galaxy.kind))).toEqual(
+      new Set(['spiral', 'lens', 'ellipse']),
+    );
   });
 
-  it('runs the ridges far to near: lower, crisper, and lit harder', () => {
-    const [far, mid, near] = sky.ridges;
-    expect(far.offDeg).toBeGreaterThan(mid.offDeg);
-    expect(mid.offDeg).toBeGreaterThan(near.offDeg);
-    expect(far.edgeDeg).toBeGreaterThan(mid.edgeDeg);
-    expect(mid.edgeDeg).toBeGreaterThan(near.edgeDeg);
-    expect(near.key).toBeGreaterThan(far.key);
+  it('lays the Milky Way as a river: two banks, clumps along it, a lane that hides stars', () => {
+    const { band } = sky;
+    const [narrow, wide] = band.banks;
+    expect(narrow[0]).toBeLessThan(wide[0]);
+    expect(narrow[1] + wide[1]).toBeCloseTo(1, 9);
+    // Tilted, or its frame has no level vector to start from (sim/milkyWay.ts).
+    expect(band.tiltDeg).toBeGreaterThan(0);
+    expect(band.clumps).toHaveLength(12);
+    for (const [lon, sigma, weight] of band.clumps) {
+      expect(lon).toBeGreaterThanOrEqual(0);
+      expect(lon).toBeLessThan(360);
+      expect(sigma).toBeGreaterThan(0);
+      expect(weight).toBeGreaterThan(0);
+    }
+    // Along its length it is uneven, and never empty: the thinnest stretch has a fifth or more
+    // of the densest.
+    let thinnest = Infinity;
+    for (let lon = 0; lon < 360; lon += 1) thinnest = Math.min(thinnest, clumpAt(band, lon));
+    expect(thinnest / clumpPeak(band)).toBeGreaterThan(0.2);
+    expect(thinnest / clumpPeak(band)).toBeLessThan(0.5);
+    // The lane is made of missing stars more than of paint; the bulge is a little cream.
+    expect(band.lane.hide).toBeGreaterThan(band.lane.dark);
+    expect(band.lane.hide).toBeLessThan(1);
+    expect(band.lane.widthDeg[0]).toBeGreaterThan(Math.abs(band.lane.widthDeg[1]));
+    expect(band.core.mix).toBeLessThanOrEqual(0.15);
+    // It rises to the right across the first frame: its crest lies right of where that view
+    // faces (azimuth grows to the left), higher than the horizon strip reaches.
+    expect(wrapDeg(band.poleAzDeg + 180 - SKY_POSES.first.yawDeg)).toBeLessThan(0);
+    expect(band.tiltDeg).toBeGreaterThan(sky.stripDeg[1]);
   });
 
   it('bakes a panorama twice as wide as high, in whole bands, on every tier', () => {
@@ -98,15 +151,16 @@ describe('the sky’s tables', () => {
       expect(bake.panoWidth * bake.panoHeight * 4, tier).toBeLessThanOrEqual(8 * 1024 * 1024);
     }
     expect(sky.tiers.low.panoWidth).toBeLessThan(sky.tiers.medium.panoWidth);
-    // The cheapest tier leaves out what the others keep, never the other way round.
-    expect(sky.tiers.low).toMatchObject({ far: false, rag2: false, wisp: false, reliefOctaves: 0 });
-    expect(sky.tiers.high.reliefOctaves).toBeGreaterThanOrEqual(sky.tiers.medium.reliefOctaves);
+    // A far galaxy is more than a texel or two even on the smallest panorama.
+    const smallest = Math.min(...sky.galaxies.map((galaxy) => galaxy.radiusDeg));
+    expect(smallest / (360 / sky.tiers.low.panoWidth)).toBeGreaterThan(2);
   });
 
-  it('leaves the horizon strip dark and holds a ceiling the focus ring can be seen over', () => {
+  it('fades the sky’s light out toward the horizon, under a ceiling the focus ring is seen over', () => {
     const [none, full] = sky.stripDeg;
-    expect(none).toBeGreaterThan(0);
-    expect(full).toBeGreaterThan(none);
+    expect(none).toBeGreaterThanOrEqual(0);
+    // A long taper: a short one draws a ruler-straight edge along the sky.
+    expect(full - none).toBeGreaterThanOrEqual(8);
     // Butter over a sky of luminance Y: (0.7148 + 0.05) / (Y + 0.05) is 3:1 at Y 0.205.
     expect(sky.ceilingY).toBeLessThanOrEqual(0.205);
     expect(sky.intensity * sky.ceilingY).toBeLessThanOrEqual(0.19);
@@ -114,22 +168,65 @@ describe('the sky’s tables', () => {
 });
 
 describe('the stars’ tables', () => {
-  const { classes, heroes, clusters, palette } = tuning.starfield;
-
   it('names only star tints that exist', () => {
-    for (const { tint } of [...heroes, ...clusters]) {
-      expect(Object.keys(tokens.color.star)).toContain(tint);
+    for (const { tint } of [...heroes, ...clusters]) expect(STAR_TINTS).toContain(tint);
+    const palettes = [palette, classes.dust.palette, classes.bright.palette, classes.mid.palette];
+    for (const shares of palettes) {
+      // Every temperature has a share of every palette, and the shares are a whole.
+      expect(shares.map(([tint]) => tint).sort()).toEqual([...STAR_TINTS].sort());
+      expect(shares.reduce((sum, [, share]) => sum + share, 0)).toBeCloseTo(1, 9);
     }
-    for (const [tint] of palette) expect(Object.keys(tokens.color.star)).toContain(tint);
+    for (const tints of pairs.tints) for (const tint of tints) expect(STAR_TINTS).toContain(tint);
   });
 
-  it('has eight heroes, each a different place, above the horizon strip or just under it', () => {
+  it('has eight heroes, each a different place, in all six temperatures', () => {
     expect(heroes).toHaveLength(8);
     expect(new Set(heroes.map((hero) => `${hero.azDeg},${hero.elDeg}`)).size).toBe(8);
+    expect(new Set<string>(heroes.map((hero) => hero.tint))).toEqual(new Set(STAR_TINTS));
     for (const hero of heroes) {
       expect(hero.size).toBeGreaterThan(0);
       expect(hero.size).toBeLessThanOrEqual(1);
       expect(Math.abs(hero.elDeg)).toBeLessThan(30);
+    }
+  });
+
+  it('shows a hero in every view the sky is judged from, clear of the bars and the panel', () => {
+    // The nav chips are the top 58 px of a 1280 x 800 view, the Map button sits under them at
+    // the right (x from 1162, y 70 to 113), and a docked body's panel covers the right of it.
+    // A hero's middle keeps 10 px from each.
+    const clear = ([x, y]: readonly [number, number]): boolean =>
+      y > 58 + 10 && !(x > 1162 - 10 && y > 70 - 10 && y < 113 + 10);
+    const inView = (name: SkyPoseName): Array<[number, number]> =>
+      heroes.flatMap((hero) => {
+        const at = seenAt(name, hero);
+        return at ? [at] : [];
+      });
+    for (const name of ['first', 'cruise', 'proj', 'hack', 'res', 'band'] as const) {
+      const seen = inView(name);
+      expect(seen.length, name).toBeGreaterThanOrEqual(1);
+      // And none of the ones in view hides behind a chip.
+      expect(seen.every(clear), name).toBe(true);
+    }
+    // Three in the first frame: upper right, above the home planet, low on the left.
+    expect(inView('first')).toHaveLength(3);
+    // Docked, the panel takes the right of the view: the one hero there is at its top left.
+    const docked = inView('docked');
+    expect(docked).toHaveLength(1);
+    expect(docked[0]?.[0]).toBeLessThan(WIDTH * 0.25);
+    expect(docked[0]?.[1]).toBeLessThan(HEIGHT * 0.25);
+    expect(docked.every(clear)).toBe(true);
+  });
+
+  it('leaves no sixth of the round empty: three or more things to find in each', () => {
+    // Galaxies, heroes and clusters, by azimuth: a slow look round always finds something.
+    const azimuths = [...sky.galaxies, ...heroes, ...clusters].map(
+      (thing) => ((thing.azDeg % 360) + 360) % 360,
+    );
+    for (let sector = 0; sector < 6; sector += 1) {
+      const found = azimuths.filter((az) => Math.floor(az / 60) === sector);
+      expect(found.length, `azimuth ${sector * 60} to ${sector * 60 + 60}`).toBeGreaterThanOrEqual(
+        3,
+      );
     }
   });
 
@@ -142,10 +239,36 @@ describe('the stars’ tables', () => {
       if (!before) continue;
       expect(cls.yRange[0]).toBeGreaterThan(before.yRange[0]);
       expect(cls.sigmaPx).toBeGreaterThan(before.sigmaPx);
+      // The faint stars are the river; the bright ones are spread over the whole sky.
+      expect(cls.bandShare).toBeLessThan(before.bandShare);
     }
+    expect(tuning.starfield.count).toBeGreaterThan(classes.field.count);
     expect(classes.field.count).toBeGreaterThan(classes.bright.count);
     expect(classes.bright.count).toBeGreaterThan(classes.mid.count);
     expect(classes.mid.count).toBeGreaterThan(heroes.length);
+  });
+
+  it('makes a mid star a small hero: six short spikes, of its own length', () => {
+    const { mid } = classes;
+    expect(mid.spikeLenPx).toBeLessThan(tuning.starfield.hero.spikeLenPx / 2);
+    expect(mid.sizeRange[0]).toBeGreaterThan(0);
+    expect(mid.sizeRange[0]).toBeLessThan(mid.sizeRange[1]);
+    expect(mid.sizeRange[1]).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps a double star a pair to the eye: apart, and not far', () => {
+    // In the first view a degree is 14.5 px: a companion is 6 to 10 px from its primary.
+    const perDeg = HEIGHT / SKY_POSES.first.fovDeg;
+    expect(pairs.sepDeg[0] * perDeg).toBeGreaterThan(5);
+    expect(pairs.sepDeg[1] * perDeg).toBeLessThan(12);
+    expect(pairs.count).toBeGreaterThan(0);
+    for (const [primary, companion] of pairs.tints) expect(primary).not.toBe(companion);
+    expect(pairs.companionY[1]).toBeLessThan(pairs.primaryY[0]);
+  });
+
+  it('holds the sky still: nothing drifts across the baked panorama', () => {
+    // The stars lie where the Milky Way's haze is, and its lane dims them at fixed directions.
+    expect(tuning.starfield.driftRadPerSec).toBe(0);
   });
 });
 
@@ -169,7 +292,7 @@ describe('traffic and the chart', () => {
   });
 
   it('keeps the districts apart, and a dash shorter than its gap', () => {
-    // Two districts that overlap would paint one family's gas over another's.
+    // Two districts that overlap would paint one family's plate over another's.
     const { districtOuter, ringDashPx, ringWidthPx, dotRadiusPx, dotSpacingPx } = tuning.look.chart;
     expect(districtOuter).toBeGreaterThan(1);
     for (const a of real.systems) {

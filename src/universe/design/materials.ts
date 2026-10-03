@@ -31,10 +31,10 @@ import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
 import { bloomDown, bloomUp, composite } from './shaders/post';
-import type { RimTone, SkyTier, StarClass, SunTone } from './lookTypes';
-import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
+import type { RimTone, StarClass, SunTone } from './lookTypes';
+import { backdrop, stars } from './shaders/sky';
 import { skyBake } from './shaders/skyBake';
-import { skyConstants, skyLoops, skyRamps } from './skyRecipe';
+import { skyBand, skyConstants, skyLoops, skyStars } from './skyRecipe';
 import { AIR_LIMB_STEPS, SUN_SPOTS, toonFlat } from './shaders/toonFlat';
 import { traffic } from './shaders/traffic';
 import { tokens, type AirKey, type BiomeKey, type ThemeKey } from './tokens';
@@ -84,8 +84,9 @@ export function setBloomMask(enabled: boolean): void {
 
 /**
  * THE BAKED SKY, as everything that draws the sky reads it (shaders/sky.ts): the panorama, how
- * far it has come in over the old glows, and how much of its light shows. Shared BY REFERENCE
- * between the backdrop and the stars; world/SkyBake.ts is the one that writes them.
+ * far it has come in (the stars: how much its dark lane dims them) and how much of its light
+ * shows (the backdrop). Shared BY REFERENCE between the backdrop and the stars; world/SkyBake.ts
+ * is the one that writes them.
  */
 const skyLight = {
   uPano: { value: null as Texture | null },
@@ -94,8 +95,8 @@ const skyLight = {
 };
 
 /**
- * Show a baked sky: its panorama (null: none, and the old glows are the sky), `reveal` 0 to 1 as
- * it comes in, and `exposure`, how much of its added light shows.
+ * Show a baked sky: its panorama (null: none, and the sky is the navy and the stars), `reveal`
+ * 0 to 1 as it comes in, and `exposure`, how much of its added light shows.
  */
 export function setSky(pano: Texture | null, reveal: number, exposure: number): void {
   skyLight.uPano.value = pano;
@@ -335,21 +336,8 @@ export function createEdgeMaterial(options: { color: string }): EdgeMaterial {
   return keepBloomMask(material, false) as EdgeMaterial;
 }
 
+/** The sky behind everything (shaders/sky.ts): the navy, and the baked sky's light on it. */
 export function createBackdropMaterial(): ShaderMaterial {
-  const { horizonFalloff, glows } = tuning.backdrop;
-  if (glows.length > GLOW_COUNT) throw new RangeError(`backdrop: at most ${GLOW_COUNT} glows`);
-
-  // Unused slots stay black, which adds nothing.
-  const directions = Array.from({ length: GLOW_COUNT }, () => new Vector3(0, 1, 0));
-  const colors = Array.from({ length: GLOW_COUNT }, () => new Color(0, 0, 0));
-  const tightness = Array.from({ length: GLOW_COUNT }, () => 1);
-  glows.forEach((glow, index) => {
-    const [x, y, z] = glow.direction;
-    directions[index]?.set(x, y, z).normalize();
-    colors[index]?.set(tokens.color.system[glow.theme].shade).multiplyScalar(glow.strength);
-    tightness[index] = glow.tightness;
-  });
-
   return new ShaderMaterial({
     name: 'backdrop',
     vertexShader: backdrop.vertexShader,
@@ -358,11 +346,9 @@ export function createBackdropMaterial(): ShaderMaterial {
       uBloomMask: bloomMask,
       uDeep: { value: new Color(tokens.color.space[950]) },
       uHorizon: { value: new Color(tokens.color.space[800]) },
-      uHorizonFalloff: { value: horizonFalloff },
-      uGlowDirection: { value: directions },
-      uGlowColor: { value: colors },
-      uGlowTightness: { value: tightness },
-      ...skyLight,
+      uHorizonFalloff: { value: tuning.backdrop.horizonFalloff },
+      uPano: skyLight.uPano,
+      uExposure: skyLight.uExposure,
     },
     side: BackSide,
     depthWrite: false,
@@ -370,22 +356,22 @@ export function createBackdropMaterial(): ShaderMaterial {
 }
 
 /**
- * The program that paints the sky's panorama (shaders/skyBake.ts), for one quality tier: the
- * recipe of `tuning.look.sky` as its constants (skyRecipe.ts), the gas ramps and the star tints
- * as linear colours. It is drawn into a render target, never onto the screen.
+ * The program that paints the sky's panorama (shaders/skyBake.ts), the same on every quality
+ * tier: the recipe of `tuning.look.sky` as its constants (skyRecipe.ts), the Milky Way's haze
+ * and the star tints as linear colours. It is drawn into a render target, never onto the screen.
  */
-export function createSkyBakeMaterial(tier: SkyTier): ShaderMaterial {
-  const { space, star } = tokens.color;
+export function createSkyBakeMaterial(): ShaderMaterial {
+  const { space } = tokens.color;
   return new ShaderMaterial({
     name: 'sky-bake',
     vertexShader: skyBake.vertexShader,
-    fragmentShader: skyBake.fragmentShader(skyConstants(tier)),
+    fragmentShader: skyBake.fragmentShader(skyConstants()),
     uniforms: {
       uDeep: { value: hexToLinear(space[950]) },
       uHorizon: { value: hexToLinear(space[800]) },
       uFalloff: { value: tuning.backdrop.horizonFalloff },
-      uRamp: { value: skyRamps() },
-      uStar: { value: [star.cool, star.warm, star.hot, star.amber].flatMap(hexToLinear) },
+      uBand: { value: skyBand() },
+      uStar: { value: skyStars() },
       uLoop: { value: skyLoops() },
     },
     depthTest: false,
@@ -436,10 +422,10 @@ export function createStarMaterial(options: { motion: boolean }): StarMaterial {
       },
       uArm: {
         value: [
-          // A mid star's plus: the line across is as long and as bright as the upright one.
+          // A mid star's six spikes, and no line across (whose length the shader still divides by).
           ...kinds.map((kind) => {
-            const [length, gain] = [kind.spikeLenPx ?? 1, kind.spikeGain ?? 0];
-            return new Vector4(length, gain, length, gain);
+            const length = kind.spikeLenPx ?? 1;
+            return new Vector4(length, kind.spikeGain ?? 0, length, 0);
           }),
           new Vector4(
             hero.spikeLenPx,
@@ -452,7 +438,7 @@ export function createStarMaterial(options: { motion: boolean }): StarMaterial {
       uThick: {
         value: [
           ...kinds.map((kind) => new Vector2().setScalar(kind.spikeThicknessPx ?? 1)),
-          // A hero's faint line across is as thin as a mid star's plus.
+          // A hero's faint line across is as thin as a mid star's spikes.
           new Vector2(hero.spikeThicknessPx, classes.mid.spikeThicknessPx),
         ],
       },
@@ -673,7 +659,7 @@ export type ChartMaterial = ShaderMaterial & {
 
 /**
  * The star map's ground (shaders/chart.ts): `tuning.look.chart`, and a district for each system
- * in its family's gas (the sky's palette) and, for the dashed ring, its base. Premultiplied
+ * in its family's two dim tones (color.nebula) and, for the dashed ring, its base. Premultiplied
  * colour over what is behind it, and not on the bloom guest list.
  */
 export function createChartMaterial(districts: readonly ChartDistrict[]): ChartMaterial {

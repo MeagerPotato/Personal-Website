@@ -28,6 +28,8 @@ import type {
   SkyLook,
   StarClass,
   StarCluster,
+  StarPairs,
+  StarPalette,
   SunTone,
 } from './lookTypes';
 
@@ -505,8 +507,11 @@ export const tuning = {
      * surface, 0 (as in flight) to 1 (flat discs of pure token colour, Mini Motorways style).
      */
     flatness: 1,
-    /** The stars dim to this share of themselves, and the dust is put away: a map is a calm thing. */
-    starOpacity: 0.3,
+    /**
+     * The stars dim to this share of themselves, and the dust is put away: a map is a calm thing.
+     * A faint star then peaks at about 0.05, under the chart's grid dots.
+     */
+    starOpacity: 0.2,
     /**
      * No body looks smaller than this on the map (radius, CSS px), by kind: the galaxy is a few
      * pixels per hundred units, and a planet at its true size would be a speck. The size of ALL
@@ -789,8 +794,9 @@ export const tuning = {
     ringBloom: 0.18,
     /**
      * The thin circles that show where things orbit. Judged against 0.26 (and 0.13 for the track)
-     * over the sky's brightest gas in the lab's `orbits` subject: the stronger pair is no easier
-     * to see there and louder everywhere else, so these stay (docs/DESIGN.md, "Deep light").
+     * in the lab's `orbits` subject while the sky still had gas behind them: the stronger pair
+     * was no easier to see there and louder everywhere else, so these stay. The sky behind them
+     * is only calmer now (docs/DESIGN.md, "Deep light").
      */
     orbitLineOpacity: 0.2,
     /** A binary's suns' own path round the pair's centre: half as strong, not one more orbit. */
@@ -853,24 +859,13 @@ export const tuning = {
     decalPull: 2e-4,
   },
 
-  /** The backdrop behind the stars (world/Backdrop.ts). */
+  /**
+   * The backdrop behind the stars (world/Backdrop.ts): navy, a little lighter along the horizon.
+   * What the sky adds to it (the Milky Way's haze, far galaxies) is `look.sky` below.
+   */
   backdrop: {
     /** Higher = a thinner, sharper glow along the horizon. */
     horizonFalloff: 3.2,
-    /**
-     * Up to four huge, soft glows of colour at fixed places in the sky. `theme` picks a colour
-     * family from tokens (its shade); `direction` is [x, y, z] and need not be normalised (y is
-     * up: the chase camera looks down, so the sky from 45 degrees BELOW the horizon to 10 above is
-     * what is seen the most); `tightness` is how small the glow is (4 = a third of the sky, 12 = a
-     * patch); `strength` is how much colour is added at its centre. Keep them whisper-quiet, and
-     * keep warm colours small and high: on navy a big warm glow reads as brown.
-     */
-    glows: [
-      { theme: 'lilac', direction: [-0.7, -0.35, -0.6], tightness: 5, strength: 0.075 },
-      { theme: 'sky', direction: [0.8, -0.15, -0.55], tightness: 7, strength: 0.065 },
-      { theme: 'mint', direction: [0.3, -0.45, 0.85], tightness: 7, strength: 0.04 },
-      { theme: 'coral', direction: [-0.65, 0.4, 0.6], tightness: 12, strength: 0.03 },
-    ],
   },
 
   /** Space dust: the motes that slide past and tell you that you are moving (world/SpaceDust.ts). */
@@ -902,13 +897,16 @@ export const tuning = {
      * How many of the faintest stars (the dust class, below) there are, with a mouse and with a
      * finger. Every other class follows in proportion, and the low tier draws half of each.
      */
-    count: 4200,
-    countCoarse: 2100,
+    count: 6400,
+    countCoarse: 3200,
     /** @deprecated The classes below size the stars: nothing reads this (the old points did). */
     sizeMin: 1.1,
     /** @deprecated As sizeMin. */
     sizeMax: 3.4,
-    /** Six temperatures: [token name under color.star, share of the stars]. */
+    /**
+     * Six temperatures: [token name under color.star, share of the stars]. A class with a
+     * `palette` of its own (below) is drawn from that instead.
+     */
     palette: [
       ['white', 0.3],
       ['cool', 0.2],
@@ -916,15 +914,19 @@ export const tuning = {
       ['warm', 0.15],
       ['amber', 0.12],
       ['ember', 0.06],
-    ],
+    ] satisfies StarPalette,
     /** @deprecated Each class has its own brightness range: nothing reads this. */
     brightnessMin: 0.45,
-    /** This share of the dust, field and bright stars dims and comes back, by up to twinkleDepth. */
-    twinkleShare: 0.2,
+    /**
+     * This share of the dust, field and bright stars dims and comes back, by up to twinkleDepth:
+     * about a thousand stars, as many as shimmered when the sky held 5,000.
+     */
+    twinkleShare: 0.12,
     twinkleDepth: 0.55,
     /**
-     * Whole-sky drift, radians per second. 0 since the sky is baked: the stars would turn
-     * against a gas that does not, and a star hidden behind a ridge would come out of it.
+     * Whole-sky drift, radians per second. 0 since the sky is baked: the stars lie where the
+     * Milky Way's haze is and thin out in its dark lane, and are dimmed by the panorama at fixed
+     * directions. A sky that drifted would slide them off both.
      */
     driftRadPerSec: 0,
 
@@ -935,41 +937,74 @@ export const tuning = {
      * below. `yRange` is the peak brightness (linear luminance) and `yExp` how it is spread
      * across the range (higher = more faint ones); `sigmaPx` the Gaussian core (at `coreGain` of
      * that brightness, 1 when left out), `haloSigmaPx` and `haloGain` a wider, fainter one round
-     * it, `spikeLenPx`, `spikeGain` and `spikeThicknessPx` a four-armed plus (mid only); every
-     * size is CSS px in a view `scaleRows` high. `bandShare` is the share of the class drawn
-     * along the Milky Way. Dust has no count of its own: it takes `count` (and `countCoarse`)
-     * above.
+     * it, `spikeLenPx`, `spikeGain` and `spikeThicknessPx` six small spikes (mid only: a small
+     * hero), each star's `sizeRange` of that length long; every size is CSS px in a view
+     * `scaleRows` high. `bandShare` is the share of the class laid along the Milky Way, where
+     * its haze is. `palette`: the class's own tints. Dust is whiter and cooler than the rest (a
+     * faint star looks white) and the bright ones carry the colour. Dust has no count of its
+     * own: it takes `count` (and `countCoarse`) above.
      */
     classes: {
-      dust: { yRange: [0.1, 0.34], yExp: 2.2, sigmaPx: 0.55, coreGain: 0.9, bandShare: 0.5 },
-      field: {
-        count: 700,
-        yRange: [0.3, 0.65],
-        yExp: 1.6,
-        sigmaPx: 0.75,
+      dust: {
+        yRange: [0.16, 0.46],
+        yExp: 2,
+        sigmaPx: 0.62,
         coreGain: 0.9,
-        bandShare: 0.3,
+        bandShare: 0.7,
+        palette: [
+          ['white', 0.34],
+          ['cool', 0.22],
+          ['hot', 0.12],
+          ['warm', 0.2],
+          ['amber', 0.09],
+          ['ember', 0.03],
+        ],
+      },
+      field: {
+        count: 1500,
+        yRange: [0.38, 0.78],
+        yExp: 1.6,
+        sigmaPx: 0.85,
+        coreGain: 0.9,
+        bandShare: 0.5,
       },
       bright: {
-        count: 110,
-        yRange: [0.7, 1],
+        count: 260,
+        yRange: [0.75, 1],
         yExp: 1.2,
-        sigmaPx: 1,
+        sigmaPx: 1.05,
         haloSigmaPx: 3.4,
-        haloGain: 0.16,
-        bandShare: 0.3,
+        haloGain: 0.18,
+        bandShare: 0.35,
+        palette: [
+          ['white', 0.22],
+          ['cool', 0.12],
+          ['hot', 0.24],
+          ['warm', 0.14],
+          ['amber', 0.18],
+          ['ember', 0.1],
+        ],
       },
       mid: {
-        count: 26,
-        yRange: [0.85, 1],
+        count: 64,
+        yRange: [0.9, 1],
         yExp: 1,
-        sigmaPx: 1.15,
-        haloSigmaPx: 4.2,
-        haloGain: 0.22,
-        spikeLenPx: 20,
-        spikeGain: 0.5,
+        sigmaPx: 1.2,
+        haloSigmaPx: 4.4,
+        haloGain: 0.24,
+        spikeLenPx: 26,
+        spikeGain: 0.55,
         spikeThicknessPx: 0.6,
+        sizeRange: [0.55, 1],
         bandShare: 0.2,
+        palette: [
+          ['white', 0.18],
+          ['cool', 0.08],
+          ['hot', 0.3],
+          ['warm', 0.12],
+          ['amber', 0.22],
+          ['ember', 0.1],
+        ],
       },
     } satisfies Record<string, StarClass>,
     /**
@@ -995,22 +1030,38 @@ export const tuning = {
     /**
      * The eight heroes, at fixed places: azimuth = atan2(x, z) and elevation in degrees, a size
      * from 0 to 1, and a tint (a key of color.star). Eight on every tier: a hero costs one quad.
+     * Every view the sky is judged from (sim/skyDirections.ts) has one, and none sits behind the
+     * top bar's chips: three in the first frame at home (upper right, above the home planet,
+     * and low on the left, where the frame is emptiest), one beside a docked body clear of its
+     * panel, one or two toward each system. All six temperatures.
      */
     heroes: [
-      { azDeg: -58, elDeg: -4, size: 1, tint: 'hot' },
-      { azDeg: -21, elDeg: -11, size: 0.8, tint: 'amber' },
-      { azDeg: 8, elDeg: 14, size: 0.9, tint: 'white' },
-      { azDeg: 66, elDeg: -3, size: 0.85, tint: 'cool' },
-      { azDeg: 112, elDeg: 9, size: 0.75, tint: 'warm' },
-      { azDeg: 187, elDeg: 4, size: 1, tint: 'hot' },
-      { azDeg: 236, elDeg: 18, size: 0.8, tint: 'ember' },
+      { azDeg: -55, elDeg: 8, size: 1, tint: 'hot' },
+      { azDeg: -33, elDeg: 7, size: 0.8, tint: 'amber' },
+      { azDeg: -12, elDeg: -14, size: 0.85, tint: 'white' },
+      { azDeg: 40, elDeg: -10, size: 0.9, tint: 'warm' },
+      { azDeg: 75, elDeg: 8, size: 0.85, tint: 'cool' },
+      { azDeg: 195, elDeg: 9, size: 1, tint: 'hot' },
       { azDeg: -102, elDeg: 12, size: 0.9, tint: 'white' },
+      { azDeg: 222, elDeg: -11, size: 0.8, tint: 'ember' },
     ] satisfies readonly HeroStar[],
-    /** Three Gaussian clouds of stars: where, how wide (degrees), how many, and their tint. */
+    /**
+     * Six Gaussian clusters of stars: where, how wide (degrees), how many, and their tint. The
+     * last three are THE SKY'S COMPASS: one at the bearing FROM HOME of each system (azimuth =
+     * 90 - the layout's bearing; `system` says whose), 20 degrees under the horizon, where the
+     * sky is emptiest. The sky is at infinity, so a bearing is right from home and the same from
+     * everywhere. Each wears the star temperature nearest its family (there is no green star and
+     * no violet one, and no star wears a family's colour); Hardware shares the bearing of its
+     * binary, and home has none: home is where the viewer stands. A cluster is separate stars
+     * and nothing else: no light under it, no halo.
+     */
     clusters: [
       { azDeg: -88, elDeg: 21, sigmaDeg: 1.1, count: 70, tint: 'hot' },
       { azDeg: 146, elDeg: 20, sigmaDeg: 0.9, count: 55, tint: 'amber' },
       { azDeg: 30, elDeg: 9, sigmaDeg: 1.3, count: 80, tint: 'white' },
+      { azDeg: -45, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'hot', system: 'projects' },
+      { azDeg: 195, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'white', system: 'research' },
+      { azDeg: 75, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'cool', system: 'hackathons' },
     ] satisfies readonly StarCluster[],
     /**
      * A star of a cluster: its brightness is yBase + yGain * random^yExp * exp(-falloff * r), r
@@ -1018,8 +1069,21 @@ export const tuning = {
      * rest any; the first `fieldCount` are drawn as field stars, the rest as dust.
      */
     cluster: { yBase: 0.22, yGain: 0.5, yExp: 3, falloff: 0.5, tintShare: 0.6, fieldCount: 5 },
-    /** Spread of the Milky Way's stars round its great circle, degrees (the circle: look.sky.band). */
-    bandSigmaDeg: 8.5,
+    /**
+     * Double stars, anywhere in the sky: a bright primary and a fainter companion `sepDeg` away
+     * (seven to ten pixels: found by looking, never noise), drawn as a bright and a field star,
+     * in one of these pairs of tints. As many on every tier: a double costs two quads.
+     */
+    pairs: {
+      count: 14,
+      sepDeg: [0.42, 0.72],
+      primaryY: [0.8, 1],
+      companionY: [0.45, 0.65],
+      tints: [
+        ['hot', 'amber'],
+        ['white', 'cool'],
+      ],
+    } satisfies StarPairs,
     /** The profile along a spike, t from 0 at the star to 1 at its tip: (1 - t)^exponent / (1 + taper t). */
     spike: { exponent: 2.4, taper: 5 },
     /** The view height, CSS px, the pixel sizes above are written for... */
@@ -1032,22 +1096,22 @@ export const tuning = {
 
   /**
    * "FLAT WORLDS, DEEP LIGHT" (docs/DESIGN.md, "Deep light"): the look pass that gives the sky
-   * gas, the suns a surface, the worlds air. Matter stays flat and token-exact; light and air
-   * get structure. Each part is switched on by the step that builds its system (so far: the
-   * sky and the suns), and until then it is the agreed numbers, kept where the lab and the
-   * tests can find them. Every colour is a token key (a family, a star tint, a biome), never
-   * a number; design/lookTypes.ts holds the shapes of the tables.
+   * a Milky Way and far galaxies, the suns a surface, the worlds air. Matter stays flat and
+   * token-exact; light and air get structure. Every colour is a token key (a star tint, an
+   * air, a biome), never a number; design/lookTypes.ts holds the shapes of the tables.
    */
   look: {
     /**
      * The baked sky: a panorama of the light the sky ADDS to the navy, painted once on the GPU
-     * after the first frame. Everything here but the three exposure keys and `revealSec` is
+     * after the first frame: the Milky Way's haze and the far galaxies, and nothing else. No
+     * gas, no clouds (Allen, 2026-10-03: "No clouds, rich stars"): the stars carry the sky
+     * (`starfield`, above). Everything here but the three exposure keys and `revealSec` is
      * baked: changing it means baking again.
      */
     sky: {
-      /** Scales the added light. Calm 0.6, standard 0.9, painted 1.2 (which needs ceilingY 0.158). */
+      /** Scales the added light, after the ceiling has held it: never above 1. */
       intensity: 0.9,
-      /** Seconds of the cross-fade from the old glows to the baked sky. A cut under reduced motion. */
+      /** Seconds over which the baked sky's light comes in. A cut under reduced motion. */
       revealSec: 0.8,
       /** The sky is this much of itself while docked: the view is closer and the panel wants quiet. */
       exposureDocked: 0.5,
@@ -1060,267 +1124,247 @@ export const tuning = {
        * many ms or longer, only every second frame paints one (sim/skySchedule.ts).
        */
       bandSlowMs: 22,
-      /** A slow noise pushes the azimuth sideways by up to this much, degrees: the massifs' outlines. */
-      warpAzDeg: 14,
-      /** That noise's frequency on the unit sphere. */
-      warpFreq: 1.1,
-      /** How fast a pool's influence falls off: exp(-u^2 * poolFall). */
-      poolFall: 1.1,
-      /** How deep the valley is where two pools meet: 0 none, 1 full. */
-      seam: 0.8,
-      /** How far a ridge sinks at the ends of its massif, degrees. */
-      dropDeg: 26,
-      /** Swing of the ragged detail on every crest, degrees, and its frequency. */
-      ragDeg: 2,
-      ragFreq: 8,
       /**
-       * Swing of a ragged push SIDEWAYS, degrees of azimuth, and its frequency: the ends of a
-       * massif, and the edge of its glow, billow as its crests do. At 0 a massif ends along a
-       * line of one azimuth, straight up the sky (the recipe as it was first drawn). It moves
-       * the pools' reach, not their crests.
+       * The horizon strip, where planets and orbit lines sit: no added light at the first
+       * elevation, all of it from the second, degrees, rising smoothly between. It is long on
+       * purpose: a taper a few degrees long drew a ruler-straight edge along the sky.
        */
-      ragAzDeg: 5,
-      ragAzFreq: 8,
-      /** A finer set of teeth (the high tier only): swing in degrees, and frequency. */
-      rag2Deg: 0.55,
-      rag2Freq: 26,
-      /** Octaves of the relief noise. The tiers below override it (0, 3, 4). */
-      reliefOctaves: 4,
-      /** Strength of the top-lit lumps inside the dust bodies, and their frequency. */
-      relief: 0.55,
-      reliefFreq: 6.5,
-      /** The noise's second tap, in unit-sphere y: a lump's lit side is the difference. */
-      reliefTap: 0.013,
-      /** Strength of the steam strands above the far crest (not on low). */
-      wisp: 0.5,
-      /** E-folding height of the glow above the far crest, degrees. */
-      glowHeightDeg: 7.5,
-      /** How fast the glow falls off sideways from the pool's centre. */
-      glowLateral: 0.55,
-      /** How much of the glow is vertical streaks: 0 none, 1 all. */
-      glowFilament: 0.55,
-      glowGain: 1,
-      /** The glow is cut into this many flat levels, with edges this soft (0 hard, 1 smooth). */
-      glowSteps: 4,
-      glowSoft: 0.4,
-      /** The extra glow right above a system's own bearing, with a pinprick of heat in it. */
-      heart: 0.4,
-      /** How much of the pinprick's star tint reaches the colour. */
-      heartMix: 0.55,
-      /** Strength of the soft light down a ridge's face, and of the lit line on its crest. */
-      softRim: 0.5,
-      rimGain: 0.95,
-      /**
-       * The horizon strip, where planets and orbit lines sit: no added light below the first
-       * elevation, all of it from the second, degrees (a noise of up to 4.5 degrees moves the
-       * edge, so that it is not a ruler).
-       */
-      stripDeg: [4, 18],
+      stripDeg: [0, 12],
       /**
        * The ceiling of the sky's total luminance (linear Y), held by a soft knee. At 0.19 the
        * butter focus ring still reads 3.19:1 over the brightest pixel the sky can paint.
        */
       ceilingY: 0.19,
-      /** Strength of the Milky Way's haze, and the softness of its 4 flat levels. */
-      bandGain: 0.62,
-      bandSoft: 0.55,
-      /** Peak added luminance of the thin arcs. */
-      arc: 0.14,
       /**
-       * The Milky Way's great circle: its pole is tilted `tiltDeg` from straight up, toward
-       * azimuth `poleAzDeg`; the haze is `sigmaDeg` wide; the warm bulge sits at azimuth
-       * `coreAzDeg` along it and is `coreSigmaDeg` wide. All degrees.
+       * The Milky Way: a river of stars along a great circle, and a faint haze under them
+       * (sim/milkyWay.ts says what each number does; the stars are laid from these too). Its
+       * pole is tilted `tiltDeg` from straight up, toward azimuth `poleAzDeg`, so that it rises
+       * to the right across the first frame instead of lying along the horizon. Across it: a
+       * narrow bank and a wide one (`banks`: [sigma in degrees, weight]). Along it: `base`
+       * everywhere and twelve `clumps` ([longitude, sigma, weight], degrees), its middle
+       * wandering by `meanderDeg`. `core`: the cream bulge. `lane`: the dark rift.
+       *
+       * Three things these numbers hold, each of which was tried the other way: the lane
+       * darkens the haze by a third at most (more read as a streak of smoke) and hides four
+       * fifths of the stars in it, so the rift is made of missing stars and not of paint; the
+       * bulge is 12 percent cream (30 read brown); and nothing here is cut into levels or run
+       * through noise, because a level's edge that follows noise is a contour line, and contour
+       * lines read as waves.
        */
-      band: { tiltDeg: 24, poleAzDeg: 145, sigmaDeg: 10.5, coreAzDeg: -100, coreSigmaDeg: 28 },
-      /** Three ridgelines, far to near: three flats, each a different distance. */
-      ridges: [
-        {
-          offDeg: 8,
-          ampDeg: 6.5,
-          freq: 1.9,
-          edgeDeg: 1.5,
-          rimDeg: 1.7,
-          softDeg: 5,
-          body: 0.55,
-          edge: 0.7,
-          key: 0.6,
-        },
-        {
-          offDeg: 1,
-          ampDeg: 6,
-          freq: 2.7,
-          edgeDeg: 0.8,
-          rimDeg: 1.2,
-          softDeg: 3.8,
-          body: 0.38,
-          edge: 0.85,
-          key: 0.8,
-        },
-        {
-          offDeg: -7,
-          ampDeg: 5,
-          freq: 3.6,
-          edgeDeg: 0.35,
-          rimDeg: 0.9,
-          softDeg: 3,
-          body: 0.22,
-          edge: 0.95,
-          key: 1,
-        },
-      ],
+      band: {
+        tiltDeg: 14,
+        poleAzDeg: 125,
+        gain: 0.65,
+        banks: [
+          [2.8, 0.5],
+          [7.5, 0.5],
+        ],
+        meanderDeg: [1.4, 0.9, 0.6, 2.3],
+        base: 0.3,
+        clumps: [
+          [28, 10, 0.5],
+          [52, 9, 0.9],
+          [74, 14, 1],
+          [98, 8, 0.7],
+          [118, 11, 0.85],
+          [146, 9, 0.5],
+          [172, 12, 0.6],
+          [205, 14, 0.8],
+          [238, 10, 1],
+          [262, 13, 0.6],
+          [300, 16, 0.9],
+          [336, 10, 0.6],
+        ],
+        core: { lonDeg: 72, sigmaDeg: 26, mix: 0.12 },
+        lane: { offsetDeg: [1.2, 1.6, 0.8], widthDeg: [1.4, 0.5], dark: 0.3, hide: 0.8 },
+      },
       /**
-       * One gas massif per system, at its bearing FROM HOME (azimuth = 90 - the layout's
-       * bearing): the sky is at infinity, so it is a compass, right from home and the same from
-       * everywhere. Home's own family, butter, has no pool: butter means "here".
+       * Fifteen far galaxies, the same on every tier: where, how large (`radiusDeg`: the
+       * semi-major axis; `axisRatio`: minor over major; `angleDeg`: turned from level), which
+       * kind, the star tints of its disc and of its nucleus, and how loud. The first four are
+       * showpieces, one toward the first frame and one toward each system; the rest are small.
+       * No galaxy is amber or ember (on navy they read brown), every nucleus is 7 degrees or
+       * more off the horizon (the strip is kept calm), and every sixth of the sky's round
+       * holds three or more of galaxy, hero star and cluster: a slow look round always finds
+       * something (tests/look.test.ts).
        */
-      pools: [
-        {
-          id: 'projects',
-          azDeg: -45,
-          elDeg: -22,
-          halfWidthDeg: 36,
-          strength: 1,
-          family: 'sky',
-          altFamily: 'lilac',
-          altShare: 0.2,
-          seed: 1.3,
-          height: 1,
-          gain: 1,
-        },
-        {
-          id: 'hardware',
-          azDeg: -31,
-          elDeg: -17,
-          halfWidthDeg: 13,
-          strength: 0.85,
-          family: 'coral',
-          altFamily: 'lilac',
-          altShare: 0.12,
-          seed: 7.9,
-          height: 0.75,
-          gain: 1,
-        },
-        {
-          id: 'research',
-          azDeg: 195,
-          elDeg: -22,
-          halfWidthDeg: 30,
-          strength: 0.95,
-          family: 'mint',
-          altFamily: 'sky',
-          altShare: 0.25,
-          seed: 4.4,
-          height: 1,
-          gain: 0.72,
-        },
-        {
-          id: 'hackathons',
-          azDeg: 75,
-          elDeg: -22,
-          halfWidthDeg: 32,
-          strength: 0.95,
-          family: 'lilac',
-          altFamily: 'sky',
-          altShare: 0.25,
-          seed: 10.2,
-          height: 1,
-          gain: 1,
-        },
-      ],
-      /** Twelve far galaxies: small ellipses in star tints. */
       galaxies: [
-        { azDeg: 18, elDeg: 14, radiusDeg: 0.9, axisRatio: 0.22, angleDeg: 24, kind: 'lens' },
-        { azDeg: -78, elDeg: 22, radiusDeg: 0.7, axisRatio: 0.8, angleDeg: 0, kind: 'spiral' },
-        { azDeg: 152, elDeg: 9, radiusDeg: 0.55, axisRatio: 0.35, angleDeg: -40, kind: 'ellipse' },
-        { azDeg: 112, elDeg: -24, radiusDeg: 0.8, axisRatio: 0.7, angleDeg: 70, kind: 'spiral' },
-        { azDeg: -150, elDeg: 17, radiusDeg: 0.6, axisRatio: 0.28, angleDeg: 12, kind: 'lens' },
-        { azDeg: 41, elDeg: 27, radiusDeg: 0.5, axisRatio: 0.9, angleDeg: 0, kind: 'ellipse' },
-        { azDeg: -12, elDeg: -31, radiusDeg: 0.65, axisRatio: 0.6, angleDeg: -25, kind: 'spiral' },
-        { azDeg: 231, elDeg: 24, radiusDeg: 0.5, axisRatio: 0.4, angleDeg: 55, kind: 'ellipse' },
-        { azDeg: 96, elDeg: 31, radiusDeg: 0.45, axisRatio: 0.3, angleDeg: -62, kind: 'lens' },
-        { azDeg: -48, elDeg: 31, radiusDeg: 0.5, axisRatio: 0.75, angleDeg: 0, kind: 'spiral' },
-        { azDeg: 172, elDeg: -28, radiusDeg: 0.55, axisRatio: 0.5, angleDeg: 30, kind: 'ellipse' },
-        { azDeg: -112, elDeg: -19, radiusDeg: 0.6, axisRatio: 0.3, angleDeg: -8, kind: 'lens' },
-      ],
-      /** Three thin broken rings (old blast waves), each half its family's lit and half its rim. */
-      arcs: [
         {
-          azDeg: -122,
-          elDeg: 27,
-          radiusDeg: 15,
-          fromDeg: 15,
-          toDeg: 175,
-          widthDeg: 0.55,
-          family: 'mint',
-          strength: 0.85,
-          seed: 3.1,
+          azDeg: -10,
+          elDeg: 12,
+          radiusDeg: 2.6,
+          axisRatio: 0.8,
+          angleDeg: 25,
+          kind: 'spiral',
+          disc: 'hot',
+          core: 'warm',
+          gain: 1,
         },
         {
-          azDeg: 128,
+          azDeg: 96,
+          elDeg: 8,
+          radiusDeg: 2.2,
+          axisRatio: 0.26,
+          angleDeg: -18,
+          kind: 'lens',
+          disc: 'warm',
+          core: 'white',
+          gain: 1,
+        },
+        {
+          azDeg: 186,
+          elDeg: 8,
+          radiusDeg: 1.8,
+          axisRatio: 0.86,
+          angleDeg: 0,
+          kind: 'ellipse',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.9,
+        },
+        {
+          azDeg: -64,
+          elDeg: 7,
+          radiusDeg: 1.6,
+          axisRatio: 0.7,
+          angleDeg: -35,
+          kind: 'spiral',
+          disc: 'cool',
+          core: 'warm',
+          gain: 1,
+        },
+        {
+          azDeg: 18,
+          elDeg: 14,
+          radiusDeg: 1.2,
+          axisRatio: 0.3,
+          angleDeg: 24,
+          kind: 'lens',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.9,
+        },
+        {
+          azDeg: 152,
+          elDeg: 9,
+          radiusDeg: 1,
+          axisRatio: 0.4,
+          angleDeg: -40,
+          kind: 'ellipse',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.8,
+        },
+        {
+          azDeg: 96,
           elDeg: 31,
-          radiusDeg: 21,
-          fromDeg: 205,
-          toDeg: 318,
-          widthDeg: 0.65,
-          family: 'coral',
-          strength: 0.75,
-          seed: 5.7,
+          radiusDeg: 1.1,
+          axisRatio: 0.5,
+          angleDeg: -62,
+          kind: 'spiral',
+          disc: 'hot',
+          core: 'warm',
+          gain: 0.9,
         },
         {
-          azDeg: 22,
-          elDeg: 38,
-          radiusDeg: 12,
-          fromDeg: 100,
-          toDeg: 215,
-          widthDeg: 0.5,
-          family: 'lilac',
-          strength: 0.8,
-          seed: 8.2,
+          azDeg: -32,
+          elDeg: 26,
+          radiusDeg: 0.9,
+          axisRatio: 0.7,
+          angleDeg: -25,
+          kind: 'spiral',
+          disc: 'cool',
+          core: 'warm',
+          gain: 0.8,
         },
-      ],
-      /** Seven small clumps of gas. The butter one is the only butter in the sky. */
-      knots: [
-        { azDeg: -72, elDeg: 16, radiusDeg: 3.4, family: 'sky', seed: 1.1 },
-        { azDeg: 44, elDeg: 13, radiusDeg: 2.6, family: 'coral', seed: 2.2 },
-        { azDeg: 103, elDeg: 26, radiusDeg: 3, family: 'lilac', seed: 3.3 },
-        { azDeg: 160, elDeg: 14, radiusDeg: 3.6, family: 'mint', seed: 4.4 },
-        { azDeg: -165, elDeg: 22, radiusDeg: 2.8, family: 'sky', seed: 5.5 },
-        { azDeg: 250, elDeg: 12, radiusDeg: 2.4, family: 'butter', seed: 6.6 },
-        { azDeg: -8, elDeg: 24, radiusDeg: 2.2, family: 'mint', seed: 7.7 },
+        {
+          azDeg: 41,
+          elDeg: 27,
+          radiusDeg: 0.6,
+          axisRatio: 0.9,
+          angleDeg: 0,
+          kind: 'ellipse',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.8,
+        },
+        {
+          azDeg: 231,
+          elDeg: 24,
+          radiusDeg: 0.6,
+          axisRatio: 0.4,
+          angleDeg: 55,
+          kind: 'ellipse',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.8,
+        },
+        {
+          azDeg: -48,
+          elDeg: 31,
+          radiusDeg: 0.6,
+          axisRatio: 0.75,
+          angleDeg: 0,
+          kind: 'spiral',
+          disc: 'cool',
+          core: 'warm',
+          gain: 0.8,
+        },
+        {
+          azDeg: 172,
+          elDeg: -28,
+          radiusDeg: 0.7,
+          axisRatio: 0.5,
+          angleDeg: 30,
+          kind: 'ellipse',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.8,
+        },
+        {
+          azDeg: -112,
+          elDeg: -19,
+          radiusDeg: 0.7,
+          axisRatio: 0.3,
+          angleDeg: -8,
+          kind: 'lens',
+          disc: 'warm',
+          core: 'white',
+          gain: 0.8,
+        },
+        {
+          azDeg: -124,
+          elDeg: 8,
+          radiusDeg: 0.5,
+          axisRatio: 0.6,
+          angleDeg: 10,
+          kind: 'spiral',
+          disc: 'cool',
+          core: 'warm',
+          gain: 0.7,
+        },
+        {
+          azDeg: 4,
+          elDeg: -22,
+          radiusDeg: 0.9,
+          axisRatio: 0.6,
+          angleDeg: 20,
+          kind: 'spiral',
+          disc: 'hot',
+          core: 'warm',
+          gain: 0.9,
+        },
       ],
       /**
-       * What each quality tier bakes: the panorama in texels (4.5 MiB on low, 8 MiB otherwise:
-       * at 1024 x 512 a phone showed every steep crest as a stair, one texel being 13 pixels wide),
-       * how many of its rows are drawn in one frame, and which layers its shader keeps.
+       * What each quality tier bakes: the panorama in texels (4.5 MiB on low, 8 MiB otherwise)
+       * and how many of its rows are drawn in one frame. Every tier paints the same sky: a tier
+       * is only a size. (Not 1024 x 512 on low: on a phone one of its texels is 13 pixels wide,
+       * and a far galaxy would be four of them.)
        */
       tiers: {
-        low: {
-          panoWidth: 1536,
-          panoHeight: 768,
-          bandRows: 64,
-          far: false,
-          reliefOctaves: 0,
-          rag2: false,
-          wisp: false,
-        },
-        medium: {
-          panoWidth: 2048,
-          panoHeight: 1024,
-          bandRows: 64,
-          far: true,
-          reliefOctaves: 3,
-          rag2: false,
-          wisp: true,
-        },
-        high: {
-          panoWidth: 2048,
-          panoHeight: 1024,
-          bandRows: 64,
-          far: true,
-          reliefOctaves: 4,
-          rag2: true,
-          wisp: true,
-        },
+        low: { panoWidth: 1536, panoHeight: 768, bandRows: 64 },
+        medium: { panoWidth: 2048, panoHeight: 1024, bandRows: 64 },
+        high: { panoWidth: 2048, panoHeight: 1024, bandRows: 64 },
       },
     } satisfies SkyLook,
 
@@ -1584,8 +1628,8 @@ export const tuning = {
     /**
      * The chart under the star map: a grid of dots (`dotSpacingPx` apart, `dotRadiusPx` across,
      * CSS px) on a plane at `planeY` (u), and for each system a district: a disc in two flat
-     * steps of its family's gas, out to `districtOuter` of the system's reach, and a dashed ring
-     * (`ringDashPx`: dash and gap) in its base.
+     * steps of its family's dim tones (color.nebula), out to `districtOuter` of the system's
+     * reach, and a dashed ring (`ringDashPx`: dash and gap) in its base.
      */
     chart: {
       dotSpacingPx: 34,

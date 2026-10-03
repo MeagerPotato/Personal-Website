@@ -57,7 +57,7 @@ const unstamped = (snapshot: Snapshot): unknown => {
 };
 
 describe('a snapshot that has been away', () => {
-  it('no longer says that the baked sky was seen: a page opens on the old sky and fades', () => {
+  it('no longer says that the baked sky was seen: a page opens on navy and stars, and fades', () => {
     // A rebuild within the tab is handed the engine's own snapshot, and that one says so.
     const seen: Snapshot = { ...FLYING, skyRevealed: true };
     expect(parseSnapshot(stored(seen))).toEqual(FLYING);

@@ -6,8 +6,8 @@
  *     is 1, 2 or 5 times a power of ten, so a dot stays where it is while the map zooms and
  *     only every second (or fifth) one comes or goes
  *   2 a district for each system: a disc out past its reach and a disc at its reach, two flat
- *     steps of its family's gas, and a DASHED ring at its reach (a solid one reads as an
- *     orbit). The dashes are a whole number round the ring, so there is no seam
+ *     steps of its family's dim tones, and a DASHED ring at its reach (a solid one reads as
+ *     an orbit). The dashes are a whole number round the ring, so there is no seam
  *
  * Flat: every edge is one pixel soft and nothing is a gradient. The parts are laid over each
  * other as paint is, in DISPLAY space over the sky straight down (`uUnder`), which is how the

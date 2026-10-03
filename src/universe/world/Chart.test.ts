@@ -38,7 +38,7 @@ describe('the chart', () => {
     chart.dispose();
   });
 
-  it('gives each system a district where it is, in its family’s gas and its base', () => {
+  it('gives each system a district where it is, in its family’s dim tones and its base', () => {
     const chart = new Chart({ districts, map: { weight: 1, unitsPerPx: 1 } });
     const { uniforms, defines } = chart.object.material;
     expect(defines?.DISTRICTS).toBe(2);

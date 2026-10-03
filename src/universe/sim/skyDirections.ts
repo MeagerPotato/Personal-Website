@@ -2,7 +2,7 @@
  * WHERE THINGS ARE IN THE SKY, and the seven views the sky is judged from.
  *
  * The sky is at infinity, so a place in it is a direction: a unit vector, y up. Tables
- * (design/tuning.ts: the gas pools, the hero stars, the galaxies) give directions as two angles:
+ * (design/tuning.ts: the hero stars, the clusters, the galaxies) give directions as two angles:
  *
  *   azimuth    atan2(x, z), degrees: 0 is +Z, 90 is +X. The layout's bearings (degrees from +X
  *              toward +Z) convert as azimuth = 90 - bearing.
@@ -87,10 +87,11 @@ export interface SkyPose {
 export const SKY_POSES = {
   first: {
     yawDeg: -27.9,
-    pitchDeg: -17.4,
+    // The chase camera at rest: 4.4 u above the ship and looking 25 u ahead (tuning.chaseCam).
+    pitchDeg: -10,
     fovDeg: 55,
     exposure: 1,
-    what: 'the first frame at home: the chase camera, Projects a little right of centre and low',
+    what: 'the first frame at home: the chase camera, the horizon a third of the way down',
   },
   cruise: {
     yawDeg: -60,
@@ -139,6 +140,26 @@ export const SKY_POSES = {
 export type SkyPoseName = keyof typeof SKY_POSES;
 export const SKY_POSE_NAMES = Object.keys(SKY_POSES) as SkyPoseName[];
 
+/** A pose's camera: where it faces, its right and its up (unit vectors), and tan(fov / 2). */
+function cameraOf(pose: SkyPose): {
+  forward: Direction;
+  right: Direction;
+  up: Direction;
+  half: number;
+} {
+  const forward = directionOf(pose.yawDeg, pose.pitchDeg);
+  const yaw = pose.yawDeg * RAD;
+  // Right is level (no roll), a quarter turn of azimuth to the right of where the camera faces.
+  const right: Direction = [-Math.cos(yaw), 0, Math.sin(yaw)];
+  // Up completes the frame: right x forward.
+  const up: Direction = [
+    right[1] * forward[2] - right[2] * forward[1],
+    right[2] * forward[0] - right[0] * forward[2],
+    right[0] * forward[1] - right[1] * forward[0],
+  ];
+  return { forward, right, up, half: Math.tan((pose.fovDeg * RAD) / 2) };
+}
+
 /**
  * The direction through a point of a pose's picture: `u` and `v` from -1 to 1 across the view
  * (u to the right, v up), `aspect` its width over its height. (0, 0) is where the camera faces.
@@ -150,17 +171,7 @@ export function rayOf(
   v: number,
   aspect: number,
 ): [number, number, number] {
-  const forward = directionOf(pose.yawDeg, pose.pitchDeg);
-  const yaw = pose.yawDeg * RAD;
-  // Right is level (no roll), a quarter turn of azimuth to the right of where the camera faces.
-  const right: Direction = [-Math.cos(yaw), 0, Math.sin(yaw)];
-  // Up completes the frame: right x forward.
-  const up: Direction = [
-    right[1] * forward[2] - right[2] * forward[1],
-    right[2] * forward[0] - right[0] * forward[2],
-    right[0] * forward[1] - right[1] * forward[0],
-  ];
-  const half = Math.tan((pose.fovDeg * RAD) / 2);
+  const { forward, right, up, half } = cameraOf(pose);
   const a = u * half * aspect;
   const b = v * half;
   const x = forward[0] + right[0] * a + up[0] * b;
@@ -168,4 +179,21 @@ export function rayOf(
   const z = forward[2] + right[2] * a + up[2] * b;
   const length = Math.hypot(x, y, z);
   return [x / length, y / length, z / length];
+}
+
+/**
+ * Where a direction falls in a pose's picture, the other way round from `rayOf`: [u, v] as
+ * there (each from -1 to 1 inside the view), or null for a direction the camera does not face.
+ */
+export function pointOf(
+  pose: SkyPose,
+  direction: Direction,
+  aspect: number,
+): [number, number] | null {
+  const { forward, right, up, half } = cameraOf(pose);
+  const dot = (axis: Direction): number =>
+    direction[0] * axis[0] + direction[1] * axis[1] + direction[2] * axis[2];
+  const ahead = dot(forward);
+  if (ahead <= 1e-6) return null;
+  return [dot(right) / ahead / (half * aspect), dot(up) / ahead / half];
 }

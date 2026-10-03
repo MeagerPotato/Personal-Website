@@ -1,6 +1,6 @@
-// The baked sky (src/universe/world/SkyBake.ts): gas cliffs, a Milky Way and far galaxies, painted
+// The baked sky (src/universe/world/SkyBake.ts): the Milky Way's haze and far galaxies, painted
 // once into a panorama AFTER the first frame, so that it never holds the first frame up. The page
-// says where it is on <html data-sky>: `baking` (the old glows are still the sky), then `ready`.
+// says where it is on <html data-sky>: `baking` (the sky is navy and stars), then `ready`.
 // A lost WebGL context paints the same sky again, and a visitor who asked for less motion gets
 // it with a cut.
 
@@ -46,21 +46,37 @@ async function pixelAt(page: Page, x: number, y: number): Promise<number[]> {
   return [r, g, b];
 }
 
-/** Three places in the sky that the first frame at home leaves free of bodies, names and HUD. */
-async function skyPoints(page: Page): Promise<Array<[number, number]>> {
+/**
+ * Places in the sky of the first frame at home, as shares of the view. Three in THE MILKY WAY'S
+ * HAZE, where the panorama's light is: across the top of a wide view, a little lower on a phone
+ * (its chips take two rows). And one of BARE sky low in the frame, where the panorama adds
+ * nothing. All clear of bodies, names, the HUD and, in the lists these tests draw (the low tier's,
+ * for a mouse and for a finger), of every star.
+ */
+const HAZE_WIDE = [
+  [0.594, 0.119],
+  [0.375, 0.1375],
+  [0.781, 0.119],
+] as const;
+const HAZE_TALL = [
+  [0.583, 0.22],
+  [0.388, 0.256],
+  [0.68, 0.238],
+] as const;
+const BARE = [0.9, 0.56] as const;
+
+function place(page: Page, [u, v]: readonly [number, number]): [number, number] {
   const size = page.viewportSize() ?? { width: 1280, height: 800 };
-  return (
-    [
-      [0.9, 0.56],
-      [0.78, 0.64],
-      [0.2, 0.6],
-    ] as const
-  ).map(([u, v]) => [Math.round(size.width * u), Math.round(size.height * v)]);
+  return [Math.round(size.width * u), Math.round(size.height * v)];
 }
 
+/** The haze, as the screen shows it at its three places. */
 async function skyAt(page: Page): Promise<number[][]> {
+  const size = page.viewportSize() ?? { width: 1280, height: 800 };
   const pixels: number[][] = [];
-  for (const [x, y] of await skyPoints(page)) pixels.push(await pixelAt(page, x, y));
+  for (const share of size.width > size.height ? HAZE_WIDE : HAZE_TALL) {
+    pixels.push(await pixelAt(page, ...place(page, share)));
+  }
   return pixels;
 }
 
@@ -90,6 +106,10 @@ test.describe('for a visitor who asked for less motion', () => {
     await expect.poll(async () => apart(await skyAt(page), arrived)).toBeLessThanOrEqual(3);
     const before = await skyAt(page);
     expect(apart(before, arrived)).toBeLessThanOrEqual(3);
+    // And it is there: the haze lifts the navy by some forty codes of blue at these places
+    // (bare sky is 35 or so, the haze 75 and more), so a sky that never came would not pass.
+    const [, , bare = 0] = await pixelAt(page, ...place(page, BARE));
+    for (const [, , blue = 0] of before) expect(blue - bare).toBeGreaterThanOrEqual(15);
 
     const lost = await page.evaluate(() => {
       const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');

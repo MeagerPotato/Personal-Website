@@ -115,9 +115,9 @@ export type UniverseEvents = {
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
   /**
-   * The baked sky (gas, the Milky Way, far galaxies): `baking` from the first frame, while the
-   * old glows are still the sky, then `ready`, or `off` where it cannot be painted (the old sky
-   * stays). Again after every rebuild of the engine.
+   * The baked sky (the Milky Way's haze, far galaxies): `baking` from the first frame, while
+   * the sky is still only navy and stars, then `ready`, or `off` where it cannot be painted (it
+   * stays navy and stars). Again after every rebuild of the engine.
    */
   sky: { state: SkyState };
   /** The engine cannot continue; the web layer should fall back to plain mode. */

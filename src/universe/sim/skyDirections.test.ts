@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { tuning } from '../design/tuning';
 import {
   azimuthBetween,
   azimuthDeg,
   directionOf,
   elevationDeg,
+  pointOf,
   rayOf,
   SKY_POSE_NAMES,
   SKY_POSES,
@@ -81,5 +83,31 @@ describe('the seven views', () => {
     const between = Math.acos(top[0] * bottom[0] + top[1] * bottom[1] + top[2] * bottom[2]);
     expect((between * 180) / Math.PI).toBeCloseTo(pose.fovDeg, 9);
     expect(length(top)).toBeCloseTo(1, 12);
+  });
+
+  it('find the point of the picture a direction falls on, the other way round', () => {
+    for (const name of SKY_POSE_NAMES) {
+      const pose = SKY_POSES[name];
+      for (const [u, v] of [
+        [0, 0],
+        [0.7, -0.4],
+        [-1, 1],
+        [1.6, 0.2],
+      ] as const) {
+        const point = pointOf(pose, rayOf(pose, u, v, 1.6), 1.6);
+        expect(point?.[0], name).toBeCloseTo(u, 9);
+        expect(point?.[1], name).toBeCloseTo(v, 9);
+      }
+      // What lies behind the camera is in no picture.
+      const ahead = rayOf(pose, 0, 0, 1.6);
+      expect(pointOf(pose, [-ahead[0], -ahead[1], -ahead[2]], 1.6), name).toBeNull();
+    }
+  });
+
+  it('start with the chase camera at rest: looking down by its own height over its reach', () => {
+    // 4.4 u above the ship, looking at a point 11 + 14 u ahead of itself (tuning.chaseCam).
+    const { back, up, lookAheadBase } = tuning.chaseCam;
+    const pitch = (-Math.atan2(up, back + lookAheadBase) * 180) / Math.PI;
+    expect(SKY_POSES.first.pitchDeg).toBeCloseTo(pitch, 1);
   });
 });

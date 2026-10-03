@@ -1,57 +1,16 @@
 /**
  * The shapes of the tables in `tuning.look` and of the star classes in `tuning.starfield`: the
  * "flat worlds, deep light" pass (docs/DESIGN.md, "Deep light"). Types only, so that a table row
- * in design/tuning.ts that names a colour family, a star tint or a biome that does not exist is
- * a type error and not a black patch of sky. The systems that read each table arrive step by
- * step and own what the numbers MEAN; until one does, its block is only data.
+ * in design/tuning.ts that names a star tint, an air or a biome that does not exist is a type
+ * error and not a black patch of sky. The systems that read each table own what the numbers
+ * MEAN.
  *
- * Colours are never numbers here: a row names a token key (`family: 'mint'`, `tint: 'hot'`).
+ * Colours are never numbers here: a row names a token key (`air: 'terra'`, `tint: 'hot'`).
  */
 import type { QualityTier } from '../core/quality/tiers';
-import type { AirKey, BiomeKey, StarKey, ThemeKey } from './tokens';
+import type { AirKey, BiomeKey, StarKey } from './tokens';
 
-/** One ridgeline of a gas massif, far to near. Angles in degrees; the rest are shares, 0 to 1. */
-export interface SkyRidge {
-  /** The crest's offset from its pool's centre elevation (times the pool's `height`). */
-  readonly offDeg: number;
-  /** How far the crest swings about that (times `height` and a noise of about -0.8 to +1). */
-  readonly ampDeg: number;
-  /** That noise's frequency, cycles per radian of azimuth. */
-  readonly freq: number;
-  /** Half the width of the crest's soft edge: small is crisp (near), large is hazy (far). */
-  readonly edgeDeg: number;
-  /** Width of the lit line under the crest. */
-  readonly rimDeg: number;
-  /** Width of the soft light that falls down the face. */
-  readonly softDeg: number;
-  /** How much of the dark gas colours the ridge's body. */
-  readonly body: number;
-  /** How far the crest line goes from `lit` toward `rim`. */
-  readonly edge: number;
-  /** The key light on this ridge: scales the crest line, the soft light and the relief. */
-  readonly key: number;
-}
-
-/** One gas massif, at the bearing of its system from home. */
-export interface SkyPool {
-  readonly id: string;
-  /** Azimuth = atan2(x, z), degrees: 90 minus the layout's bearing. */
-  readonly azDeg: number;
-  readonly elDeg: number;
-  /** Half-width in degrees of arc. */
-  readonly halfWidthDeg: number;
-  readonly strength: number;
-  readonly family: ThemeKey;
-  /** A second family blotched in, over `altShare` of the area. */
-  readonly altFamily: ThemeKey;
-  readonly altShare: number;
-  readonly seed: number;
-  /** Scales the ridges' offsets and swings: a smaller pool is lower. */
-  readonly height: number;
-  /** The family's loudness (mint's ramp is the brightest, so it is turned down). */
-  readonly gain: number;
-}
-
+/** A far galaxy: a small ellipse of light in two star tints, baked into the sky. */
 export interface SkyGalaxy {
   readonly azDeg: number;
   readonly elDeg: number;
@@ -59,62 +18,64 @@ export interface SkyGalaxy {
   readonly radiusDeg: number;
   /** Minor over major. */
   readonly axisRatio: number;
+  /** How far the major axis is turned from level, round the galaxy's own direction. */
   readonly angleDeg: number;
   /** A lens (edge-on) has a dark lane, a spiral two arms, an ellipse neither. */
   readonly kind: 'lens' | 'spiral' | 'ellipse';
+  /** The tint of its disc, and of its nucleus. */
+  readonly disc: StarKey;
+  readonly core: StarKey;
+  /** Its loudness, 0 to 1. */
+  readonly gain: number;
 }
 
-/** A thin broken ring: an old blast wave. */
-export interface SkyArc {
-  readonly azDeg: number;
-  readonly elDeg: number;
-  /** The ring's angular radius round its centre. */
-  readonly radiusDeg: number;
-  /** The angles it is drawn over, round the centre. */
-  readonly fromDeg: number;
-  readonly toDeg: number;
-  readonly widthDeg: number;
-  readonly family: ThemeKey;
-  readonly strength: number;
-  readonly seed: number;
-}
-
-/** A small stepped clump of gas with a pinprick in it. */
-export interface SkyKnot {
-  readonly azDeg: number;
-  readonly elDeg: number;
-  readonly radiusDeg: number;
-  readonly family: ThemeKey;
-  readonly seed: number;
-}
-
-/** What one quality tier bakes: the panorama's size and which layers its shader keeps. */
+/** What one quality tier bakes: the panorama's size. Every tier paints the same sky. */
 export interface SkyTier {
   readonly panoWidth: number;
   readonly panoHeight: number;
   /** Rows drawn in one frame while the panorama is baked. */
   readonly bandRows: number;
-  /** Far galaxies, arcs and knots. */
-  readonly far: boolean;
-  /** 0 leaves the relief out. */
-  readonly reliefOctaves: number;
-  /** The second, finer set of teeth on every crest. */
-  readonly rag2: boolean;
-  /** Steam above the far crest. */
-  readonly wisp: boolean;
 }
 
-/** The Milky Way's great circle. All degrees. */
+/**
+ * The Milky Way: a river of stars along a great circle, and the faint haze under them. The bake
+ * (design/shaders/skyBake.ts) paints the haze and the star list (sim/starList.ts) lays the stars
+ * from these same numbers; sim/milkyWay.ts says what each does. Longitudes run round the
+ * circle, degrees, from its level point a quarter turn of azimuth on from its pole.
+ */
 export interface SkyBand {
-  /** The pole is tilted this far from straight up... */
+  /** The circle's pole is tilted this far from straight up (never 0)... */
   readonly tiltDeg: number;
   /** ...toward this azimuth. */
   readonly poleAzDeg: number;
-  /** The haze's width off the circle. */
-  readonly sigmaDeg: number;
-  /** The warm bulge: its azimuth along the circle, and its width. */
-  readonly coreAzDeg: number;
-  readonly coreSigmaDeg: number;
+  /** Scales the haze before it is cut off at 1. */
+  readonly gain: number;
+  /** The cross-section: a narrow bank and a wide one, each exp(-(y / sigmaDeg)^2) times its weight. */
+  readonly banks: readonly [
+    narrow: readonly [sigmaDeg: number, weight: number],
+    wide: readonly [sigmaDeg: number, weight: number],
+  ];
+  /**
+   * The river's middle wanders off the circle by a1 sin(2 lon + p1) + a2 sin(5 lon + p2): the
+   * two swings in degrees, the two phases in radians, as [a1, p1, a2, p2].
+   */
+  readonly meanderDeg: readonly [a1: number, p1: number, a2: number, p2: number];
+  /** How bright the river is along its length: this much everywhere, plus the clumps. */
+  readonly base: number;
+  readonly clumps: ReadonlyArray<readonly [lonDeg: number, sigmaDeg: number, weight: number]>;
+  /** The warm bulge: where along the circle, how wide, and how far the haze goes toward cream. */
+  readonly core: { readonly lonDeg: number; readonly sigmaDeg: number; readonly mix: number };
+  /**
+   * The dark lane: its middle runs offsetDeg[0] off the river's, swinging by [1] and [2]; it is
+   * widthDeg[0] wide, swinging by [1]. It darkens the haze by `dark` at most and hides `hide`
+   * of the stars in it.
+   */
+  readonly lane: {
+    readonly offsetDeg: readonly [number, number, number];
+    readonly widthDeg: readonly [number, number];
+    readonly dark: number;
+    readonly hide: number;
+  };
 }
 
 /** `tuning.look.sky`: design/tuning.ts says what each number does. */
@@ -125,43 +86,10 @@ export interface SkyLook {
   readonly exposureMap: number;
   readonly exposureOmega: number;
   readonly bandSlowMs: number;
-  readonly warpAzDeg: number;
-  readonly warpFreq: number;
-  readonly poolFall: number;
-  readonly seam: number;
-  readonly dropDeg: number;
-  readonly ragDeg: number;
-  readonly ragFreq: number;
-  readonly ragAzDeg: number;
-  readonly ragAzFreq: number;
-  readonly rag2Deg: number;
-  readonly rag2Freq: number;
-  readonly reliefOctaves: number;
-  readonly relief: number;
-  readonly reliefFreq: number;
-  readonly reliefTap: number;
-  readonly wisp: number;
-  readonly glowHeightDeg: number;
-  readonly glowLateral: number;
-  readonly glowFilament: number;
-  readonly glowGain: number;
-  readonly glowSteps: number;
-  readonly glowSoft: number;
-  readonly heart: number;
-  readonly heartMix: number;
-  readonly softRim: number;
-  readonly rimGain: number;
   readonly stripDeg: readonly [none: number, full: number];
   readonly ceilingY: number;
-  readonly bandGain: number;
-  readonly bandSoft: number;
-  readonly arc: number;
   readonly band: SkyBand;
-  readonly ridges: readonly [far: SkyRidge, mid: SkyRidge, near: SkyRidge];
-  readonly pools: readonly SkyPool[];
   readonly galaxies: readonly SkyGalaxy[];
-  readonly arcs: readonly SkyArc[];
-  readonly knots: readonly SkyKnot[];
   readonly tiers: Readonly<Record<QualityTier, SkyTier>>;
 }
 
@@ -174,14 +102,22 @@ export interface HeroStar {
   readonly tint: StarKey;
 }
 
-/** A Gaussian cloud of stars. */
+/** A Gaussian cluster of stars. */
 export interface StarCluster {
   readonly azDeg: number;
   readonly elDeg: number;
   readonly sigmaDeg: number;
   readonly count: number;
   readonly tint: StarKey;
+  /**
+   * The system (its id in the galaxy) whose bearing from home this cluster stands at: the sky's
+   * compass. Left out for a cluster that marks nothing.
+   */
+  readonly system?: string;
 }
+
+/** A share of each star tint: [token name under color.star, weight]. */
+export type StarPalette = ReadonlyArray<readonly [StarKey, number]>;
 
 /** One class of stars. Brightness is peak linear luminance; sizes are CSS px at `scaleRows`. */
 export interface StarClass {
@@ -199,8 +135,26 @@ export interface StarClass {
   readonly spikeLenPx?: number;
   readonly spikeGain?: number;
   readonly spikeThicknessPx?: number;
+  /** A star's spikes are this share of `spikeLenPx` long, drawn evenly from the range. */
+  readonly sizeRange?: readonly [number, number];
+  /** The class's own tints. `starfield.palette` when left out. */
+  readonly palette?: StarPalette;
   /** Share of the class drawn along the Milky Way instead of anywhere. */
   readonly bandShare: number;
+}
+
+/**
+ * Double stars: a bright primary and a fainter companion a hair away, in another temperature.
+ * `tints`: the pairs of [primary, companion] a double is drawn from.
+ */
+export interface StarPairs {
+  readonly count: number;
+  /** How far apart the two are, degrees: [least, most]. */
+  readonly sepDeg: readonly [number, number];
+  /** Their ranges of brightness. */
+  readonly primaryY: readonly [number, number];
+  readonly companionY: readonly [number, number];
+  readonly tints: ReadonlyArray<readonly [primary: StarKey, companion: StarKey]>;
 }
 
 /** A tone of a system's family, as the suns' corona names it. */
