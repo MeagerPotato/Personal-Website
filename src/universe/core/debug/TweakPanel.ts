@@ -19,6 +19,8 @@ const LIVE_BLOCKS = [
   'orbitCam',
   'cameraRig',
   'map',
+  'instruments',
+  'minimap',
   'ship',
   'shading',
 ] as const;

@@ -472,6 +472,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
+| What the flight deck shows | nowhere: `ui/FlightDeck.ts` reads the ship, the navigator and the galaxy's positions each frame, through `sim/instruments.ts` | a picture of state that has its owners: nothing to keep, nothing a rebuild could lose |
+| Which system the ship is in, and what the minimap looks at | `main.ts` (`systemAt`, once a frame) and `ui/MiniMap.ts` (`miniScope`): derived from where the ship is and where it is headed; not in the snapshot | it follows from the ship, so a rebuilt engine has it again with its first frame. A journey's line and seconds are the autopilot's own (`surroundings.cruise`), read each frame |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
 | Design values | `design/tokens.ts`, `design/tuning.ts` | one place to look, one place to edit |
@@ -496,9 +498,19 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   at its own body, which meets the shell only from nearer than the brake could stop in; a chase
   camera that never swings faster than its limit, nor under reduced motion than a pilot turns;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
-  and a crowded one only ever fades; a camera blend that stays level however far round it turns.
+  and a crowded one only ever fades; a camera blend that stays level however far round it turns;
+  the flight deck's instruments (a bearing that never reads 360, a g that is 3.47 from rest at
+  full thrust, a countdown that never rises, a system the ship stays "in" across its edge); and
+  the minimap's maths, in the real galaxy and in grown ones of 6 and 8 systems
+  (`tests/minimap-galaxy.test.ts`): at every scope and size every body a ship can dock at is
+  inside the frame and every other system is one pin at the rim, in a galaxy wider than tall and
+  in one taller than wide.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
-  history rules, the panel, the swap contract, the hint card, the announcer.
+  history rules, the panel, the swap contract, the hint card, the announcer. So does the DOM the
+  engine makes (`src/universe/ui/*.test.ts`): the names, the prompt, the star map's controls, and
+  the two pictures, the flight deck and the minimap (hidden from assistive technology, nothing
+  to focus, what each writes and that it writes nothing while nothing changes; for the minimap,
+  what a press on a mark, on nothing and on the body the ship is at does).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
@@ -517,7 +529,11 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   context taken away mid-visit (the engine rebuilds in place: same page, same dock, the map still
   open); pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card;
   the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
-  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
+  pipeline), none of which flies the ship or changes the URL; the flight deck and the minimap
+  (`deck.spec.ts`): where they sit and what they keep clear of, the strip on a phone, that Tab
+  never lands in either, a press on a mark of the minimap flying there with its line and its
+  seconds, a press on its empty ground opening the star map, and both back after a lost context;
+  axe with no serious issue on any page
   in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
   44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
   they wait for outcomes, never for seconds.

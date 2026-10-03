@@ -35,7 +35,12 @@ Allen's profiles elsewhere (GitHub, LinkedIn) circle home as **relays** nothing 
 names are real links, and pointing at one only brings its link forward. A first-time visitor gets
 a **hint card**. **The star map** (`M`, the Map button, scroll out) is
 Phase 3's first step and is built: another way of LOOKING at the same world, which the navigator,
-the URL and the panel know nothing about. **The systems sit close together** (the honeycomb
+the URL and the panel know nothing about. **The flight deck and the minimap** are built: KSP's
+cluster at the bottom centre (ball, speed, heading, throttle and g, two lamps), which only reads
+the simulation (`sim/instruments.ts`) and shows whenever the ship is not docked; and a minimap at
+the bottom right, the star map's maths at another size (`sim/minimap.ts`), whose marks fly the
+ship there, with the way and the seconds of a journey drawn on it. A phone has a strip in the Map
+button's row, and no minimap. **The systems sit close together** (the honeycomb
 "cluster"), the autopilot docks every journey in today's galaxy of four systems (median 3.0 s,
 p90 4.1 s, the slowest 6.2 s, since the emblem worlds' solids reach past their radii), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
@@ -273,6 +278,16 @@ which is hidden from assistive technology. What is only a picture of things real
 offer (the flight deck, `ui/FlightDeck.ts`; the minimap, `ui/MiniMap.ts`) goes there too,
 `aria-hidden`, with nothing focusable inside. The deck reads the simulation and asks the navigator
 for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on the canvas.
+
+**The deck only reads; add an instrument.** A read-out is a pure function in
+`sim/instruments.ts` with a test (an instrument never shows a number the simulation does not
+have), an element `ui/FlightDeck.ts` makes, and its look in the stylesheet (the drawing carries
+classes and data attributes only). The deck never asks the navigator for anything and gets no
+button: what acts is the prompt. Whether it shows and how big it is are `deckShows` and
+`deckLayout`, never a media query; the minimap is there wherever the deck has its full size, and
+asks the deck. The minimap (`ui/MiniMap.ts`, maths in `sim/minimap.ts`) never gets a rule the
+star map lacks: the same view, the same rule for sizes, the same picking, and a press on it is
+`pickRow`. Neither keeps anything a rebuild could lose, so neither has a snapshot field.
 
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
