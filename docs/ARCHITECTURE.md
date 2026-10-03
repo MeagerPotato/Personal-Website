@@ -470,7 +470,12 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   `onAnchor` (for such a link, for Back and Forward between two fragments, for one typed into the
   address bar), and its listener shows the part: in the panel and the sheet it scrolls there,
   and in the deck the card that holds it opens. The panel and the ship hear nothing, because the
-  page did not change.
+  page did not change. The same place is gone to when a page ARRIVES at a URL with a fragment
+  (`arrive` in `shell/cards.ts`: every entry's scroll is restored by hand, so on a reload
+  Chromium follows no fragment, and without this a reload at `/about/#work` showed the top of
+  the page in the side panel and the sheet), unless something has scrolled already; and when
+  the window makes a deck one column (`relay`), where the card that was open is the reader's
+  place.
 - **The deck** (`shell/deck.ts`, `shell/cards.ts`, "the deck" in the stylesheet). One content
   box, three layouts, and which one is a media query alone (`DECK`: at least 80rem wide and 36rem
   tall; `deck.test.ts` and `panel-inset.test.ts` read the stylesheet and hold it to the code).
@@ -480,18 +485,26 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   and writes three values on `<html>` (`data-card-open`, the card's place among the sections;
   `data-card-side`; `--deck-mates`, how many boxes share its column), and CSS does the rest: a
   card is a stub (the overview), a chip (another card is open) or the open card, which scrolls
-  inside itself. Nothing is ever written inside `<main>`, so a soft navigation still ends in
-  the DOM a hard one builds (invariant 11). Every change of card is `router.anchor(key | null)`
+  inside itself. While that card has a pixel or more of what it holds under its cut (the space
+  under its last line, its own padding, is not more to read), `<html>` also carries
+  `data-card-more` (`more()`, asked again by every sync and by the card's own scroll, which is
+  heard on its way down to it, since a scroll does not bubble): the stylesheet fades the card's
+  last lines, with a box that takes no room, so the card measures the same with it and
+  without. Nothing is ever written inside `<main>`, so a soft navigation still ends in the DOM
+  a hard one builds (invariant 11). Every change of card is `router.anchor(key | null)`
   and then `cards.sync()`, whoever asks: a press on a card or its title, the wheel (one pure
   reducer, `wheelStep`: a gesture that begins with the open card at its end steps to the next
   card, any other scrolls the card, wherever the pointer is), the scroll keys (`keyStep`) and
   `Esc`, which closes a card before it leaves the page (`panel.ts` asks `onEscape`). After a
-  step the focus moves (to the card's title, if it was in `<main>`) or the announcer says the
-  card's name and place, never both; and the keyboard's focus never rests on something cut off:
+  step the focus moves (to the card's title, if it was in `<main>`; back among all of them, to
+  the title of the card it has just left, which wears the focus ring and opens it again) or the
+  announcer says the card's name and place, never both: a focus that is on that title already
+  does not move, so there the announcer speaks. And the keyboard's focus never rests on
+  something cut off:
   focus inside a card that is not open opens it. The listeners start with the router and the
   panel, before the engine arrives, so the cards work while the world loads. The engine hears
   two things: what the cards leave free (`setPanelInset`, re-measured in the same task as the
-  change, since nothing in the deck moves by width, height or position) and the deck itself
+  change, since no card in the deck moves by width, height or position) and the deck itself
   (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
   which card is open), which gives the wheel to the cards, tells the orbit camera what to
   face and gives every card its leader (section 4). A change of card the visitor makes is also
@@ -501,6 +514,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   first load, a navigation and a resize are not carried, and nothing is under reduced motion.
   The engine is told the cards' FINAL places at once, so the leaders wait: they step aside for
   as long as the cards travel (`tokens.motion.base` on both sides) and are drawn anew then.
+  Only a journey makes them wait (another card open, or other cards: `travels` in
+  `ui/Leaders.ts`); the same deck told again because it was measured again (a resize, the
+  typeface arriving) is followed at once. A journey that is over is let go of (`onfinish`): an
+  animation holds its card, and after a navigation the page that card was in.
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered

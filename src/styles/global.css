@@ -3618,18 +3618,23 @@ main > .resume-intro > .card-title--quiet {
    * 2i <= M), and `--deck-mates` is how many cards share the open one's column. THREE
    * DECLARATIONS ARE LOAD-BEARING, and each says so where it stands: `min-height` on every card,
    * the `- 1px` in both caps, and `overflow: clip` on a stub. Check 1280 x 576 and 1920 x 1080
-   * after touching any of it. Nothing here moves by width, height or position (those change at
-   * once, so that the shell can measure where everything has ended up in the same task).
+   * after touching any of it. No card here moves by width, height or position (those change at
+   * once, so that the shell can measure where everything has ended up in the same task); the
+   * Map button and the dock prompt, which nothing measures, do slide to their new middle.
    */
   @media (min-width: 80rem) and (min-height: 36rem) {
     html[data-mode='universe'] .panel:has(> main > [data-card]) {
       /* Sizes, not tokens. A column of stubs and chips; the open card's column (the panel's own
          width, so whatever fits the panel fits the card); the stage's margin (the stage is at
-         most 120rem wide); a title row, a 44 px target; the most a stub takes. */
+         most 120rem wide); a title row, a 44 px target; the space under a stub's text, which is
+         how much of a cut stub fades; a row of keys at a stub's foot; and the most a stub takes
+         where an engine cannot size it by what it holds (the guard under the stub's rule). */
       --deck-col: clamp(18rem, 24vw, 22rem);
       --deck-open: min(30rem, 40vw);
       --deck-inline: max(var(--space-6), calc((100vw - 120rem) / 2));
       --chip-h: 2.75rem;
+      --stub-foot: var(--space-6);
+      --stub-keys: calc(1.5 * var(--text-narrow-sm) + 2 * var(--space-3));
       --stub-max: clamp(7.5rem, 20vh, 11rem);
       --deck-gap: var(--space-3);
       --w-left: var(--deck-col);
@@ -3729,6 +3734,12 @@ main > .resume-intro > .card-title--quiet {
      * so its text is set a size down, all of it at one size. --edge is its hairline (a mouse over
      * it sets that; the open card holds its own, --edge-held); --title-* and --ring-* are what its
      * title row reads (below), which the open card sets otherwise.
+     *
+     * HOW TALL A STUB IS: as tall as what it holds, while its column has the room. Every stub of
+     * a column grows from a title row at the same pace, and stops at its own height
+     * (max-content); so a stub is cut only in a column that is full, and there the ones still
+     * growing share what is left equally. A page with one section shows all of it (Contact); a
+     * column of five shows the start of each.
      */
     html[data-mode='universe'] main > [data-card] {
       --text-base: var(--text-narrow-sm);
@@ -3740,12 +3751,13 @@ main > .resume-intro > .card-title--quiet {
       display: block;
       width: var(--w-right);
       /* LOAD-BEARING: the min-height. A flex item's automatic minimum is its content, and one
-         card taller than the column would wrap into a third column. */
+         card taller than the column would wrap into a third column. (So does the basis: what a
+         column wraps by is each card's basis, a title row, never what the card holds.) */
       flex: 1 1 var(--chip-h);
       min-height: var(--chip-h);
-      max-height: var(--stub-max);
+      max-height: max-content;
       margin: 0;
-      padding: 0 var(--space-4) var(--space-3);
+      padding: 0 var(--space-4) var(--stub-foot);
       /* LOAD-BEARING: clip, not hidden. Nothing may scroll a stub, not even the focus. */
       overflow: clip;
       border: 1px solid var(--edge-held, var(--edge, var(--hud-edge)));
@@ -3759,6 +3771,21 @@ main > .resume-intro > .card-title--quiet {
       pointer-events: auto;
       /* The right column a moment after the left. */
       animation: card-in var(--motion-base) var(--motion-ease-out) 80ms backwards;
+    }
+
+    /*
+     * The guard. A box sized by what it holds in the block axis (max-content as a max-height)
+     * is what Chromium and WebKit do, and both were run. Gecko has read such a keyword there as
+     * "none": a stub would be stretched over its whole share of the column, a plate far taller
+     * than its text. Where the engine is Gecko a stub keeps a fixed cap instead, as it had
+     * before stubs grew: it may be cut with room to spare, and never fills a column. NOT RUN:
+     * there was no Firefox on the machine this was built on. Take the guard out once Firefox is
+     * seen to stop a stub at its text.
+     */
+    @supports (-moz-appearance: none) {
+      html[data-mode='universe'] main > [data-card] {
+        max-height: var(--stub-max);
+      }
     }
 
     /* The left column: the head, and the sections that `sideOf` puts under it. */
@@ -3879,7 +3906,9 @@ main > .resume-intro > .card-title--quiet {
       padding: 0 var(--space-4);
       overflow: hidden;
       background: none;
-      line-height: var(--title-h);
+      /* The row's hairline is part of its height, and the words' line is the rest: so the row
+         is as tall by what it holds as by its `height`, which is what a stub is sized by. */
+      line-height: calc(var(--title-h) - 1px);
       text-overflow: ellipsis;
     }
 
@@ -3954,15 +3983,17 @@ main > .resume-intro > .card-title--quiet {
       display: block;
     }
 
-    /* A stub's text fades into its plate, instead of being cut through a line: and so does a
-       planet's dot on its route line, which stands a layer above the text (z-index: 1). */
+    /* A cut stub's text fades into its plate, instead of being cut through a line: and so does a
+       planet's dot on its route line, which stands a layer above the text (z-index: 1). The fade
+       is never taller than the space under a stub's text (--stub-foot): on a stub that shows
+       all it holds it lies over that space, and over none of its words. */
     html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
       content: '';
       position: absolute;
       z-index: 1;
       inset: auto 0 0;
       width: auto;
-      height: clamp(0.75rem, 25%, 2.25rem);
+      height: clamp(0.75rem, 25%, var(--stub-foot));
       border-radius: 0;
       background: linear-gradient(transparent, var(--ground) 85%);
       pointer-events: none;
@@ -3972,12 +4003,65 @@ main > .resume-intro > .card-title--quiet {
      * A stub with no room for a line of its text is its title alone, as a chip is (the two
      * under a head with crumbs and a lede, in a window 576 px tall): its title row takes the
      * whole card, the title in the middle of it, and what the card holds is below the cut. The
-     * product is a switch: far under the row's own height in a stub of 72 px or more (58 inside
+     * product is a switch: far under the row's own height in a stub of 72 px or more (46 inside
      * its hairlines and the space under its text), far over the card's in a shorter one, and
      * steep enough that no height a layout can have (they come in 64ths of a px) is between.
      */
     html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child) > h2[id] {
-      height: clamp(var(--title-h), calc((3.625rem - 100%) * 99999), calc(100% + var(--space-3)));
+      height: clamp(var(--title-h), calc((2.875rem - 100%) * 99999), calc(100% + var(--stub-foot)));
+    }
+
+    /*
+     * A stub that ENDS with its actions (the resume's Download) keeps them in sight however
+     * little of it shows: one row of keys at its foot, and what lies between its title and them
+     * fades out behind them. The order is still the page's: title, text, actions. The room the
+     * row takes is a margin under the text before it and never the stub's own padding (a card's
+     * padding is the least it can be, and a column wraps by that), so a stub that shows all it
+     * holds reads as it does with the keys in the flow. The same switch as the title's, a row of
+     * keys further on: a stub with no room for a line of its text over the keys lets them go
+     * under the cut with the rest, and is a stub like any other.
+     */
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child):has(> .actions:last-child) {
+      /* The row of keys and the space under it; that and the fade over it; and the switch, 0 or
+         more in a stub that has the room (100% is the stub inside its hairlines). */
+      --keys-room: calc(var(--stub-keys) + var(--space-3));
+      --keys-foot: calc(var(--stub-foot) + var(--keys-room));
+      --keys-in: calc((100% - 2.875rem - var(--keys-foot)) * 99999);
+    }
+
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child)
+      > :has(+ .actions:last-child) {
+      margin-bottom: var(--keys-room);
+    }
+
+    /* The fade is then the whole foot: the text fades over the first of it, and the rest is
+       plate for the keys to stand on. */
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child):has(> .actions:last-child)::after {
+      height: clamp(
+        clamp(0.75rem, 25%, var(--stub-foot)),
+        calc(var(--keys-in) + var(--keys-foot)),
+        var(--keys-foot)
+      );
+      background: linear-gradient(transparent, var(--ground) min(85%, var(--stub-foot)));
+    }
+
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child)
+      > .actions:last-child {
+      position: absolute;
+      z-index: 2;
+      right: var(--space-4);
+      bottom: min(var(--space-3), calc(var(--keys-in) + var(--space-3)));
+      left: var(--space-4);
+      flex-wrap: nowrap;
+      margin: 0;
     }
 
     /* One card is open: every other card is a chip, its title row and nothing more. */
@@ -4050,21 +4134,86 @@ main > .resume-intro > .card-title--quiet {
       --ring-edge: var(--color-focus);
       --ring-fill: var(--color-focus);
       --edge-held: var(--hud-edge);
+      /* It is the one card with a fade for what is under its cut (the rule after this one):
+         how tall that is, and the space under what the card holds, which the fade reaches down
+         through. */
+      --more: '';
+      --more-h: var(--space-12);
+      --open-foot: var(--space-4);
+      --keys-position: sticky;
 
       flex: 0 1 auto;
       /* LOAD-BEARING: the 1px, as for the head. */
       max-height: calc(100% - var(--deck-mates, 0) * (var(--chip-h) + var(--deck-gap)) - 1px);
-      padding-bottom: var(--space-4);
+      padding-bottom: var(--open-foot);
       overflow-y: auto;
       overscroll-behavior: contain;
-      /* Whatever is scrolled to in it (a link the keyboard lands on) stops under its title. */
+      /* Whatever is scrolled to in it (a link the keyboard lands on) stops under its title, and
+         over the fade at its foot. */
       scroll-padding-top: var(--title-h);
+      scroll-padding-bottom: var(--more-h);
       color: var(--color-ink-high);
       -webkit-backdrop-filter: blur(14px);
       backdrop-filter: blur(14px);
       cursor: auto;
       scrollbar-color: var(--color-ink-low) transparent;
       scrollbar-width: thin;
+    }
+
+    /*
+     * An open card with more under its cut says so: its last lines fade into the plate, as a
+     * stub's do, until the last of what it holds is in sight (a scrollbar says it too, where a
+     * browser shows one at rest: many do not). The shell says when (`data-card-more`: cards.ts).
+     * The fade is taller than a stub's: a line of the card's text and the space over it, so that
+     * a cut which falls between two paragraphs still has words to fade.
+     * The fade is a box in the flow that takes no room (its own height back, as a margin), so a
+     * card measures the same with it and without, and it takes no press. It sticks to the foot
+     * of the plate: a box sticks INSIDE its card's padding, so it is told to stand that far
+     * below, and it is as wide as the plate (the card's padding again, as margins). It comes
+     * and goes at once: nothing in the deck is on the move unless a card is.
+     */
+    html[data-mode='universe'][data-card-more] main > [data-card]::after {
+      content: var(--more, none);
+      position: sticky;
+      z-index: 1;
+      inset: auto auto calc(-1 * var(--open-foot));
+      display: block;
+      width: auto;
+      height: var(--more-h);
+      margin: calc(-1 * var(--more-h)) calc(-1 * var(--space-4)) 0;
+      border-radius: 0;
+      background: linear-gradient(transparent, var(--ground) 85%);
+      pointer-events: none;
+    }
+
+    /*
+     * An open card that ENDS with its actions keeps them in sight as a stub does, however
+     * little of it shows (the resume's Download, in a window 576 px tall, where the card is cut
+     * above it): the row sticks to the foot of what shows. A card that shows all it holds has
+     * its keys where they stand in the flow, and sticking moves nothing. While there is more,
+     * the row stands on a plate of its own (::before, behind the keys and over the text that
+     * scrolls by): from a fade's height above the row down to the foot of the plate, and as
+     * wide as the plate. It is placed, not in the flow, and inside the card's padding box: the
+     * card measures the same with it and without.
+     */
+    html[data-mode='universe'][data-card-open] main > [data-card] > .actions:last-child {
+      position: var(--keys-position, static);
+      z-index: 2;
+      bottom: 0;
+    }
+
+    html[data-mode='universe'][data-card-more] main > [data-card] > .actions:last-child::before {
+      content: var(--more, none);
+      position: absolute;
+      z-index: -1;
+      inset: calc(-1 * var(--stub-foot)) calc(-1 * var(--space-4)) calc(-1 * var(--open-foot));
+      background: linear-gradient(transparent, var(--ground) calc(0.85 * var(--stub-foot)));
+      pointer-events: none;
+    }
+
+    /* What the keyboard scrolls to in such a card stops over the keys and their plate. */
+    html[data-mode='universe'][data-card-open] main > [data-card]:has(> .actions:last-child) {
+      scroll-padding-bottom: calc(var(--stub-keys) + var(--stub-foot) + var(--space-4));
     }
 
     /* A mouse over a card that can be pressed: its edge in the family's colour. Nothing moves:
@@ -4089,8 +4238,27 @@ main > .resume-intro > .card-title--quiet {
     }
 
     @media (forced-colors: active) {
-      html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
+      html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after,
+      html[data-mode='universe'][data-card-more] main > [data-card]::after {
         content: none;
+      }
+
+      /* Keys at a stub's foot keep a plate to stand on: the system's own ground, and no fade.
+         It reaches a step over the keys, so that what it cuts off does not touch them. */
+      html[data-mode='universe']:not([data-card-open])
+        main
+        > [data-card]:not(:first-child):has(> .actions:last-child)::after {
+        --keys-plate: calc(var(--keys-room) + var(--space-2));
+
+        content: '';
+        height: clamp(0px, calc(var(--keys-in) + var(--keys-plate)), var(--keys-plate));
+        background: Canvas;
+      }
+
+      /* And so do the keys an open card keeps at its foot. */
+      html[data-mode='universe'][data-card-more] main > [data-card] > .actions:last-child::before {
+        top: calc(-1 * var(--space-2));
+        background: Canvas;
       }
     }
 

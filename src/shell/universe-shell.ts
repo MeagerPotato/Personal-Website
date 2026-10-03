@@ -6,7 +6,7 @@
 import { site } from '../config/site';
 import { routes } from '../site/routes';
 import type { Universe } from '../universe/api';
-import { startAnnouncer } from './announcer';
+import { say, startAnnouncer } from './announcer';
 import { startCards, type Cards } from './cards';
 import { readDestinations, type Destinations } from './destinations';
 import { startFollowing, type Following } from './follow';
@@ -99,7 +99,7 @@ export async function start(): Promise<void> {
     panelOpen: () => root.dataset.panel === 'open',
     bodyOf: (pathname) => destinations?.idFor(pathname) ?? null,
     announce: (text) => {
-      if (status) status.textContent = text;
+      if (status) say(status, text);
     },
     refreshInset: () => inset?.refresh(),
   });

@@ -180,6 +180,8 @@ export class Galaxy implements System {
 
   private readonly scope = new Scope();
   private readonly views: BodyView[] = [];
+  /** The same views by their body's id: asked every frame (a deck's leaders), so no search. */
+  private readonly viewById = new Map<string, BodyView>();
   private readonly lines: OrbitLine[] = [];
   private readonly systems = new Map<string, ManifestSystem>();
   /** Every body's colour family, by id, and each family's look, made once a body wears it. */
@@ -286,7 +288,9 @@ export class Galaxy implements System {
     for (const body of byDistance) {
       const family = this.families.get(body.id);
       if (!this.systems.has(body.system) || family === undefined) continue;
-      this.views.push(this.createView(body, family, sunMaterial));
+      const view = this.createView(body, family, sunMaterial);
+      this.views.push(view);
+      this.viewById.set(body.id, view);
     }
     // One line for each path, named after the first body on it in the manifest. A path is its
     // circle: the body it goes round (or its system's centre) and its radius. It wears the
@@ -440,7 +444,7 @@ export class Galaxy implements System {
    * for an unknown id.
    */
   subject(id: string): OrbitSubject | null {
-    const view = this.views.find((candidate) => candidate.body.id === id);
+    const view = this.viewById.get(id);
     if (!view) return null;
     return {
       position: view.node.position,
@@ -458,7 +462,7 @@ export class Galaxy implements System {
    * step. Ask after this system's frameUpdate: it has put the body where it is by then.
    */
   landmark(id: string, mark: Landmark, out: Vector3): boolean {
-    const view = this.views.find((candidate) => candidate.body.id === id);
+    const view = this.viewById.get(id);
     if (!view) return false;
     const { world, surface, node, body } = view;
     let carrier: Object3D = node;
@@ -485,7 +489,7 @@ export class Galaxy implements System {
    * a body's reach in the simulation is its solid, out to its rings and signs.
    */
   ground(id: string): number {
-    const view = this.views.find((candidate) => candidate.body.id === id);
+    const view = this.viewById.get(id);
     return view ? view.body.radius * (view.world?.share ?? 1) : 0;
   }
 
@@ -494,6 +498,7 @@ export class Galaxy implements System {
       view.planet?.dispose();
       view.world?.dispose();
     }
+    this.viewById.clear();
     this.scope.dispose();
   }
 

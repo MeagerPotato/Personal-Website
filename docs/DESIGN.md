@@ -385,11 +385,18 @@ of, is in the table under The 3D world.
   the first three; one or two sections stand on the right, facing the head). Eight sections at
   most. Every card is one of three things:
   - **a stub** (the overview): its title row, 44 px, with a 10 px station ring in the family's
-    base before the words (`base`, 600), then the start of its section at `sm` in `ink.mid`
-    under a fade to the plate. The stubs of a column share its height, at most
-    `--stub-max` each (7.5 to 11rem); one left under 72 px, with no room for a line of its
+    base before the words (`base`, 600), then its section at `sm` in `ink.mid`. A stub is as
+    tall as what it holds while its column has the room: a page with one section shows all of
+    it on arrival (Contact, its links with it), and a monitor shows most cards whole. In a
+    column that is full the stubs still growing share what is left, and each is cut under a
+    fade to the plate, as tall as the space under a stub's text (24 px), so a stub that shows
+    everything fades none of its words. A stub that ENDS with its keys (the resume's Download)
+    keeps that row at its foot however little of it shows, the text fading out behind it: what
+    a page is for is never under a cut (from 130 px; a shorter stub lets the keys go with the
+    rest). One left under 72 px, with no room for a line of its
     text, is its title alone in the middle of the card, never a sliver of what it holds (the
-    two under a project's head in a window 576 px tall). The plate is the panel's
+    two under a project's head in a window 576 px tall). (Firefox keeps a cap of 7.5 to 11rem,
+    `--stub-max`, until it is seen to size a box by what it holds: not run.) The plate is the panel's
     (`surface.panel` at 96 %), with no
     blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
     cards read as the ends of lines to it;
@@ -399,6 +406,14 @@ of, is in the table under The 3D world.
     30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
     its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
     `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+    While it has more under its cut, its last lines fade into the plate as a stub's do (48 px,
+    a line of its text and the space over it, so that a cut between two paragraphs still has
+    words to fade; at the foot of the plate and as wide), until the last of what it holds is in
+    sight: a scrollbar says the same, but many browsers show none at rest. The fade comes and goes at
+    once, and in forced colours there is none. An open card that ENDS with its keys (the
+    resume's first, in a window too short for it) keeps them in sight as its stub does: the
+    row sticks to the foot of what shows, on a plate that the text fades out behind, and
+    stands in its own place once the card is read to its end.
   **Leaders** tie the cards to the body, as Allen drew them: from each card (the middle of
   its title row, on the edge that faces the body) a route line in the body's family, 3 px on a
   7 px casing of `space.950` so that it reads on a white peak as on the night sky, runs straight
@@ -414,12 +429,15 @@ of, is in the table under The 3D world.
   A section's cover picture is not in its card where the card's body is the planet itself
   (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
   wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
-  the card (`/about/#rockets`). The cards arrive with the page (opacity, and 8 px up by
+  the card (`/about/#rockets`). A keyboard that closes a card (Esc, Home, up from the first)
+  is left on that card's title, in its focus ring, a press away from opening it again: never
+  on the page's heading, which wears no ring. The cards arrive with the page (opacity, and 8 px up by
   `translate`; the right column 80 ms after the left). A change of card is carried: the layout
   changes at once, and each card that moved glides from where it was to where it belongs
   (`motion.base`, ease-out), its title going with it; a card that grew unrolls from the size it
   had, so a column unfolds in step. The leaders step aside while the cards travel (out in
-  `motion.fast`, back in `motion.base` once the cards rest), and when they first appear (the
+  `motion.fast`, back in `motion.base` once the cards rest; a window that is only resized
+  takes them along at once, since nothing travels), and when they first appear (the
   ship in orbit, the view at rest) each is drawn from its card to the body, 40 ms after the one
   before, in `motion.slow`, its station landing as the line arrives. With reduced motion none
   of this moves: the cards, the lines and every new state are simply there.

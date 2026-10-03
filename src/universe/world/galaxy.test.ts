@@ -266,8 +266,19 @@ describe('Galaxy', () => {
       radius('project/fishai'),
       6,
     );
-    // ...unless it holds still: then it is at its own longitude, however far the body has turned.
+    // ...unless it holds still: then it is at its own longitude, however far the body has turned,
+    // and as far out as the ground is (a generated planet's mesh is in units, and so is its node).
     expect(round('project/fishai', { lat: 0, lon: 40, hold: true })).toBeCloseTo(40 * DEG, 9);
+    expect(out.distanceTo(node('project/fishai').position)).toBeCloseTo(
+      radius('project/fishai'),
+      6,
+    );
+    // The same on a model, which is made at radius 1 and turns: held, the mark is on the body's
+    // own node, at the body's radius, where the model's turn does not reach it.
+    const turned = round('page/resume', { lat: 0, lon: 25 });
+    expect(round('page/resume', { lat: 0, lon: 25, hold: true })).toBeCloseTo(25 * DEG, 9);
+    expect(out.distanceTo(node('page/resume').position)).toBeCloseTo(radius('page/resume'), 6);
+    expect(Math.abs(angleDelta(turned, 25 * DEG))).toBeGreaterThan(1e-3);
 
     // A body the galaxy does not have has no landmarks, and nothing is written.
     out.set(1, 2, 3);

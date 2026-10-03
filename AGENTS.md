@@ -330,7 +330,9 @@ visitor came from one of our pages, else home). The fragment says which card is 
 the overview. Only the home page's welcome text is a toggle. State lives on `<html>` as
 `data-panel`, `data-panel-home`, `data-panel-size`, `data-card-open`, `data-card-side`; CSS does
 the showing. Never add a second way to hide a destination's content, nor a card state that is not
-in the URL: Back would stop meaning what it looks like.
+in the URL: Back would stop meaning what it looks like. (`data-card-more` is no state of that
+kind: it says that the open card has more under its cut than its scroll shows, as a scrollbar
+does, so that the stylesheet can fade its last lines.)
 
 **The deck.** One content box, three layouts, chosen by media query alone: the deck (at least
 80rem wide and 36rem tall), the side panel, the bottom sheet. The stylesheet lays the deck out
@@ -342,6 +344,14 @@ cards leave free) and `src/shell/cards.ts` is the half that listens: every chang
 column's selectors, one selector for each card that can be open), so change them together. The
 engine hears of the deck through `setPanelInset` (what is free, both sides) and `setDeck`; while
 one is up the wheel and the scroll keys are the cards', and the map is `M` or its button.
+**A stub is as tall as what it holds** while its column has the room (`max-height: max-content`),
+and is cut, under a fade, only in a column that is full; one that ends with its `.actions` (the
+resume's Download) keeps that row of keys at its foot however little of it shows, and so does
+that card when it is open and cut (the row sticks to the foot of what shows). A column still
+wraps by each card's BASIS, and the least a card can be is its padding and its hairlines: both
+stay under a title row (`deck.test.ts`), so room for anything new in a stub is a margin inside
+it, never its padding. Firefox keeps a fixed cap (`--stub-max`, behind `@supports
+(-moz-appearance: none)`): it has not been run, and the guard goes once it has.
 
 **Link to something the router must leave alone.** It already leaves alone other sites, files
 (any path with an extension), downloads, `target`, modified clicks, and "Skip to content" (a
@@ -353,7 +363,10 @@ title is. In universe mode the router takes it (`samePageAnchor`, `src/shell/nav
 it replaces the fragment, never pushes it, and tells `onAnchor`, whose listener shows the part
 (`src/shell/cards.ts`: the panel scrolls to it; in the deck the card that holds it opens).
 Anything else that changes the part being read calls `router.anchor(id)`, and never writes the
-URL itself (invariant 7).
+URL itself (invariant 7). The place a fragment names is in sight whoever put it in the URL: a
+page that ARRIVES at one goes there too (`arrive`: on a reload Chromium follows no fragment,
+because the router restores scroll positions by hand), and so does a deck that the window has
+just made one column (`relay`).
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
@@ -367,10 +380,12 @@ three times over: as a block of one column (plain mode, the panel, the sheet), a
 block as a stub, a chip and the open card. That block stands on three declarations, each marked
 where it is (`min-height` on every card, the `- 1px` in both caps, `overflow: clip` on a stub):
 after touching it, look at 1280 x 576 and 1920 x 1080, the overview and a card open, and run
-`tests/e2e/cards.spec.ts`. Nothing in it moves by width, height or position: the shell measures
+`tests/e2e/cards.spec.ts`. No CARD in it moves by width, height or position: the shell measures
 the cards in the same task that opens one. What a visitor sees move is the shell's doing
 (`carry` in `src/shell/cards.ts`: animations of `translate` and `clip-path`, which write nothing),
-so never give a card a transition of its size or its place.
+so never give a card a transition of its size or its place. (The engine's own controls there,
+the Map button and the dock prompt, do slide to their new middle by `left`: nothing measures
+them once, the names ask where they are every frame.)
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
 should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print

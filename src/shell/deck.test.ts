@@ -112,6 +112,32 @@ describe('which column a card stands in', () => {
     expect(block).toMatch(/LOAD-BEARING: clip, not hidden\.[^\n]*\*\/\n {6}overflow: clip;/);
   });
 
+  it('lets a stub grow to what it holds, and never by its basis or its padding', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    // A column wraps by each card's basis, so that stays a title row; what a stub holds is only
+    // where its growing stops.
+    expect(block).toMatch(
+      /flex: 1 1 var\(--chip-h\);\n {6}min-height: var\(--chip-h\);\n {6}max-height: max-content;/,
+    );
+    // The least a card can be is its padding and its hairlines, whatever its basis says: that
+    // has to stay under a title row, or a column of title rows could come out over full.
+    const chip = Number(/--chip-h: ([\d.]+)rem;/.exec(block)?.[1]) * 16;
+    expect(block).toContain('--stub-foot: var(--space-6);');
+    expect(block).toContain('padding: 0 var(--space-4) var(--stub-foot);');
+    expect(Number.parseFloat(tokens.space[6]) * 16 + 2).toBeLessThanOrEqual(chip);
+    // What a stub holds is measured with its title row as tall as the row's own content (the
+    // switch below is a percentage, which counts for nothing there): the words' line and the
+    // row's hairline, which together are the row's height. A pixel more would be a pixel of
+    // plate under every stub that shows all it holds.
+    expect(block).toContain('border-bottom: 1px solid var(--title-rule, transparent);');
+    expect(block).toContain('line-height: calc(var(--title-h) - 1px);');
+    // Where the engine does not size a box by what it holds in this axis, the cap is a length.
+    expect(block).toMatch(
+      /@supports \(-moz-appearance: none\) \{\n {6}html\[data-mode='universe'\] main > \[data-card\] \{\n {8}max-height: var\(--stub-max\);\n {6}\}\n {4}\}/,
+    );
+    expect(block).toContain('--stub-max: clamp(7.5rem, 20vh, 11rem);');
+  });
+
   it('fades whatever a stub cuts off, a planet’s dot included', () => {
     const block = css.slice(css.indexOf('THE DECK.'));
     const fade =
@@ -120,6 +146,9 @@ describe('which column a card stands in', () => {
       )?.[1];
     expect(fade).toContain('background: linear-gradient(transparent, var(--ground) 85%);');
     expect(fade).toContain('pointer-events: none;');
+    // Never taller than the space under a stub's text: a stub that shows all it holds has the
+    // fade over that space, and over none of its words.
+    expect(fade).toContain('height: clamp(0.75rem, 25%, var(--stub-foot));');
     // What a card holds that stands a layer above its text: the fade is not under any of it.
     const layer = (rule: string | undefined): number =>
       Number(/\n\s+z-index: (-?\d+);/.exec(rule ?? '')?.[1] ?? NaN);
@@ -130,11 +159,114 @@ describe('which column a card stands in', () => {
     expect(layer(fade)).toBe(Math.max(...raised));
   });
 
+  it('fades the last lines of an open card that has more under its cut, and takes no room', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    // The shell says when (cards.ts); the open card alone has the box to show it with.
+    const fade =
+      /\n {4}html\[data-mode='universe'\]\[data-card-more\] main > \[data-card\]::after \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(fade).toContain('content: var(--more, none);');
+    const open =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open='8'\] main > \[data-card\]:nth-child\(9\) \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(open).toContain("--more: '';");
+    expect(block.match(/--more: '';/g)).toHaveLength(1);
+    // The same fade as a stub's, at the foot of the plate, however far the card has scrolled. A
+    // box sticks inside its card's padding: left at `bottom: 0` it would stand over that space,
+    // and whatever scrolls through the space would show under the fade. So it is told to stand
+    // the card's own padding below, and reaches as far to the sides.
+    expect(fade).toContain('position: sticky;');
+    expect(open).toContain('--open-foot: var(--space-4);');
+    expect(open).toContain('padding-bottom: var(--open-foot);');
+    expect(fade).toContain('inset: auto auto calc(-1 * var(--open-foot));');
+    expect(block).toContain('padding: 0 var(--space-4) var(--stub-foot);');
+    expect(fade).toContain('background: linear-gradient(transparent, var(--ground) 85%);');
+    expect(fade).toContain('pointer-events: none;');
+    // It gives back the room it takes: a card measures the same with it and without, so that
+    // its coming and going moves nothing, and changes nothing the shell has measured.
+    expect(fade).toContain('display: block;');
+    expect(fade).toContain('height: var(--more-h);');
+    expect(fade).toContain('margin: calc(-1 * var(--more-h)) calc(-1 * var(--space-4)) 0;');
+    // Taller than a stub's: a line of the open card's text and the space between two
+    // paragraphs, so that a cut which falls in that space still has words to fade.
+    expect(open).toContain('--more-h: var(--space-12);');
+    expect(open).toContain('--text-base: var(--text-narrow-base);');
+    expect(css).toMatch(/\nbody \{[^}]*\n {2}line-height: 1\.65;/);
+    const line = 1.65 * Number.parseFloat(tokens.textNarrow.base) * 16;
+    const gap = Number.parseFloat(tokens.space[4]) * 16;
+    expect(Number.parseFloat(tokens.space[12]) * 16).toBeGreaterThanOrEqual(line + gap);
+    // It comes and goes at once: an animation that never ends would be a card for ever on the
+    // move, to anyone who waits for the cards to rest.
+    expect(fade).not.toMatch(/animation|transition/);
+    // What the keyboard scrolls to stops over it, as it stops under the title.
+    expect(open).toContain('scroll-padding-top: var(--title-h);');
+    expect(open).toContain('scroll-padding-bottom: var(--more-h);');
+    // Forced colours paint no gradient: there the scrollbar says it alone.
+    expect(block).toMatch(
+      /@media \(forced-colors: active\) \{\n {6}html\[data-mode='universe'\]:not\(\[data-card-open\]\) main > \[data-card\]:not\(:first-child\)::after,\n {6}html\[data-mode='universe'\]\[data-card-more\] main > \[data-card\]::after \{\n {8}content: none;\n {6}\}/,
+    );
+  });
+
+  it('keeps the keys an open card ends with in sight: they stick to the foot of what shows', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    const open =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open='8'\] main > \[data-card\]:nth-child\(9\) \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    // The open card alone says that its keys stick: a chip's are a title row out of sight.
+    expect(open).toContain('--keys-position: sticky;');
+    expect(block.match(/--keys-position: sticky;/g)).toHaveLength(1);
+    const keys =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open\] main > \[data-card\] > \.actions:last-child \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(keys).toContain('position: var(--keys-position, static);');
+    expect(keys).toContain('bottom: 0;');
+    // Nothing of the row is in the flow that was not: no margin, no padding of its own. (A
+    // negative margin under the last box of a card would meet the fade's, and the card would
+    // measure 16 px more with the fade than without: the shell's word would never settle.)
+    expect(keys).not.toMatch(/margin|padding/);
+    // Over the fade at the card's foot, and over a planet's dot.
+    const layer = (rule: string | undefined): number =>
+      Number(/\n\s+z-index: (-?\d+);/.exec(rule ?? '')?.[1] ?? NaN);
+    const fade =
+      /\n {4}html\[data-mode='universe'\]\[data-card-more\] main > \[data-card\]::after \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(layer(keys)).toBeGreaterThan(layer(fade));
+    // While there is more, a plate behind the keys: placed (so it takes no room), from a fade's
+    // height over the row to the foot of the plate and as wide, inside the card's padding box.
+    const plate =
+      /\n {4}html\[data-mode='universe'\]\[data-card-more\] main > \[data-card\] > \.actions:last-child::before \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(plate).toContain('content: var(--more, none);');
+    expect(plate).toContain('position: absolute;');
+    expect(layer(plate)).toBe(-1);
+    expect(plate).toContain(
+      'inset: calc(-1 * var(--stub-foot)) calc(-1 * var(--space-4)) calc(-1 * var(--open-foot));',
+    );
+    expect(plate).toContain(
+      'background: linear-gradient(transparent, var(--ground) calc(0.85 * var(--stub-foot)));',
+    );
+    expect(plate).toContain('pointer-events: none;');
+    // What the keyboard scrolls to in such a card stops over the keys and their plate.
+    expect(block).toMatch(
+      /\n {4}html\[data-mode='universe'\]\[data-card-open\] main > \[data-card\]:has\(> \.actions:last-child\) \{\n {6}scroll-padding-bottom: calc\(var\(--stub-keys\) \+ var\(--stub-foot\) \+ var\(--space-4\)\);\n {4}\}/,
+    );
+    // Forced colours: the system's ground, a step over the keys, and no gradient.
+    expect(block).toMatch(
+      /\n {6}html\[data-mode='universe'\]\[data-card-more\] main > \[data-card\] > \.actions:last-child::before \{\n {8}top: calc\(-1 \* var\(--space-2\)\);\n {8}background: Canvas;\n {6}\}/,
+    );
+  });
+
   it('makes a stub with no room for a line of its text its title alone', () => {
     const block = css.slice(css.indexOf('THE DECK.'));
     // A stub's title row: its height is a switch, between the row's own and the whole card's.
     const rule =
-      /\n {4}html\[data-mode='universe'\]:not\(\[data-card-open\]\) main > \[data-card\]:not\(:first-child\) > h2\[id\] \{\n {6}height: clamp\(var\(--title-h\), calc\(\(([\d.]+)rem - 100%\) \* (\d+)\), calc\(100% \+ var\(--space-3\)\)\);\n {4}\}/.exec(
+      /\n {4}html\[data-mode='universe'\]:not\(\[data-card-open\]\) main > \[data-card\]:not\(:first-child\) > h2\[id\] \{\n {6}height: clamp\(var\(--title-h\), calc\(\(([\d.]+)rem - 100%\) \* (\d+)\), calc\(100% \+ var\(--stub-foot\)\)\);\n {4}\}/.exec(
         block,
       );
     expect(rule).not.toBeNull();
@@ -144,9 +276,10 @@ describe('which column a card stands in', () => {
     // under a stub's text, which is the card's bottom padding.
     const chip = Number(/--chip-h: ([\d.]+)rem;/.exec(block)?.[1]) * 16;
     expect(block).toContain('--title-h: calc(var(--chip-h) - 2px);');
-    expect(block).toContain('padding: 0 var(--space-4) var(--space-3);');
+    expect(block).toContain('--stub-foot: var(--space-6);');
+    expect(block).toContain('padding: 0 var(--space-4) var(--stub-foot);');
     const title = chip - 2;
-    const under = Number.parseFloat(tokens.space[3]) * 16;
+    const under = Number.parseFloat(tokens.space[6]) * 16;
     /** What it comes to for a stub `card` px tall: 100% is what is inside its hairlines and padding. */
     const row = (card: number): number => {
       const inside = card - 2 - under;
@@ -161,6 +294,68 @@ describe('which column a card stands in', () => {
     // And nothing between: one step of the layout (a 64th of a px) under 72, and the row is
     // already the whole card. No stub is caught with half a line.
     expect(row(72 - 1 / 64)).toBe(70 - 1 / 64);
+  });
+
+  it('keeps the keys a stub ends with at its foot, where it has room for a line over them', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    const px = (value: string): number => Number.parseFloat(value) * 16;
+    // A row of keys in a stub: a line of its text, and a key's padding above and below it.
+    expect(block).toContain('--stub-keys: calc(1.5 * var(--text-narrow-sm) + 2 * var(--space-3));');
+    expect(css).toMatch(
+      /\n\.button \{[^}]*\n {2}padding: var\(--space-3\) 1\.25rem;[^}]*\n {2}line-height: 1\.5;/,
+    );
+    const keys = 1.5 * px(tokens.textNarrow.sm) + 2 * px(tokens.space[3]);
+    // The room they take is a margin under what stands before them (the stub's own padding is
+    // the least it can be: see above), and the fade is then that room and the space under a
+    // stub's text.
+    expect(block).toContain('--keys-room: calc(var(--stub-keys) + var(--space-3));');
+    expect(block).toContain('--keys-foot: calc(var(--stub-foot) + var(--keys-room));');
+    expect(block).toMatch(
+      /> :has\(\+ \.actions:last-child\) \{\n {6}margin-bottom: var\(--keys-room\);/,
+    );
+    const room = keys + px(tokens.space[3]);
+    const foot = px(tokens.space[6]) + room;
+    // The switch: 100% is the stub inside its hairlines (what an absolute box is placed in).
+    const swap = /--keys-in: calc\(\(100% - ([\d.]+)rem - var\(--keys-foot\)\) \* (\d+)\);/.exec(
+      block,
+    );
+    expect(swap).not.toBeNull();
+    const limit = Number(swap?.[1]) * 16;
+    const steep = Number(swap?.[2]);
+    // The same limit and the same steepness as the title's own switch, a row of keys further on.
+    const title =
+      /calc\(\(([\d.]+)rem - 100%\) \* (\d+)\), calc\(100% \+ var\(--stub-foot\)\)/.exec(block);
+    expect([limit, steep]).toEqual([Number(title?.[1]) * 16, Number(title?.[2])]);
+    expect(block).toContain('bottom: min(var(--space-3), calc(var(--keys-in) + var(--space-3)));');
+    expect(block).toMatch(
+      /height: clamp\(\n {8}clamp\(0\.75rem, 25%, var\(--stub-foot\)\),\n {8}calc\(var\(--keys-in\) \+ var\(--keys-foot\)\),\n {8}var\(--keys-foot\)\n {6}\);/,
+    );
+    const isIn = (card: number): number => (card - 2 - limit - foot) * steep;
+    /** How far above the stub's foot the keys stand, in a stub `card` px tall. */
+    const bottom = (card: number): number => Math.min(12, isIn(card) + 12);
+    /** How tall the fade is. */
+    const fade = (card: number): number => {
+      const plain = Math.max(12, Math.min(0.25 * (card - 2), px(tokens.space[6])));
+      return Math.max(plain, Math.min(isIn(card) + foot, foot));
+    };
+    // The shortest stub with the room, and the resume's first card at 1280 x 576 and 1280 x 800:
+    // the keys a step above the foot, on a plate as tall as the fade and all that is under it.
+    const least = 2 + limit + foot;
+    expect(least).toBe(130.5);
+    expect([least, 155.125, 267.125].map(bottom)).toEqual([12, 12, 12]);
+    expect([least, 155.125, 267.125].map(fade)).toEqual([foot, foot, foot]);
+    // One step of the layout shorter, and they are far under the cut (a row of keys is 46.5 px),
+    // with the fade any stub has: a stub of 72 px to 130 shows its title and a line of its text,
+    // as the others do.
+    expect(bottom(least - 1 / 64)).toBeLessThan(-10 * keys);
+    expect([72, 100, least - 1 / 64].map(fade)).toEqual([17.5, 24, 24]);
+    // Forced colours paint no fade: there the keys stand on a plate of the system's ground, a
+    // step taller than their room (what it cuts off does not touch them), and under the text of
+    // a stub that shows all it holds, which ends the whole foot above the stub's edge.
+    expect(block).toMatch(
+      /@media \(forced-colors: active\) \{[^@]*:has\(> \.actions:last-child\)::after \{\n {8}--keys-plate: calc\(var\(--keys-room\) \+ var\(--space-2\)\);\n\n {8}content: '';\n {8}height: clamp\(0px, calc\(var\(--keys-in\) \+ var\(--keys-plate\)\), var\(--keys-plate\)\);\n {8}background: Canvas;/,
+    );
+    expect(room + px(tokens.space[2])).toBeLessThan(foot);
   });
 });
 

@@ -237,6 +237,67 @@ describe('the deck', () => {
     });
   });
 
+  describe('the place the fragment names', () => {
+    it('is gone to when the page arrives in one column: a reload follows no fragment', () => {
+      const scrolls = watchScrolls();
+      start({ deck: false, hash: '#three' });
+      expect(scrolls).toEqual([{ element: at('three'), how: { block: 'start' } }]);
+      // Once: laying the page out again (a resize) leaves the reader where the reader is.
+      window.dispatchEvent(new Event('resize'));
+      cards?.sync();
+      expect(scrolls).toHaveLength(1);
+    });
+
+    it('is left alone when something has scrolled already: the browser, or the reader', () => {
+      const scrolls = watchScrolls();
+      main().scrollTop = 740;
+      start({ deck: false, hash: '#three' });
+      expect(scrolls).toEqual([]);
+      main().scrollTop = 0;
+    });
+
+    it('is nowhere for a page with no fragment, or one that names nothing in the content', () => {
+      const scrolls = watchScrolls();
+      for (const hash of ['/', '#main', '#nowhere']) start({ deck: false, hash });
+      expect(scrolls).toEqual([]);
+    });
+
+    it('is the router’s to scroll to after a navigation (Back restores where the reader was)', () => {
+      start({ deck: false });
+      const scrolls = watchScrolls();
+      window.history.replaceState(null, '', '#three');
+      cards?.sync({ cut: true });
+      expect(scrolls).toEqual([]);
+    });
+
+    it('is gone to when a deck becomes one column: the open card is the reader’s place', () => {
+      const media = start({ hash: '#three' });
+      const scrolls = watchScrolls();
+      media.set(false);
+      expect(scrolls).toEqual([{ element: at('three'), how: { block: 'start' } }]);
+      // Still a column after a resize: nothing more. And a deck again scrolls nothing.
+      window.dispatchEvent(new Event('resize'));
+      media.set(true);
+      expect(scrolls).toHaveLength(1);
+      // The overview has no place to go to.
+      window.history.replaceState(null, '', '/');
+      cards?.sync();
+      media.set(false);
+      expect(scrolls).toHaveLength(1);
+    });
+
+    it('is brought into sight inside its card when the page arrives as a deck', () => {
+      const scrolls = watchScrolls();
+      start({ hash: '#two-text' });
+      expect(state()).toEqual(['2', 'right', '2']);
+      expect(scrolls).toEqual([{ element: at('two-text'), how: { block: 'nearest' } }]);
+      // A card's own title is where the card begins: nothing to scroll.
+      scrolls.length = 0;
+      start({ hash: '#two' });
+      expect(scrolls).toEqual([]);
+    });
+  });
+
   describe('a click', () => {
     it('on a title opens its card through the router, and nothing follows the link', () => {
       start();
@@ -428,27 +489,38 @@ describe('the deck', () => {
       titleOf('one').focus();
       press(' ', {}, titleOf('one'));
       expect(router.anchor).toHaveBeenCalledExactlyOnceWith('one');
+      // The focus stands on that card's title already: nothing moves, so it is said.
+      expect(announce).toHaveBeenCalledExactlyOnceWith('One, section 1 of 4');
       press('PageDown', {}, titleOf('one'));
       expect(router.anchor).toHaveBeenLastCalledWith('two');
       expect(document.activeElement).toBe(titleOf('two'));
       // Focus moves or the announcer speaks, never both.
-      expect(announce).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalledTimes(1);
     });
 
-    it('goes back to the overview from the first card, with the focus on the page’s heading', () => {
+    it('goes back to the overview with the focus on the title of the card it has left', () => {
       start({ hash: '#one' });
-      titleOf('one').focus();
-      press('PageUp', {}, titleOf('one'));
+      at('one-link').focus();
+      press('PageUp', {}, at('one-link'));
       expect(router.anchor).toHaveBeenCalledExactlyOnceWith(null);
-      expect(document.activeElement).toBe(document.querySelector('main h1'));
+      // Not the page's heading, which wears no ring: the title, which opens the card again.
+      expect(document.activeElement).toBe(titleOf('one'));
+      expect(announce).not.toHaveBeenCalled();
 
-      // The same from a visitor whose focus is on nothing: told, and the focus left alone.
+      // On that title already, nothing moves that would say it: the announcer does.
+      window.history.replaceState(null, '', '#one');
+      cards?.sync();
+      press('Home', {}, titleOf('one'));
+      expect(document.activeElement).toBe(titleOf('one'));
+      expect(announce).toHaveBeenCalledExactlyOnceWith('All sections');
+
+      // The same for a visitor whose focus is on nothing: told, and the focus left alone.
       window.history.replaceState(null, '', '#one');
       cards?.sync();
       (document.activeElement as HTMLElement | null)?.blur();
       press('Home');
       expect(document.activeElement).toBe(document.body);
-      expect(announce).toHaveBeenCalledExactlyOnceWith('All sections');
+      expect(announce.mock.calls).toEqual([['All sections'], ['All sections']]);
     });
 
     it('scrolls the open card while it has more to show, and steps at its end', () => {
@@ -625,6 +697,87 @@ describe('the deck', () => {
     });
   });
 
+  describe('more under the cut', () => {
+    /** Card `id` holds `holds` px and shows `shows` of them; `top` is how far it has scrolled. */
+    function sized(id: string, holds: number, shows: number): { top: number } {
+      const scroll = { top: 0 };
+      Object.defineProperties(cardOf(id), {
+        scrollHeight: { value: holds, configurable: true },
+        clientHeight: { value: shows, configurable: true },
+        scrollTop: { get: () => scroll.top, set: (value: number) => (scroll.top = value) },
+      });
+      return scroll;
+    }
+    /** A scroll does not bubble: whoever hears it on <main> hears it on its way down. */
+    const scrolled = (id: string): boolean => cardOf(id).dispatchEvent(new Event('scroll'));
+    const says = (): boolean => root.hasAttribute('data-card-more');
+
+    it('says that the open card has more to show, until it is read to its end', () => {
+      const scroll = sized('two', 500, 300);
+      start({ hash: '#two' });
+      expect(says()).toBe(true);
+      // Half-way down there is more still; less than a pixel from its end there is not.
+      scroll.top = 100;
+      scrolled('two');
+      expect(says()).toBe(true);
+      scroll.top = 199.5;
+      scrolled('two');
+      expect(says()).toBe(false);
+      // A pixel is the least that counts, as it is for the wheel and the keys.
+      scroll.top = 199;
+      scrolled('two');
+      expect(says()).toBe(true);
+    });
+
+    it('does not count the space under what the card holds: that is not more to read', () => {
+      const scroll = sized('two', 500, 300);
+      const real = window.getComputedStyle.bind(window);
+      vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) =>
+        element === cardOf('two')
+          ? ({ paddingBottom: '16px' } as CSSStyleDeclaration)
+          : real(element, pseudo),
+      );
+      start({ hash: '#two' });
+      expect(says()).toBe(true);
+      // Its last line is in sight 16 px before the scroll ends: all that is below is the space.
+      scroll.top = 184;
+      scrolled('two');
+      expect(says()).toBe(false);
+      scroll.top = 183;
+      scrolled('two');
+      expect(says()).toBe(true);
+    });
+
+    it('has nothing to say of a card that shows all it holds, or with no card open', () => {
+      sized('two', 300, 300);
+      sized('three', 500, 300);
+      start({ hash: '#two' });
+      expect(says()).toBe(false);
+      // The next card has more: it says so as it opens, and nothing once it has closed.
+      click(titleOf('three'));
+      expect(state()[0]).toBe('3');
+      expect(says()).toBe(true);
+      expect(cards?.escape()).toBe(true);
+      expect(says()).toBe(false);
+    });
+
+    it('is the deck’s: one column cuts nothing, and whoever stops watching leaves no word of it', () => {
+      const scroll = sized('two', 500, 300);
+      const media = start({ hash: '#two' });
+      expect(says()).toBe(true);
+      media.set(false);
+      expect(says()).toBe(false);
+      // Nor does a scroll of that card say anything there.
+      scroll.top = 50;
+      scrolled('two');
+      expect(says()).toBe(false);
+      media.set(true);
+      expect(says()).toBe(true);
+      cards?.dispose();
+      expect(says()).toBe(false);
+    });
+  });
+
   describe('Escape', () => {
     it('closes the open card and says it took the key; with none open it did not', () => {
       start({ hash: '#two' });
@@ -639,6 +792,20 @@ describe('the deck', () => {
       start({ deck: false, hash: '#two' });
       expect(cards?.escape()).toBe(false);
       expect(router.anchor).not.toHaveBeenCalled();
+    });
+
+    it('leaves a keyboard on the title of the card it closed, and tells anyone else', () => {
+      start({ hash: '#two' });
+      at('two-button').focus();
+      expect(cards?.escape()).toBe(true);
+      expect(document.activeElement).toBe(titleOf('two'));
+      expect(announce).not.toHaveBeenCalled();
+
+      start({ hash: '#two' });
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(cards?.escape()).toBe(true);
+      expect(document.activeElement).toBe(document.body);
+      expect(announce).toHaveBeenCalledExactlyOnceWith('All sections');
     });
   });
 
@@ -672,6 +839,17 @@ describe('the deck', () => {
       cards?.show('two');
       expect(state()).toEqual(['2', 'right', '2']);
       expect(scrolls).toEqual([]);
+    });
+
+    it('takes a keyboard out of a card that a link closed, to that card’s title', () => {
+      start({ hash: '#three' });
+      at('three-link').focus();
+      // A link to a place in the head: the overview.
+      window.history.replaceState(null, '', '#lede');
+      cards?.show('lede');
+      expect(state()).toEqual([undefined, undefined, '']);
+      expect(document.activeElement).toBe(titleOf('three'));
+      expect(announce).not.toHaveBeenCalled();
     });
 
     it('scrolls the panel to the place where the page is one column', () => {
@@ -931,6 +1109,19 @@ describe('the deck', () => {
       expect(under.length).toBeGreaterThan(0);
       cards?.dispose();
       for (const journey of under) expect(journey.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps no journey that is over: one holds its card, and the page that card was in', () => {
+      start();
+      click(titleOf('two'));
+      const arrived = [...journeys];
+      expect(arrived.length).toBeGreaterThan(0);
+      // They arrive (the browser says so).
+      for (const journey of arrived) (journey as { onfinish?: () => void }).onfinish?.();
+      // Nothing of them is left to end: not at the next change of card, nor at the very end.
+      cards?.escape();
+      cards?.dispose();
+      for (const journey of arrived) expect(journey.cancel).not.toHaveBeenCalled();
     });
   });
 

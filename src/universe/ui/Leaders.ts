@@ -48,6 +48,21 @@ const POOL = 8;
  */
 const ASIDE_SEC = Number.parseFloat(tokens.motion.base) / 1000;
 
+/**
+ * Do the cards TRAVEL from deck `last` to deck `next`? Another one open, or other cards: the
+ * shell carries them to their new places (src/shell/cards.ts, `carry`), and a new page's cards
+ * arrive in as long. Not the same cards with the same one open, told again because they were
+ * measured again (the window resized, the typeface arrived): those are where they are already.
+ */
+function travels(last: LeaderDeck | null, next: LeaderDeck): boolean {
+  if (last === null || last.body !== next.body || last.open !== next.open) return true;
+  if (last.cards.length !== next.cards.length) return true;
+  for (let i = 0; i < next.cards.length; i += 1) {
+    if (last.cards[i]?.key !== next.cards[i]?.key) return true;
+  }
+  return false;
+}
+
 interface Lead {
   readonly group: SVGElement;
   readonly casing: SVGElement;
@@ -79,10 +94,11 @@ interface Lead {
  * how it comes and goes (`.leaders` in src/styles/global.css): the lines are drawn in when they
  * appear (`data-shown`) and fade when they leave.
  *
- * WHEN THE CARDS MOVE (a card opens, closes, the page lays them out anew) the page tells its
+ * WHEN THE CARDS TRAVEL (a card opens or closes, the page has other cards) the page tells its
  * deck again, with the places the cards are on their way to. The lines step aside meanwhile
  * (`data-aside`): they fade as they were, and are written anew, and shown again, once the cards
- * have arrived. Add it AFTER the labels: it needs this frame's picture.
+ * have arrived. A deck that is only measured again (a resize) is followed at once. Add it AFTER
+ * the labels: it needs this frame's picture.
  */
 export class Leaders implements System {
   private readonly svg: SVGElement;
@@ -147,10 +163,12 @@ export class Leaders implements System {
       return;
     }
     // The cards are on their way to where the page now says they are: the lines that show wait
-    // as they were, fading, and are drawn for the new places once the cards have arrived.
+    // as they were, fading, and are drawn for the new places once the cards have arrived. A deck
+    // that was only measured again begins no wait (and does not begin one again).
     if (deck !== this.told) {
+      const journey = travels(this.told, deck);
       this.told = deck;
-      if (this.shown && !options.reducedMotion) this.away = ASIDE_SEC;
+      if (journey && this.shown && !options.reducedMotion) this.away = ASIDE_SEC;
     }
     if (this.away > 0) {
       this.away -= frame.dt;
@@ -169,13 +187,16 @@ export class Leaders implements System {
       for (const lead of this.leads) lead.stop.setAttribute('r', String(radius));
     }
     const focus = deck.open === null ? 0 : options.focus();
-    this.leads.forEach((lead, index) => {
+    // (A plain loop: this runs every frame, and a callback would be made anew for each.)
+    for (let index = 0; index < this.leads.length; index += 1) {
+      const lead = this.leads[index];
+      if (!lead) continue;
       const card = deck.cards[index];
       const open = card !== undefined && card.key === deck.open;
       // In the overview every card has its line; with one open, that one alone.
       if (!card || (deck.open !== null && !open)) {
         this.set(lead, false, false);
-        return;
+        continue;
       }
       limbPoint(disc.x, disc.y, disc.radius, card.x, card.y, end);
       if (open && focus > 0 && options.landmark(body, index, mark)) {
@@ -187,7 +208,7 @@ export class Leaders implements System {
       const y1 = Math.round(card.y * 10);
       const x2 = Math.round(end.x * 10);
       const y2 = Math.round(end.y * 10);
-      if (x1 === lead.x1 && y1 === lead.y1 && x2 === lead.x2 && y2 === lead.y2) return;
+      if (x1 === lead.x1 && y1 === lead.y1 && x2 === lead.x2 && y2 === lead.y2) continue;
       lead.x1 = x1;
       lead.y1 = y1;
       lead.x2 = x2;
@@ -197,7 +218,7 @@ export class Leaders implements System {
       lead.line.setAttribute('d', d);
       lead.stop.setAttribute('cx', String(x2 / 10));
       lead.stop.setAttribute('cy', String(y2 / 10));
-    });
+    }
     this.show(true);
     this.stepAside(false);
   }

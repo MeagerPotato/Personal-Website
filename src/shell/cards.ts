@@ -14,6 +14,10 @@
 // Nothing is ever written inside <main>. A change of card the visitor makes is also SEEN: the
 // layout changes at once and the cards are carried to their new places (`carry`), by animations,
 // which write nothing either. A first load, a navigation and a resize are not carried.
+//
+// And the place the fragment names is IN SIGHT, whoever put it in the URL: a link (`show`), the
+// page's own arrival (`arrive`: a browser does not follow a fragment again on a reload), or the
+// deck the window has just grown too small for (`relay`).
 
 import type { Deck, Universe } from '../universe/api';
 import { anchorOf, DECK, keyStep, matesOf, sideOf, stepOpen, WHEEL_REST, wheelStep } from './deck';
@@ -103,7 +107,7 @@ function watchCards(
    * card its own column: measure again. Those two only, and only when they are other elements
    * than before: watching anew reports anew, which would never end.
    */
-  const sizes = new ResizeObserver(() => sync());
+  const sizes = new ResizeObserver(() => relay());
   let watched: ReadonlyArray<HTMLElement | undefined> = [];
   let universe: Pick<Universe, 'setDeck'> | null = null;
   /** As sync() last found them: the layout, and the open card's place (0: none). */
@@ -116,6 +120,8 @@ function watchCards(
   let byPointer = false;
   /** The cards that are on their way from place to place (`carry`). */
   let journeys: Animation[] = [];
+  /** The space under what the open card holds, in px (its padding), as sync() last found it. */
+  let foot = 0;
 
   /** The page's cards, the head first. None on the home page. */
   const cardsOf = (): HTMLElement[] =>
@@ -127,7 +133,7 @@ function watchCards(
 
   function sync({ cut = false } = {}): void {
     const cards = cardsOf();
-    const target = readingTarget(doc, fragmentId(view.location.hash));
+    const target = placeOf();
     // A fragment that names the head, or nothing in the content, is the overview.
     open = target
       ? Math.max(
@@ -157,12 +163,68 @@ function watchCards(
     }
     options.refreshInset();
     tell(cards, cut);
+    more(true);
   }
 
   function forget(): void {
     delete root.dataset.cardOpen;
     delete root.dataset.cardSide;
+    delete root.dataset.cardMore;
     root.style.removeProperty('--deck-mates');
+  }
+
+  /**
+   * The open card holds more under its cut than shows: the stylesheet fades its last lines, as
+   * it does a stub's (`data-card-more`), until the last of what the card holds is in sight. The
+   * space under that is not more to read: the card's own padding, read when the layout is
+   * (`again`) and not at every scroll. A pixel or more counts, as for the wheel and the keys: a
+   * card's height is a fraction of a px, and its scroll is whole.
+   */
+  function more(again = false): void {
+    const card = watched[1];
+    if (again) foot = card ? Number.parseFloat(view.getComputedStyle(card).paddingBottom) || 0 : 0;
+    const below = card ? card.scrollHeight - card.clientHeight - card.scrollTop - foot : 0;
+    root.toggleAttribute('data-card-more', below >= 1);
+  }
+
+  /** The place the fragment names, or null: none, or none in the content. */
+  const placeOf = (): HTMLElement | null => readingTarget(doc, fragmentId(view.location.hash));
+
+  /**
+   * In the deck, bring a place INSIDE the open card into sight: the card scrolls to it. Its own
+   * title is where the card begins, and needs nothing.
+   */
+  function reveal(target: HTMLElement | null): void {
+    if (open > 0 && target && target !== cardsOf()[open]?.firstElementChild) {
+      target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  /**
+   * The page has just arrived at its URL (a load, a reload), and the fragment names a place:
+   * be there. A browser follows a fragment by itself the first time, but not on a reload of an
+   * entry whose scroll is restored by hand, as every entry of the router's is (router.ts), and
+   * it never opened a card. In one column that is a scroll to the place, unless something has
+   * scrolled already: then the browser was there first, or the reader has moved on.
+   */
+  function arrive(): void {
+    const target = placeOf();
+    if (deck) reveal(target);
+    else if (target && main.scrollTop === 0 && view.scrollY === 0) {
+      target.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  /**
+   * The window changed (its size, which layout it has, the size of a card): lay the page out
+   * again. A deck that has become one column has scrolled nowhere yet: the card that was open
+   * is the reader's place in it. (A column that stays a column keeps its place: the reader may
+   * have read on from the fragment, which nothing but a link ever changes there.)
+   */
+  function relay(): void {
+    const was = deck;
+    sync();
+    if (was && !deck) placeOf()?.scrollIntoView({ block: 'start' });
   }
 
   /** The deck as the engine needs it: where each card's leader begins, and which card is open. */
@@ -186,22 +248,24 @@ function watchCards(
   }
 
   /**
-   * After a change of card the focus moves or the announcer speaks, never both: a keyboard that
-   * was in the content carries on from the card's title (in the overview, from the page's), and
-   * anyone else is told where they are.
+   * After a change of card the focus moves or the announcer speaks, never both. A keyboard that
+   * was in the content carries on from the title of the card that opened; back among all of
+   * them, from the title of the card it has just left (`from`), which shows in every state,
+   * wears the focus ring, and opens that card again. Anyone else is told where they are: and so
+   * is a keyboard that stands on that title already, since nothing moves that would say it.
    */
-  function land(within: boolean): void {
+  function land(within: boolean, from: number): void {
     const cards = cardsOf();
-    const title = titleOf(cards[open]);
-    if (within) {
-      (open > 0 ? title : main.querySelector<HTMLElement>('h1'))?.focus({ preventScroll: true });
-    } else {
-      options.announce(
-        open > 0
-          ? `${(title?.textContent ?? '').trim()}, section ${open} of ${cards.length - 1}`
-          : 'All sections',
-      );
+    const title = titleOf(cards[open > 0 ? open : from]);
+    if (within && title && title !== doc.activeElement) {
+      title.focus({ preventScroll: true });
+      return;
     }
+    options.announce(
+      open > 0
+        ? `${(title?.textContent ?? '').trim()}, section ${open} of ${cards.length - 1}`
+        : 'All sections',
+    );
   }
 
   /**
@@ -239,6 +303,13 @@ function watchCards(
       }
       return frames.translate || frames.clipPath ? [card.animate(frames, JOURNEY)] : [];
     });
+    // A journey that is over is let go of: it holds its card and, after a navigation, the whole
+    // page that card was in.
+    for (const journey of journeys) {
+      journey.onfinish = () => {
+        journeys = journeys.filter((other) => other !== journey);
+      };
+    }
   }
 
   /** Open card `to` (0: none). `stay`: the focus is where it belongs already. */
@@ -247,13 +318,14 @@ function watchCards(
     const cards = cardsOf();
     const within = main.contains(doc.activeElement);
     // A card opens at its top: the one that closes is put back there while it can still scroll.
-    const closing = open > 0 ? cards[open] : undefined;
+    const from = open;
+    const closing = from > 0 ? cards[from] : undefined;
     if (closing) closing.scrollTop = 0;
     carry(cards, () => {
       options.router.anchor(keyOf(cards[to > 0 ? to : -1]));
       sync();
     });
-    if (!stay) land(within);
+    if (!stay) land(within, from);
   }
 
   const onClick = (event: MouseEvent): void => {
@@ -350,14 +422,21 @@ function watchCards(
     if (outcome.step !== 0) go(stepOpen(open, outcome.step, cards.length - 1));
   }
 
+  /** The open card scrolled. (A scroll does not bubble: it is heard on its way down.) */
+  const onScroll = (event: Event): void => {
+    if (event.target === watched[1]) more();
+  };
+
   const { signal } = listeners;
   main.addEventListener('click', onClick, { signal });
   main.addEventListener('focusin', onFocusIn, { signal });
+  main.addEventListener('scroll', onScroll, { signal, capture: true, passive: true });
   doc.addEventListener('keydown', onKeyDown, { signal });
   doc.addEventListener('pointerdown', () => (byPointer = true), { signal, passive: true });
-  view.addEventListener('resize', () => sync(), { signal });
-  media.addEventListener('change', () => sync(), { signal });
+  view.addEventListener('resize', relay, { signal });
+  media.addEventListener('change', relay, { signal });
   sync({ cut: true });
+  arrive();
 
   return {
     sync,
@@ -365,12 +444,8 @@ function watchCards(
       const was = open;
       carry(cardsOf(), () => sync());
       if (!deck) return showAnchor(id, doc);
-      const target = readingTarget(doc, id);
-      // The place itself, inside its card (a card's own title is where the card begins).
-      if (open > 0 && target && target !== cardsOf()[open]?.firstElementChild) {
-        target.scrollIntoView({ block: 'nearest' });
-      }
-      if (open !== was) land(main.contains(doc.activeElement));
+      reveal(readingTarget(doc, id));
+      if (open !== was) land(main.contains(doc.activeElement), was);
     },
     escape() {
       if (!deck || open === 0) return false;

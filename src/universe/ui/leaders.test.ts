@@ -359,6 +359,54 @@ describe('the leaders', () => {
       expect(svg.querySelector('.leader[data-on]')).toBe(svg.querySelectorAll('.leader')[2]);
     });
 
+    it('go with cards that were only measured again: the same cards, the same one open', () => {
+      const { leaders, drawn, state, svg } = setup();
+      leaders.frameUpdate(FRAME);
+      // The window was resized: every card is somewhere else, and nothing travelled there.
+      const lower = CARDS.map((card) => ({ ...card, y: card.y + 30 }));
+      state.deck = { body: 'page/about', cards: lower, open: null };
+      leaders.frameUpdate(FRAME);
+      expect(svg.hasAttribute('data-aside')).toBe(false);
+      expect(drawn().map((line) => ends(line.d)[1])).toEqual(lower.map((card) => card.y));
+      // The same with a card open: its one line goes with it.
+      state.deck = { ...OPEN, cards: lower };
+      leaders.frameUpdate(ARRIVED);
+      state.deck = OPEN;
+      leaders.frameUpdate(FRAME);
+      expect(svg.hasAttribute('data-aside')).toBe(false);
+      expect(drawn().map((line) => ends(line.d)[1])).toEqual([CARDS[1]?.y]);
+    });
+
+    it('do not begin the wait again for a measure in the middle of a journey', () => {
+      const { leaders, drawn, state, svg } = setup();
+      leaders.frameUpdate(FRAME);
+      state.deck = OPEN;
+      leaders.frameUpdate({ dt: 0.2 });
+      expect(svg.hasAttribute('data-aside')).toBe(true);
+      // The typeface arrives while the cards travel: the head grows, and every card is lower.
+      const lower = CARDS.map((card) => ({ ...card, y: card.y + 8 }));
+      state.deck = { ...OPEN, cards: lower };
+      leaders.frameUpdate({ dt: 0.1 });
+      // The journey is over when it would have been, and the line is drawn for where the card is.
+      expect(svg.hasAttribute('data-aside')).toBe(false);
+      expect(drawn().map((line) => ends(line.d)[1])).toEqual([lower[1]?.y]);
+    });
+
+    it('wait for the cards of another page that belongs to the same body', () => {
+      const { leaders, state, svg } = setup();
+      leaders.frameUpdate(FRAME);
+      // As many cards in the same places, and none open: but other cards, which are arriving.
+      const others = CARDS.map((card) => ({ ...card, key: `other-${card.key}` }));
+      state.deck = { body: 'page/about', cards: others, open: null };
+      leaders.frameUpdate(FRAME);
+      expect(svg.hasAttribute('data-aside')).toBe(true);
+      // One card fewer is other cards too.
+      leaders.frameUpdate(ARRIVED);
+      state.deck = { body: 'page/about', cards: others.slice(0, 2), open: null };
+      leaders.frameUpdate(FRAME);
+      expect(svg.hasAttribute('data-aside')).toBe(true);
+    });
+
     it('do not wait for a visitor who asked for less motion: nothing travels', () => {
       const { leaders, drawn, state, svg } = setup({ reducedMotion: true });
       leaders.frameUpdate(FRAME);

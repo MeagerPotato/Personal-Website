@@ -28,7 +28,7 @@ import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
-import { landmarkOf } from './sim/landmarks';
+import { landmarkOf, type Landmark } from './sim/landmarks';
 import { boundsOf } from './sim/mapView';
 import { angleOf } from './sim/math';
 import { spawnPoint } from './sim/spawn';
@@ -246,9 +246,11 @@ export function boot(
   // The card that is open points at a LANDMARK of the body its page belongs to (sim/landmarks.ts),
   // and while the ship is docked at that body the orbit camera faces it. `facing` is what the
   // camera was last told, so that a deck told again (a card's box moved by a pixel) does not
-  // start the turn afresh.
+  // start the turn afresh. `faced` is that card's landmark, kept for the card's leader, which
+  // ends on it and asks where it is every frame.
   const mark = new Vector3();
   let facing = '';
+  let faced: { body: string; key: string; landmark: Landmark } | null = null;
   function aim(cut: boolean): void {
     const body = deck?.body ?? null;
     const cards = deck?.cards ?? [];
@@ -260,10 +262,12 @@ export function boot(
     if (next === facing) return;
     facing = next;
     if (!card || !middle || body === null) {
+      faced = null;
       orbit.face(null, cut);
       return;
     }
     const landmark = landmarkOf(LANDMARKS, body, card.key, index, cards.length, tuning.deck);
+    faced = { body, key: card.key, landmark };
     orbit.face(
       {
         side: card.side,
@@ -414,7 +418,12 @@ export function boot(
       landmark: (body, index, out) => {
         const count = deck?.cards.length ?? 0;
         const key = deck?.cards[index]?.key ?? '';
-        const at = landmarkOf(LANDMARKS, body, key, index, count, tuning.deck);
+        // The one the camera faces, which is this card's while its leader closes in on it (a
+        // card with no landmark of its own would have one made for it every frame).
+        const at =
+          faced !== null && faced.body === body && faced.key === key
+            ? faced.landmark
+            : landmarkOf(LANDMARKS, body, key, index, count, tuning.deck);
         return galaxy.landmark(body, at, mark) && onScreen.pointAt(mark.x, mark.z, out, mark.y);
       },
       focus: () => orbit.focus,

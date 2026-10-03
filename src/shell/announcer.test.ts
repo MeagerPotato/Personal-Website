@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import type { UniverseEvents } from '../universe/api';
-import { startAnnouncer, type AnnouncerOptions } from './announcer';
+import { say, startAnnouncer, type AnnouncerOptions } from './announcer';
 import { readDestinations } from './destinations';
 
 type Listener<K extends keyof UniverseEvents> = (payload: UniverseEvents[K]) => void;
@@ -113,6 +113,25 @@ describe('the announcer', () => {
     expect(h.said()).toBe('Star map open.');
     h.emit('map', { open: false });
     expect(h.said()).toBe('Star map closed.');
+  });
+
+  it('says the same thing a second time: the words change by a space nobody hears', () => {
+    document.body.innerHTML = '<p role="status"></p>';
+    const element = document.querySelector('p') as HTMLElement;
+    say(element, 'All sections');
+    expect(element.textContent).toBe('All sections');
+    // A live region whose words are what they were may say nothing.
+    say(element, 'All sections');
+    expect(element.textContent).toBe('All sections\u00a0');
+    say(element, 'All sections');
+    expect(element.textContent).toBe('All sections');
+    say(element, 'Rockets, section 3 of 8');
+    expect(element.textContent).toBe('Rockets, section 3 of 8');
+    // The ship's own news goes the same way.
+    const h = harness();
+    h.emit('map', { open: true });
+    h.emit('map', { open: true });
+    expect(h.said()).toBe('Star map open.\u00a0');
   });
 
   it('stops listening, and leaves nothing behind to be read out', () => {

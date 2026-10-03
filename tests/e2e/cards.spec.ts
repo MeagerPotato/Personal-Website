@@ -158,6 +158,54 @@ const state = (page: Page) =>
 const OVERVIEW = { hash: '', open: null, side: null, mates: null };
 
 /**
+ * Where the page is one column that scrolls (the side panel, the sheet): how far the title `id`
+ * stands below the top of that column, in px. A title the reader is AT stands a step under the
+ * top (its scroll margin); one further down the page is hundreds of pixels away, or thousands.
+ */
+const below = (page: Page, id: string): Promise<number> =>
+  page.evaluate((key) => {
+    const column = document.getElementById('main');
+    const heading = document.getElementById(key);
+    if (!column || !heading) return NaN;
+    return heading.getBoundingClientRect().top - column.getBoundingClientRect().top;
+  }, id);
+
+/** `below` for a title the reader is at: inside the top of the column, not above it. */
+const AT_HAND = 160;
+
+/**
+ * The links at `selector` that a pointer cannot press where they stand: outside the box of their
+ * card (cut off by it), or under something else (a fade, another card).
+ */
+const outOfReach = (page: Page, selector: string): Promise<string[]> =>
+  page.evaluate((query) => {
+    return [...document.querySelectorAll<HTMLElement>(query)].flatMap((link) => {
+      const card = link.closest('[data-card]')?.getBoundingClientRect();
+      const box = link.getBoundingClientRect();
+      const inside =
+        card !== undefined &&
+        box.top >= card.top &&
+        box.bottom <= card.bottom &&
+        box.left >= card.left &&
+        box.right <= card.right;
+      const hit = document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2);
+      return inside && hit !== null && link.contains(hit) ? [] : [link.textContent.trim()];
+    });
+  }, selector);
+
+/**
+ * The names the engine writes over the world hold still: none is on its way in or out. (axe
+ * judges colours as they are, and a name half-way through its fade is neither there nor gone.)
+ */
+const namesRest = (page: Page) =>
+  page.waitForFunction(() =>
+    document.getAnimations().every((animation) => {
+      const target = (animation.effect as KeyframeEffect | null)?.target;
+      return !target?.closest('#universe-overlay');
+    }),
+  );
+
+/**
  * One notch of a mouse wheel over the open sky, then a pause: two turns of the wheel count as
  * two only if they are apart (a gesture ends after 250 ms, and steps are 400 ms apart: deck.ts).
  * The pause is part of the input, as the time between a finger's down and up is.
@@ -360,6 +408,120 @@ test.describe('on a wide screen', () => {
     expect(errors).toEqual([]);
   });
 
+  test('what a page is for is in reach on arrival: the resume’s PDF, the ways to reach Allen', async ({
+    page,
+  }) => {
+    test.slow();
+    const errors = collectErrors(page);
+    const SIZES = [
+      { width: 1280, height: 576 },
+      { width: 1280, height: 800 },
+      { width: 1920, height: 1080 },
+    ];
+    /**
+     * How much taller card `index` is than what it holds (its last child, the space under that,
+     * its hairline), in px: nothing, for a stub that stopped growing where its text ends.
+     */
+    const spare = (index: number) =>
+      page
+        .locator('#main > [data-card]')
+        .nth(index)
+        .evaluate((card) => {
+          const style = getComputedStyle(card);
+          const last = card.lastElementChild?.getBoundingClientRect();
+          if (!last) return NaN;
+          const under = Number.parseFloat(style.paddingBottom);
+          const hairline = Number.parseFloat(style.borderBottomWidth);
+          return card.getBoundingClientRect().bottom - last.bottom - under - hairline;
+        });
+
+    // The resume's first card ends with the key that downloads it. Short or tall, the stub keeps
+    // that key at its foot: in its box, with nothing over it.
+    await openUniverse(page, '/resume/');
+    const download = '#main > .resume-intro > .actions a[download]';
+    await expect(page.locator(download)).toHaveCount(1);
+    for (const size of SIZES) {
+      const at = `${size.width} x ${size.height}`;
+      await page.setViewportSize(size);
+      expect(problems(await layout(page)), at).toEqual([]);
+      expect(await outOfReach(page, download), at).toEqual([]);
+      expect(await state(page), at).toEqual(OVERVIEW);
+    }
+    // On a monitor the card has room for all it holds: every way to reach Allen as well.
+    expect(await outOfReach(page, '#main > .resume-intro a')).toEqual([]);
+    // The key is a link of its own: a press of it is the link's, and opens no card. (The
+    // download itself is stopped here, once the page has had its say about the press.)
+    await page.evaluate(() => {
+      window.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    });
+    await page.locator(download).click();
+    expect(await state(page)).toEqual(OVERVIEW);
+
+    // Contact is its head and ONE card, with a column to itself: all of it shows, at every size
+    // of the deck, and the card ends where what it holds does, not at the foot of its column.
+    await softNavigate(page, '/contact/');
+    const ways = '#main > [data-card]:not(:first-child) a';
+    expect(await page.locator(ways).count()).toBeGreaterThanOrEqual(3);
+    for (const size of SIZES) {
+      const at = `${size.width} x ${size.height}`;
+      await page.setViewportSize(size);
+      expect(problems(await layout(page)), at).toEqual([]);
+      expect(await outOfReach(page, ways), at).toEqual([]);
+      expect(Math.abs(await spare(1)), at).toBeLessThan(1);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('the resume’s PDF stays in reach with its card open, however little of the card shows', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    const download = '#main > .resume-intro > .actions a[download]';
+    const card = page.locator('#main > .resume-intro');
+    const measures = () => card.evaluate((element) => [element.scrollHeight, element.clientHeight]);
+    /** How far the key's foot stands over its card's, in px. */
+    const overFoot = () =>
+      page.evaluate((query) => {
+        const key = document.querySelector(query);
+        const box = key?.closest('[data-card]');
+        if (!key || !box) return NaN;
+        return box.getBoundingClientRect().bottom - key.getBoundingClientRect().bottom;
+      }, download);
+
+    // The smallest deck: beside two title rows the open card is cut, well above its key.
+    await page.setViewportSize({ width: 1280, height: 576 });
+    await openUniverse(page, '/resume/');
+    await title(page, 'resume-contact').click();
+    await expect(html(page)).toHaveAttribute('data-card-open', '1');
+    await layout(page);
+    await expect(html(page)).toHaveAttribute('data-card-more');
+    const [holds = 0, shows = 0] = await measures();
+    const range = holds - shows;
+    expect(range).toBeGreaterThan(40);
+
+    // The key stands at the foot of what shows, where a pointer can press it, and stays there
+    // while the card is read: half-way, and at the card's end, where that is its own place in
+    // the flow. The card measures the same throughout: the key's plate takes no room.
+    expect(await outOfReach(page, download)).toEqual([]);
+    const stuck = await overFoot();
+    for (const top of [Math.round(range / 2), range]) {
+      await card.evaluate((element, y) => element.scrollTo(0, y), top);
+      expect(await outOfReach(page, download), `scrolled ${top} px`).toEqual([]);
+      expect(Math.abs((await overFoot()) - stuck), `scrolled ${top} px`).toBeLessThan(1);
+      expect(await measures(), `scrolled ${top} px`).toEqual([holds, shows]);
+    }
+    await expect(html(page)).not.toHaveAttribute('data-card-more');
+
+    // A window with room for the whole card: nothing is cut, every link of the card is in
+    // reach, and the key is the same step over the card's foot.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(html(page)).not.toHaveAttribute('data-card-more');
+    expect(problems(await layout(page))).toEqual([]);
+    expect(await outOfReach(page, '#main > .resume-intro a')).toEqual([]);
+    expect(Math.abs((await overFoot()) - stuck)).toBeLessThan(1);
+    expect(errors).toEqual([]);
+  });
+
   test('a title opens its card: the fragment says so, and history gains nothing', async ({
     page,
   }) => {
@@ -489,6 +651,63 @@ test.describe('on a wide screen', () => {
     await expect(page).toHaveURL(/#what-the-lab-found$/);
     // The card that closed is back at its top, for whoever opens it again.
     expect(await scrolled()).toBe(0);
+  });
+
+  test('an open card with more under its cut fades its last lines, until the last is in sight', async ({
+    page,
+  }) => {
+    // The smallest deck: "Rockets" is longer than its column leaves it beside three title rows.
+    await page.setViewportSize({ width: 1280, height: 576 });
+    await openUniverse(page, '/about/');
+    const card = page.locator('#main > [data-card]').nth(3);
+    /** The fade's height: the card's last box, stuck to the foot of the plate. Null: none. */
+    const fade = () =>
+      card.evaluate((element) => {
+        const style = getComputedStyle(element, '::after');
+        return style.content !== 'none' && style.position === 'sticky' ? style.height : null;
+      });
+    const measures = () => card.evaluate((element) => [element.scrollHeight, element.clientHeight]);
+    const scrolled = () => card.evaluate((element) => Math.round(element.scrollTop));
+
+    await title(page, 'rockets').click();
+    await expect(html(page)).toHaveAttribute('data-card-open', '3');
+    await expect(html(page)).toHaveAttribute('data-card-more');
+    expect(await fade()).toBe('48px');
+    const [holds = 0, shows = 0] = await measures();
+    /** How far the card can scroll, and the space under its last line (its own padding). */
+    const range = holds - shows;
+    const space = await card.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).paddingBottom),
+    );
+    expect(range).toBeGreaterThan(60);
+    expect(space).toBeGreaterThanOrEqual(8);
+
+    // The wheel reads on (from anywhere on the page) until the last line is in sight: the 8 px
+    // still under the cut are space under that line, which is not more to read. The fade is
+    // gone, and the card measures what it did with it.
+    await page.mouse.move(640, 300);
+    await page.mouse.wheel(0, range - 8);
+    await expect.poll(scrolled).toBe(range - 8);
+    await expect(html(page)).not.toHaveAttribute('data-card-more');
+    expect(await fade()).toBeNull();
+    expect(await measures()).toEqual([holds, shows]);
+    // Back up a few lines (a new turn of the wheel), and it says so again.
+    await page.waitForTimeout(300);
+    await page.mouse.wheel(0, -40);
+    await expect.poll(scrolled).toBe(range - 48);
+    await expect(html(page)).toHaveAttribute('data-card-more');
+    expect(await fade()).toBe('48px');
+
+    // A taller window shows the whole card: nothing is cut, so nothing fades.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(html(page)).not.toHaveAttribute('data-card-more');
+    expect(await fade()).toBeNull();
+    // Small again, it is cut again; and the word goes when the card closes.
+    await page.setViewportSize({ width: 1280, height: 576 });
+    await expect(html(page)).toHaveAttribute('data-card-more');
+    await page.keyboard.press('Escape');
+    await expect(html(page)).not.toHaveAttribute('data-card-open');
+    await expect(html(page)).not.toHaveAttribute('data-card-more');
   });
 
   test('a hard load of a card is what opening it by hand comes to', async ({ page, context }) => {
@@ -634,6 +853,34 @@ test.describe('on a wide screen', () => {
     await expect(title(page, 'security')).toBeFocused();
     // Nothing was said: the focus moved instead.
     await expect(page.locator('[data-announcer]')).toHaveText('');
+
+    // Escape closes the card and leaves the keyboard where it can be seen: on the title of the
+    // card it closed, in its ring, a press away from opening it again. From that very title
+    // nothing moves, so it is said instead.
+    const said = () => page.locator('[data-announcer]').evaluate((region) => region.textContent);
+    await page.keyboard.press('Enter');
+    await expect(html(page)).toHaveAttribute('data-card-open', '5');
+    await page.keyboard.press('Escape');
+    await expect(html(page)).not.toHaveAttribute('data-card-open');
+    await expect(title(page, 'security')).toBeFocused();
+    expect(await said()).toBe('All sections');
+    // (WebKit keeps its own counsel on whether a focus that script first put there shows a ring.)
+    if (browserName !== 'webkit') {
+      const ring = await title(page, 'security').evaluate(
+        (link) => getComputedStyle(link).outlineStyle,
+      );
+      expect(ring).toBe('solid');
+    }
+    // From a link inside the card (the focus opens the card it lands in), the same key takes
+    // the focus to that title: it moved, so nothing more is said.
+    await page.locator('#main > [data-card]').nth(5).locator('p a').first().focus();
+    await expect(html(page)).toHaveAttribute('data-card-open', '5');
+    await page.keyboard.press('Escape');
+    await expect(html(page)).not.toHaveAttribute('data-card-open');
+    await expect(title(page, 'security')).toBeFocused();
+    expect(await said()).toBe('All sections');
+    expect(pathOf(page)).toBe('/about/');
+
     // The ship did not leave: the arrows were the page's.
     await expect(prompt(page)).toContainText('Leave orbit');
     expect(pathOf(page)).toBe('/about/');
@@ -739,6 +986,50 @@ test.describe('on a wide screen', () => {
       .poll(() => page.evaluate(() => (window as unknown as { e2eAside: string[] }).e2eAside))
       .toEqual(['aside', 'back']);
     await expect.poll(() => count(page)).toBe(1);
+  });
+
+  test('a window resized takes the leaders along with the cards: nothing steps aside', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/about/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+    await layout(page);
+    await page.evaluate(() => {
+      const svg = document.querySelector('#universe-host svg.leaders');
+      const said: string[] = [];
+      (window as unknown as { e2eAside: string[] }).e2eAside = said;
+      if (!svg) return;
+      new MutationObserver(() =>
+        said.push(svg.hasAttribute('data-aside') ? 'aside' : 'back'),
+      ).observe(svg, { attributes: true, attributeFilter: ['data-aside'] });
+    });
+    /** How far the worst leader begins from its card: the inner edge, halfway up the title row. */
+    const astray = async (): Promise<number> => {
+      const deck = await layout(page);
+      const lines = (await leaders(page)) ?? [];
+      if (lines.length !== ABOUT.length) return NaN;
+      return Math.max(
+        ...lines.map((line) => {
+          const box = deck.cards[line.card + 1];
+          if (!box) return NaN;
+          const edge = box.left < deck.width / 2 ? box.right : box.left;
+          return Math.hypot(line.from.x - edge, line.from.y - (box.top + 22));
+        }),
+      );
+    };
+    expect(await astray()).toBeLessThan(1.5);
+
+    // Wider and taller, still a deck: every card is somewhere else, and nothing travelled there.
+    const before = await layout(page);
+    await page.setViewportSize({ width: 1500, height: 900 });
+    await expect
+      .poll(async () => Math.round((await layout(page)).cards.at(-1)?.left ?? 0))
+      .toBeGreaterThan(Math.round(before.cards.at(-1)?.left ?? 0) + 100);
+    await expect.poll(astray).toBeLessThan(1.5);
+    expect(
+      await page.evaluate(() => (window as unknown as { e2eAside: string[] }).e2eAside),
+    ).toEqual([]);
   });
 
   test('every card has a leader to the body, and the open card’s ends on what it points at', async ({
@@ -906,6 +1197,9 @@ test.describe('on a wide screen', () => {
     const panel = await page.locator('.panel').boundingBox();
     expect(panel?.width).toBe(480);
     expect(Math.round((panel?.x ?? 0) + (panel?.width ?? 0))).toBe(1100 - 24);
+    // The card that was open is the reader's place in the column: the panel has gone to it.
+    await expect.poll(() => below(page, 'rockets')).toBeLessThan(AT_HAND);
+    expect(await below(page, 'rockets')).toBeGreaterThanOrEqual(0);
     // There a title is a place in the column: it scrolls the panel, and the wheel is the map's.
     await title(page, 'robots').click();
     await expect(page).toHaveURL(/#robots$/);
@@ -924,6 +1218,34 @@ test.describe('on a wide screen', () => {
     expect(await page.evaluate(() => document.getElementById('main')?.scrollTop)).toBe(0);
   });
 
+  test('a reload at a card’s URL comes back to the card where the page is one column', async ({
+    page,
+  }) => {
+    // Under 1280 px wide: the side panel, where a fragment is a place to scroll to. A browser
+    // goes there by itself on the first load, and Chromium not on a reload (the router restores
+    // scroll positions by hand): there the shell does.
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.goto(`${universe('/about/')}#work`);
+    await engineReady(page);
+    const there = async (when: string): Promise<void> => {
+      await expect.poll(() => below(page, 'work'), when).toBeLessThan(AT_HAND);
+      expect(await below(page, 'work'), when).toBeGreaterThanOrEqual(0);
+      expect(await state(page), when).toMatchObject({ hash: '#work', open: '7' });
+    };
+    await there('the first load');
+    for (const again of ['a reload', 'a second reload']) {
+      await page.reload();
+      await engineReady(page);
+      await there(again);
+    }
+    // And the entry remembers that place: on to another page and Back.
+    await navLink(page, 'Contact').click();
+    await expect(heading(page)).toHaveText('Contact');
+    await page.goBack();
+    await expect(heading(page)).toHaveText('About Me');
+    await there('Back');
+  });
+
   test.describe('judged by axe', () => {
     // axe judges a page that holds still (a11y.spec.ts): with reduced motion a journey is a cut.
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
@@ -934,7 +1256,7 @@ test.describe('on a wide screen', () => {
       test.slow();
       await openUniverse(page, '/about/');
       await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
-      await page.waitForTimeout(400); // the names that changed have finished fading
+      await namesRest(page);
       expect.soft(await seriousIssues(page), 'the overview').toEqual([]);
       await title(page, 'software').click();
       await expect(html(page)).toHaveAttribute('data-card-open', '6');
@@ -942,7 +1264,7 @@ test.describe('on a wide screen', () => {
 
       await softNavigate(page, '/projects/fishai/');
       await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
-      await page.waitForTimeout(400);
+      await namesRest(page);
       expect.soft(await seriousIssues(page), 'a project').toEqual([]);
       await title(page, 'the-bots').click();
       expect.soft(await seriousIssues(page), 'a project, a card open').toEqual([]);
@@ -1010,4 +1332,20 @@ test('a phone keeps its sheet: one column, and the fragment is a place in it', a
       }).length,
   );
   expect(short).toBe(0);
+});
+
+test('a phone comes back to the card it was at after a reload', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the bottom sheet');
+  await page.goto(`${universe('/about/')}#rockets`);
+  await engineReady(page);
+  const there = async (when: string): Promise<void> => {
+    await expect.poll(() => below(page, 'rockets'), when).toBeLessThan(AT_HAND);
+    expect(await below(page, 'rockets'), when).toBeGreaterThanOrEqual(0);
+  };
+  await there('the first load');
+  // Chromium follows no fragment on a reload of an entry whose scroll the router restores by
+  // hand: the shell goes to the place (src/shell/cards.ts, `arrive`).
+  await page.reload();
+  await engineReady(page);
+  await there('a reload');
 });
