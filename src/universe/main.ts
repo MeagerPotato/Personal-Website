@@ -428,7 +428,9 @@ export function boot(
     ));
     // The minimap (ui/MiniMap.ts): the star map at another size, there wherever the deck has its
     // full size. A press on a mark is pointing at that body, exactly as on the canvas; a press
-    // where nothing is opens the map it is the preview of.
+    // where nothing is opens the map it is the preview of. A journey it reads straight from the
+    // autopilot: the path that is left and the seconds it takes, once the first step has planned.
+    const { dock, cruise } = surroundings;
     minimap = engine.add(
       new MiniMap({
         overlay: options.overlay,
@@ -442,6 +444,7 @@ export function boot(
         ship,
         at: () => whereabouts,
         target: targetRow,
+        journey: () => (dock.phase === 'cruise' && !cruise.fresh ? cruise : null),
         room: () => cluster.full,
         mapOpen: () => starMap.isOpen,
         onPick: pickRow,

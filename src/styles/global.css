@@ -3357,6 +3357,10 @@ main > .resume-name + .resume-contact {
    * drops onto it while pressed. It is hidden from assistive technology: the names in the sky
    * and the Map button are the real controls for all of it.
    *
+   * BUTTER IS "HERE", as everywhere: a ring round the body the ship is at or headed for, the way
+   * that is left of a journey (a line from the ship to that ring), and the seconds it still
+   * takes, at the end of the caption.
+   *
    * The drawing carries classes and data attributes only: every fill and stroke is here, and
    * src/site/contrast.test.ts reads the map's ground from here and holds every mark to it.
    */
@@ -3461,6 +3465,41 @@ main > .resume-name + .resume-contact {
     stroke-width: 1.5;
   }
 
+  /* "Here": the ring round the body the ship is at or headed for, and the way there. */
+  .minimap__here,
+  .minimap__route {
+    fill: none;
+    stroke: var(--color-focus);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /*
+   * Locked on: the ring closes in on its mark, once, here and on the deck's ball (whose ring is
+   * whole from the moment a journey or an approach is locked on). The stylesheet's doing alone:
+   * it plays when a ring appears, and a journey sent on to another body while it flies keeps the
+   * ring it has.
+   */
+  .minimap__here:not([data-off]),
+  .flight-deck__mark[data-lock] :is(.flight-deck__under, .flight-deck__over) {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: lock-on var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes lock-on {
+    from {
+      scale: 1.6;
+    }
+  }
+
+  /* (The minimap's ring is stilled by the rule for all of the deck and the minimap, above; the
+     ball's ring is named more exactly than that rule reaches.) */
+  html[data-motion='reduced'] .flight-deck__mark[data-lock] * {
+    animation: none;
+  }
+
   .minimap__ship {
     fill: var(--color-ink-high);
     stroke: var(--color-space-950);
@@ -3469,13 +3508,13 @@ main > .resume-name + .resume-contact {
     paint-order: stroke;
   }
 
-  /* What is no longer drawn (a moon the scale has no room for, the aim's ring) fades where it
-     was, and is then gone; what comes back is there at once, and fades in. */
-  :is(.minimap__mark, .minimap__orbit, .minimap__aim) {
+  /* What is no longer drawn (a moon the scale has no room for, a ring) fades where it was, and
+     is then gone; what comes back is there at once, and fades in. */
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here) {
     transition: opacity var(--motion-fast) var(--motion-ease-out);
   }
 
-  :is(.minimap__mark, .minimap__orbit, .minimap__aim)[data-off] {
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here)[data-off] {
     opacity: 0;
     visibility: hidden;
     transition:
@@ -3484,8 +3523,9 @@ main > .resume-name + .resume-contact {
   }
 
   /* The caption: what the map shows, in quiet ink behind its family's glyph (the galaxy has no
-     family, and no glyph); or, in bright ink, the body a pointer aims at. 13 px, like a name in
-     the sky; a name too long for it gives way, and what follows it never does. */
+     family, and no glyph); or, in bright ink, a body: the one a pointer aims at, else the one a
+     journey is headed for, with the seconds it still takes. 13 px, like a name in the sky; a
+     name too long for it gives way, and what follows it never does. */
   .minimap__caption {
     display: flex;
     align-items: center;
@@ -3514,8 +3554,22 @@ main > .resume-name + .resume-contact {
     text-overflow: ellipsis;
   }
 
-  .minimap__caption[data-aim] b {
+  .minimap__caption[data-lit] b {
     color: var(--color-ink-high);
+  }
+
+  /* The seconds a journey still takes: butter, at the caption's end, each digit as wide as the
+     next. */
+  .minimap__caption small {
+    flex: none;
+    margin-left: auto;
+    color: var(--color-focus);
+    font-size: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .minimap__caption small:empty {
+    display: none;
   }
 
   /* "Planned" after the name of planned work (universe/ui/planned.ts), as on its name tag; the
@@ -3556,6 +3610,11 @@ main > .resume-name + .resume-contact {
     }
 
     .minimap__aim {
+      stroke: CanvasText;
+    }
+
+    .minimap__here,
+    .minimap__route {
       stroke: Highlight;
     }
 

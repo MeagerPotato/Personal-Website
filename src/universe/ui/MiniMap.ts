@@ -3,7 +3,7 @@ import type { Frame, System } from '../core/Engine';
 import type { BodyKind } from '../data/types';
 import type { ThemeKey } from '../design/tokens';
 import type { ScreenBox } from '../sim/declutter';
-import { bearingOf, type MiniSystem } from '../sim/instruments';
+import { bearingOf, etaShown, type MiniSystem } from '../sim/instruments';
 import {
   displayScales,
   fitView,
@@ -22,9 +22,11 @@ import {
   miniScope,
   pickMini,
   projectMini,
+  routePoints,
   type MiniBodies,
   type MiniMapParams,
 } from '../sim/minimap';
+import type { Path } from '../sim/path';
 import {
   createScreenMap,
   isTap,
@@ -56,6 +58,15 @@ export interface MiniMapBody {
   readonly system: number;
 }
 
+/** A journey under way, as the autopilot keeps it (sim/autopilot.ts, `CruiseState`). */
+export interface MiniJourney {
+  readonly path: Readonly<Path>;
+  /** The piece of the path the ship is on: from sample `index` to the next. */
+  readonly index: number;
+  /** Seconds the journey still takes, as of the last plan. */
+  readonly etaSec: number;
+}
+
 export interface MiniMapOptions {
   /** Where the engine's own DOM goes. The minimap is a picture there: hidden from assistive tech. */
   overlay: HTMLElement;
@@ -80,6 +91,8 @@ export interface MiniMapOptions {
   at(): number;
   /** Row of the body the ship is at or is headed for, or -1. It cannot be picked: it is "here". */
   target(): number;
+  /** The journey the autopilot is flying there, once it has planned it; null without one. */
+  journey(): MiniJourney | null;
   /** Has the view room for it? (Where the deck has its full size: ui/FlightDeck.ts, `full`.) */
   room(): boolean;
   mapOpen(): boolean;
@@ -95,8 +108,10 @@ export interface MiniMapOptions {
 
 /** px. The map where nothing can be measured (no layout: a unit test): its smallest, less its rim. */
 const SIZE = 130;
-/** px. The ring round the mark a pointer aims at stands this far off it. */
+/** px. The ring round the mark a pointer aims at stands this far off it... */
 const AIM_GAP = 2.5;
+/** ...and the ring round the body the ship is at or headed for, this far (2 px wide, 3 px off). */
+const HERE_GAP = 4;
 /** The ship's chevron, 10 units from tip to tail, its nose up. */
 const SHIP = 'M0-5.5 4 4.5 0 2.5-4 4.5Z';
 
@@ -119,6 +134,11 @@ const round = (value: number): number => Math.round(value * 10) / 10;
  * a drag that ends on nothing does nothing. The wheel is not touched: it reaches the overlay,
  * where scrolling out opens the map already (ui/StarMap.ts).
  *
+ * A JOURNEY READS AS FAST FORWARD HERE. The body the ship is at or headed for wears a butter
+ * ring ("here"); while the autopilot flies, the way that is left is a butter line from the ship
+ * to that ring, and the caption names the destination and counts the seconds down (`etaShown`:
+ * never up, though the autopilot plans again twice a second).
+ *
  * IT IS A PICTURE of what real controls offer (the names in the sky, the Map button), so it is
  * `aria-hidden`, with nothing to focus: the canvas's own picking has no other standing either.
  * How it looks is all in the stylesheet (`.minimap` in src/styles/global.css), told by:
@@ -128,6 +148,7 @@ const round = (value: number): number => Math.round(value * 10) / 10;
  *   data-scope    galaxy, or the id of the system it is fitted to
  *   data-pick     a pointer aims at a mark (the cursor says so)
  *   on a mark     data-id, data-kind, data-theme, data-planned; data-pin at the rim; data-off
+ *   the caption   data-theme (the family of what it names); data-lit (it names a body)
  *
  * A pointer is measured against where the plate RESTS: pressed, the plate drops onto its ledge,
  * and what was aimed at must not slip from under the pointer for it.
@@ -144,10 +165,14 @@ export class MiniMap implements System {
   private readonly paths: { readonly node: SVGElement; readonly row: number }[] = [];
   private readonly ship: SVGElement;
   private readonly aim: SVGElement;
+  /** The ring round the body the ship is at or headed for, and the way there that is left. */
+  private readonly here: SVGElement;
+  private readonly route: SVGElement;
   private readonly caption: HTMLElement;
   private readonly label: HTMLElement;
   private readonly name = document.createTextNode('');
   private readonly note = plannedNote('minimap');
+  private readonly seconds: HTMLElement;
 
   private readonly screen: ScreenMap;
   private readonly scales: Float64Array;
@@ -162,8 +187,16 @@ export class MiniMap implements System {
   private readonly view: MapView = { x: 0, z: 0, span: 1 };
   private readonly at = new Float64Array(2);
   private readonly area: ScreenBox = { left: 0, top: 0, width: 0, height: 0 };
+  /** Scratch: the points of a journey's line, in world units (`routePoints`). */
+  private readonly way: Float64Array;
 
   private scope = GALAXY;
+  /** The row the ring is round, and the row a journey is headed for (-1: none under way). */
+  private target = -1;
+  private goal = -1;
+  /** The seconds the caption counts down, and the line as last written. */
+  private eta = Infinity;
+  private line = '';
   /** Does it show, as of the last frame? And was it drawn then (else the view starts afresh)? */
   private shows = false;
   private awake = false;
@@ -191,9 +224,12 @@ export class MiniMap implements System {
     const map = (this.map = svg('svg', 'minimap__map', root));
 
     const depth = bodies.map((body, row) => (docks[row] === 0 ? 0 : markDepth(body.kind)));
-    // The circles first, under every mark; then the marks, the smaller kinds last: where two lie
-    // on each other the smaller is on top, as it is to a pointer (sim/minimap.ts, `markDepth`).
+    // The circles first, under every mark, and a journey's line over them; then the marks, the
+    // smaller kinds last: where two lie on each other the smaller is on top, as it is to a
+    // pointer (sim/minimap.ts, `markDepth`).
     const lines = svg('g', '', map);
+    this.route = svg('polyline', 'minimap__route', map);
+    this.way = new Float64Array(2 * options.params.routePoints);
     this.marks = bodies.map(() => null);
     const drawn = new Set<string>();
     for (const row of bodies.map((_, i) => i).sort((a, b) => (depth[b] ?? 0) - (depth[a] ?? 0))) {
@@ -217,8 +253,9 @@ export class MiniMap implements System {
       flag(line, 'data-off', true);
       this.paths.push({ node: line, row });
     }
+    this.here = svg('circle', 'minimap__here', map);
     this.aim = svg('circle', 'minimap__aim', map);
-    flag(this.aim, 'data-off', true);
+    for (const ring of [this.here, this.aim]) flag(ring, 'data-off', true);
     this.ship = svg('path', 'minimap__ship', map);
     this.ship.setAttribute('d', SHIP);
 
@@ -226,6 +263,7 @@ export class MiniMap implements System {
     html('i', '', this.caption);
     this.label = html('b', '', this.caption);
     this.label.append(this.name);
+    this.seconds = html('small', '', this.caption);
 
     this.screen = createScreenMap(count);
     this.scales = new Float64Array(count);
@@ -265,13 +303,16 @@ export class MiniMap implements System {
     }
     this.shows = shown && room;
     if (!this.shows) {
+      // (Whatever journey is under way when it is back counts down afresh.)
       this.awake = false;
+      this.goal = -1;
       return;
     }
 
     // What it looks at: the system the ship is in, unless it is headed out of it; else the galaxy.
     const { x, z } = ship.position;
-    const scope = miniScope(options.at(), options.bodies[options.target()]?.system ?? -1);
+    const target = options.target();
+    const scope = miniScope(options.at(), options.bodies[target]?.system ?? -1);
     if (scope !== this.scope || !this.awake) {
       this.scope = scope;
       root.dataset.scope = options.systems[scope]?.id ?? 'galaxy';
@@ -291,17 +332,31 @@ export class MiniMap implements System {
       else stepSpring(spring, this.want[key], params.viewOmega, frame.dt);
       moved += Math.abs(spring.value - view[key]);
     }
-    // The marks: now and then, or with every frame while the view is on its way (a tenth of a px).
+    // A journey: where to, and the seconds left of it. They count down from the first plan of each
+    // journey, and never up (the autopilot plans again twice a second).
+    const journey = options.journey();
+    const goal = journey ? target : -1;
+    const eta = journey
+      ? etaShown(goal === this.goal ? this.eta : Infinity, journey.etaSec)
+      : Infinity;
+    const news = goal !== this.goal || eta !== this.eta;
+    this.goal = goal;
+    this.eta = eta;
+
+    // The marks: now and then, at once for a new target, or with every frame while the view is on
+    // its way (a tenth of a px).
     if (
       !this.awake ||
+      target !== this.target ||
       frame.elapsed - this.placedAt >= 1 / params.bodiesHz ||
       moved > unitsPerPx(view.span, this.frame) / 10
     ) {
       this.awake = true;
+      this.target = target;
       this.placedAt = frame.elapsed;
       for (const key of VIEW) view[key] = this.eased[key].value;
       this.place();
-    }
+    } else if (news) this.point();
 
     // The ship: every frame, in the view the marks are in. North is up, so its bearing is its turn.
     const at = pointOn(view, x, z, this.frame, this.at);
@@ -309,14 +364,30 @@ export class MiniMap implements System {
     const shipX = round(half + (at[0] ?? 0));
     const shipY = round(half + (at[1] ?? 0));
     const turn = Math.round(bearingOf(ship.heading));
-    if (shipX === this.shipX && shipY === this.shipY && turn === this.shipTurn) return;
-    this.shipX = shipX;
-    this.shipY = shipY;
-    this.shipTurn = turn;
-    this.ship.setAttribute(
-      'transform',
-      `translate(${shipX} ${shipY})rotate(${turn})scale(${params.shipPx / 10})`,
-    );
+    if (shipX !== this.shipX || shipY !== this.shipY || turn !== this.shipTurn) {
+      this.shipX = shipX;
+      this.shipY = shipY;
+      this.shipTurn = turn;
+      this.ship.setAttribute(
+        'transform',
+        `translate(${shipX} ${shipY})rotate(${turn})scale(${params.shipPx / 10})`,
+      );
+    }
+
+    // The way that is left of a journey: from the ship, along the autopilot's own path, to its end.
+    let line = '';
+    if (journey) {
+      const count = routePoints(journey.path, journey.index, params.routePoints, this.way);
+      // (The first of them is the sample the ship has passed: the ship itself stands in for it.)
+      for (let k = 1; k < count; k += 1) {
+        const on = pointOn(view, this.way[2 * k] ?? 0, this.way[2 * k + 1] ?? 0, this.frame, at);
+        line += ` ${round(half + (on[0] ?? 0))},${round(half + (on[1] ?? 0))}`;
+      }
+      if (line) line = `${shipX},${shipY}${line}`;
+    }
+    if (line === this.line) return;
+    this.line = line;
+    this.route.setAttribute('points', line);
   }
 
   /** The viewport changed: the plate is sized by its height (`--minimap-size`). */
@@ -390,8 +461,20 @@ export class MiniMap implements System {
       put(node, 'cy', `${round(parent < 0 ? half + (at[1] ?? 0) : (screen.y[parent] ?? 0))}`);
       put(node, 'r', `${round((orbits.radius[row] ?? 0) / perPx)}`);
     }
+    // "Here": round the body the ship is at or headed for, whatever this scale draws of it.
+    this.ring(this.here, this.target, HERE_GAP);
     // The marks have moved under a pointer at rest: what it aims at may be another now.
     this.point();
+  }
+
+  /** Put `ring` round the mark of `row`, `gap` px off it; or away, for no row. */
+  private ring(ring: SVGElement, row: number, gap: number): void {
+    const { screen } = this;
+    flag(ring, 'data-off', row < 0);
+    if (row < 0) return;
+    put(ring, 'cx', `${round(screen.x[row] ?? 0)}`);
+    put(ring, 'cy', `${round(screen.y[row] ?? 0)}`);
+    put(ring, 'r', `${round((screen.radius[row] ?? 0) + gap)}`);
   }
 
   /** The row of the mark under the pointer, leaving out row `ignore`; -1 for none. */
@@ -404,34 +487,32 @@ export class MiniMap implements System {
     return pickMini(this.screen, px, py, reach, coarse, options.params.ambiguityPx, ignore);
   }
 
-  /** Which mark does the pointer aim at? Ring it, say so, and name it in the caption. */
+  /** Which mark does the pointer aim at? Ring it, say so, and say in the caption what matters now. */
   private point(): void {
-    const { options, screen } = this;
+    const { options } = this;
     const { bodies, systems } = options;
     // Never the body the ship is at, or is headed for: that one is "here".
     const row = this.hit(options.target());
     this.aimed = row;
     flag(this.root, 'data-pick', row >= 0);
-    flag(this.aim, 'data-off', row < 0);
-    if (row >= 0) {
-      put(this.aim, 'cx', `${round(screen.x[row] ?? 0)}`);
-      put(this.aim, 'cy', `${round(screen.y[row] ?? 0)}`);
-      put(this.aim, 'r', `${round((screen.radius[row] ?? 0) + AIM_GAP)}`);
-    }
+    this.ring(this.aim, row, AIM_GAP);
 
-    // The caption: the body aimed at, in its family; else what the map is fitted to.
-    const body = bodies[row];
+    // The caption: the body aimed at, in its family; else where a journey is headed, and the
+    // seconds it still takes; else what the map is fitted to.
+    const body = bodies[row < 0 ? this.goal : row];
     const system = systems[this.scope];
     const text = body ? body.title : system ? system.name : 'Galaxy';
     const theme = body ? body.theme : system?.theme;
     const planned = body?.planned === true;
-    const say = `${text} ${theme} ${planned} ${row}`;
+    const seconds = body && row < 0 && this.eta < Infinity ? `${this.eta} s` : '';
+    const say = `${text} ${theme} ${planned} ${row} ${seconds}`;
     if (say === this.said) return;
     this.said = say;
     this.name.data = text;
+    this.seconds.textContent = seconds;
     if (theme) this.caption.dataset.theme = theme;
     else delete this.caption.dataset.theme;
-    flag(this.caption, 'data-aim', row >= 0);
+    flag(this.caption, 'data-lit', Boolean(body));
     // "Planned" stands after the name, in a box of its own: a long name gives way, it does not.
     if (planned) this.label.after(this.note);
     else this.note.remove();

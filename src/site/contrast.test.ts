@@ -218,14 +218,17 @@ describe('the minimap', () => {
     // Planned work's dashed outline; the ship, and the ring round what a pointer aims at.
     expect(contrast(color.ink.low, ground)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.ink.high, ground)).toBeGreaterThanOrEqual(MARK);
+    // "Here": the ring round the body the ship is at or headed for, and a journey's line.
+    expect(contrast(color.focus, ground)).toBeGreaterThanOrEqual(MARK);
     // The navy rim under a mark is darker than the ground it parts the mark from.
     expect(luminance(color.space[950])).toBeLessThan(luminance(ground));
   });
 
   it('reads its caption on the plate over white', () => {
-    // What the map shows (ink.mid), and the body a pointer aims at (ink.high).
+    // What the map shows (ink.mid), the body it names (ink.high), a journey's seconds (butter).
     expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
     expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.focus, HUD)).toBeGreaterThanOrEqual(TEXT);
   });
 });
 

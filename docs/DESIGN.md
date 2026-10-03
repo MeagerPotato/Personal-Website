@@ -81,10 +81,11 @@ needs a sixth glyph. Every family's numbers are in the contrast tables below.
 Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
-  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag, and its
-  mark on the flight deck's ball), and what acts on the body at hand (the E key cap of "Orbit
-  FishAI", "Stop"). The home system is butter too, so a focused butter key keeps a navy rim
-  between its fill and the ring.
+  keyboard's focus (the ring), the body the ship is at or headed for (the one filled name tag, its
+  mark on the flight deck's ball, the ring round it on the minimap, and a journey's line and
+  seconds there), and what acts on the body at hand (the E key cap of "Orbit FishAI", "Stop").
+  The home system is butter too, so a focused butter key keeps a navy rim between its fill and
+  the ring.
 - **The cream face (`ink.high` fill) means "on":** only what is switched on wears it: a toggle
   (the Map button while the map is open, the sheet's Shrink, the welcome button while its text
   shows), and a lamp of the flight deck (ASSIST, AUTO), which the simulation switches and nobody

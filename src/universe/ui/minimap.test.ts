@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Frame } from '../core/Engine';
 import { tuning } from '../design/tuning';
 import { boundsOf } from '../sim/mapView';
-import { MiniMap, type MiniMapBody, type MiniMapSystem } from './MiniMap';
+import { createPath } from '../sim/path';
+import { MiniMap, type MiniJourney, type MiniMapBody, type MiniMapSystem } from './MiniMap';
 
 const P = tuning.minimap;
 const STEP = 1 / 60;
@@ -75,7 +76,13 @@ function setup(reducedMotion = false) {
   // [x0, z0, x1, z1, ...]: the station 40 u from home, the planet 200 u from its sun, its moon 60.
   const positions = new Float64Array([0, 0, 40, 0, -900, 900, -700, 900, -700, 960, 0, 59]);
   const ship = { position: { x: 0, z: -100 }, heading: 0 };
-  const world = { at: -1, target: -1, room: true, map: false };
+  const world = {
+    at: -1,
+    target: -1,
+    room: true,
+    map: false,
+    journey: null as MiniJourney | null,
+  };
   const picked: number[] = [];
   let opened = 0;
   const minimap = new MiniMap({
@@ -95,6 +102,7 @@ function setup(reducedMotion = false) {
     ship,
     at: () => world.at,
     target: () => world.target,
+    journey: () => world.journey,
     room: () => world.room,
     mapOpen: () => world.map,
     onPick: (row) => picked.push(row),
@@ -529,11 +537,11 @@ describe('pointing at the minimap', () => {
     expect(Number(ring.getAttribute('r'))).toBeGreaterThan(P.minRadiusPx.galaxy.sun);
     expect(caption()).toBe('Software');
     expect(label.getAttribute('data-theme')).toBe('sky');
-    expect(label.hasAttribute('data-aim')).toBe(true);
+    expect(label.hasAttribute('data-lit')).toBe(true);
     fire('pointerleave', at(SUN));
     expect(ring.hasAttribute('data-off')).toBe(true);
     expect(caption()).toBe('Galaxy');
-    expect(label.hasAttribute('data-aim')).toBe(false);
+    expect(label.hasAttribute('data-lit')).toBe(false);
 
     // Planned work says so, as its name in the sky does.
     enter(1);
@@ -590,5 +598,167 @@ describe('pointing at the minimap', () => {
     world.target = MOON;
     tap(between, 'touch');
     expect(picked).toEqual([SUN, PLANET, PLANET]);
+  });
+});
+
+/** A straight way from one point to another, in 41 samples, as the autopilot holds its path. */
+function wayFrom(x0: number, z0: number, x1: number, z1: number): MiniJourney['path'] {
+  const path = createPath();
+  path.count = 41;
+  for (let i = 0; i < path.count; i += 1) {
+    path.x[i] = x0 + ((x1 - x0) * i) / (path.count - 1);
+    path.z[i] = z0 + ((z1 - z0) * i) / (path.count - 1);
+  }
+  return path;
+}
+
+describe('a journey, read as fast forward', () => {
+  it('rings the body the ship is at or headed for, at once, whatever the scale draws of it', () => {
+    const { root, world, draw, at, shows } = mapOn();
+    const here = root.querySelector('.minimap__here') as Element;
+    const ring = (): number[] => ['cx', 'cy', 'r'].map((name) => Number(here.getAttribute(name)));
+    expect(here.hasAttribute('data-off')).toBe(true);
+    // A new target is ringed with the next frame, not with the next turn of the marks.
+    world.target = SUN;
+    draw(STEP);
+    expect(here.hasAttribute('data-off')).toBe(false);
+    expect(ring()).toEqual([...at(SUN), P.minRadiusPx.galaxy.sun + 4]);
+    // A planet has no mark on the galaxy: the ring stands where it is all the same, 200 u from
+    // its sun toward +X, which is to the left.
+    world.target = PLANET;
+    draw(STEP);
+    expect(shows(PLANET)).toBe(false);
+    expect(here.hasAttribute('data-off')).toBe(false);
+    const [sunX = 0, sunY = 0] = at(SUN);
+    const [x = 0, y = 0, r] = ring();
+    expect(r).toBe(4);
+    expect(y).toBeCloseTo(sunY, 0);
+    expect(x).toBeLessThan(sunX - 10);
+    // And it is not the ring of a pointer's aim, which never falls on that body.
+    expect(root.querySelector('.minimap__aim')?.hasAttribute('data-off')).toBe(true);
+    world.target = -1;
+    draw(STEP);
+    expect(here.hasAttribute('data-off')).toBe(true);
+  });
+
+  it('draws the way that is left, from the ship to the journey’s end, and takes it away after', () => {
+    const { root, ship, world, draw, at, placeOf } = mapOn();
+    const route = root.querySelector('.minimap__route') as Element;
+    const chevron = root.querySelector('.minimap__ship') as Element;
+    const line = (): number[][] =>
+      (route.getAttribute('points') ?? '')
+        .split(' ')
+        .filter(Boolean)
+        .map((pair) => pair.split(',').map(Number));
+    // Flying by hand there is no line, and none is written.
+    expect(route.hasAttribute('points')).toBe(false);
+
+    const path = wayFrom(0, -100, -900, 900);
+    world.target = SUN;
+    world.journey = { path, index: 0, etaSec: 4.2 };
+    draw(STEP);
+    const whole = line();
+    // No more points than the tuning allows: the first is the ship, the last the journey's end.
+    expect(whole.length).toBeGreaterThan(2);
+    expect(whole.length).toBeLessThanOrEqual(P.routePoints);
+    expect(whole[0]).toEqual(placeOf(chevron));
+    expect(whole.at(-1)?.[0]).toBeCloseTo(at(SUN)[0] ?? 0, 0);
+    expect(whole.at(-1)?.[1]).toBeCloseTo(at(SUN)[1] ?? 0, 0);
+
+    // Half way there: it begins at the ship, where the ship now is, and is only the rest.
+    ship.position.x = path.x[20] ?? 0;
+    ship.position.z = path.z[20] ?? 0;
+    world.journey = { path, index: 20, etaSec: 2 };
+    draw(STEP);
+    const rest = line();
+    expect(rest[0]).toEqual(placeOf(chevron));
+    expect(rest[0]).not.toEqual(whole[0]);
+    expect(rest.at(-1)).toEqual(whole.at(-1));
+    const length = (points: number[][]): number =>
+      points
+        .slice(1)
+        .reduce(
+          (sum, [x = 0, y = 0], i) =>
+            sum + Math.hypot(x - (points[i]?.[0] ?? 0), y - (points[i]?.[1] ?? 0)),
+          0,
+        );
+    expect(length(rest)).toBeCloseTo(length(whole) / 2, 0);
+
+    // On its last piece there is still a line, to the end; arrived or stopped, there is none.
+    world.journey = { path, index: 39, etaSec: 0.1 };
+    draw(STEP);
+    expect(line()).toHaveLength(2);
+    world.journey = null;
+    draw(STEP);
+    expect(route.getAttribute('points')).toBe('');
+  });
+
+  it('names where the journey is headed and counts its seconds down, never up', () => {
+    const { root, world, draw, at, fire } = mapOn();
+    const label = root.querySelector('.minimap__caption') as Element;
+    const name = (): string => label.querySelector('b')?.textContent ?? '';
+    const seconds = (): string => label.querySelector('small')?.textContent ?? '';
+    const path = wayFrom(0, -100, -900, 900);
+    expect(seconds()).toBe('');
+
+    world.target = SUN;
+    world.journey = { path, index: 0, etaSec: 4.2 };
+    draw(STEP);
+    expect(name()).toBe('Software');
+    expect(seconds()).toBe('5 s');
+    expect(label.getAttribute('data-theme')).toBe('sky');
+    expect(label.hasAttribute('data-lit')).toBe(true);
+    // With the frame it changes in, not with the next turn of the marks.
+    world.journey = { path, index: 4, etaSec: 3.9 };
+    draw(STEP);
+    expect(seconds()).toBe('4 s');
+    // The autopilot plans again and finds the way a little longer: the count does not go up.
+    world.journey = { path, index: 6, etaSec: 4.6 };
+    draw(STEP);
+    expect(seconds()).toBe('4 s');
+    world.journey = { path, index: 20, etaSec: 1.5 };
+    draw(STEP);
+    expect(seconds()).toBe('2 s');
+
+    // A pointer's aim comes first, and has no seconds; then the journey again.
+    fire('pointermove', at(HOME));
+    expect(name()).toBe('About Me');
+    expect(seconds()).toBe('');
+    fire('pointerleave', at(HOME));
+    expect(name()).toBe('Software');
+    expect(seconds()).toBe('2 s');
+
+    // Sent on to another body while it flies: a new journey, counted from its own first plan.
+    world.target = HOME;
+    world.journey = { path: wayFrom(-450, 400, 0, 0), index: 0, etaSec: 8.5 };
+    draw(STEP);
+    expect(name()).toBe('About Me');
+    expect(seconds()).toBe('9 s');
+    expect(label.getAttribute('data-theme')).toBe('butter');
+
+    // Arrived, or stopped: the caption says what the map shows again.
+    world.journey = null;
+    world.target = -1;
+    draw(STEP);
+    expect(name()).toBe('Galaxy');
+    expect(seconds()).toBe('');
+    expect(label.hasAttribute('data-lit')).toBe(false);
+  });
+
+  it('counts afresh when it comes back from the star map in the middle of a journey', () => {
+    const { root, world, draw } = mapOn();
+    const seconds = (): string => root.querySelector('.minimap__caption small')?.textContent ?? '';
+    const path = wayFrom(0, -100, -900, 900);
+    world.target = SUN;
+    world.journey = { path, index: 0, etaSec: 1.2 };
+    draw(STEP);
+    expect(seconds()).toBe('2 s');
+    // Stopped on the map and sent there again: another journey to the same body, a longer one.
+    world.map = true;
+    draw(STEP);
+    world.journey = { path, index: 0, etaSec: 5.5 };
+    world.map = false;
+    draw(STEP);
+    expect(seconds()).toBe('6 s');
   });
 });

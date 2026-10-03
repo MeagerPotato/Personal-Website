@@ -310,7 +310,8 @@ comment names. Colours only through tokens: a solar system's family arrives as `
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
 either another job. (A lamp of the flight deck that the simulation lights wears the cream face
-too, though nobody pressed it; and butter is also the target on the deck's ball.) The one
+too, though nobody pressed it; and butter is also the target on the deck's ball, the ring round
+it on the minimap, and a journey's line and seconds there.) The one
 exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).

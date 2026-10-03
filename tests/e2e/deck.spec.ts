@@ -117,6 +117,38 @@ function emptyGround(page: Page): Promise<{ x: number; y: number; clear: number 
   });
 }
 
+/** What the minimap said of a journey while it lasted. */
+interface JourneySeen {
+  /** Each caption that had seconds in it, as "name seconds", in the order they were shown. */
+  captions: string[];
+  /** The most points its line was drawn through. */
+  points: number;
+}
+
+/**
+ * From now on, what the minimap shows of a journey, noted by the page itself: a journey is over
+ * in a few seconds, and a machine drawing on its CPU may not look while it lasts.
+ */
+async function watchJourney(page: Page): Promise<() => Promise<JourneySeen>> {
+  await page.evaluate(() => {
+    const seen: JourneySeen = { captions: [], points: 0 };
+    (window as unknown as { e2eJourney: JourneySeen }).e2eJourney = seen;
+    const label = document.querySelector('.minimap__caption');
+    const route = document.querySelector('.minimap__route');
+    if (!label || !route) return;
+    new MutationObserver(() => {
+      const seconds = label.querySelector('small')?.textContent ?? '';
+      const said = `${label.querySelector('b')?.textContent ?? ''} ${seconds}`;
+      if (seconds !== '' && seen.captions.at(-1) !== said) seen.captions.push(said);
+    }).observe(label, { subtree: true, childList: true, characterData: true });
+    new MutationObserver(() => {
+      const points = (route.getAttribute('points') ?? '').split(' ').filter(Boolean).length;
+      seen.points = Math.max(seen.points, points);
+    }).observe(route, { attributes: true });
+  });
+  return () => page.evaluate(() => (window as unknown as { e2eJourney: JourneySeen }).e2eJourney);
+}
+
 /**
  * A finger comes down on open sky, moves and lifts: steering, not a tap (a tap may point at a
  * planet). The first touch on the sky is what brings the boost pad out. Chromium only.
@@ -221,6 +253,7 @@ test.describe('on a laptop', () => {
 
     // Pressed, it is the destination: the very journey a press on its name in the sky starts.
     const said = await watchText(page, '.dock-prompt');
+    const journey = await watchJourney(page);
     await pointAt(page, sun, false);
     // (Off the plate again: a pointer at rest would aim at whatever the map brings under it.)
     await page.mouse.move(at.x - 200, at.y - 200);
@@ -241,6 +274,19 @@ test.describe('on a laptop', () => {
     await expect(minimap(page)).toHaveAttribute('data-scope', 'hackathons');
     await expect(caption(page)).toHaveText('Hackathons');
     await expect(minimap(page)).not.toHaveAttribute('data-pick', /.*/);
+
+    // While it flew, the journey read as fast forward: the way that was left as a line from the
+    // ship, and the caption naming the destination over seconds that only ever went down.
+    const { captions, points } = await journey();
+    expect(points).toBeGreaterThan(2);
+    expect(captions.length).toBeGreaterThan(0);
+    for (const shown of captions) expect(shown).toMatch(/^Hackathons \d+ s$/);
+    const seconds = captions.map((shown) => Number(/\d+/.exec(shown)?.[0]));
+    expect(seconds).toEqual([...seconds].sort((a, b) => b - a));
+    // Arrived: no line and no seconds, and the ring that says "here" round the sun it is at.
+    await expect(page.locator('.minimap__route')).toHaveAttribute('points', '');
+    await expect(page.locator('.minimap__caption small')).toBeEmpty();
+    await expect(page.locator('.minimap__here')).not.toHaveAttribute('data-off', /.*/);
   });
 
   test('a press on the minimap where nothing is opens the star map, and both leave for it', async ({
