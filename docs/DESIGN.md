@@ -81,13 +81,15 @@ needs a sixth glyph. Every family's numbers are in the contrast tables below.
 Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
-  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), and what
-  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"). The home system is butter
-  too, so a focused butter key keeps a navy rim between its fill and the ring.
-- **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
-  Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
-  The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button) are
-  drawn as the white keys they are; they are not a control's face.
+  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag, and its
+  mark on the flight deck's ball), and what acts on the body at hand (the E key cap of "Orbit
+  FishAI", "Stop"). The home system is butter too, so a focused butter key keeps a navy rim
+  between its fill and the ring.
+- **The cream face (`ink.high` fill) means "on":** only what is switched on wears it: a toggle
+  (the Map button while the map is open, the sheet's Shrink, the welcome button while its text
+  shows), and a lamp of the flight deck (ASSIST, AUTO), which the simulation switches and nobody
+  presses. The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button)
+  are drawn as the white keys they are; they are not a control's face.
 - **One solid family fill per view:** the primary action. Route signs above the headings and a
   project's tags are tinted, with a hairline edge; secondary keys are outlined in `ink.low`.
 

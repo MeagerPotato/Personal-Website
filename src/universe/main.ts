@@ -21,11 +21,13 @@ import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest }
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
+import { FlightDeck } from './ui/FlightDeck';
 import { Labels } from './ui/Labels';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { systemAt } from './sim/instruments';
 import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
@@ -288,6 +290,7 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  let deck: FlightDeck | null = null;
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
   // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
   // whatever it is beside. Drawn so below; the names keep off it as drawn.
@@ -320,9 +323,15 @@ export function boot(
         // (On the map every body has its name, the one the ship is at included: "you are here".)
         docked: () => navigator.state.mode === 'docked' && !starMap.isOpen,
         onPick: flyToRow,
-        // What else can be pressed out there. The prompt is only built further down (it is
-        // updated last in a frame); by the time anyone asks, it is there.
-        obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
+        // What else is out there to keep off: what can be pressed, and the flight deck. The
+        // prompt and the deck are only built further down (they are updated last in a frame); by
+        // the time anyone asks, they are there.
+        obstacles: [
+          () => prompt?.box() ?? null,
+          () => touch.padBox(),
+          () => starMap.box(),
+          () => deck?.box() ?? null,
+        ],
         // On the map the ship is the marker that says "you are here": no name lies on it.
         ship: () => {
           if (!starMap.isOpen) return null;
@@ -378,6 +387,36 @@ export function boot(
         quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
+
+    // WHICH SYSTEM THE SHIP IS IN, or none (-1): the deck's horizon wears its family. It follows
+    // from where the ship is, so it is asked once a frame and kept nowhere else: a rebuilt engine
+    // finds it again with its first frame.
+    let whereabouts = -1;
+    engine.add({
+      frameUpdate: () => {
+        const { x, z } = ship.position;
+        whereabouts = systemAt(whereabouts, x, z, manifest.systems, tuning.instruments);
+      },
+      dispose: () => undefined,
+    });
+    // The flight deck: it reads all of the above and asks for nothing (ui/FlightDeck.ts). After
+    // the prompt, so that it is the last thing in the overlay.
+    const homeBody = manifest.bodies.find((body) => body.kind === 'home');
+    deck = engine.add(
+      new FlightDeck({
+        overlay: options.overlay,
+        ship,
+        navigator,
+        assistWeight: () => surroundings.assist.weight,
+        positions: galaxy.positions,
+        rowOf: (id) => surroundings.orbits.indexOf(id),
+        home: homeBody ? surroundings.orbits.indexOf(homeBody.id) : -1,
+        theme: () => manifest.systems[whereabouts]?.theme ?? null,
+        mapOpen: () => starMap.isOpen,
+        params: tuning.instruments,
+        reducedMotion,
+      }),
+    );
   }
 
   if (options.debug?.perf) {
@@ -420,6 +459,7 @@ export function boot(
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
+      deck?.setRoom(inset.right ?? 0, inset.bottom ?? 0);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),
     snapshot: () => ({

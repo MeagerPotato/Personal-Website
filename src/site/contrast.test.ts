@@ -82,8 +82,9 @@ describe('ink on every surface', () => {
       /\/\*[\s\S]*?\*\//g,
       '',
     );
+    // (The flight deck is no control, but it sits on the same plate: the rule holds for it too.)
     const HUD_CONTROL =
-      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav)\b/;
+      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck)\b/;
     const offenders: string[] = [];
     for (const [, selector = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       if (HUD_CONTROL.test(selector) && /(^|;)\s*color:\s*var\(--color-ink-low\)/.test(body)) {
@@ -145,6 +146,58 @@ describe('edges and rings', () => {
     // Round anything focusable in the panel, over the world and under prefers-contrast: more.
     expect(contrast(color.focus, PANEL)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.focus, color.surface.panel)).toBeGreaterThanOrEqual(MARK);
+  });
+});
+
+describe('the flight deck', () => {
+  // The ball is a globe of two solid halves, whatever is behind the plate: the sky half over the
+  // ground half. What the stylesheet paints each with is READ from it, so that the fallback the
+  // design names (the ground in surface.line, should the halves read as one) is measured too.
+  const ramps: Record<string, Record<string, string>> = {
+    space: color.space,
+    surface: color.surface,
+  };
+  const face = (half: string): string => {
+    const [, ramp = '', stop = ''] =
+      CSS.match(
+        new RegExp(`\\.flight-deck__${half} \\{\\s*fill: var\\(--color-(space|surface)-(\\w+)\\)`),
+      ) ?? [];
+    const hex = ramps[ramp]?.[stop];
+    if (hex === undefined) throw new Error(`global.css no longer says what the ball's ${half} is`);
+    return hex;
+  };
+  const HALVES = { sky: face('sky'), ground: face('ground') };
+
+  for (const [half, hex] of Object.entries(HALVES)) {
+    it(`draws every mark of the ball plainly on its ${half}`, () => {
+      // N, E, S and W are letters; the nose, prograde and home are drawn in the same ink.
+      expect(contrast(color.ink.high, hex)).toBeGreaterThanOrEqual(TEXT);
+      // Meridians and the rim.
+      expect(contrast(color.ink.low, hex)).toBeGreaterThanOrEqual(MARK);
+      // The target, butter: "here".
+      expect(contrast(color.focus, hex)).toBeGreaterThanOrEqual(MARK);
+      // The horizon wears the family of the system the ship is in.
+      for (const key of THEME_KEYS) {
+        expect(contrast(color.system[key].base, hex), key).toBeGreaterThanOrEqual(MARK);
+      }
+    });
+  }
+
+  it('rims every mark in a navy darker than either half', () => {
+    for (const hex of Object.values(HALVES)) {
+      expect(luminance(color.space[950])).toBeLessThan(luminance(hex));
+    }
+    expect(contrast(color.ink.high, color.space[950])).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.focus, color.space[950])).toBeGreaterThanOrEqual(MARK);
+  });
+
+  it('reads its lamps, lit and off, and fills its arcs, on the plate over white', () => {
+    // Off: ink.mid on the plate. Lit: navy on the cream face.
+    expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.space[900], color.ink.high)).toBeGreaterThanOrEqual(TEXT);
+    // The arcs' fill, and the throttle's coral while boosting.
+    expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.system.coral.base, HUD)).toBeGreaterThanOrEqual(MARK);
   });
 });
 

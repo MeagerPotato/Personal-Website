@@ -267,8 +267,11 @@ machine (`state/appMachine.ts`: flight, autopilot, approach, docked) in step wit
 simulation then does, and reports it as events, delivered with the frame. Both directions are
 **idempotent** on purpose: the visitor may dock from inside the world and the web layer follows,
 or the route may change and the ship follows, and telling either side what it already knows is
-never an error. Interactive DOM made by the engine (the prompt, later the labels) goes into
-`#universe-overlay`, never into `#universe-host`, which is hidden from assistive technology.
+never an error. DOM made by the engine that a pointer, a keyboard or a screen reader uses (the
+prompt, the names, the Map button) goes into `#universe-overlay`, never into `#universe-host`,
+which is hidden from assistive technology. What is only a picture of things real controls already
+say (the flight deck, `ui/FlightDeck.ts`) goes there too, `aria-hidden`, with nothing focusable
+inside: it reads the simulation and asks the navigator for nothing.
 
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
@@ -305,7 +308,9 @@ link or to an ancestor.
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
-either another job. The one exception: the home system's family is butter, which is why a
+either another job. (A lamp of the flight deck that the simulation lights wears the cream face
+too, though nobody pressed it; and butter is also the target on the deck's ball.) The one
+exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
 Check 360 px wide, and check print if the resume could be affected.
