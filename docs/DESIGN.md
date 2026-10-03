@@ -881,7 +881,12 @@ cloud. What carries the sky now is the stars (step 1, above); this is what lies 
   glow behind the crowd of stars (`band.core.glow` 0.9; the stars themselves are
   `starfield.bulge`): the one place where the haze is more than a faint band, and so the one
   thing left that could still be taken for a cloud; and how loud the sky is as a whole
-  (`intensity` 0.9). **Known, and left as they are:** two far galaxies stand beside the HUD in
+  (`intensity` 0.9). **The gates leave those two knobs little room**, and whoever turns one
+  should know which gate answers: under a gain of 0.445 (or a glow of 0.68) the haze's peak
+  falls below the 0.05 that says it is there, and over a gain of 0.51 (or a glow of 0.95) the
+  first frame on a phone held upright passes 0.04, because the bulge fills it. A louder bulge
+  than that means moving it out of the middle of the first frame, or deciding that the gate
+  should move. **Known, and left as they are:** two far galaxies stand beside the HUD in
   a first frame of 1280 x 800 (the spiral at azimuth -10 some 45 px from "About this site",
   the one at -64 just under the Map button). The bars are placed in CSS px from the corners
   and the sky scales with the view's height, so where a galaxy meets them differs by window;
