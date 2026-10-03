@@ -1,15 +1,18 @@
 // The flight deck (src/universe/ui/FlightDeck.ts): KSP's cluster of instruments at the bottom of
 // the view, which only READS the simulation. So these tests ask what it shows and where it sits,
 // and that nothing else moved out of reach for it: the prompt steps beside it, the how-to-fly card
-// keeps above it, and neither a keyboard nor a screen reader ever meets it.
+// keeps above it, and neither a keyboard nor a screen reader ever meets it. A view too small for
+// the cluster (a phone) has the strip instead, in the Map button's row, and nothing moves for it.
 
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
-import { expect, openUniverse, test } from './support';
+import { expect, nameOf, openUniverse, pointAt, test } from './support';
 
 const deck = (page: Page) => page.locator('.flight-deck');
 const prompt = (page: Page) => page.locator('.dock-prompt');
 const speed = (page: Page) => page.locator('.flight-deck__speed b');
+const mapButton = (page: Page) => page.locator('.map-toggle');
+const plainChip = (page: Page) => page.locator('.mode-link--to-plain');
 
 interface Box {
   x: number;
@@ -39,6 +42,30 @@ async function overlaps(targets: Record<string, Locator>): Promise<string[]> {
     }
   });
   return found;
+}
+
+/** How far the page can be scrolled sideways, in px. */
+const sidewaysScroll = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth - root.clientWidth;
+  });
+
+/**
+ * The strip is one pill, 44 px tall and 124 wide, level with the Map button and 12 px or more
+ * clear of it (once it has arrived: it comes up from 8 px below).
+ */
+async function inTheMapRow(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      const [pill, map] = [await boxOf(deck(page)), await boxOf(mapButton(page))];
+      return Math.round(pill.y - map.y);
+    })
+    .toBe(0);
+  const [pill, map] = [await boxOf(deck(page)), await boxOf(mapButton(page))];
+  expect(Math.round(pill.height)).toBe(44);
+  expect(Math.round(pill.width)).toBe(124);
+  expect(map.x - (pill.x + pill.width)).toBeGreaterThanOrEqual(12);
 }
 
 test.describe('on a laptop', () => {
@@ -113,10 +140,29 @@ test.describe('on a laptop', () => {
       await overlaps({
         deck: deck(page),
         prompt: prompt(page),
-        'the Map button': page.locator('.map-toggle'),
-        'the way to the plain version': page.locator('.mode-link--to-plain'),
+        'the Map button': mapButton(page),
+        'the way to the plain version': plainChip(page),
       }),
     ).toEqual([]);
+  });
+
+  test.describe('in a window too small for the cluster', () => {
+    test.use({ viewport: { width: 900, height: 520 } });
+
+    test('the deck is the strip, the Map button’s opposite number', async ({ page }) => {
+      await openUniverse(page, '/');
+      await expect(deck(page)).toBeVisible();
+      await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
+      await expect(deck(page)).not.toHaveAttribute('data-seated', /.*/);
+      await inTheMapRow(page);
+      // As far from the left edge as the button is from the right one.
+      const [pill, map] = [await boxOf(deck(page)), await boxOf(mapButton(page))];
+      expect(Math.round(pill.x)).toBe(Math.round(900 - (map.x + map.width)));
+      await expect(speed(page)).toHaveText('0');
+      await page.keyboard.down('w');
+      await expect(speed(page)).not.toHaveText('0');
+      await page.keyboard.up('w');
+    });
   });
 });
 
@@ -173,5 +219,128 @@ test.describe('with reduced motion', () => {
         .filter(({ impact }) => impact === 'serious' || impact === 'critical')
         .map(({ id, nodes }) => `${id}: ${nodes.map(({ target }) => target.join(' ')).join('; ')}`),
     ).toEqual([]);
+  });
+});
+
+test.describe('on a phone', () => {
+  // The strip: one pill in the Map button's row. (A laptop's small window has it too: above.)
+  test.skip(({ isMobile }) => !isMobile, 'the strip');
+
+  for (const size of [
+    { width: 360, height: 740 },
+    { width: 320, height: 568 },
+    // Held sideways.
+    { width: 740, height: 360 },
+  ]) {
+    test.describe(`${size.width} by ${size.height}`, () => {
+      test.use({ viewport: size });
+
+      test('the strip is in the Map button’s row, clear of it, and nothing scrolls sideways', async ({
+        page,
+      }) => {
+        await openUniverse(page, '/');
+        await expect(deck(page)).toBeVisible();
+        await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
+        // Nothing steps aside for it: the prompt, the pad and the corner chip are where they were.
+        await expect(deck(page)).not.toHaveAttribute('data-seated', /.*/);
+        await inTheMapRow(page);
+        expect(await sidewaysScroll(page)).toBe(0);
+        expect(
+          await overlaps({
+            strip: deck(page),
+            'the Map button': mapButton(page),
+            'the way to the plain version': plainChip(page),
+          }),
+        ).toEqual([]);
+        // The ball, the speed and the heading; the cluster's lamps, arcs and chevrons are not there.
+        await expect(speed(page)).toHaveText('0');
+        await expect(page.locator('.flight-deck__hdg b')).toHaveText(/^\d{3}°$/);
+        await expect(page.locator('.flight-deck__plate')).toBeVisible();
+        for (const part of ['lamp', 'arc', 'warp', 'lit']) {
+          await expect(page.locator(`.flight-deck__${part}`).first(), part).toBeHidden();
+        }
+      });
+    });
+  }
+
+  test('with a page open there is no deck, and leaving orbit brings the strip', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/projects/fishai/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    // Under the sheet's strip of sky there is no room for it, and somebody is reading.
+    await expect(deck(page)).toHaveAttribute('data-layout', 'off');
+    await expect(deck(page)).toBeHidden();
+
+    await prompt(page).click();
+    await expect(page.locator('html')).toHaveAttribute('data-panel', 'closed');
+    await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
+    await expect(deck(page)).toBeVisible();
+    await expect(prompt(page)).toContainText('Orbit FishAI');
+    await inTheMapRow(page);
+    expect(
+      await overlaps({
+        strip: deck(page),
+        prompt: prompt(page),
+        'the Map button': mapButton(page),
+        'the way to the plain version': plainChip(page),
+      }),
+    ).toEqual([]);
+  });
+
+  test('on a journey the lit lamp’s name takes the heading’s place, and the pill keeps its size', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    await expect(deck(page)).toBeVisible();
+    // A journey home is over in two or three seconds: what the strip showed while it lasted,
+    // noted by the page itself each time the lamp's name changed.
+    await page.evaluate(() => {
+      const root = document.querySelector('.flight-deck');
+      const lit = root?.querySelector('.flight-deck__lit');
+      const heading = root?.querySelector('.flight-deck__hdg');
+      const seen: { lit: string; width: number; heading: boolean }[] = [];
+      (window as unknown as { e2eStrip: typeof seen }).e2eStrip = seen;
+      if (!root || !lit || !heading) return;
+      new MutationObserver(() => {
+        seen.push({
+          lit: lit.textContent ?? '',
+          width: Math.round(root.getBoundingClientRect().width),
+          heading: getComputedStyle(heading).display !== 'none',
+        });
+      }).observe(lit, { childList: true, characterData: true, subtree: true });
+    });
+    await pointAt(page, nameOf(page, 'About Me'), true);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { e2eStrip: { lit: string; width: number; heading: boolean }[] }
+          ).e2eStrip.find(({ lit }) => lit === 'Auto'),
+        ),
+      )
+      .toEqual({ lit: 'Auto', width: 124, heading: false });
+    // It docks, the page opens in the sheet, and the deck is gone.
+    await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
+    await expect(deck(page)).toBeHidden();
+  });
+});
+
+test.describe('the first visit, on a phone', () => {
+  test.skip(({ isMobile }) => !isMobile, 'the strip');
+  test.use({ seenHints: false });
+
+  test('the strip waits for the how-to-fly card', async ({ page }) => {
+    await openUniverse(page, '/');
+    const card = page.getByRole('complementary', { name: 'How to fly' });
+    await expect(card).toBeVisible();
+    // It is the strip, and it would show; but the card speaks first.
+    await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
+    await expect(deck(page)).toHaveAttribute('data-shown', '');
+    await expect(deck(page)).toBeHidden();
+    await card.getByRole('button', { name: 'Got it' }).click();
+    await expect(card).toBeHidden();
+    await expect(deck(page)).toBeVisible();
+    await inTheMapRow(page);
   });
 });

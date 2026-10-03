@@ -67,8 +67,9 @@ export interface FlightDeckOptions {
 
 const SVG = 'http://www.w3.org/2000/svg';
 const DEG_PER_RAD = 180 / Math.PI;
-/** px. The plate where nothing can be measured (no layout: a unit test): 7rem. */
+/** px. The plate where nothing can be measured (no layout: a unit test): 7rem, and the strip's 2.25rem. */
 const PLATE = 112;
+const STRIP_PLATE = 36;
 /** The ball's radius in that plate. The marks are drawn for it, and shrink with a smaller ball... */
 const BALL = 42;
 /** ...down to this share of their size. */
@@ -135,12 +136,17 @@ function flag(node: Element, name: string, on: boolean): void {
  * are `deckShows` and `deckLayout`, never a media query; how it looks is all in the stylesheet
  * (`.flight-deck` in src/styles/global.css), which is told by classes and data attributes:
  *
- *   hidden        no room for it (or, for now, only room for the strip)
+ *   hidden        no room for it
  *   data-layout   full | strip | off
  *   data-shown    the ship is under way and the sky is in view: it fades in and out by this
  *   data-seated   shown, at full size: the prompt steps beside it, the how-to-fly card above it
  *   data-theme    the family of the system the ship is in (the horizon wears it)
  *   data-warp     0 to 3 chevrons     data-boost, data-peg    the arcs' two lights
+ *
+ * THE STRIP is the same deck with less on it, for a view too small for the cluster: one pill in
+ * the Map button's row. Its ball has the horizon, north, the nose and the target; beside it the
+ * speed, over the heading or the name of the lamp that is lit (`.flight-deck__lit`). What the
+ * strip does not show is not written while it is the strip.
  *
  * Geometry is written as attributes, to a tenth of a pixel, and only when it changed: at rest
  * the deck writes nothing at all.
@@ -151,6 +157,8 @@ export class FlightDeck implements System {
   private readonly dial: SVGElement;
   private readonly assist: HTMLElement;
   private readonly auto: HTMLElement;
+  /** The strip's one lamp: the name of whichever is lit, or nothing. */
+  private readonly lit: HTMLElement;
   private readonly speedText = document.createTextNode('');
   private readonly headingText = document.createTextNode('');
   /** What leans and nods as one: the globe (cut to the ball), and the marks on it (whole). */
@@ -198,6 +206,7 @@ export class FlightDeck implements System {
   private warp = -1;
   private digitsAt = -Infinity;
   private theme: ThemeKey | null = null;
+  private litName = '';
 
   constructor(private readonly options: FlightDeckOptions) {
     const root = (this.root = document.createElement('div'));
@@ -229,6 +238,8 @@ export class FlightDeck implements System {
     svg('path', 'flight-deck__sky', world).setAttribute('d', 'M-200-200h400v200h-400z');
     svg('path', 'flight-deck__ground', world).setAttribute('d', 'M-200 0h400v200h-400z');
     for (let k = 0; k < MERIDIANS; k += 1) this.lines.push(svg('path', 'flight-deck__line', world));
+    // North first: the one meridian the strip keeps.
+    this.lines[0]?.setAttribute('data-north', '');
     for (const name of 'NESW') {
       const letter = svg('text', 'flight-deck__letter', world);
       letter.textContent = name;
@@ -262,6 +273,7 @@ export class FlightDeck implements System {
     const heading = html('span', 'flight-deck__hdg', root);
     html('small', '', heading).textContent = 'HDG';
     html('b', '', heading).append(this.headingText);
+    this.lit = html('span', 'flight-deck__lit', root);
 
     const { vx, vz } = options.ship.state;
     this.lastVx = vx;
@@ -355,22 +367,24 @@ export class FlightDeck implements System {
     if (layout !== this.layout) {
       this.layout = layout;
       this.root.dataset.layout = layout;
-      this.root.hidden = layout !== 'full';
+      this.root.hidden = layout === 'off';
     }
     if (!this.root.hidden) this.shape();
   }
 
   /**
-   * The plate is as big as the stylesheet makes it (`--deck-size`, by the view's height): draw to
-   * that size, so that one unit of the drawing is one CSS px and its letters are 12 px letters.
-   * Reads layout, so only where the size can have changed.
+   * The plate is as big as the stylesheet makes it (`--deck-size`, by the view's height; 2.25rem
+   * in the strip): draw to that size, so that one unit of the drawing is one CSS px and its
+   * letters are 12 px letters. Reads layout, so only where the size can have changed.
    */
   private shape(): void {
-    const size = round(this.plate.getBoundingClientRect().width) || PLATE;
+    const strip = this.layout === 'strip';
+    const size = round(this.plate.getBoundingClientRect().width) || (strip ? STRIP_PLATE : PLATE);
     if (size === this.size) return;
     this.size = size;
     const half = size / 2;
-    const r = (this.radius = half - 14);
+    // The cluster's ball leaves room round it for the arcs; the strip's fills its plate.
+    const r = (this.radius = strip ? half - 1 : half - 14);
     const arc = half - 8;
     this.dial.setAttribute('viewBox', `${-half} ${-half} ${size} ${size}`);
     this.clip.setAttribute('r', `${r}`);
@@ -406,11 +420,13 @@ export class FlightDeck implements System {
     const { ship, navigator, params, reducedMotion } = this.options;
     const { root, radius: r } = this;
     const { mode, target } = navigator.state;
+    // The whole cluster, or the strip: its ball has north alone, no letters, and no arcs round it.
+    const full = this.layout === 'full';
 
     // The ball turns with the heading: the frame's own, no easing on top.
     const bearing = bearingOf(ship.heading);
     meridians(bearing, r, this.ellipses);
-    for (let k = 0; k < MERIDIANS; k += 1) {
+    for (let k = 0; k < (full ? MERIDIANS : 1); k += 1) {
       // A meridian in view is half an ellipse from pole to pole; the one dead ahead a straight line.
       const side = this.ellipses[k * 2 + 1] ?? 0;
       const rx = round(this.ellipses[k * 2] ?? 0);
@@ -418,7 +434,7 @@ export class FlightDeck implements System {
       const d = side === 0 ? '' : `M0 ${-r}A${rx} ${r} 0 0 ${side > 0 ? 1 : 0} 0 ${r}`;
       this.lines[k]?.setAttribute('d', d);
     }
-    for (let i = 0; i < this.letters.length; i += 1) {
+    for (let i = 0; full && i < this.letters.length; i += 1) {
       // N, E, S and W ride their meridians, and turn away as they near the rim, as anything
       // painted on a globe does: narrower and narrower, then gone.
       const off = offBearing(i * 90, bearing) / DEG_PER_RAD;
@@ -450,25 +466,27 @@ export class FlightDeck implements System {
     const row = this.row(target ?? navigator.candidate);
     this.place(TARGET, this.target, -LANE, this.toward(row));
     flag(this.target, 'data-lock', mode === 'autopilot' || mode === 'approach');
-    const { home } = this.options;
-    this.place(HOME, this.homeMark, LANE, home === row ? null : this.toward(home));
-    const { x: vx, z: vz } = ship.velocity;
-    const going = ship.speed >= params.progradeMinSpeed;
-    this.place(
-      PROGRADE,
-      this.prograde,
-      0,
-      going ? relativeBearing(0, 0, ship.heading, vx, vz) : null,
-    );
-
-    // The arcs: what was flown, and what it did to the ship.
+    // The arcs follow what was flown, and what it did to the ship, whether they show or not: the
+    // cluster that takes the strip's place (a panel closes) starts from what is true.
     stepSpring(this.throttle, ship.flown.thrust, params.throttleOmega, frame.dt);
     stepSpring(this.g, this.pull, params.gOmega, frame.dt);
-    const g = this.g.value / params.gFull;
-    this.fill(THROTTLE, this.throttleArc, this.throttle.value);
-    this.fill(G, this.gArc, g);
-    flag(root, 'data-boost', ship.flown.boost && ship.flown.thrust > 0);
-    flag(root, 'data-peg', g >= PEGGED);
+    if (full) {
+      const { home } = this.options;
+      this.place(HOME, this.homeMark, LANE, home === row ? null : this.toward(home));
+      const { x: vx, z: vz } = ship.velocity;
+      const going = ship.speed >= params.progradeMinSpeed;
+      this.place(
+        PROGRADE,
+        this.prograde,
+        0,
+        going ? relativeBearing(0, 0, ship.heading, vx, vz) : null,
+      );
+      const g = this.g.value / params.gFull;
+      this.fill(THROTTLE, this.throttleArc, this.throttle.value);
+      this.fill(G, this.gArc, g);
+      flag(root, 'data-boost', ship.flown.boost && ship.flown.thrust > 0);
+      flag(root, 'data-peg', g >= PEGGED);
+    }
 
     const lamps = lampsOf(
       mode,
@@ -480,6 +498,12 @@ export class FlightDeck implements System {
     );
     flag(this.auto, 'data-on', lamps.auto);
     flag(this.assist, 'data-on', lamps.assist);
+    // The strip has room for one lamp: the name of whichever is lit, where the heading was.
+    const lit = lamps.auto ? 'Auto' : lamps.assist ? 'Assist' : '';
+    if (lit !== this.litName) {
+      this.litName = lit;
+      this.lit.textContent = lit;
+    }
 
     const theme = this.options.theme();
     if (theme !== this.theme) {

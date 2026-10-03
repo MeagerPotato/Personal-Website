@@ -14,6 +14,7 @@ const RAD = Math.PI / 180;
 /** A laptop, a phone, and the side panel of a wide screen (30rem and its margin). */
 const LAPTOP = { width: 1280, height: 800, pixelRatio: 1 };
 const PHONE = { width: 360, height: 740, pixelRatio: 3 };
+const SIDEWAYS = { width: 740, height: 360, pixelRatio: 3 };
 const SIDE_PANEL = 480 + 24;
 
 /** Two bodies: home 100 u north of the origin, and FishAI 500 u along +X (to the pilot's left). */
@@ -134,25 +135,25 @@ describe('the flight deck, as a thing on the page', () => {
 });
 
 describe('how big the deck is', () => {
-  it('is the whole cluster where the free view has room, and out of the way where it has not', () => {
+  it('is the whole cluster where the free view has room, the strip where it has less, or nothing', () => {
     const { deck, root } = deckOn();
     expect(root.dataset.layout).toBe('full');
     expect(root.hidden).toBe(false);
     // A side panel takes its width from the view: at 1280 there is room beside it still...
     deck.setRoom(SIDE_PANEL, 0);
     expect(root.dataset.layout).toBe('full');
-    // ...and in a window a little narrower there is room for the strip alone, which the build's
-    // third step draws. Until then it is out of the way.
+    // ...and in a window a little narrower there is room for the strip alone.
     deck.resize({ ...LAPTOP, width: 1271 });
     expect(root.dataset.layout).toBe('strip');
-    expect(root.hidden).toBe(true);
+    expect(root.hidden).toBe(false);
     deck.setRoom(0, 0);
     expect(root.dataset.layout).toBe('full');
     expect(root.hidden).toBe(false);
     // A phone, either way up.
     deck.resize(PHONE);
     expect(root.dataset.layout).toBe('strip');
-    deck.resize({ width: 740, height: 360, pixelRatio: 3 });
+    expect(root.hidden).toBe(false);
+    deck.resize(SIDEWAYS);
     expect(root.dataset.layout).toBe('strip');
     // Under a bottom sheet, and in a window zoomed to 400 %, there is no deck at all.
     deck.resize(PHONE);
@@ -550,6 +551,97 @@ describe('the arcs', () => {
     navigator.state = { mode: 'flight', target: null };
     draw(STEP);
     expect(fill('throttle')).toBeCloseTo((48 * Math.PI) / 2, 1);
+  });
+});
+
+describe('the strip', () => {
+  it('draws a ball that fills its 2.25rem plate, with north for its one meridian', () => {
+    const { root, draw, one } = deckOn(PHONE);
+    draw();
+    expect(one('.flight-deck__dial').getAttribute('viewBox')).toBe('-18 -18 36 36');
+    expect(one('.flight-deck__rim').getAttribute('r')).toBe('17');
+    const lines = [...root.querySelectorAll('.flight-deck__line')];
+    // Due north: a straight line down the middle. It is the one the stylesheet keeps.
+    expect(lines[0]?.hasAttribute('data-north')).toBe(true);
+    expect(lines[0]?.getAttribute('d')).toBe('M0 -17A0 17 0 0 1 0 17');
+    expect(lines.filter((line) => line.hasAttribute('data-north'))).toHaveLength(1);
+    expect(one('.flight-deck__nose').getAttribute('transform')).toBe('scale(0.7)');
+  });
+
+  it('writes nothing of what it does not show: other meridians, letters, home, prograde, arcs', () => {
+    const { ship, navigator, root, draw, mark } = deckOn(SIDEWAYS);
+    navigator.candidate = 'project/fishai';
+    ship.speed = 40;
+    ship.velocity.z = 40;
+    ship.flown.thrust = 1;
+    ship.flown.boost = true;
+    for (let i = 0; i < 30; i += 1) draw(STEP);
+    const lines = [...root.querySelectorAll('.flight-deck__line')];
+    expect(lines.slice(1).some((line) => line.hasAttribute('d'))).toBe(false);
+    expect(
+      [...root.querySelectorAll('.flight-deck__letter')].some((letter) =>
+        letter.hasAttribute('transform'),
+      ),
+    ).toBe(false);
+    expect(mark('home').hasAttribute('data-off')).toBe(true);
+    expect(mark('prograde').hasAttribute('data-off')).toBe(true);
+    expect(root.querySelector('.flight-deck__fill[stroke-dasharray]')).toBeNull();
+    expect(root.hasAttribute('data-boost')).toBe(false);
+    // What it does show: the target (FishAI, a quarter turn to the left), the speed, the heading.
+    expect(mark('target').getAttribute('transform')).toBe('translate(-11.6 -5.8)scale(0.7)');
+    expect(root.querySelector('.flight-deck__speed b')?.textContent).toBe('40');
+    expect(root.querySelector('.flight-deck__hdg b')?.textContent).toBe('000°');
+  });
+
+  it('names the lamp that is lit, and nothing while none is', () => {
+    const { navigator, world, root, draw } = deckOn(PHONE);
+    const lit = root.querySelector('.flight-deck__lit');
+    draw();
+    expect(lit?.childNodes).toHaveLength(0);
+    world.assist = 0.5;
+    draw();
+    expect(lit?.textContent).toBe('Assist');
+    navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    draw();
+    expect(lit?.textContent).toBe('Auto');
+    navigator.state = { mode: 'flight', target: null };
+    world.assist = 0;
+    draw();
+    expect(lit?.childNodes).toHaveLength(0);
+    // The cluster's own two lamps say it there: the name is kept all the same, for the stylesheet.
+    const wide = deckOn();
+    wide.world.assist = 0.5;
+    wide.draw();
+    expect(wide.root.querySelector('.flight-deck__lit')?.textContent).toBe('Assist');
+  });
+
+  it('takes the cluster’s place, and gives it back, as the free view changes', () => {
+    const { deck, ship, root, draw, one, fill } = deckOn();
+    ship.flown.thrust = 1;
+    draw();
+    expect(one('.flight-deck__rim').getAttribute('r')).toBe('42');
+    // A page opens beside a window 1100 px wide: the strip, drawn to its own ball.
+    deck.resize({ ...LAPTOP, width: 1100 });
+    deck.setRoom(SIDE_PANEL, 0);
+    draw(STEP);
+    expect(root.dataset.layout).toBe('strip');
+    expect(root.hasAttribute('data-seated')).toBe(false);
+    expect(one('.flight-deck__rim').getAttribute('r')).toBe('17');
+    for (let i = 0; i < 30; i += 1) draw(STEP);
+    // It closes: the cluster again, and its arcs say what is true at once.
+    deck.setRoom(0, 0);
+    draw(STEP);
+    expect(root.dataset.layout).toBe('full');
+    expect(root.hasAttribute('data-seated')).toBe(true);
+    expect(one('.flight-deck__rim').getAttribute('r')).toBe('42');
+    expect(fill('throttle')).toBeCloseTo((48 * Math.PI) / 2, 1);
+  });
+
+  it('tells the names where it is too', () => {
+    const { deck, root, draw } = deckOn(PHONE);
+    root.getBoundingClientRect = () => ({ left: 16, top: 112, width: 124, height: 44 }) as DOMRect;
+    draw();
+    expect(deck.box()).toEqual({ left: 16, top: 112, width: 124, height: 44 });
   });
 });
 
