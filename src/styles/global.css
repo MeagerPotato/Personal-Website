@@ -2744,7 +2744,7 @@ main > .resume-intro > .card-title--quiet {
     align-items: center;
     gap: var(--space-3);
     min-height: 2.75rem; /* 44 px touch target */
-    max-width: calc(100% - 2 * var(--space-6));
+    max-width: calc(100% - var(--panel-inset-left, 0px) - 2 * var(--space-6));
     padding: 0 var(--space-6) 0 var(--space-4);
     border: 1px solid var(--hud-edge);
     border-radius: var(--radius-pill);
@@ -3468,6 +3468,507 @@ main > .resume-intro > .card-title--quiet {
 
     html[data-mode='universe'][data-panel='open'] #universe-overlay {
       visibility: hidden;
+    }
+  }
+
+  /*
+   * THE DECK. On a wide screen a destination's content is not a panel beside the world: its
+   * cards (1a) stand in two columns round the body the page belongs to, the head and the first
+   * sections down the left, the rest down the right, and the body is framed between them. With
+   * none open every section is a STUB: its title row and the start of its text.
+   * `html[data-card-open='k']` (src/shell/cards.ts, from the URL's fragment) OPENS card k in
+   * full, in a wider column, and every other card, the head included, is then a CHIP: its title
+   * row alone. Nothing is ever taken out of the page: what a stub or a chip does not show is
+   * clipped, so a screen reader and find-in-page read what they read in the panel.
+   *
+   * The same query as DECK in src/shell/deck.ts, which measures what the cards leave free and
+   * tells the camera: change both together. The home page has no cards and keeps its panel.
+   *
+   * One flex container that wraps into columns: the left column's cards first (order 0), then a
+   * break as tall as the column (::before, order 1), then the right column's (order 2). Which
+   * card stands where is `sideOf` in deck.ts (box i of M is on the left if it is the head or
+   * 2i <= M), and `--deck-mates` is how many cards share the open one's column. THREE
+   * DECLARATIONS ARE LOAD-BEARING, and each says so where it stands: `min-height` on every card,
+   * the `- 1px` in both caps, and `overflow: clip` on a stub. Check 1280 x 576 and 1920 x 1080
+   * after touching any of it. Nothing here moves by width, height or position (those change at
+   * once, so that the shell can measure where everything has ended up in the same task).
+   */
+  @media (min-width: 80rem) and (min-height: 36rem) {
+    html[data-mode='universe'] .panel:has(> main > [data-card]) {
+      /* Sizes, not tokens. A column of stubs and chips; the open card's column (the panel's own
+         width, so whatever fits the panel fits the card); the stage's margin (the stage is at
+         most 120rem wide); a title row, a 44 px target; the most a stub takes. */
+      --deck-col: clamp(18rem, 24vw, 22rem);
+      --deck-open: min(30rem, 40vw);
+      --deck-inline: max(var(--space-6), calc((100vw - 120rem) / 2));
+      --chip-h: 2.75rem;
+      --stub-max: clamp(7.5rem, 20vh, 11rem);
+      --deck-gap: var(--space-3);
+      --w-left: var(--deck-col);
+      --w-right: var(--deck-col);
+      /* How many sections stand under the head in the left column. */
+      --nl: 0;
+
+      /* The stage: from under the bar to above the corner chip, with no plate of its own. The
+         sky between the cards takes the pointer. */
+      right: max(var(--deck-inline), env(safe-area-inset-right));
+      bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + 2.75rem + var(--space-3));
+      left: max(var(--deck-inline), env(safe-area-inset-left));
+      width: auto;
+      border: 0;
+      background: none;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      /* Nothing slides in: the cards arrive by themselves (card-in, below). */
+      transition: none;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(4)) {
+      --nl: 1;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(6)) {
+      --nl: 2;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(8)) {
+      --nl: 3;
+    }
+
+    html[data-mode='universe'][data-card-side='left'] .panel:has(> main > [data-card]) {
+      --w-left: var(--deck-open);
+    }
+
+    html[data-mode='universe'][data-card-side='right'] .panel:has(> main > [data-card]) {
+      --w-right: var(--deck-open);
+    }
+
+    /* Close, at the right end of the head's first row (and of the head's chip): a key small
+       enough for that row, 44 px to press. */
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      width: var(--w-left);
+      padding: calc(0.3125rem + var(--space-2)) var(--space-2) 0 0;
+      border: 0;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'][data-card-open] .panel:has(> main > [data-card]) > .panel-bar {
+      padding-top: 0.5rem;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar .panel-button {
+      position: relative;
+      min-height: 2rem;
+      padding: 0 var(--space-3);
+      pointer-events: auto;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar .panel-button::after {
+      content: '';
+      position: absolute;
+      inset: -0.375rem 0;
+    }
+
+    html[data-mode='universe'] main:has(> [data-card]) {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-flow: column wrap;
+      /* Each column spreads its cards from top to bottom; the two columns go to the two sides. */
+      justify-content: space-between;
+      align-content: space-between;
+      gap: var(--deck-gap) 0;
+      padding: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    /* The break between the columns: as tall as a column, and no width. */
+    html[data-mode='universe'] main:has(> [data-card])::before {
+      content: '';
+      order: 1;
+      flex: 0 0 100%;
+      width: 0;
+    }
+
+    /*
+     * A card: a stub in the right column, until a rule below says otherwise. A stub is a preview,
+     * so its text is set a size down, all of it at one size. --edge is its hairline (a mouse over
+     * it sets that; the open card holds its own, --edge-held); --title-* and --ring-* are what its
+     * title row reads (below), which the open card sets otherwise.
+     */
+    html[data-mode='universe'] main > [data-card] {
+      --text-base: var(--text-narrow-sm);
+      --text-lg: var(--text-narrow-sm);
+      --text-xl: var(--text-narrow-base);
+      --title-h: calc(var(--chip-h) - 2px);
+
+      order: 2;
+      display: block;
+      width: var(--w-right);
+      /* LOAD-BEARING: the min-height. A flex item's automatic minimum is its content, and one
+         card taller than the column would wrap into a third column. */
+      flex: 1 1 var(--chip-h);
+      min-height: var(--chip-h);
+      max-height: var(--stub-max);
+      margin: 0;
+      padding: 0 var(--space-4) var(--space-3);
+      /* LOAD-BEARING: clip, not hidden. Nothing may scroll a stub, not even the focus. */
+      overflow: clip;
+      border: 1px solid var(--edge-held, var(--edge, var(--hud-edge)));
+      /* The family's band, on the edge that faces the body. */
+      border-left: var(--line) solid var(--theme-base);
+      border-radius: var(--radius-md);
+      color: var(--color-ink-mid);
+      background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+      font-size: var(--text-base);
+      cursor: pointer;
+      pointer-events: auto;
+      /* The right column a moment after the left. */
+      animation: card-in var(--motion-base) var(--motion-ease-out) 80ms backwards;
+    }
+
+    /* The left column: the head, and the sections that `sideOf` puts under it. */
+    html[data-mode='universe'] main > [data-card]:nth-child(1),
+    html[data-mode='universe'] main > [data-card]:nth-child(2):nth-last-child(n + 3),
+    html[data-mode='universe'] main > [data-card]:nth-child(3):nth-last-child(n + 4),
+    html[data-mode='universe'] main > [data-card]:nth-child(4):nth-last-child(n + 5) {
+      order: 0;
+      width: var(--w-left);
+      border-right: var(--line) solid var(--theme-base);
+      border-left: 1px solid var(--edge-held, var(--edge, var(--hud-edge)));
+      animation-delay: 0s;
+    }
+
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        translate: 0 0.5rem;
+      }
+    }
+
+    html[data-mode='universe'][data-motion='reduced'] main > [data-card] {
+      animation: none;
+    }
+
+    /*
+     * The head: the panel's own plate, with the family's band across the top. It keeps its
+     * height, up to what leaves each section under it a title row; past that it scrolls (a
+     * window under 600 px tall, and a head with crumbs, a two-line title and a full lede).
+     */
+    html[data-mode='universe'] main > [data-card]:first-child {
+      flex: 0 0 auto;
+      /* LOAD-BEARING: the 1px. Rounded to whole pixels, a column exactly full can come out a
+         fraction over, and wrap. */
+      max-height: calc(100% - var(--nl) * (var(--chip-h) + var(--deck-gap)) - 1px);
+      padding: var(--space-3) var(--space-4) var(--space-4);
+      overflow-y: auto;
+      border: 1px solid var(--hud-edge);
+      border-top: 0.3125rem solid var(--theme-base);
+      border-radius: var(--radius-lg);
+      color: var(--color-ink-high);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      cursor: auto;
+    }
+
+    /* Its first row keeps clear of Close. (The crumbs' words start where a sign's plate does.) */
+    html[data-mode='universe'] main > [data-card]:first-child > .crumbs:first-child {
+      margin-top: calc(var(--space-2) * -1);
+      padding-right: 4.5rem;
+    }
+
+    html[data-mode='universe']
+      main
+      > [data-card]:first-child
+      > .page-header:first-child
+      > .eyebrow {
+      max-width: calc(100% - 4.5rem);
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child h1 {
+      font-size: var(--text-narrow-xl);
+      line-height: 1.1;
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child .eyebrow + h1 {
+      margin-top: var(--space-3);
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child .lede {
+      margin-top: var(--space-2);
+      color: var(--color-ink-mid);
+      font-size: var(--text-narrow-sm);
+      line-height: 1.5;
+    }
+
+    /*
+     * A card's title is its title row: one line, the station ring of the page's family before
+     * the words, and the link the whole row (its ring drawn inside it). A title the page keeps
+     * quiet in one column (1a) is the card's title here like any other.
+     */
+    html[data-mode='universe'] main > [data-card] > h2[id] {
+      position: var(--title-position, static);
+      top: 0;
+      left: auto;
+      z-index: 1;
+      display: flex;
+      gap: 0;
+      align-items: center;
+      width: auto;
+      height: var(--title-h);
+      min-height: 0;
+      margin: 0 calc(var(--space-4) * -1);
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      border-bottom: 1px solid var(--title-rule, transparent);
+      clip-path: none;
+      color: var(--color-ink-high);
+      background: var(--title-ground, none);
+      font-size: var(--title-size, var(--text-narrow-base));
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id]::before {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a {
+      position: static;
+      display: block;
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      padding: 0 var(--space-4);
+      overflow: hidden;
+      background: none;
+      line-height: var(--title-h);
+      text-overflow: ellipsis;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a::before {
+      content: '';
+      display: inline-block;
+      width: 0.625rem;
+      height: 0.625rem;
+      margin-right: 0.625rem;
+      border: 0.125rem solid var(--ring-edge, var(--theme-base));
+      border-radius: var(--radius-pill);
+      background: var(--ring-fill, none);
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a::after {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a:focus-visible {
+      outline-offset: -0.1875rem;
+      box-shadow: none;
+    }
+
+    /* What a card holds keeps the pace it has in the panel; a section that is a grid there (its
+       title and its list) is a block here, so that its title can be the row. */
+    html[data-mode='universe'] main > [data-card]:is(.section, .resume-section) > * + * {
+      margin-top: var(--space-4);
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] + * {
+      margin-top: var(--title-gap, 0);
+    }
+
+    /* Running text takes the card's ink: quieter in a stub, the page's own in the open card. */
+    html[data-mode='universe'] main > [data-card] > :is(p, ul, ol) {
+      color: inherit;
+    }
+
+    /* The planet drawn for a project with no picture: the real one is in the middle. */
+    html[data-mode='universe'] main > [data-card] .cover--planet {
+      display: none;
+    }
+
+    /*
+     * A sun's card on the projects page: its sun is the ring before its title, on the lane its
+     * planets stand on, and the list under it draws its own line (in the panel the line runs
+     * down from the sun, which here is in a row of its own).
+     */
+    html[data-mode='universe'] main > .system {
+      --sun: 1.125rem;
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] {
+      padding-left: var(--space-4);
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] > a {
+      padding-left: 1.9375rem;
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] > a::before,
+    html[data-mode='universe'] main > .system::before {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > .system .cards {
+      padding-bottom: var(--space-6);
+    }
+
+    html[data-mode='universe'] main > .system .cards::before,
+    html[data-mode='universe'] main > .system .cards::after {
+      display: block;
+    }
+
+    /* A stub's text fades into its plate, instead of being cut through a line. */
+    html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 0;
+      width: auto;
+      height: clamp(0.75rem, 25%, 2.25rem);
+      border-radius: 0;
+      background: linear-gradient(transparent, var(--ground) 85%);
+      pointer-events: none;
+    }
+
+    /* One card is open: every other card is a chip, its title row and nothing more. */
+    html[data-mode='universe'][data-card-open] main > [data-card] {
+      flex: 0 0 var(--chip-h);
+      max-height: var(--chip-h);
+      padding-bottom: 0;
+      overflow: clip;
+    }
+
+    html[data-mode='universe'][data-card-open] main > .system::after {
+      content: none;
+    }
+
+    /* The head's chip is the page's title on the row, with Close: everything else of the head
+       is still in the page, and out of sight and out of reach. Pressing the chip shows the head
+       again (and every card with it). */
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child {
+      padding-block: 0;
+      cursor: pointer;
+    }
+
+    html[data-mode='universe'][data-card-open]
+      main
+      > [data-card]:first-child
+      :not(.page-header, h1) {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child > .page-header {
+      position: absolute;
+      inset: 0;
+    }
+
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child h1 {
+      position: absolute;
+      inset: 0 4.5rem 0 var(--space-4);
+      margin: 0;
+      overflow: hidden;
+      font-size: var(--text-narrow-base);
+      line-height: calc(var(--chip-h) - 0.375rem);
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /*
+     * The open card: the whole section at the reading size, as tall as it is, up to the column
+     * less a title row for each card that shares it; past that it scrolls inside itself, under
+     * its title. Its ring is filled butter: here.
+     */
+    html[data-mode='universe'][data-card-open='1'] main > [data-card]:nth-child(2),
+    html[data-mode='universe'][data-card-open='2'] main > [data-card]:nth-child(3),
+    html[data-mode='universe'][data-card-open='3'] main > [data-card]:nth-child(4),
+    html[data-mode='universe'][data-card-open='4'] main > [data-card]:nth-child(5),
+    html[data-mode='universe'][data-card-open='5'] main > [data-card]:nth-child(6),
+    html[data-mode='universe'][data-card-open='6'] main > [data-card]:nth-child(7),
+    html[data-mode='universe'][data-card-open='7'] main > [data-card]:nth-child(8),
+    html[data-mode='universe'][data-card-open='8'] main > [data-card]:nth-child(9) {
+      --text-base: var(--text-narrow-base);
+      --text-lg: var(--text-narrow-lg);
+      --text-xl: var(--text-narrow-xl);
+      --title-h: 3.25rem;
+      --title-size: var(--text-narrow-lg);
+      --title-position: sticky;
+      --title-ground: var(--ground);
+      --title-rule: var(--color-surface-line);
+      --title-gap: var(--space-3);
+      --ring-edge: var(--color-focus);
+      --ring-fill: var(--color-focus);
+      --edge-held: var(--hud-edge);
+
+      flex: 0 1 auto;
+      /* LOAD-BEARING: the 1px, as for the head. */
+      max-height: calc(100% - var(--deck-mates, 0) * (var(--chip-h) + var(--deck-gap)) - 1px);
+      padding-bottom: var(--space-4);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* Whatever is scrolled to in it (a link the keyboard lands on) stops under its title. */
+      scroll-padding-top: var(--title-h);
+      color: var(--color-ink-high);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      cursor: auto;
+      scrollbar-color: var(--color-ink-low) transparent;
+      scrollbar-width: thin;
+    }
+
+    /* A mouse over a card that can be pressed: its edge in the family's colour. Nothing moves:
+       a card that moved would leave its leader behind. */
+    @media (hover: hover) {
+      html[data-mode='universe'] main > [data-card]:not(:first-child):hover,
+      html[data-mode='universe'][data-card-open] main > [data-card]:first-child:hover {
+        --edge: var(--theme-base);
+      }
+
+      html[data-mode='universe'][data-card-open] main > [data-card]:first-child:hover {
+        border-color: var(--theme-base);
+      }
+    }
+
+    /* Asked for more contrast, or in forced colours: plates that nothing shows through, and no
+       gradient (forced colours would paint it in the page's navy over the system's own ground). */
+    @media (prefers-contrast: more), (forced-colors: active) {
+      html[data-mode='universe'] main > [data-card] {
+        background: var(--color-surface-panel);
+      }
+    }
+
+    @media (forced-colors: active) {
+      html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
+        content: none;
+      }
+    }
+
+    /* The Map button stands in the middle of what the cards leave free, as the dock prompt does
+       at the bottom: top right, the first card's leader would run through it. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle {
+      right: auto;
+      left: calc(50% + var(--panel-inset-left, 0px) / 2);
+      translate: -50% 0;
+    }
+
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle:active {
+      translate: -50% var(--ledge);
+    }
+
+    /* A card that opens moves that middle: the button and the prompt go there as their layer
+       does (its own right edge slides, above), not in one jump. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle,
+    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt {
+      transition: left var(--motion-slow) var(--motion-ease-out);
     }
   }
 

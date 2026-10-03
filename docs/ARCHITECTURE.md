@@ -12,7 +12,8 @@ two ways:
 
 - **Plain mode** is the page as it is. The base CSS _is_ the plain layout, so a browser with no
   JavaScript at all gets a complete, fast site. Plain mode never downloads three.js.
-- **Universe mode** boots a 3D world behind the page. The page's `<main>` becomes the info panel.
+- **Universe mode** boots a 3D world behind the page. The page's `<main>` becomes the info panel
+  (on a wide screen, a deck of cards round the docked body).
 
 The content is written once, the URL is the same, and search engines, link previews, screen
 readers and recruiters in a hurry all get the plain truth. `scripts/verify-dist.mjs` fails the
@@ -63,9 +64,9 @@ Inside `<main>` a page is a list of **cards** (AGENTS.md, invariant 11): a head 
 own fragment, so `/about/#rockets` names a card. `src/site/sections.ts` cuts a text's rendered
 HTML at its `##` headings (a scanner that counts the open tags: no Markdown plugin),
 `src/site/cards.ts` says which cards each kind of page has and refuses a ninth, and
-`components/Card.astro` is the markup. Every layout of today draws a card as a plain block, so a
-page still reads as one column; the cards are what a layout that stands them round a planet
-will take hold of.
+`components/Card.astro` is the markup. Plain mode, the side panel and the bottom sheet draw a
+card as a plain block, so a page reads as one column there; on a wide screen the universe stands
+the same cards round the docked body ("The deck" in section 5).
 
 The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
 `/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
@@ -180,7 +181,9 @@ frame something are told how much is free and stand back accordingly. `#universe
 the same way, so the dock prompt is never under a bottom sheet. **What is left has four sides**
 (`ViewShape`: across from `freeLeft` to `freeWidth`, down from `freeTop` to `freeHeight`, as
 shares of the viewport). A panel takes the right and a sheet the bottom; `left` is for content
-that stands on BOTH sides of the body (the cards: nothing sends one yet, so it is 0). The window
+that stands on BOTH sides of the body: the deck's cards, where the shell measures the cards
+themselves (`deckInset` in `shell/deck.ts`: `left` is the head's right edge and `right` the last
+card's left edge, each with 24 px of air, and nothing at the bottom). The window
 slides by half of `right - left`; the orbit camera fits its ring to the span between the two
 sides; the names keep to it (`Labels`, `room.left`); the star map is fitted into it and measures
 a pointer from its middle; and the dock prompt, in a layer that already ends where a side panel
@@ -383,7 +386,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   `Esc` closes it, and the map hears `Esc` before the panel does. (Scrolling out opens it only
   while the wheel is the map's to take: `StarMap`'s `wheelOpens`, which `main.ts` answers with
   "the web layer has set no deck", `setDeck` in `api.ts`. Among cards the wheel steps from one
-  to the next; nothing sets a deck yet.) The map camera is the SAME
+  to the next, so there the map is `M` or its button.) The map camera is the SAME
   perspective camera, straight down through a 12° lens from far away, north up (+Z up the
   screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
   work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
@@ -426,8 +429,32 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   gets a history entry of its own: a link to a part of this page, and `router.anchor()`, replace
   it in the entry that is showing, so Back and Close go on leaving the page. The router tells
   `onAnchor` (for such a link, for Back and Forward between two fragments, for one typed into the
-  address bar), and its listener shows the part: in the panel and the sheet it scrolls there. The
-  panel and the ship hear nothing, because the page did not change.
+  address bar), and its listener shows the part: in the panel and the sheet it scrolls there,
+  and in the deck the card that holds it opens. The panel and the ship hear nothing, because the
+  page did not change.
+- **The deck** (`shell/deck.ts`, `shell/cards.ts`, "the deck" in the stylesheet). One content
+  box, three layouts, and which one is a media query alone (`DECK`: at least 80rem wide and 36rem
+  tall; `deck.test.ts` and `panel-inset.test.ts` read the stylesheet and hold it to the code).
+  The STYLESHEET lays the cards out: `<main>` is a column-wrap flex box with one forced break,
+  the head and the first sections down the left, the rest down the right, in DOM order, and
+  nothing is positioned by script. Which card is open is the fragment; `cards.sync()` reads it
+  and writes three values on `<html>` (`data-card-open`, the card's place among the sections;
+  `data-card-side`; `--deck-mates`, how many boxes share its column), and CSS does the rest: a
+  card is a stub (the overview), a chip (another card is open) or the open card, which scrolls
+  inside itself. Nothing is ever written inside `<main>`, so a soft navigation still ends in
+  the DOM a hard one builds (invariant 11). Every change of card is `router.anchor(key | null)`
+  and then `cards.sync()`, whoever asks: a press on a card or its title, the wheel (one pure
+  reducer, `wheelStep`: a gesture that begins with the open card at its end steps to the next
+  card, any other scrolls the card, wherever the pointer is), the scroll keys (`keyStep`) and
+  `Esc`, which closes a card before it leaves the page (`panel.ts` asks `onEscape`). After a
+  step the focus moves (to the card's title, if it was in `<main>`) or the announcer says the
+  card's name and place, never both; and the keyboard's focus never rests on something cut off:
+  focus inside a card that is not open opens it. The listeners start with the router and the
+  panel, before the engine arrives, so the cards work while the world loads. The engine hears
+  two things: what the cards leave free (`setPanelInset`, re-measured in the same task as the
+  change, since nothing in the deck moves by width, height or position) and the deck itself
+  (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
+  which card is open), which today only gives the wheel to the cards.
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered
@@ -495,6 +522,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
 | Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
+| Which card of the deck is open | the URL's fragment, mirrored as `data-card-open`, `data-card-side` and `--deck-mates` on `<html>` (`shell/cards.ts`) | a link to a card is a link; no entry of its own, so Back still leaves the page |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
@@ -522,7 +550,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
   and a crowded one only ever fades; a camera blend that stays level however far round it turns.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
-  history rules, the panel, the swap contract, the hint card, the announcer.
+  history rules, the panel, the swap contract, the hint card, the announcer, and the cards (what
+  a click, a key, a wheel and the focus do; `<main>` byte for byte the same after each).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]` and, inside `<main>`, the cards that
@@ -544,7 +573,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
   pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
   in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
-  44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
+  44 px; the deck (`cards.spec.ts`: two columns, no card over another or outside the window, at
+  three sizes and with each card open; the wheel, the keys, Esc and Back among cards). They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
   they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
   CSP, 404). Looks and feel are judged there and on real phones; a number in a test cannot say

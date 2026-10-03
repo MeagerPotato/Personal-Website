@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tokens } from '../universe/design/tokens';
+import { DECK } from './deck';
 import {
   barReach,
   footReach,
   HUD_ROW_REM,
   mirrorInset,
+  NARROW,
   panelInset,
   watchPanelInset,
   type PanelInset,
@@ -106,6 +108,16 @@ describe('panel inset', () => {
     expect(HUD_ROW_REM).toBe(Number.parseFloat(tokens.space[3]) + 2.75);
   });
 
+  it('asks the same questions of the window as the stylesheet does', () => {
+    // Which layout the content is in decides what is measured: a query that drifted from the
+    // stylesheet's would frame the body for a layout that is not on the screen.
+    const css = readFileSync(path.resolve('src/styles/global.css'), 'utf8');
+    expect(css).toContain(`\n  @media ${NARROW} {`);
+    expect(css).toContain(`\n  @media ${DECK} {`);
+    // Once each: a second block under the same query would be a second place to change.
+    expect(css.split(`@media ${DECK} {`)).toHaveLength(2);
+  });
+
   it('measures the top bar by what can be pressed in it, not by its padding', () => {
     const control = (width: number, bottom: number) => ({
       getBoundingClientRect: () => ({ width, bottom }),
@@ -186,6 +198,7 @@ describe('watching the panel', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     delete document.documentElement.dataset.panel;
+    vi.restoreAllMocks();
   });
 
   /** Let the observers deliver. */
@@ -205,7 +218,7 @@ describe('watching the panel', () => {
     layOut();
     document.documentElement.dataset.panel = 'open';
     const seen: [PanelInset, boolean][] = [];
-    const stop = watchPanelInset((inset, first) => seen.push([inset, first]));
+    const watch = watchPanelInset((inset, first) => seen.push([inset, first]));
     expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0, left: 0, frameTop: 0 }, true]]);
 
     document.documentElement.dataset.panel = 'closed';
@@ -218,7 +231,7 @@ describe('watching the panel', () => {
     await settle();
     expect(seen).toHaveLength(2);
 
-    stop();
+    watch.stop();
     document.documentElement.dataset.panel = 'open';
     await settle();
     expect(seen).toHaveLength(2);
@@ -226,7 +239,107 @@ describe('watching the panel', () => {
 
   it('has nothing to watch on a page without a panel', () => {
     const onChange = vi.fn();
-    watchPanelInset(onChange)();
+    const watch = watchPanelInset(onChange);
+    watch.refresh();
+    watch.stop();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  /** The deck at 1280 x 800: the stage, a head, and two sections in the right column. */
+  const stage = { offsetLeft: 24, offsetTop: 76, offsetWidth: 1232, offsetHeight: 656 };
+  function place(element: Element | null, box: Partial<typeof stage>): void {
+    for (const [key, value] of Object.entries(box)) {
+      Object.defineProperty(element, key, { value, configurable: true });
+    }
+  }
+  function layOutDeck(sections = 2): HTMLElement[] {
+    document.body.innerHTML =
+      '<div class="panel"><div class="panel-bar"></div><main><div data-card></div>' +
+      '<section data-card></section>'.repeat(sections) +
+      '</main></div>';
+    place(document.querySelector('.panel'), stage);
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-card]')];
+    place(cards[0] ?? null, { offsetLeft: 0, offsetWidth: 307 });
+    for (const card of cards.slice(1)) place(card, { offsetLeft: 925, offsetWidth: 307 });
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    return cards;
+  }
+  /** The window answers the stylesheet's queries: the deck's, or the side panel's. */
+  function wide(deck: boolean): void {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) => ({ matches: deck && query === DECK }) as MediaQueryList,
+    );
+  }
+
+  it('measures a deck of cards: what the two columns leave free between them', () => {
+    layOutDeck();
+    wide(true);
+    document.documentElement.dataset.panel = 'open';
+    const seen: [PanelInset, boolean][] = [];
+    const watch = watchPanelInset((inset, first) => seen.push([inset, first]));
+    // 24 px clear of the head's right edge, and of the last card's left edge.
+    expect(seen).toEqual([[{ top: 0, right: 355, bottom: 0, left: 355, frameTop: 0 }, true]]);
+    watch.stop();
+  });
+
+  it('measures again when asked: an open card widens its column, and the panel stays as it was', () => {
+    const cards = layOutDeck();
+    wide(true);
+    document.documentElement.dataset.panel = 'open';
+    const seen: [PanelInset, boolean][] = [];
+    const watch = watchPanelInset((inset, first) => seen.push([inset, first]));
+
+    // The last card opens: the right column is 480 px wide.
+    for (const card of cards.slice(1)) place(card, { offsetLeft: 752, offsetWidth: 480 });
+    watch.refresh();
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toEqual([{ top: 0, right: 528, bottom: 0, left: 355, frameTop: 0 }, false]);
+
+    // Asked again with nothing moved: not news.
+    watch.refresh();
+    expect(seen).toHaveLength(2);
+
+    watch.stop();
+    place(cards[0] ?? null, { offsetWidth: 480 });
+    watch.refresh();
+    expect(seen).toHaveLength(2);
+  });
+
+  it('leaves the whole right free for a deck with no section card', () => {
+    layOutDeck(0);
+    wide(true);
+    document.documentElement.dataset.panel = 'open';
+    const onChange = vi.fn();
+    watchPanelInset(onChange).stop();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(
+      { top: 0, right: 0, bottom: 0, left: 355, frameTop: 0 },
+      true,
+    );
+  });
+
+  it('is the panel’s own inset for the same cards in a window too small for a deck', () => {
+    layOutDeck();
+    place(document.querySelector('.panel'), column);
+    wide(false);
+    document.documentElement.dataset.panel = 'open';
+    const onChange = vi.fn();
+    watchPanelInset(onChange).stop();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(
+      { top: 0, right: 496, bottom: 0, left: 0, frameTop: 0 },
+      true,
+    );
+  });
+
+  it('is the panel’s own inset on a wide window for a page without cards (the home page)', () => {
+    layOut();
+    wide(true);
+    document.documentElement.dataset.panel = 'open';
+    const onChange = vi.fn();
+    watchPanelInset(onChange).stop();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(
+      { top: 0, right: 496, bottom: 0, left: 0, frameTop: 0 },
+      true,
+    );
   });
 });

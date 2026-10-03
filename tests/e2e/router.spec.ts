@@ -23,17 +23,29 @@ const navLink = (page: Page, name: string) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name });
 const pathOf = (page: Page): string => new URL(page.url()).pathname;
 
-/** Follow a real link to `path` if the page has one, else one put there for the purpose. */
+/**
+ * Follow a real link to `path` if the page has one, else one put there for the purpose. In the
+ * deck (cards.spec.ts) a link in a card that is not open may be cut off, and a reader opens the
+ * card first, by its title: so does this.
+ */
 async function follow(page: Page, path: string): Promise<void> {
   const existing = page.locator(`a[href="${path}"]:visible`).first();
   if ((await existing.count()) > 0) {
+    const title = await existing.evaluate((link) => {
+      const card = link.closest('section[data-card]');
+      const cut = card !== null && getComputedStyle(card).overflowY === 'clip';
+      return cut ? (card.querySelector('h2 a')?.getAttribute('href') ?? null) : null;
+    });
+    if (title !== null) await page.locator(`main h2 a[href="${title}"]`).click();
     await existing.click();
   } else {
     await page.evaluate((href) => {
       const link = document.createElement('a');
       link.href = href;
       link.textContent = `e2e: ${href}`;
-      document.getElementById('main')?.prepend(link);
+      // Into the page's first card: in the deck only a card takes the pointer, <main> does not.
+      const main = document.getElementById('main');
+      (main?.querySelector(':scope > [data-card]') ?? main)?.prepend(link);
     }, path);
     await page.getByRole('link', { name: `e2e: ${path}` }).click();
   }
@@ -126,7 +138,10 @@ test('Back and Forward walk the pages that were seen, in one document', async ({
   expect(await sameCanvas(page)).toBe(true);
 });
 
-test('Back returns to where the reader was in a long page', async ({ page }) => {
+test('Back returns to where the reader was in a long page', async ({ page, isMobile }) => {
+  // Where a page is one column that scrolls: the side panel, and on the phone its sheet. (On a
+  // wide screen the page is a deck of cards, and a card opens at its top: cards.spec.ts.)
+  if (!isMobile) await page.setViewportSize({ width: 1100, height: 800 });
   await openUniverse(page, '/projects/fishai/');
   // In universe mode the panel scrolls, not the document.
   const scrollTop = () => page.evaluate(() => document.getElementById('main')?.scrollTop ?? -1);

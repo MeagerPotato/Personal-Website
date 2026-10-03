@@ -81,8 +81,9 @@ needs a sixth glyph. Every family's numbers are in the contrast tables below.
 Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
-  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), and what
-  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"). The home system is butter
+  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), what
+  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"), and the card of the deck
+  that is open (the ring before its title). The home system is butter
   too, so a focused butter key keeps a navy rim between its fill and the ring.
 - **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
   Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
@@ -209,21 +210,21 @@ Every state is designed, not only the resting one, and each has a shape as well 
 
 | State | How it looks | Where |
 | --- | --- | --- |
-| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
+| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring; a card of the deck that is not open takes an edge in its family's base, and nothing moves (a moved card would leave its place round the body). **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips, the deck's cards |
 | Focus (`:focus-visible`) | A 3 px butter ring outside a 2 px `space.950` rim, so it reads on anything: a white peak, a pale ring, a butter key (butter meets navy, never butter). A key at rest carries the same three shadows with the rim at nothing, so a focus eases in the rim and nothing else | everything focusable, in both modes. The ring goes round a name's tag, not its 44 px box, round a nav word's 36 px chip (no rim: it sits on navy already), and round a card title's words. The heading the router focuses after a soft navigation, and `<main>` where the skip link lands, show none: they are not controls |
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, its family glyph turned navy, the station it stops at (every other tag shows the glyph in its family's base) | the body the ship is headed for |
 | On | The cream face: `ink.high`, navy words, no edge. A toggle is named for what it does next ("Close map", "Shrink"), so the sheet's button carries no `aria-pressed` ("Shrink, toggle button, pressed" contradicted itself) | the Map button while the map is open (`data-state='open'`; its M cap turns navy), the sheet's Shrink (`html[data-panel-size='full']`), "About this site" while its text shows (`aria-expanded`) |
 | Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the boost pad |
 | Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
-| More contrast | The HUD plate and the panel are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
+| More contrast | The HUD plate, the panel and the deck's cards are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
 
 ## The two modes
 
 | | Plain | Universe |
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
-| `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
+| `<main>` is | the page | the info panel: a deck of cards round the docked body on a wide screen (1280 by 576 px and up), a side panel on a smaller one (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
 | JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (about 176 KiB gzipped: the engine 169, the shell 7) loads on demand, of a 220 KiB budget |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
@@ -323,7 +324,9 @@ of, is in the table under The 3D world.
   568 px with tighter chips; at 400 % zoom (320 by 256) it takes the phone's two rows.
 - **"About this site"** (the home page only): the welcome text waits behind it, and it wears the
   cream face while the text shows.
-- **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
+- **The Map button**, top right under the bar (over a deck: top centre of the part of the world
+  the cards leave free, where the dock prompt stands at the bottom; both slide there as a card
+  opens and its column widens): "Map" with its M key cap; on the map, "Close map"
   in the cream face. A finger gets no key cap and a fixed width, and so does a mouse beside a
   phone-shaped sheet, where the row is short of room. Whatever shares its row keeps --space-3
   clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`, where a
@@ -371,6 +374,32 @@ of, is in the table under The 3D world.
   route sign's plate 24, the crumbs' words 22). The panel
   pins the type scale to its narrow end. On a wide screen it is a side panel on the HUD's grid: its
   right edge flush with the nav tray, its bottom level with the Plain version chip.
+- **The deck** (a window at least 1280 px wide and 576 px tall) is the same content as cards
+  round the docked body, not beside it: two columns on the HUD's grid (18 to 22rem wide, the
+  window's edges at most 120rem apart), the body between them. The page's head (crumbs, route
+  sign, the `<h1>` at `xl`, the lede at `sm` in `ink.mid`) stands top left with Close beside its
+  first line; the sections follow in reading order, down the left column, then down the right
+  (the two columns hold as many boxes as each other, the head counted: of three or four
+  sections the first stands under the head, of five or six the first two, of seven or eight
+  the first three; one or two sections stand on the right, facing the head). Eight sections at
+  most. Every card is one of three things:
+  - **a stub** (the overview): its title row, 44 px, with a 10 px station ring in the family's
+    base before the words (`base`, 600), then the start of its section at `sm` in `ink.mid`
+    under a fade to the plate. The stubs of a column share its height, at most
+    `--stub-max` each (7.5 to 11rem). The plate is the panel's (`surface.panel` at 96 %), with no
+    blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
+    cards read as the ends of lines to it;
+  - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
+    `base` on one line, with Close;
+  - **the open card**: the whole section at the panel's sizes in `ink.high`, as wide as
+    30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
+    its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
+    `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+  A section's cover picture is not in its card where the card's body is the planet itself
+  (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
+  wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
+  the card (`/about/#rockets`). The cards arrive with the page (opacity, and 8 px up by
+  `translate`; the right column 80 ms after the left); with reduced motion they are simply there.
 - **The bottom sheet** (a phone held upright) has rounded top corners. At rest it leaves at least
   20rem above it: the bar, the Map button's row and a strip of world for the docked body. The home
   page's welcome text rests lower (at most 45 % of the height), because the chase camera needs a
