@@ -298,7 +298,7 @@ export function boot(
   // Every body as the names and the minimap know it, by row of the orbit table.
   const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
   const families = familiesOf(manifest);
-  const rows = surroundings.orbits.ids.map((id) => {
+  const rows = surroundings.orbits.ids.map((id, row) => {
     const body = byId.get(id);
     return {
       id,
@@ -308,6 +308,8 @@ export function boot(
       href: body?.docks === false ? body.href : undefined,
       theme: families.get(id),
       system: manifest.systems.findIndex((system) => system.id === body?.system),
+      // What it circles, as a row of this table (-1: nothing).
+      parent: surroundings.orbits.parent[row] ?? -1,
     };
   });
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the

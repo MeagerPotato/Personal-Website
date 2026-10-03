@@ -112,7 +112,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card, the Launch the starfield chip; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
 | `ink.high` on `surface.line` | 9.8 | a raised key under a mouse (its face already `surface.raised`, or on a raised plate): the panel bar's Close and Expand, the hint card's "Got it" |
 | `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip; the flight deck's speed and heading; the minimap's caption while it names a body |
-| `ink.high` on the ball's sky / ground (`space.900` / `surface.line`) | 17.2 / 9.8 | N, E, S and W on the flight deck's ball (12 px, 700) |
+| `ink.high` on the ball's sky / ground (`surface.line` / `space.900`) | 9.8 / 17.2 | N, E, S and W on the flight deck's ball (12 px, 700, each on a navy rim): they are painted on the sky |
 | `ink.mid` on the page / the panel | 10.6 / 8.6 | running text, the nav, the crumbs, a card's summary and status chip, the resume's dates, bullets and skills, a caption, the footer |
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
 | `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name; a lamp of the flight deck that is off, its "m/s" and "HDG"; the minimap's caption while it says what the map shows |
@@ -136,7 +136,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
-| the flight deck's ball, each mark on its sky / ground (`space.900` / `surface.line`) | `ink.high` 17.2 / 9.8; butter 13.9 / 7.9; `ink.low` 6.7 / 3.8; a family's base 6.3 / 3.6 | the nose, prograde and home; the target; the meridians and the rim; the horizon, in the family of the system the ship is in (lilac is the lowest). Every mark but the meridians has a navy rim (`space.950`) under it. The two halves are only 1.7 apart: the horizon carries the division |
+| the flight deck's ball, each mark on its sky / ground (`surface.line` / `space.900`) | `ink.high` 9.8 / 17.2; butter 7.9 / 13.9; `ink.low` 3.8 / 6.7; a family's base 3.6 / 6.3; `ink.mid` 6.1 / 10.6 | the nose, prograde and home; the target; the meridians and the rim; the horizon, in the family of the system the ship is in (lilac is the lowest) and in `ink.mid` between systems. Every mark but the meridians has a navy rim (`space.950`) under it, the letters too. The sky is the lighter half, as a sky is, and the two are 1.75 apart, which is all these navies give: the horizon carries the division |
 | `ink.high` / coral on the HUD plate | 11.6 / 5.7 | the flight deck's arcs: the throttle and the g; the throttle while boosting |
 | the minimap's marks on its ground (`space.900`) | a family's base 6.3; `ink.low` 6.7; `ink.high` 17.2; butter 13.9 | suns, the home planet, planets, moons and the pins at the rim (lilac is the lowest); planned work's dashed outline; the ship and the ring of a pointer's aim; the ring that says "here" and a journey's line. The circles the bodies travel on are the family at 35 %: decoration, nothing is found by them |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
@@ -231,7 +231,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (215.5 KiB gzipped on 2026-10-03: the engine 205.0, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (215.6 KiB gzipped on 2026-10-03: the engine 205.2, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -361,18 +361,22 @@ of, is in the table under The 3D world.
 - **The flight deck** is Kerbal Space Program's cluster of instruments at the bottom centre,
   drawn flat: a picture of the simulation, not a control (no ledge, no hover, no focus;
   `aria-hidden`). It shows whenever the ship is not docked and the star map is closed. The
-  cluster is 15rem wide; its round plate (`--deck-size`, by the view's height: 80 px in a view
-  576 px tall, 112 from 785 up, so that its top stays under the ship's flame) wears the boost
-  pad's ring and holds **the ball**: a globe, its sky half `space.900` over its ground half
-  `surface.line`, with a meridian every 30 degrees and N E S W sliding with the heading, and a
-  3 px horizon in the family of the system the ship is in (`ink.low` between systems). It leans
-  and nods with the ship (not under reduced motion). On it: the nose (a fixed "-v-"), prograde
-  (a ring with a dot, where the ship is really going), home (a house) and **the target, in
-  butter**: a whole ring while a journey or an approach is locked on (it closes in once, 1.6 to
-  1), a dashed one for a body that is only within reach, hollow at the rim when it is behind.
-  Up the plate's left the throttle (coral while boosting), up its right the g (full at 15 g,
-  then a peg lights); above it the speed pill ("42 m/s", with one to three chevrons from 82,
-  300 and 600: only the autopilot gets there), below it the heading chip ("HDG 067°", 000 is
+  cluster is 15rem wide; its round plate (`--deck-size`, by the view's height: 64 px in a view
+  576 px tall, 112 from 832 up, so that its top keeps half a rem under the fins of a ship at
+  rest, at the bottom of its hover: `tests/deck-room.test.ts`) wears the boost pad's ring and
+  holds **the ball**: a globe, its sky half `surface.line` (the lighter one, as a sky is) over
+  its ground half `space.900`, with a meridian every 30 degrees and N E S W riding them, and a
+  3 px horizon in the family of the system the ship is in (`ink.mid` between systems). The
+  letters stay upright, each on a navy rim; one fades out as it turns away from the nose, gone
+  before the rim would cut it (60 degrees off the nose on the biggest ball, 43 on the
+  smallest), and makes way for the target where their lanes meet. The ball leans and nods with
+  the ship (not under reduced motion). On it: the nose (a fixed "-v-"), prograde (a ring with a
+  dot, where the ship is really going), home (a house) and **the target, in butter**: a whole
+  ring while a journey or an approach is locked on (it closes in once, 1.6 to 1), a dashed one
+  for a body that is only within reach, hollow at the rim when it is behind. Up the plate's
+  left the throttle (coral while boosting), up its right the g (full at 15 g, then a peg lights
+  at its top end); above it the speed pill ("42 m/s", with one to three chevrons from 82, 300
+  and 600: only the autopilot gets there), below it the heading chip ("HDG 067°", 000 is
   north), and a lamp on each shoulder: ASSIST and AUTO, on the cream face while lit. Where the
   free view is under 48rem by 36rem it is **the strip**: one pill, 7.75rem by 2.75rem, in the
   Map button's row at the far end from it, with the ball, the speed and the heading (or the lit
@@ -387,7 +391,8 @@ of, is in the table under The 3D world.
   in, north up, and eases from one to the other. A sun and the home planet are their family's
   glyph, filled, with a navy rim; planets, docks and moons are discs; planned work is hollow
   and dashed in `ink.low`; each travels on a hairline circle in its family; a system off the
-  map is its glyph in outline, pinned at the rim in its direction; the ship is a cream chevron.
+  map is its glyph in outline, pinned at the rim in its direction; the ship is a cream chevron
+  on a navy rim, 13 px long (a little bigger than a sun's mark), on top of whatever it is at.
   A pointer aims (a 1.5 px cream ring, the name in the caption in `ink.high`) and a press on a
   mark flies there, exactly as a press on its name does; a press where nothing is opens the
   star map. **Butter is "here"**: a 2 px ring round the body the ship is at or headed for, the

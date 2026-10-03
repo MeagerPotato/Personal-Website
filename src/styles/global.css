@@ -1868,12 +1868,18 @@ main > .resume-name + .resume-contact {
     --map-chip: 6rem;
     /*
      * The flight deck (universe/ui/FlightDeck.ts). Its round plate is sized by the view's HEIGHT:
-     * 80 px in a view 576 px tall, 91 at 650, 102 at 720, 112 from 785 up. That is what keeps its
-     * top under the ship's flame in a short window, with the camera left exactly where it is.
+     * 64 px in a view 576 px tall, 78 at 650, 91 at 720, 112 from 832 up. That is what keeps its
+     * top under the ship in a short window, with the camera left exactly where it is. A ship at
+     * rest hovers, and at the bottom of each bob its fins reach 81.3 % of the way down a view
+     * (tests/deck-room.test.ts works it out from the chase camera and the model, and a browser's
+     * pixels agree): the plate has the 18.75svh under that, less the cluster's own 2.25rem (the
+     * chips above and below it, and the gap at the bottom) and 0.5rem of air. (Only the flame of
+     * a boost from rest reaches lower than the fins, by about 1.5 % of the view for a fifth of a
+     * second: begun at the very bottom of a bob, its tip is behind the speed pill that long.)
      * --deck-half is half of the cluster's width; --deck-top is how far its top is from the
-     * bottom of the view (116 to 148 px), for whatever has to keep above it.
+     * bottom of the view (100 to 148 px), for whatever has to keep above it.
      */
-    --deck-size: clamp(5rem, calc(15.5svh - 0.6rem), 7rem);
+    --deck-size: clamp(4rem, calc(18.75svh - 2.75rem), 7rem);
     --deck-half: 7.5rem;
     --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
     --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
@@ -2793,15 +2799,19 @@ main > .resume-name + .resume-contact {
     font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
-    /* Only the instruments take a press, and do nothing with it, so that nothing behind a plate
-       is picked unseen. The gaps between them are the world's. */
-    pointer-events: none;
     user-select: none;
     -webkit-user-select: none;
     /* Leaving, it fades, and is then gone for a pointer too. */
     transition:
       opacity var(--motion-base) var(--motion-ease-in-out),
       visibility 0s linear var(--motion-base);
+  }
+
+  /* Only the instruments take a press, and do nothing with it, so that nothing behind a plate is
+     picked unseen: the gaps between them are the world's. (The overlay hands the pointer to each
+     of its children by its id, so this names the id too.) */
+  #universe-overlay > .flight-deck:not([data-layout='strip']) {
+    pointer-events: none;
   }
 
   /* (The minimap comes and goes the same way: its own rules are further down.) */
@@ -2812,6 +2822,12 @@ main > .resume-name + .resume-contact {
   :is(.flight-deck, .minimap):not([data-shown]) {
     opacity: 0;
     visibility: hidden;
+  }
+
+  /* While it fades nothing of it takes a press: what it covered is the world's again at once. */
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]),
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]) * {
+    pointer-events: none;
   }
 
   /* Arriving is an animation, like the prompt's and the card's: no transition on the way in. */
@@ -2963,20 +2979,21 @@ main > .resume-name + .resume-contact {
   }
 
   /*
-   * The ball: a globe seen from the pilot's seat, the sky half (space.900) over the ground half
-   * (surface.line: on surface.raised the two read as one in the browser, 1.3:1 apart; so they are
-   * 1.75:1). The horizon carries the division all the same: 3 px in the family of the system the
-   * ship is in (`data-theme`; lilac, the deepest, is 3.6:1 on the ground), and ink.low between
-   * systems. Meridians and the rim are ink.low hairlines (6.7:1 on the sky, 3.8 on the ground);
-   * the letters keep to the sky. src/site/contrast.test.ts reads both faces from here and holds
-   * every mark to them.
+   * The ball: a globe seen from the pilot's seat, in two tones as KSP's is. The sky half is the
+   * LIGHTER one (surface.line), as a sky is, over a ground half as dark as the space behind the
+   * plate (space.900): 1.75:1 apart, the most these navies have to give (on surface.raised the
+   * two read as one in the browser). The horizon carries the division all the same: 3 px, in the
+   * family of the system the ship is in (`data-theme`; lilac, the deepest, is 3.6:1 on the sky)
+   * and in ink.mid between systems, brighter than the hairlines so that it is the horizon there
+   * too. Meridians and the rim are ink.low hairlines (3.8:1 on the sky, 6.7 on the ground).
+   * src/site/contrast.test.ts reads both faces from here and holds every mark to them.
    */
   .flight-deck__sky {
-    fill: var(--color-space-900);
+    fill: var(--color-surface-line);
   }
 
   .flight-deck__ground {
-    fill: var(--color-surface-line);
+    fill: var(--color-space-900);
   }
 
   .flight-deck__line,
@@ -2987,17 +3004,23 @@ main > .resume-name + .resume-contact {
   }
 
   .flight-deck__horizon {
-    stroke: var(--theme-base);
+    stroke: var(--color-ink-mid);
     stroke-width: 3;
   }
 
-  .flight-deck:not([data-theme]) .flight-deck__horizon {
-    stroke: var(--color-ink-low);
+  .flight-deck[data-theme] .flight-deck__horizon {
+    stroke: var(--theme-base);
   }
 
-  /* N, E, S and W: never under 12 px. */
+  /* N, E, S and W, on the sky: never under 12 px, upright, each on a navy rim (the stroke,
+     painted first: half of it shows) that parts it from the meridian it rides. The engine fades
+     a letter as it turns away from the nose, and out where the target is (its `opacity`). */
   .flight-deck__letter {
     fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
     font-size: 0.75rem;
     text-anchor: middle;
   }
@@ -3124,13 +3147,15 @@ main > .resume-name + .resume-contact {
     .flight-deck__warp,
     .flight-deck__line,
     .flight-deck__rim,
-    .flight-deck .flight-deck__horizon,
+    .flight-deck__horizon,
+    .flight-deck[data-theme] .flight-deck__horizon,
     .flight-deck__fill {
       stroke: CanvasText;
     }
 
     .flight-deck__letter {
       fill: CanvasText;
+      stroke: Canvas;
     }
 
     .flight-deck__mark,
@@ -3328,7 +3353,7 @@ main > .resume-name + .resume-contact {
   }
 
   /* ...and a mouse's how-to-fly card, which a narrow window brings over the deck's left end,
-     keeps 12 px above it: lifted by 4 to 36 px, as the deck grows with the view. (A finger's
+     keeps 12 px above it: lifted by up to 36 px, as the deck grows with the view. (A finger's
      card is under the top bar, or waits below the ship where there is no deck at full size.) */
   @media (pointer: fine) {
     html[data-mode='universe'][data-engine='ready'][data-panel='closed']:has(

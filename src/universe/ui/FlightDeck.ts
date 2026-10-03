@@ -77,15 +77,29 @@ const SMALLEST = 0.7;
 const INSET = 4;
 /** The target's lane lies this share of the radius above the horizon, home's as far below. */
 const LANE = 0.34;
+/**
+ * N, E, S and W ride their meridians upright, and fade out as they turn away from the nose. A
+ * letter is gone where the rim would cut it, its middle this far (px: half a letter) from the
+ * end of its line across the ball, which is 60 degrees off the nose on the biggest ball and 43
+ * on the smallest; it is whole this much (radians) before that. Squeezed thin towards the rim,
+ * as paint on a globe is, it was a sliver nobody could read.
+ */
+const LETTER_EDGE = 4.5;
+const LETTER_FADE = Math.PI / 12;
+/** px. And it is gone while the target is within this of it, sideways (back 4 px further off). */
+const LETTER_ROOM = 12;
 /** The peg lights once the g arc is this full. */
 const PEGGED = 0.95;
+/** px. The peg's radius, and how far short of the peg the g arc ends. */
+const PEG = 2.5;
+const PEG_ROOM = 7;
 /** "Not drawn", where a number is kept of what was last written. */
 const OFF = 1e9;
 
 // One slot each for what was last written: a value that has not changed is not written again.
 const LETTER = MERIDIANS;
-const SQUASH = LETTER + 4;
-const TARGET = SQUASH + 4;
+const INK = LETTER + 4;
+const TARGET = INK + 4;
 const HOME = TARGET + 1;
 const PROGRADE = HOME + 1;
 const LEAN = PROGRADE + 1;
@@ -129,10 +143,12 @@ function rimmed(tag: string, name: string, value: string, parent: Element): void
  * strip does not show is not written while it is the strip.
  *
  * Geometry is written as attributes, to a tenth of a pixel, and only when it changed: at rest
- * the deck writes nothing at all.
+ * the deck writes nothing at all. (How much of a compass letter shows, its `opacity`, counts as
+ * geometry: it says how far the letter has turned from view, and no colour.)
  */
 export class FlightDeck implements System {
   private readonly root: HTMLDivElement;
+  private readonly pill: HTMLElement;
   private readonly plate: HTMLElement;
   private readonly dial: SVGElement;
   private readonly assist: HTMLElement;
@@ -169,11 +185,14 @@ export class FlightDeck implements System {
   private height = 0;
   private right = 0;
   private bottom = 0;
-  /** The plate's size, the ball's radius and the length of an arc, in px; the marks' scale. */
+  /** The plate's size, the ball's radius and the length of each arc, in px; the marks' scale. */
   private size = 0;
   private radius = 0;
   private arcLength = 0;
+  private gLength = 0;
   private scale = 1;
+  /** How far off the nose a compass letter is gone, in radians. */
+  private letterGone = 0;
   /** What the last simulation step pulled, in g, and the velocity it left the ship with. */
   private pull = 0;
   private lastVx: number;
@@ -196,7 +215,7 @@ export class FlightDeck implements System {
     root.hidden = true;
 
     this.assist = this.lamp('assist', 'Assist');
-    const speed = html('span', 'flight-deck__speed', root);
+    const speed = (this.pill = html('span', 'flight-deck__speed', root));
     const warp = svg('svg', 'flight-deck__warp', speed);
     warp.setAttribute('viewBox', '0 0 18 10');
     for (const x of [1, 7, 13]) svg('path', '', warp).setAttribute('d', `M${x} 1l4 4-4 4`);
@@ -248,7 +267,7 @@ export class FlightDeck implements System {
     this.throttleArc = this.arc('throttle', 'Throttle');
     this.gArc = this.arc('g', 'G-force');
     this.peg = svg('circle', 'flight-deck__peg', dial);
-    this.peg.setAttribute('r', '2.5');
+    this.peg.setAttribute('r', `${PEG}`);
 
     const heading = html('span', 'flight-deck__hdg', root);
     html('small', '', heading).textContent = 'HDG';
@@ -367,7 +386,8 @@ export class FlightDeck implements System {
    */
   private shape(): void {
     const strip = this.layout === 'strip';
-    const size = round(this.plate.getBoundingClientRect().width) || (strip ? STRIP_PLATE : PLATE);
+    const box = this.plate.getBoundingClientRect();
+    const size = round(box.width) || (strip ? STRIP_PLATE : PLATE);
     if (size === this.size) return;
     this.size = size;
     const half = size / 2;
@@ -380,19 +400,25 @@ export class FlightDeck implements System {
     // On a small ball the marks are smaller, or they would be all there is to see of it.
     this.scale = round(clamp(r / BALL, SMALLEST, 1));
     this.nose.setAttribute('transform', `scale(${this.scale})`);
+    // The letters' line across the ball, 0.6 r above the horizon, is 0.8 r long each way.
+    this.letterGone = Math.asin(clamp(1 - LETTER_EDGE / (0.8 * r), 0, 1));
     // A quarter of a circle up each side: the throttle from lower left, the g from lower right.
     const k = round(arc * Math.SQRT1_2);
     for (const path of this.throttleArc) {
       path.setAttribute('d', `M${-k} ${k}A${arc} ${arc} 0 0 1 ${-k} ${-k}`);
     }
-    for (const path of this.gArc) {
-      path.setAttribute('d', `M${k} ${k}A${arc} ${arc} 0 0 0 ${k} ${-k}`);
-    }
     this.arcLength = (arc * Math.PI) / 2;
-    // The peg: 8 px on from the top of the g arc.
-    const at = Math.PI / 4 - 8 / arc;
-    this.peg.setAttribute('cx', `${round(arc * Math.sin(at))}`);
-    this.peg.setAttribute('cy', `${round(-arc * Math.cos(at))}`);
+    // The peg is at the top end of the g's quarter, or as far up it as the speed pill, which lies
+    // over the plate's top, leaves it whole (on the smallest plates); the arc ends short of it.
+    // (Where nothing can be measured, the pill covers nothing.)
+    const cover = this.pill.getBoundingClientRect().bottom - box.top || 0;
+    const top = Math.asin(clamp((half - cover - PEG - 0.5) / arc, 0, Math.SQRT1_2));
+    const stop = top - PEG_ROOM / arc;
+    const end = `${round(arc * Math.cos(stop))} ${round(-arc * Math.sin(stop))}`;
+    for (const path of this.gArc) path.setAttribute('d', `M${k} ${k}A${arc} ${arc} 0 0 0 ${end}`);
+    this.gLength = arc * (Math.PI / 4 + stop);
+    this.peg.setAttribute('cx', `${round(arc * Math.cos(top))}`);
+    this.peg.setAttribute('cy', `${round(-arc * Math.sin(top))}`);
     // Everything else follows from the radius, and is written again with the next frame.
     this.last.fill(Number.NaN);
   }
@@ -422,20 +448,37 @@ export class FlightDeck implements System {
       const d = side === 0 ? '' : `M0 ${-r}A${rx} ${r} 0 0 ${side > 0 ? 1 : 0} 0 ${r}`;
       this.lines[k]?.setAttribute('d', d);
     }
+    // The target: where a journey or an approach is locked on, else the body within reach (press
+    // E). It is placed first, since the letters make way for it.
+    const row = this.row(target ?? navigator.candidate);
+    const aim = this.toward(row);
+    this.place(TARGET, this.target, -LANE, aim);
+    flag(this.target, 'data-lock', mode === 'autopilot' || mode === 'approach');
+    const targetX = aim === null ? OFF : (this.last[TARGET] ?? OFF);
     for (let i = 0; full && i < this.letters.length; i += 1) {
-      // N, E, S and W ride their meridians, and turn away as they near the rim, as anything
-      // painted on a globe does: narrower and narrower, then gone.
+      // N, E, S and W ride their meridians, upright. How much of one shows (its `opacity`) is
+      // geometry too: less as it turns away from the nose, and none where the target is, whose
+      // lane passes right under the letters'.
       const off = offBearing(i * 90, bearing) / DEG_PER_RAD;
-      const shown = Math.abs(off) < 1.4;
-      const x = shown ? round(0.8 * r * Math.sin(off)) : OFF;
-      const squash = shown ? Math.round(Math.cos(off) * 100) / 100 : OFF;
-      const moved = this.changed(LETTER + i, x);
+      const x = round(0.8 * r * Math.sin(off));
+      const ink = round(
+        clamp(
+          Math.min(
+            (this.letterGone - Math.abs(off)) / LETTER_FADE,
+            (Math.abs(x - targetX) - LETTER_ROOM) / 4,
+          ),
+          0,
+          1,
+        ),
+      );
+      const moved = this.changed(LETTER + i, ink > 0 ? x : OFF);
       const letter = this.letters[i];
-      if (!letter || !(this.changed(SQUASH + i, squash) || moved)) continue;
-      flag(letter, 'data-off', !shown);
-      if (shown) {
-        letter.setAttribute('transform', `translate(${x} ${round(-0.6 * r)})scale(${squash} 1)`);
+      if (!letter) continue;
+      if (this.changed(INK + i, ink)) {
+        flag(letter, 'data-off', ink === 0);
+        letter.setAttribute('opacity', `${ink}`);
       }
+      if (moved && ink > 0) letter.setAttribute('transform', `translate(${x} ${round(-0.6 * r)})`);
     }
     // It leans and nods as the ship on screen does (its looks, not its physics: flight is flat).
     if (!reducedMotion) {
@@ -449,16 +492,12 @@ export class FlightDeck implements System {
       }
     }
 
-    // The marks. The target: where a journey or an approach is locked on, else the body within
-    // reach (press E). Home: not while it is the target. Prograde: where the ship is really going.
-    const row = this.row(target ?? navigator.candidate);
-    this.place(TARGET, this.target, -LANE, this.toward(row));
-    flag(this.target, 'data-lock', mode === 'autopilot' || mode === 'approach');
     // The arcs follow what was flown, and what it did to the ship, whether they show or not: the
     // cluster that takes the strip's place (a panel closes) starts from what is true.
     stepSpring(this.throttle, ship.flown.thrust, params.throttleOmega, frame.dt);
     stepSpring(this.g, this.pull, params.gOmega, frame.dt);
     if (full) {
+      // The other marks. Home: not while it is the target. Prograde: where the ship is really going.
       const { home } = this.options;
       this.place(HOME, this.homeMark, LANE, home === row ? null : this.toward(home));
       const { x: vx, z: vz } = ship.velocity;
@@ -470,8 +509,8 @@ export class FlightDeck implements System {
         going ? relativeBearing(0, 0, ship.heading, vx, vz) : null,
       );
       const g = this.g.value / params.gFull;
-      this.fill(THROTTLE, this.throttleArc, this.throttle.value);
-      this.fill(G, this.gArc, g);
+      this.fill(THROTTLE, this.throttleArc, this.throttle.value, this.arcLength);
+      this.fill(G, this.gArc, g, this.gLength);
       flag(root, 'data-boost', ship.flown.boost && ship.flown.thrust > 0);
       flag(root, 'data-peg', g >= PEGGED);
     }
@@ -552,10 +591,10 @@ export class FlightDeck implements System {
     mark.setAttribute('transform', `translate(${x} ${round(y)})scale(${this.scale})`);
   }
 
-  /** Fill an arc from its lower end up to `share` of its length. */
-  private fill(slot: number, arc: SVGElement[], share: number): void {
-    const length = round(clamp(share, 0, 1) * this.arcLength);
-    if (!this.changed(slot, length)) return;
-    arc[2]?.setAttribute('stroke-dasharray', `${length} ${Math.ceil(this.arcLength) + 9}`);
+  /** Fill an arc from its lower end up to `share` of its `length`. */
+  private fill(slot: number, arc: SVGElement[], share: number, length: number): void {
+    const filled = round(clamp(share, 0, 1) * length);
+    if (!this.changed(slot, filled)) return;
+    arc[2]?.setAttribute('stroke-dasharray', `${filled} ${Math.ceil(length) + 9}`);
   }
 }

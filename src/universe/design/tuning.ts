@@ -605,8 +605,12 @@ export const tuning = {
     routePoints: 32,
     /** The marks are put in place this often a second; the ship, every frame. */
     bodiesHz: 5,
-    /** CSS px. The ship's chevron, tip to tail. */
-    shipPx: 10,
+    /**
+     * CSS px. The ship's chevron, tip to tail: a little bigger than a sun's mark (11 px across),
+     * so that it is the first thing found among a system's rings, and still itself on top of a
+     * mark it is at.
+     */
+    shipPx: 13,
   } satisfies MiniMapParams,
 
   /**

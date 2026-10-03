@@ -185,12 +185,12 @@ describe('how big the deck is', () => {
     deck.resize(LAPTOP);
     expect(one('.flight-deck__dial').getAttribute('viewBox')).toBe('-56 -56 112 112');
     expect(one('.flight-deck__rim').getAttribute('r')).toBe('42');
-    // A window 576 px tall: the plate is 80 px, and the ball 26.
-    sized(80);
+    // A window 576 px tall: the plate is 64 px, and the ball 18.
+    sized(64);
     deck.resize({ ...LAPTOP, height: 576 });
-    expect(one('.flight-deck__dial').getAttribute('viewBox')).toBe('-40 -40 80 80');
-    expect(one('.flight-deck__rim').getAttribute('r')).toBe('26');
-    expect(root.querySelector('clipPath circle')?.getAttribute('r')).toBe('26');
+    expect(one('.flight-deck__dial').getAttribute('viewBox')).toBe('-32 -32 64 64');
+    expect(one('.flight-deck__rim').getAttribute('r')).toBe('18');
+    expect(root.querySelector('clipPath circle')?.getAttribute('r')).toBe('18');
   });
 
   it('tells the names where it is, while it shows', () => {
@@ -338,9 +338,10 @@ describe('the ball', () => {
     expect(lines).toHaveLength(12);
     expect(letters.map((letter) => letter.textContent).join('')).toBe('NESW');
     draw();
-    // Due north: the north meridian is a straight line down the middle, and N is on it, upright.
+    // Due north: the north meridian is a straight line down the middle, and N is on it, whole.
     expect(lines[0]?.getAttribute('d')).toBe('M0 -42A0 42 0 0 1 0 42');
-    expect(letters[0]?.getAttribute('transform')).toBe('translate(0 -25.2)scale(1 1)');
+    expect(letters[0]?.getAttribute('transform')).toBe('translate(0 -25.2)');
+    expect(letters[0]?.getAttribute('opacity')).toBe('1');
     expect(letters[0]?.hasAttribute('data-off')).toBe(false);
     // East and west are at the rim, out of view, and south is behind.
     expect(lines[3]?.getAttribute('d')).toBe('');
@@ -356,14 +357,94 @@ describe('the ball', () => {
     ship.heading = -90 * RAD;
     draw();
     expect(lines[3]?.getAttribute('d')).toBe('M0 -42A0 42 0 0 1 0 42');
-    expect(letters[1]?.getAttribute('transform')).toBe('translate(0 -25.2)scale(1 1)');
+    expect(letters[1]?.getAttribute('transform')).toBe('translate(0 -25.2)');
     expect(letters[1]?.hasAttribute('data-off')).toBe(false);
     expect(letters[0]?.hasAttribute('data-off')).toBe(true);
-    // A letter is painted on the globe: 60 degrees off, N is half turned away; E, 30 off, hardly.
+  });
+
+  it('keeps a letter upright and whole near the nose, and fades it out well before the rim', () => {
+    const { ship, root, draw } = deckOn();
+    const [north, east] = [...root.querySelectorAll('.flight-deck__letter')];
+    const shows = (letter: Element | undefined): string =>
+      `${letter?.getAttribute('transform')} ${letter?.getAttribute('opacity')}`;
+    // North-east: N is 45 degrees to the left and E as far to the right. Both are whole letters,
+    // moved along their meridians and never squeezed.
+    ship.heading = -45 * RAD;
+    draw();
+    expect(shows(north)).toBe('translate(-23.8 -25.2) 1');
+    expect(shows(east)).toBe('translate(23.8 -25.2) 1');
+    // Further round, N fades as it goes...
+    ship.heading = -52.5 * RAD;
+    draw();
+    expect(shows(north)).toBe('translate(-26.7 -25.2) 0.5');
+    expect(shows(east)).toBe('translate(20.5 -25.2) 1');
+    // ...and 60 degrees off it is gone, 13 px short of the rim, where it would be a sliver.
     ship.heading = -60 * RAD;
     draw();
-    expect(letters[0]?.getAttribute('transform')).toBe('translate(-29.1 -25.2)scale(0.5 1)');
-    expect(letters[1]?.getAttribute('transform')).toBe('translate(16.8 -25.2)scale(0.87 1)');
+    expect(north?.hasAttribute('data-off')).toBe(true);
+    expect(north?.getAttribute('opacity')).toBe('0');
+    expect(shows(east)).toBe('translate(16.8 -25.2) 1');
+    // It comes back the way it went.
+    ship.heading = -52.5 * RAD;
+    draw();
+    expect(north?.hasAttribute('data-off')).toBe(false);
+    expect(shows(north)).toBe('translate(-26.7 -25.2) 0.5');
+  });
+
+  it('lets a letter go sooner on a small ball, where the rim is nearer', () => {
+    const { deck, ship, root, draw, one } = setup();
+    cleanup = () => deck.dispose();
+    (one('.flight-deck__plate') as HTMLElement).getBoundingClientRect = () =>
+      ({ width: 64, height: 64 }) as DOMRect;
+    // A window 576 px tall: a ball of 18 px. The letters' line across it is 14.4 px each way,
+    // and a letter is gone 4.5 px from its end, which is 43 degrees off the nose there.
+    deck.resize({ ...LAPTOP, height: 576 });
+    const [north, east] = [...root.querySelectorAll('.flight-deck__letter')];
+    // 30 degrees east of north: N has begun to fade, and E, 60 degrees off, is not there.
+    ship.heading = -30 * RAD;
+    draw();
+    expect(`${north?.getAttribute('transform')} ${north?.getAttribute('opacity')}`).toBe(
+      'translate(-7.2 -10.8) 0.9',
+    );
+    expect(east?.hasAttribute('data-off')).toBe(true);
+    // North-east: neither. (The heading chip says where the nose is.)
+    ship.heading = -45 * RAD;
+    draw();
+    expect(north?.hasAttribute('data-off')).toBe(true);
+    expect(east?.hasAttribute('data-off')).toBe(true);
+  });
+
+  it('lets a letter go where the target is, and brings it back', () => {
+    const { ship, navigator, root, draw, mark } = deckOn();
+    const [north, , , west] = [...root.querySelectorAll('.flight-deck__letter')];
+    // North-west: W is 45 degrees to the left, N as far to the right.
+    ship.heading = 45 * RAD;
+    draw();
+    expect(west?.getAttribute('opacity')).toBe('1');
+    // FishAI is due west, so its ring lies where W is: the letter makes way for it. N stays.
+    navigator.candidate = 'project/fishai';
+    draw();
+    expect(west?.hasAttribute('data-off')).toBe(true);
+    expect(north?.getAttribute('opacity')).toBe('1');
+    // The ship drifts south and the ring slides along its lane towards the nose. 14 px from the
+    // letter's middle (the ring at -9.8, W at -23.8), half of the letter is back...
+    ship.position.z = -275.4;
+    draw();
+    expect(mark('target').getAttribute('transform')).toBe('translate(-9.8 -14.3)scale(1)');
+    expect(west?.hasAttribute('data-off')).toBe(false);
+    expect(`${west?.getAttribute('transform')} ${west?.getAttribute('opacity')}`).toBe(
+      'translate(-23.8 -25.2) 0.5',
+    );
+    // ...and with FishAI dead ahead, all of it.
+    ship.position.z = -500;
+    draw();
+    expect(mark('target').getAttribute('transform')).toBe('translate(0 -14.3)scale(1)');
+    expect(west?.getAttribute('opacity')).toBe('1');
+    // No target at all: nothing to make way for.
+    ship.position.z = 0;
+    navigator.candidate = null;
+    draw();
+    expect(west?.getAttribute('opacity')).toBe('1');
   });
 
   it('leans and nods as the ship on screen does, and not for less motion', () => {
@@ -466,8 +547,8 @@ describe('the ball', () => {
     const { deck, navigator, draw, one, mark } = setup();
     cleanup = () => deck.dispose();
     const plate = one('.flight-deck__plate') as HTMLElement;
-    plate.getBoundingClientRect = () => ({ width: 80, height: 80 }) as DOMRect;
-    // A window 576 px tall: the ball is 26 px in radius.
+    plate.getBoundingClientRect = () => ({ width: 64, height: 64 }) as DOMRect;
+    // A window 576 px tall: the ball is 18 px in radius.
     deck.resize({ ...LAPTOP, height: 576 });
     navigator.candidate = 'project/fishai';
     draw();
@@ -477,7 +558,7 @@ describe('the ball', () => {
         mark('target').getAttribute('transform') ?? '',
       ) ?? [];
     // Its middle is 4 px inside the rim (to the tenth of a pixel it is written in).
-    expect(Math.hypot(Number(x), Number(y))).toBeCloseTo(26 - 4, 0);
+    expect(Math.hypot(Number(x), Number(y))).toBeCloseTo(18 - 4, 0);
   });
 
   it('wears the family of the system the ship is in on its horizon', () => {
@@ -522,7 +603,8 @@ describe('the arcs', () => {
       step(0, v);
       draw(STEP);
     }
-    const length = (48 * Math.PI) / 2;
+    // (Its arc ends 7 px short of the quarter: the top end is the peg's.)
+    const length = (48 * Math.PI) / 2 - 7;
     expect(fill('g') / length).toBeCloseTo(tuning.flight.thrustAccel / P.gUnit / P.gFull, 1);
     expect(root.hasAttribute('data-peg')).toBe(false);
     // The autopilot's 60 g and more: the arc is full, and the peg lights.
@@ -540,6 +622,46 @@ describe('the arcs', () => {
     }
     expect(fill('g')).toBe(0);
     expect(root.hasAttribute('data-peg')).toBe(false);
+  });
+
+  it('keep the peg at the top end of the g’s quarter, or as far up it as the speed pill leaves it whole', () => {
+    const { deck, one } = setup();
+    cleanup = () => deck.dispose();
+    const plate = one('.flight-deck__plate') as HTMLElement;
+    // As the stylesheet lays them out: the plate 13 px down the cluster, the pill over its top 13.
+    (one('.flight-deck__speed') as HTMLElement).getBoundingClientRect = () =>
+      ({ bottom: 26 }) as DOMRect;
+    const sized = (size: number): void => {
+      plate.getBoundingClientRect = () => ({ width: size, height: size, top: 13 }) as DOMRect;
+    };
+    /** Where an arc ends, and where the peg is. */
+    const endOf = (name: string): number[] =>
+      (one(`[data-arc="${name}"] .flight-deck__fill`).getAttribute('d') ?? '')
+        .split(' ')
+        .slice(-2)
+        .map(Number);
+    const peg = (): number[] =>
+      ['cx', 'cy'].map((name) => Number(one('.flight-deck__peg').getAttribute(name)));
+    const apart = ([ax = 0, ay = 0]: number[], [bx = 0, by = 0]: number[]): number =>
+      Math.hypot(ax - bx, ay - by);
+
+    // The biggest plate, 112 px: the throttle's quarter ends at the upper left, the peg is its
+    // mirror image, and the g arc stops 7 px of arc before the peg.
+    sized(112);
+    deck.resize(LAPTOP);
+    expect(endOf('throttle')).toEqual([-33.9, -33.9]);
+    expect(peg()).toEqual([33.9, -33.9]);
+    expect(apart(endOf('g'), peg())).toBeCloseTo(7, 0);
+
+    // The smallest, 64 px (a view 576 px tall): at the quarter's end the pill would lie on the
+    // peg. It sits a little lower on the same arc (24 px from the middle), its top half a pixel
+    // clear of the pill, and the g arc still stops 7 px before it.
+    sized(64);
+    deck.resize({ ...LAPTOP, height: 576 });
+    const [cx = 0, cy = 0] = peg();
+    expect(Math.hypot(cx, cy)).toBeCloseTo(24, 1);
+    expect(32 + cy - 2.5).toBeCloseTo(13.5, 1);
+    expect(apart(endOf('g'), peg())).toBeCloseTo(7, 0);
   });
 
   it('say what is true the moment the deck comes back, without easing in from before', () => {

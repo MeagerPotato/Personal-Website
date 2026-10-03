@@ -518,6 +518,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   path, 301, to a page of the build that no page links past (`scripts/lib/redirects.mjs`).
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries
   still bite, the build scripts work, and no phone number or private address is in the repo.
+  And those that hold two parts against each other that know nothing of each other: the flight
+  deck's top, which is the stylesheet's, against the fins of a ship at rest, which are the chase
+  camera's and the model's (`tests/deck-room.test.ts`).
 - **Real browsers, by machine** (`npm run e2e`, Playwright, `tests/e2e`): Chromium, WebKit and a
   phone-sized Chromium drive the real build behind `wrangler dev`, so the headers and the CSP are
   under test too (over HTTPS: the CSP says `upgrade-insecure-requests`, and WebKit honours that

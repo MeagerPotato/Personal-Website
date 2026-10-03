@@ -152,8 +152,8 @@ describe('edges and rings', () => {
 
 describe('the flight deck', () => {
   // The ball is a globe of two solid halves, whatever is behind the plate: the sky half over the
-  // ground half. What the stylesheet paints each with is READ from it, so that the fallback the
-  // design names (the ground in surface.line, should the halves read as one) is measured too.
+  // ground half. What the stylesheet paints each with is READ from it, so that whichever two
+  // navies it gives them are the ones measured (the sky is the lighter one, surface.line).
   const ramps: Record<string, Record<string, string>> = {
     space: color.space,
     surface: color.surface,
@@ -177,12 +177,20 @@ describe('the flight deck', () => {
       expect(contrast(color.ink.low, hex)).toBeGreaterThanOrEqual(MARK);
       // The target, butter: "here".
       expect(contrast(color.focus, hex)).toBeGreaterThanOrEqual(MARK);
-      // The horizon wears the family of the system the ship is in.
+      // The horizon wears the family of the system the ship is in, and ink.mid between systems.
       for (const key of THEME_KEYS) {
         expect(contrast(color.system[key].base, hex), key).toBeGreaterThanOrEqual(MARK);
       }
+      expect(contrast(color.ink.mid, hex)).toBeGreaterThanOrEqual(MARK);
     });
   }
+
+  it('paints the sky lighter than the ground, and the horizon brighter than the hairlines', () => {
+    expect(luminance(HALVES.sky)).toBeGreaterThan(luminance(HALVES.ground));
+    expect(luminance(color.ink.mid)).toBeGreaterThan(luminance(color.ink.low));
+    // (The stylesheet says which ink the horizon wears between systems.)
+    expect(CSS).toMatch(/\.flight-deck__horizon \{\s*stroke: var\(--color-ink-mid\)/);
+  });
 
   it('rims every mark in a navy darker than either half', () => {
     for (const hex of Object.values(HALVES)) {

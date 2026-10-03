@@ -192,6 +192,22 @@ test.describe('on a laptop', () => {
     expect(await deck(page).evaluate((node) => getComputedStyle(node).animationName)).toBe(
       'flight-deck-in',
     );
+    // Only its instruments take a press (and do nothing with it): the corners of its box, under
+    // the lamps, are the world's.
+    expect(
+      await deck(page).evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const under = (x: number, y: number): string => {
+          const hit = document.elementFromPoint(x, y);
+          return hit?.closest('.flight-deck') ? 'the deck' : (hit?.tagName ?? 'nothing');
+        };
+        return [
+          under(box.left + 6, box.bottom - 6),
+          under(box.right - 6, box.bottom - 6),
+          under(box.left + box.width / 2, box.top + box.height / 2),
+        ];
+      }),
+    ).toEqual(['CANVAS', 'CANVAS', 'the deck']);
     // At rest at the spawn point, until the pilot flies.
     await expect(speed(page)).toHaveText('0');
     await expect(page.locator('.flight-deck__hdg b')).toHaveText(/^\d{3}°$/);
@@ -299,6 +315,18 @@ test.describe('on a laptop', () => {
     expect(ground.clear).toBeGreaterThan(30);
     await page.mouse.click(ground.x, ground.y);
     await expect(page.locator('html')).toHaveAttribute('data-map', 'open');
+    // They fade as they leave, and from the first moment of it nothing of them takes a press:
+    // what they covered is the map's.
+    for (const picture of [deck(page), minimap(page)]) {
+      await expect(picture).not.toHaveAttribute('data-shown', /.*/);
+      expect(
+        await picture.evaluate((node) =>
+          [node, ...node.querySelectorAll('*')].every(
+            (part) => getComputedStyle(part).pointerEvents === 'none',
+          ),
+        ),
+      ).toBe(true);
+    }
     await expect(deck(page)).toBeHidden();
     await expect(minimap(page)).toBeHidden();
     // Nobody flew anywhere for it.
@@ -424,7 +452,10 @@ test.describe('with reduced motion', () => {
       await expect(picture).toBeVisible();
       expect(await picture.evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
     }
-    await page.waitForTimeout(400); // the names in the sky have finished fading in
+    // The names in the sky are read too: the first of them are there, and nothing on the page
+    // is still fading or sliding (with less motion, next to nothing ever does).
+    await expect(page.locator('.body-label[data-shown]').first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
