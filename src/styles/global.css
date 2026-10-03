@@ -1877,6 +1877,9 @@ main > .resume-name + .resume-contact {
     --deck-half: 7.5rem;
     --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
     --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
+    /* The minimap beside it (universe/ui/MiniMap.ts), by the view's height too: 132 px across in
+       a view up to 660 px tall, 144 at 720, 160 at 800, 168 from 840 up. */
+    --minimap-size: clamp(8.25rem, 20svh, 10.5rem);
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
@@ -2801,17 +2804,18 @@ main > .resume-name + .resume-contact {
       visibility 0s linear var(--motion-base);
   }
 
-  .flight-deck[hidden] {
+  /* (The minimap comes and goes the same way: its own rules are further down.) */
+  :is(.flight-deck, .minimap)[hidden] {
     display: none;
   }
 
-  .flight-deck:not([data-shown]) {
+  :is(.flight-deck, .minimap):not([data-shown]) {
     opacity: 0;
     visibility: hidden;
   }
 
   /* Arriving is an animation, like the prompt's and the card's: no transition on the way in. */
-  .flight-deck[data-shown] {
+  :is(.flight-deck, .minimap)[data-shown] {
     transition: none;
     animation: flight-deck-in var(--motion-slow) var(--motion-ease-out);
   }
@@ -3097,8 +3101,8 @@ main > .resume-name + .resume-contact {
     fill: var(--color-ink-high);
   }
 
-  html[data-motion='reduced'] .flight-deck,
-  html[data-motion='reduced'] .flight-deck * {
+  html[data-motion='reduced'] :is(.flight-deck, .minimap),
+  html[data-motion='reduced'] :is(.flight-deck, .minimap) * {
     transition: none;
     animation: none;
   }
@@ -3335,6 +3339,229 @@ main > .resume-name + .resume-contact {
         calc(var(--prompt-bottom) + 2.75rem + var(--space-3)),
         calc(var(--deck-top) + var(--space-3))
       );
+    }
+  }
+
+  /*
+   * THE MINIMAP (universe/ui/MiniMap.ts): the star map at another size, at the bottom right of
+   * the view. A square of the map's own ground (the page's dot grid, twice as fine) over a
+   * caption that says what it shows: the galaxy, or the system the ship is in. It is there
+   * wherever the deck has its full size, flying or docked, and goes while the star map is open.
+   *
+   * A sun and the home planet are their family's GLYPH, filled, with a navy rim; planets, docks
+   * and moons are discs in their family; planned work is hollow and dashed; the circles they
+   * travel on are hairlines in the family; a system that is off the map is its glyph in outline,
+   * pinned at the rim in its direction; the ship is a cream chevron. A pointer AIMS at a mark (a
+   * cream ring round it, its name in the caption) and flies there on release; a press where
+   * nothing is opens the star map. So the plate has a ledge, as whatever can be pressed has, and
+   * drops onto it while pressed. It is hidden from assistive technology: the names in the sky
+   * and the Map button are the real controls for all of it.
+   *
+   * The drawing carries classes and data attributes only: every fill and stroke is here, and
+   * src/site/contrast.test.ts reads the map's ground from here and holds every mark to it.
+   */
+  .minimap {
+    position: absolute;
+    right: max(var(--space-6), env(safe-area-inset-right));
+    bottom: var(--deck-gap);
+    width: var(--minimap-size);
+    overflow: hidden;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-md);
+    color: var(--color-ink-mid);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    white-space: nowrap;
+    /* A finger on the map aims: it never scrolls or zooms the page, nor selects the caption. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Leaving, it fades, and is then gone for a pointer too. */
+    transition:
+      opacity var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  /* Under a finger it sits above the boost pad, 12 px clear of it, pad or no pad: it does not
+     jump when the first touch brings the pad out. */
+  @media (pointer: coarse) {
+    .minimap {
+      bottom: calc(var(--boost-pad-bottom) + var(--boost-pad-size) + var(--space-3));
+    }
+  }
+
+  @media (hover: hover) {
+    .minimap:hover {
+      border-color: var(--color-ink-low);
+    }
+  }
+
+  /* Pressed: the plate drops onto its ledge. (The engine measures a pointer against where the
+     plate rests, so what was aimed at stays aimed at.) */
+  .minimap:active {
+    translate: 0 var(--ledge);
+    box-shadow: none;
+  }
+
+  .minimap[data-pick] {
+    cursor: pointer;
+  }
+
+  /* The map: one unit of the drawing is one CSS px (the engine sets its viewBox to this size). */
+  .minimap__map {
+    display: block;
+    width: calc(var(--minimap-size) - 2px);
+    height: calc(var(--minimap-size) - 2px);
+    background: var(--color-space-900)
+      radial-gradient(circle, var(--color-space-700) 0.0625rem, transparent 0.09375rem) 0 0 /
+      0.75rem 0.75rem;
+  }
+
+  /* A mark: its family's fill, and a navy rim (the stroke, painted first: half of it shows). */
+  .minimap__mark {
+    fill: var(--theme-base);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* Planned work, not built yet: hollow and dashed, as its name tag is. */
+  .minimap__mark[data-planned] {
+    fill: var(--color-space-900);
+    stroke: var(--color-ink-low);
+    stroke-width: 1;
+    stroke-dasharray: 2 1.5;
+    paint-order: normal;
+  }
+
+  /* A system that is off the map: its glyph in outline, at the rim in its direction. */
+  .minimap__mark[data-pin] {
+    fill: var(--color-space-900);
+    stroke: var(--theme-base);
+    stroke-width: 1.5;
+    paint-order: normal;
+  }
+
+  .minimap__orbit {
+    fill: none;
+    stroke: var(--theme-base);
+    stroke-width: 1;
+    stroke-opacity: 0.35;
+  }
+
+  /* The mark a pointer aims at: a cream ring round it. */
+  .minimap__aim {
+    fill: none;
+    stroke: var(--color-ink-high);
+    stroke-width: 1.5;
+  }
+
+  .minimap__ship {
+    fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* What is no longer drawn (a moon the scale has no room for, the aim's ring) fades where it
+     was, and is then gone; what comes back is there at once, and fades in. */
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim) {
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim)[data-off] {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility 0s linear var(--motion-fast);
+  }
+
+  /* The caption: what the map shows, in quiet ink behind its family's glyph (the galaxy has no
+     family, and no glyph); or, in bright ink, the body a pointer aims at. 13 px, like a name in
+     the sky; a name too long for it gives way, and what follows it never does. */
+  .minimap__caption {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.5rem;
+    padding-inline: var(--space-2);
+  }
+
+  .minimap__caption i {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--theme-base);
+    clip-path: var(--theme-glyph);
+    scale: var(--theme-glyph-scale);
+  }
+
+  .minimap__caption:not([data-theme]) i {
+    display: none;
+  }
+
+  .minimap__caption b {
+    overflow: hidden;
+    min-width: 0;
+    font-weight: inherit;
+    text-overflow: ellipsis;
+  }
+
+  .minimap__caption[data-aim] b {
+    color: var(--color-ink-high);
+  }
+
+  /* "Planned" after the name of planned work (universe/ui/planned.ts), as on its name tag; the
+     comma before it is for a screen reader, and nothing here is read out. */
+  .minimap__note {
+    flex: none;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .minimap__sep {
+    display: none;
+  }
+
+  /* Forced colours: the map is the page's ground and its marks the page's text; what is hollow
+     stays hollow. An <svg> keeps its own colours unless told, so it is told. */
+  @media (forced-colors: active) {
+    .minimap__map {
+      forced-color-adjust: none;
+      background: Canvas;
+    }
+
+    .minimap__mark,
+    .minimap__ship {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .minimap__mark:is([data-planned], [data-pin]) {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+
+    .minimap__orbit {
+      stroke: GrayText;
+      stroke-opacity: 1;
+    }
+
+    .minimap__aim {
+      stroke: Highlight;
+    }
+
+    .minimap__caption i {
+      forced-color-adjust: none;
+      background: CanvasText;
     }
   }
 

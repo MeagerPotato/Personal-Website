@@ -133,13 +133,16 @@ Each display frame:
 Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
 only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
 picker → labels → sky → stars → dust → the map's look → jobs → prompt → whereabouts (which
-system the ship is in: `systemAt`, once a frame) → flight deck → debug overlays. The
+system the ship is in: `systemAt`, once a frame) → flight deck → minimap → debug overlays. The
 camera comes after everything it looks at (the ship AND the planets), so that it sees this
 frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
 star map comes BEFORE the galaxy, which draws every body at the size the map asks for. The
-flight deck (`ui/FlightDeck.ts`) comes last of all: it only reads what the others did, samples the
-g in `fixedUpdate` (after the ship's step) and draws in `frameUpdate`, and nothing reads it but
-the names, which keep off its box.
+flight deck (`ui/FlightDeck.ts`) and the minimap (`ui/MiniMap.ts`) come last of all. The deck only
+reads what the others did, samples the g in `fixedUpdate` (after the ship's step) and draws in
+`frameUpdate`. The minimap is there wherever the deck has its full size (it asks the deck:
+`full`), draws the galaxy's own positions through the star map's maths at another size
+(`sim/minimap.ts`), and its one way of acting is `pickRow`, the canvas's own call, or opening the
+star map. Nothing reads either but the names, which keep off their boxes.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which

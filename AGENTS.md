@@ -270,8 +270,9 @@ or the route may change and the ship follows, and telling either side what it al
 never an error. DOM made by the engine that a pointer, a keyboard or a screen reader uses (the
 prompt, the names, the Map button) goes into `#universe-overlay`, never into `#universe-host`,
 which is hidden from assistive technology. What is only a picture of things real controls already
-say (the flight deck, `ui/FlightDeck.ts`) goes there too, `aria-hidden`, with nothing focusable
-inside: it reads the simulation and asks the navigator for nothing.
+offer (the flight deck, `ui/FlightDeck.ts`; the minimap, `ui/MiniMap.ts`) goes there too,
+`aria-hidden`, with nothing focusable inside. The deck reads the simulation and asks the navigator
+for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on the canvas.
 
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data

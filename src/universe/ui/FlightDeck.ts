@@ -1,4 +1,4 @@
-import { boxOf } from '../core/dom';
+import { boxOf, flag, html, svg } from '../core/dom';
 import type { Frame, System, Viewport } from '../core/Engine';
 import type { ThemeKey } from '../design/tokens';
 import type { ScreenBox } from '../sim/declutter';
@@ -65,7 +65,6 @@ export interface FlightDeckOptions {
   reducedMotion: boolean;
 }
 
-const SVG = 'http://www.w3.org/2000/svg';
 const DEG_PER_RAD = 180 / Math.PI;
 /** px. The plate where nothing can be measured (no layout: a unit test): 7rem, and the strip's 2.25rem. */
 const PLATE = 112;
@@ -98,30 +97,11 @@ const SLOTS = G + 1;
 /** To a tenth: finer than a screen shows, and coarse enough that a ship at rest writes nothing. */
 const round = (value: number): number => Math.round(value * 10) / 10;
 
-function html(tag: 'span' | 'b' | 'small', className: string, parent: Element): HTMLElement {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  parent.append(node);
-  return node;
-}
-
-function svg(tag: string, className: string, parent: Element): SVGElement {
-  const node = document.createElementNS(SVG, tag);
-  if (className) node.setAttribute('class', className);
-  parent.append(node);
-  return node;
-}
-
 /** The same shape twice: a navy rim (the wider stroke, below) and the mark itself. */
 function rimmed(tag: string, name: string, value: string, parent: Element): void {
   for (const className of ['flight-deck__under', 'flight-deck__over']) {
     svg(tag, className, parent).setAttribute(name, value);
   }
-}
-
-/** Set or take away an attribute that only says yes or no, and only if that changes anything. */
-function flag(node: Element, name: string, on: boolean): void {
-  if (node.hasAttribute(name) !== on) node.toggleAttribute(name, on);
 }
 
 /**
@@ -327,6 +307,14 @@ export class FlightDeck implements System {
   /** Where the deck is on the page, or null while it does not show: names keep off it. */
   box(): Readonly<ScreenBox> | null {
     return this.drawn ? boxOf(this.root, this.area) : null;
+  }
+
+  /**
+   * Has the free view room for the whole cluster? The minimap, which is only there beside it
+   * (ui/MiniMap.ts), asks here: "how big" has one answer, `deckLayout`'s.
+   */
+  get full(): boolean {
+    return this.layout === 'full';
   }
 
   dispose(): void {

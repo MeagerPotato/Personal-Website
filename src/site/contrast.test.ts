@@ -82,9 +82,10 @@ describe('ink on every surface', () => {
       /\/\*[\s\S]*?\*\//g,
       '',
     );
-    // (The flight deck is no control, but it sits on the same plate: the rule holds for it too.)
+    // (The flight deck and the minimap's caption are no controls, but they sit on the same plate:
+    // the rule holds for them too.)
     const HUD_CONTROL =
-      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck)\b/;
+      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck|minimap)\b/;
     const offenders: string[] = [];
     for (const [, selector = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       if (HUD_CONTROL.test(selector) && /(^|;)\s*color:\s*var\(--color-ink-low\)/.test(body)) {
@@ -198,6 +199,33 @@ describe('the flight deck', () => {
     // The arcs' fill, and the throttle's coral while boosting.
     expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.system.coral.base, HUD)).toBeGreaterThanOrEqual(MARK);
+  });
+});
+
+describe('the minimap', () => {
+  // The map is a solid ground of its own, whatever is behind the plate. What the stylesheet
+  // paints it with is READ from it, so that another ground would be measured too.
+  const [, stop = ''] =
+    CSS.match(/\.minimap__map \{[^}]*?background: var\(--color-space-(\w+)\)/) ?? [];
+  const ground = (color.space as Record<string, string>)[stop];
+  if (ground === undefined) throw new Error('global.css no longer says what the minimap lies on');
+
+  it('draws every mark plainly on its ground', () => {
+    // A sun, the home planet, a planet, a moon, a pin at the rim: each in its family.
+    for (const key of THEME_KEYS) {
+      expect(contrast(color.system[key].base, ground), key).toBeGreaterThanOrEqual(MARK);
+    }
+    // Planned work's dashed outline; the ship, and the ring round what a pointer aims at.
+    expect(contrast(color.ink.low, ground)).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.ink.high, ground)).toBeGreaterThanOrEqual(MARK);
+    // The navy rim under a mark is darker than the ground it parts the mark from.
+    expect(luminance(color.space[950])).toBeLessThan(luminance(ground));
+  });
+
+  it('reads its caption on the plate over white', () => {
+    // What the map shows (ink.mid), and the body a pointer aims at (ink.high).
+    expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
   });
 });
 

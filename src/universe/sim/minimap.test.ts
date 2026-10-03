@@ -515,6 +515,8 @@ describe('the rest of a journey', () => {
 describe('a family’s glyph, as a path', () => {
   it('closes, stands apex up, and keeps to its size', () => {
     for (const theme of Object.keys(GLYPHS) as Array<keyof typeof GLYPHS>) {
+      // (Home's circle is drawn as one: below.)
+      if (theme === 'butter') continue;
       const d = glyphPath(theme, 5.5);
       expect(d, theme).toMatch(/^M-?[\d.]+ -?[\d.]+(L-?[\d.]+ -?[\d.]+){2,}Z$/);
       const numbers = (d.match(/-?[\d.]+/g) ?? []).map(Number);
@@ -526,5 +528,8 @@ describe('a family’s glyph, as a path', () => {
     // Hardware's square, and a size of nothing.
     expect(glyphPath('coral', 10)).toBe('M8.2 8.2L-8.2 8.2L-8.2 -8.2L8.2 -8.2Z');
     expect(glyphPath('coral', 0)).toBe('M0 0L0 0L0 0L0 0Z');
+    // Home's circle: two half turns, from the top round to the top.
+    expect(glyphPath('butter', 5.5)).toBe('M0 -5.5A5.5 5.5 0 1 0 0 5.5A5.5 5.5 0 1 0 0 -5.5Z');
+    expect(glyphPath('butter', 0)).toBe('M0 0A0 0 0 1 0 0 0A0 0 0 1 0 0 0Z');
   });
 });

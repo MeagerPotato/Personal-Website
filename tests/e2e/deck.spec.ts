@@ -3,16 +3,28 @@
 // and that nothing else moved out of reach for it: the prompt steps beside it, the how-to-fly card
 // keeps above it, and neither a keyboard nor a screen reader ever meets it. A view too small for
 // the cluster (a phone) has the strip instead, in the Map button's row, and nothing moves for it.
+//
+// And the minimap beside it (src/universe/ui/MiniMap.ts): the star map at another size, there
+// wherever the cluster has room, flying or docked. A press on a mark is pointing at that body,
+// and a press where nothing is opens the map it is the preview of.
 
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
-import { expect, nameOf, openUniverse, pointAt, test } from './support';
+import { expect, nameOf, openUniverse, pointAt, test, watchText } from './support';
 
 const deck = (page: Page) => page.locator('.flight-deck');
+const minimap = (page: Page) => page.locator('.minimap');
+const caption = (page: Page) => page.locator('.minimap__caption');
+/** The mark of a body on the minimap, by its id in the galaxy's manifest. */
+const markOf = (page: Page, id: string) => page.locator(`.minimap [data-id="${id}"]`);
 const prompt = (page: Page) => page.locator('.dock-prompt');
 const speed = (page: Page) => page.locator('.flight-deck__speed b');
 const mapButton = (page: Page) => page.locator('.map-toggle');
 const plainChip = (page: Page) => page.locator('.mode-link--to-plain');
+const pathOf = (page: Page): string => new URL(page.url()).pathname;
+
+/** A flight takes as long as it takes: a CI machine renders on its CPU, and time stretches. */
+const FLIGHT = { timeout: 75_000 };
 
 interface Box {
   x: number;
@@ -68,6 +80,72 @@ async function inTheMapRow(page: Page): Promise<void> {
   expect(map.x - (pill.x + pill.width)).toBeGreaterThanOrEqual(12);
 }
 
+/** It has arrived (it comes up from 8 px below, as the deck does) and is where it rests. */
+async function arrived(target: Locator): Promise<void> {
+  await expect(target).toBeVisible();
+  await expect.poll(() => target.evaluate((node) => node.getAnimations().length)).toBe(0);
+}
+
+/**
+ * A point of the minimap's ground with nothing near it: the corner of the map that is furthest
+ * from every mark that shows and from the ship, and how far from them it is, in px. (Which corner
+ * that is depends on where the systems lie, and that is the content's business.)
+ */
+function emptyGround(page: Page): Promise<{ x: number; y: number; clear: number }> {
+  return page.evaluate(() => {
+    const map = document.querySelector('.minimap__map')?.getBoundingClientRect();
+    if (!map) throw new Error('no minimap');
+    const marks = [
+      ...document.querySelectorAll('.minimap__mark:not([data-off]), .minimap__ship'),
+    ].map((mark) => {
+      const box = mark.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    });
+    const inset = 10;
+    return [
+      { x: map.left + inset, y: map.top + inset },
+      { x: map.right - inset, y: map.top + inset },
+      { x: map.left + inset, y: map.bottom - inset },
+      { x: map.right - inset, y: map.bottom - inset },
+    ]
+      .map(({ x, y }) => ({
+        x,
+        y,
+        clear: Math.min(...marks.map((mark) => Math.hypot(mark.x - x, mark.y - y))),
+      }))
+      .reduce((best, corner) => (corner.clear > best.clear ? corner : best));
+  });
+}
+
+/**
+ * A finger comes down on open sky, moves and lifts: steering, not a tap (a tap may point at a
+ * planet). The first touch on the sky is what brings the boost pad out. Chromium only.
+ */
+async function steerByFinger(page: Page): Promise<void> {
+  const spot = await page.evaluate(() => {
+    for (const [x, y] of [
+      [160, 300],
+      [160, 200],
+      [320, 240],
+      [240, 420],
+    ] as const) {
+      if (document.elementFromPoint(x, y)?.tagName === 'CANVAS') return { x, y };
+    }
+    return null;
+  });
+  if (!spot) throw new Error('no open sky to put a finger on');
+  const session = await page.context().newCDPSession(page);
+  const finger = (type: 'touchStart' | 'touchMove' | 'touchEnd', dy = 0) =>
+    session.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x: spot.x, y: spot.y - dy, id: 1 }],
+    });
+  await finger('touchStart');
+  for (let step = 1; step <= 4; step += 1) await finger('touchMove', step * 10);
+  await finger('touchEnd');
+  await session.detach();
+}
+
 test.describe('on a laptop', () => {
   // The whole cluster needs a free view of 768 by 576 px: a phone has the strip (below).
   test.skip(({ isMobile }) => isMobile, 'the full deck');
@@ -98,21 +176,93 @@ test.describe('on a laptop', () => {
     await expect(deck(page)).toBeVisible();
   });
 
-  test('nothing in it takes the focus', async ({ page }) => {
+  test('nothing in the deck or the minimap takes the focus', async ({ page }) => {
     await openUniverse(page, '/');
-    await expect(deck(page)).toBeVisible();
-    await expect(deck(page)).toHaveAttribute('aria-hidden', 'true');
-    expect(await deck(page).locator('a, button, input, select, textarea, [tabindex]').count()).toBe(
-      0,
-    );
+    for (const picture of [deck(page), minimap(page)]) {
+      await expect(picture).toBeVisible();
+      await expect(picture).toHaveAttribute('aria-hidden', 'true');
+      expect(await picture.locator('a, button, input, select, textarea, [tabindex]').count()).toBe(
+        0,
+      );
+    }
     // Round the page by Tab: the bar, the names, the Map button, the way to the plain version.
     for (let press = 0; press < 14; press += 1) {
       await page.keyboard.press('Tab');
-      const inDeck = await page.evaluate(() =>
-        Boolean(document.activeElement?.closest('.flight-deck')),
+      const inPicture = await page.evaluate(() =>
+        Boolean(document.activeElement?.closest('.flight-deck, .minimap')),
       );
-      expect(inDeck, `Tab ${press + 1}`).toBe(false);
+      expect(inPicture, `Tab ${press + 1}`).toBe(false);
     }
+  });
+
+  test('the minimap shows the galaxy, names what a pointer aims at, and a press flies there', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    await arrived(minimap(page));
+    // The ship starts in open sky, between the systems: the map is fitted to all of them.
+    await expect(minimap(page)).toHaveAttribute('data-scope', 'galaxy');
+    await expect(caption(page)).toHaveText('Galaxy');
+    expect(
+      await overlaps({
+        deck: deck(page),
+        minimap: minimap(page),
+        'the Map button': mapButton(page),
+        'the way to the plain version': plainChip(page),
+      }),
+    ).toEqual([]);
+
+    // A pointer over a sun aims at it: the caption names it, and the cursor says it can be pressed.
+    const sun = markOf(page, 'system/hackathons');
+    const at = await boxOf(sun);
+    await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+    await expect(caption(page)).toHaveText('Hackathons');
+    await expect(minimap(page)).toHaveAttribute('data-pick', '');
+
+    // Pressed, it is the destination: the very journey a press on its name in the sky starts.
+    const said = await watchText(page, '.dock-prompt');
+    await pointAt(page, sun, false);
+    // (Off the plate again: a pointer at rest would aim at whatever the map brings under it.)
+    await page.mouse.move(at.x - 200, at.y - 200);
+    await expect
+      .poll(async () =>
+        (await said()).find(
+          ({ text }) => text.includes('Flying to Hackathons') && text.includes('Stop'),
+        ),
+      )
+      .toMatchObject({ path: '/' });
+
+    // It docks and its page opens. The deck goes, since somebody is reading; the minimap stays,
+    // fitted to the system the ship is now in: the next planet is a press away.
+    await expect.poll(() => pathOf(page), FLIGHT).toBe('/systems/hackathons/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect(deck(page)).toBeHidden();
+    await expect(minimap(page)).toBeVisible();
+    await expect(minimap(page)).toHaveAttribute('data-scope', 'hackathons');
+    await expect(caption(page)).toHaveText('Hackathons');
+    await expect(minimap(page)).not.toHaveAttribute('data-pick', /.*/);
+  });
+
+  test('a press on the minimap where nothing is opens the star map, and both leave for it', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    await arrived(minimap(page));
+    const ground = await emptyGround(page);
+    // Further from every mark than a mouse reaches (12 px past the mark itself).
+    expect(ground.clear).toBeGreaterThan(30);
+    await page.mouse.click(ground.x, ground.y);
+    await expect(page.locator('html')).toHaveAttribute('data-map', 'open');
+    await expect(deck(page)).toBeHidden();
+    await expect(minimap(page)).toBeHidden();
+    // Nobody flew anywhere for it.
+    await expect(prompt(page)).not.toContainText('Flying to');
+    expect(pathOf(page)).toBe('/');
+
+    await page.keyboard.press('m');
+    await expect(page.locator('html')).not.toHaveAttribute('data-map', /.*/);
+    await expect(deck(page)).toBeVisible();
+    await expect(minimap(page)).toBeVisible();
   });
 
   test('docked there is no deck; leaving orbit brings it, and the prompt steps beside it', async ({
@@ -122,6 +272,12 @@ test.describe('on a laptop', () => {
     await expect(prompt(page)).toContainText('Leave orbit');
     // Somebody is reading the page: no deck, and the prompt in the middle of the free view.
     await expect(deck(page)).toBeHidden();
+    // The minimap is there all the same, beside the page, fitted to the system the planet is in
+    // (FishAI circles Software, one of the two suns of Projects).
+    await expect(minimap(page)).toBeVisible();
+    await expect(minimap(page)).toHaveAttribute('data-scope', 'projects');
+    await expect(caption(page)).toHaveText('Projects');
+    expect(await overlaps({ minimap: minimap(page), prompt: prompt(page) })).toEqual([]);
 
     await prompt(page).click();
     await expect(deck(page)).toBeVisible();
@@ -139,6 +295,7 @@ test.describe('on a laptop', () => {
     expect(
       await overlaps({
         deck: deck(page),
+        minimap: minimap(page),
         prompt: prompt(page),
         'the Map button': mapButton(page),
         'the way to the plain version': plainChip(page),
@@ -155,6 +312,8 @@ test.describe('on a laptop', () => {
       await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
       await expect(deck(page)).not.toHaveAttribute('data-seated', /.*/);
       await inTheMapRow(page);
+      // No minimap where the cluster has no room: the Map button, beside the strip, is the way.
+      await expect(minimap(page)).toBeHidden();
       // As far from the left edge as the button is from the right one.
       const [pill, map] = [await boxOf(deck(page)), await boxOf(mapButton(page))];
       expect(Math.round(pill.x)).toBe(Math.round(900 - (map.x + map.width)));
@@ -175,7 +334,10 @@ test.describe('the first visit, on a laptop', () => {
     const card = page.getByRole('complementary', { name: 'How to fly' });
     await expect(card).toBeVisible();
     await expect(deck(page)).toBeVisible();
-    expect(await overlaps({ deck: deck(page), 'the card': card })).toEqual([]);
+    await expect(minimap(page)).toBeVisible();
+    expect(await overlaps({ deck: deck(page), minimap: minimap(page), 'the card': card })).toEqual(
+      [],
+    );
   });
 
   test.describe('in a narrow window', () => {
@@ -189,6 +351,10 @@ test.describe('the first visit, on a laptop', () => {
       await expect(deck(page)).toHaveAttribute('data-layout', 'full');
       const [above, below] = [await boxOf(card), await boxOf(deck(page))];
       expect(above.x + above.width).toBeGreaterThan(below.x);
+      // The minimap is beyond the deck, and neither of them is on it.
+      expect(
+        await overlaps({ deck: deck(page), minimap: minimap(page), 'the card': card }),
+      ).toEqual([]);
       // Both of them arrive from 8 px below, each in its own time: once they have.
       await expect
         .poll(async () => {
@@ -204,12 +370,14 @@ test.describe('with reduced motion', () => {
   test.skip(({ isMobile }) => isMobile, 'the full deck');
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-  test('the deck is there, without its arrival, and axe has nothing to say about it', async ({
+  test('the deck and the minimap are there, without their arrival, and axe has nothing to say', async ({
     page,
   }) => {
     await openUniverse(page, '/');
-    await expect(deck(page)).toBeVisible();
-    expect(await deck(page).evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
+    for (const picture of [deck(page), minimap(page)]) {
+      await expect(picture).toBeVisible();
+      expect(await picture.evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
+    }
     await page.waitForTimeout(400); // the names in the sky have finished fading in
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -244,6 +412,8 @@ test.describe('on a phone', () => {
         // Nothing steps aside for it: the prompt, the pad and the corner chip are where they were.
         await expect(deck(page)).not.toHaveAttribute('data-seated', /.*/);
         await inTheMapRow(page);
+        // And no minimap: the Map button, right beside the strip, opens the real one.
+        await expect(minimap(page)).toBeHidden();
         expect(await sidewaysScroll(page)).toBe(0);
         expect(
           await overlaps({
@@ -323,6 +493,49 @@ test.describe('on a phone', () => {
     // It docks, the page opens in the sheet, and the deck is gone.
     await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
     await expect(deck(page)).toBeHidden();
+  });
+});
+
+test.describe('under a finger, on a screen with room for the cluster', () => {
+  test.skip(({ isMobile }) => !isMobile, 'a touch screen');
+  // A tablet held sideways.
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test('the minimap keeps above the boost pad, and a finger on a mark flies there', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    await expect(deck(page)).toHaveAttribute('data-layout', 'full');
+    await arrived(minimap(page));
+    const before = await boxOf(minimap(page));
+
+    // The first touch on the sky brings the pad out, in the corner below the minimap, which is
+    // where it was: it stood clear of the pad's place all along.
+    const pad = page.locator('.touch-boost');
+    await expect(pad).toBeHidden();
+    await steerByFinger(page);
+    await expect(pad).toBeVisible();
+    const [map, boost] = [await boxOf(minimap(page)), await boxOf(pad)];
+    expect(map).toEqual(before);
+    expect(Math.round(boost.y - (map.y + map.height))).toBe(12);
+    expect(
+      await overlaps({
+        deck: deck(page),
+        minimap: minimap(page),
+        'the boost pad': pad,
+        'the Map button': mapButton(page),
+        'the way to the plain version': plainChip(page),
+      }),
+    ).toEqual([]);
+
+    // A finger on a sun's mark: down aims, up flies there.
+    const said = await watchText(page, '.dock-prompt');
+    await pointAt(page, markOf(page, 'system/hackathons'), true);
+    await expect
+      .poll(async () => (await said()).some(({ text }) => text.includes('Flying to Hackathons')))
+      .toBe(true);
+    await expect.poll(() => pathOf(page), FLIGHT).toBe('/systems/hackathons/');
+    await expect(prompt(page)).toContainText('Leave orbit');
   });
 });
 

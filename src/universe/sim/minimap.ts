@@ -276,9 +276,11 @@ const round = (value: number): number => Math.round(value * 100) / 100 + 0;
 /**
  * A family's glyph (sim/world/glyphs.ts) as the `d` of an SVG path about (0, 0), `r` px in
  * radius, the way it stands on the map: its apex up (+Z is up the screen, +X to the left).
- * Closed, so that it can be filled, or stroked as an outline.
+ * Closed, so that it can be filled, or stroked as an outline. Home's circle is a true one here:
+ * the twelve corners that do for a plate in the sky show on a mark forty px across.
  */
 export function glyphPath(theme: ThemeKey, r: number): string {
+  if (theme === 'butter') return `M0 ${-r}A${r} ${r} 0 1 0 0 ${r}A${r} ${r} 0 1 0 0 ${-r}Z`;
   let d = '';
   for (const [x, z] of GLYPHS[theme](r)) d += `${d ? 'L' : 'M'}${round(-x)} ${round(-z)}`;
   return `${d}Z`;
