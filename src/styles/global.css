@@ -3954,10 +3954,12 @@ main > .resume-intro > .card-title--quiet {
       display: block;
     }
 
-    /* A stub's text fades into its plate, instead of being cut through a line. */
+    /* A stub's text fades into its plate, instead of being cut through a line: and so does a
+       planet's dot on its route line, which stands a layer above the text (z-index: 1). */
     html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
       content: '';
       position: absolute;
+      z-index: 1;
       inset: auto 0 0;
       width: auto;
       height: clamp(0.75rem, 25%, 2.25rem);
@@ -3971,10 +3973,11 @@ main > .resume-intro > .card-title--quiet {
      * under a head with crumbs and a lede, in a window 576 px tall): its title row takes the
      * whole card, the title in the middle of it, and what the card holds is below the cut. The
      * product is a switch: far under the row's own height in a stub of 72 px or more (58 inside
-     * its hairlines and the space under its text), far over the card's in a shorter one.
+     * its hairlines and the space under its text), far over the card's in a shorter one, and
+     * steep enough that no height a layout can have (they come in 64ths of a px) is between.
      */
     html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child) > h2[id] {
-      height: clamp(var(--title-h), calc((3.625rem - 100%) * 999), calc(100% + var(--space-3)));
+      height: clamp(var(--title-h), calc((3.625rem - 100%) * 99999), calc(100% + var(--space-3)));
     }
 
     /* One card is open: every other card is a chip, its title row and nothing more. */

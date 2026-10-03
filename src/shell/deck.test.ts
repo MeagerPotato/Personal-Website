@@ -112,6 +112,24 @@ describe('which column a card stands in', () => {
     expect(block).toMatch(/LOAD-BEARING: clip, not hidden\.[^\n]*\*\/\n {6}overflow: clip;/);
   });
 
+  it('fades whatever a stub cuts off, a planet’s dot included', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    const fade =
+      /\n {4}html\[data-mode='universe'\]:not\(\[data-card-open\]\) main > \[data-card\]:not\(:first-child\)::after \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(fade).toContain('background: linear-gradient(transparent, var(--ground) 85%);');
+    expect(fade).toContain('pointer-events: none;');
+    // What a card holds that stands a layer above its text: the fade is not under any of it.
+    const layer = (rule: string | undefined): number =>
+      Number(/\n\s+z-index: (-?\d+);/.exec(rule ?? '')?.[1] ?? NaN);
+    const raised = ['.planet-dot', '.sun-dot'].map((name) =>
+      layer(new RegExp(`\\n\\${name} \\{([^}]*)\\}`).exec(css)?.[1]),
+    );
+    expect(raised).toEqual([1, 1]);
+    expect(layer(fade)).toBe(Math.max(...raised));
+  });
+
   it('makes a stub with no room for a line of its text its title alone', () => {
     const block = css.slice(css.indexOf('THE DECK.'));
     // A stub's title row: its height is a switch, between the row's own and the whole card's.
@@ -140,6 +158,9 @@ describe('which column a card stands in', () => {
     expect([44, 59.5, 71].map(row)).toEqual([42, 57.5, 69]);
     // From 72 px a line shows (About's right column at 1280 x 576 is 76.8): a title row.
     expect([72, 76.8, 120, 176].map(row)).toEqual([42, 42, 42, 42]);
+    // And nothing between: one step of the layout (a 64th of a px) under 72, and the row is
+    // already the whole card. No stub is caught with half a line.
+    expect(row(72 - 1 / 64)).toBe(70 - 1 / 64);
   });
 });
 
