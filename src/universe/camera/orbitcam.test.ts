@@ -9,7 +9,7 @@ const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 const params = tuning.orbitCam;
 const DEG = Math.PI / 180;
 const STILL = { reducedMotion: true };
-const WHOLE = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 };
+const WHOLE = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 };
 
 function planet(x: number, z: number, ringRadius: number, light: Vector3 | null): OrbitSubject {
   return { position: new Vector3(x, 0, z), ringRadius, light };
@@ -20,7 +20,7 @@ function shown(
   subject: OrbitSubject,
   width: number,
   height: number,
-  inset: { top?: number; right?: number; bottom?: number },
+  inset: { top?: number; right?: number; bottom?: number; left?: number },
 ) {
   const camera = new PerspectiveCamera(50, width / height, 0.1, 5000);
   const orbit = new OrbitCam(STILL);
@@ -108,6 +108,27 @@ describe('the orbit camera', () => {
     expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan((free.bottom - free.top) * 0.97);
   });
 
+  it('and between what stands on both sides of it, in the middle of what they leave', () => {
+    const subject = planet(200, -120, 14, new Vector3(0, 0, 0));
+    // Not the same on both sides: the middle of what is left is not the middle of the window.
+    const project = shown(subject, 1280, 800, { left: 400, right: 340 });
+    const free = { left: 400, right: 1280 - 340, top: 0, bottom: 800 };
+
+    const centre = project(new Vector3(200, 0, -120));
+    expect(centre.x).toBeCloseTo((free.left + free.right) / 2, 6);
+    expect(centre.y).toBeCloseTo(400, 6);
+
+    const spots = ball(subject.position, params.fitRingRadii * subject.ringRadius).map(project);
+    const xs = spots.map((spot) => spot.x);
+    const ys = spots.map((spot) => spot.y);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(free.left - 0.5);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(free.right + 0.5);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(free.top);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(free.bottom);
+    // Fitted to the span between them, not to the width less one side.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan((free.right - free.left) * 0.97);
+  });
+
   it('stands on the lit side, a little round from the light, looking down from above', () => {
     const light = new Vector3(0, 0, 0);
     const subject = planet(100, 100, 12, light);
@@ -174,14 +195,26 @@ describe('the orbit camera', () => {
     orbit.look(subject);
     orbit.update(frame(1 / 60), WHOLE, pose);
     const whole = pose.distance;
-    orbit.update(
-      frame(1 / 60),
-      { aspect: 1.6, freeWidth: 0.6125, freeHeight: 1, freeTop: 0 },
-      pose,
-    );
+    orbit.update(frame(1 / 60), { ...WHOLE, freeWidth: 0.6125 }, pose);
     const beside = pose.distance;
-    orbit.update(frame(1 / 60), { aspect: 1.6, freeWidth: 0.2, freeHeight: 1, freeTop: 0 }, pose);
+    orbit.update(frame(1 / 60), { ...WHOLE, freeWidth: 0.2 }, pose);
     expect(beside).toBeGreaterThan(whole);
     expect(pose.distance).toBeGreaterThan(beside * 2);
+  });
+
+  it('goes by how WIDE the free part is, wherever in the view it lies', () => {
+    const orbit = new OrbitCam(STILL);
+    orbit.look(planet(0, 0, 12, null));
+    const pose = createPose();
+    orbit.update(frame(1 / 60), { ...WHOLE, freeWidth: 0.5 }, pose);
+    const beside = pose.distance;
+    // The same half of the width, between something on the left and something on the right.
+    orbit.update(frame(1 / 60), { ...WHOLE, freeLeft: 0.25, freeWidth: 0.75 }, pose);
+    expect(pose.distance).toBe(beside);
+    orbit.update(frame(1 / 60), { ...WHOLE, freeLeft: 0.5, freeWidth: 1 }, pose);
+    expect(pose.distance).toBe(beside);
+    // More taken on the left: further back, as for more taken on the right.
+    orbit.update(frame(1 / 60), { ...WHOLE, freeLeft: 0.4, freeWidth: 0.75 }, pose);
+    expect(pose.distance).toBeGreaterThan(beside);
   });
 });

@@ -10,6 +10,12 @@ export interface PanelInset {
   right: number;
   bottom: number;
   /**
+   * CSS pixels covered from the LEFT edge. No layout covers the left yet (the panel is on the
+   * right, the sheet at the bottom), so it is 0: the engine and the stylesheet already know
+   * what to do with one.
+   */
+  left: number;
+  /**
    * How far down the LINKS of the top bar reach. The engine's names over the planets must not lie
    * on them (on a phone the bar is two rows tall), nor may the star map.
    */
@@ -65,16 +71,23 @@ export function panelInset(
   cover = 0,
 ): PanelInset {
   if (!open || panel.offsetWidth === 0 || panel.offsetHeight === 0) {
-    return { top, right: 0, bottom: 0, frameTop: 0 };
+    return { top, right: 0, bottom: 0, left: 0, frameTop: 0 };
   }
   return narrow
     ? {
         top,
         right: 0,
         bottom: Math.max(0, viewport.height - panel.offsetTop),
+        left: 0,
         frameTop: Math.max(0, cover),
       }
-    : { top, right: Math.max(0, viewport.width - panel.offsetLeft), bottom: 0, frameTop: 0 };
+    : {
+        top,
+        right: Math.max(0, viewport.width - panel.offsetLeft),
+        bottom: 0,
+        left: 0,
+        frameTop: 0,
+      };
 }
 
 /**
@@ -122,7 +135,7 @@ export function mirrorInset(
   root: { style: Pick<CSSStyleDeclaration, 'setProperty' | 'removeProperty'> },
   inset: PanelInset | null,
 ): void {
-  for (const side of ['top', 'right', 'bottom'] as const) {
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
     const name = `--panel-inset-${side}`;
     if (inset) root.style.setProperty(name, `${inset[side]}px`);
     else root.style.removeProperty(name);
@@ -168,6 +181,7 @@ export function watchPanelInset(
       last &&
       last.right === inset.right &&
       last.bottom === inset.bottom &&
+      last.left === inset.left &&
       last.top === inset.top &&
       last.frameTop === inset.frameTop &&
       last.foot?.right === foot?.right &&

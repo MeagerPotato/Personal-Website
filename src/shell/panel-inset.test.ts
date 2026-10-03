@@ -25,6 +25,7 @@ describe('panel inset', () => {
       top: 0,
       right: 496,
       bottom: 0,
+      left: 0,
       frameTop: 0,
     });
   });
@@ -34,8 +35,16 @@ describe('panel inset', () => {
       top: 0,
       right: 0,
       bottom: 490,
+      left: 0,
       frameTop: 0,
     });
+  });
+
+  it('covers nothing on the left: a panel is on the right, a sheet at the bottom', () => {
+    for (const open of [true, false]) {
+      expect(panelInset(column, open, false, desktop, 64, 120).left).toBe(0);
+      expect(panelInset(sheet, open, true, phone, 105, 161).left).toBe(0);
+    }
   });
 
   it('covers nothing when the panel is closed, or is not laid out at all (plain mode)', () => {
@@ -43,6 +52,7 @@ describe('panel inset', () => {
       top: 0,
       right: 0,
       bottom: 0,
+      left: 0,
       frameTop: 0,
     });
     expect(
@@ -52,7 +62,7 @@ describe('panel inset', () => {
         false,
         desktop,
       ),
-    ).toEqual({ top: 0, right: 0, bottom: 0, frameTop: 0 });
+    ).toEqual({ top: 0, right: 0, bottom: 0, left: 0, frameTop: 0 });
   });
 
   it('passes on how far down the top bar reaches, panel or no panel', () => {
@@ -60,12 +70,14 @@ describe('panel inset', () => {
       top: 105,
       right: 0,
       bottom: 490,
+      left: 0,
       frameTop: 0,
     });
     expect(panelInset(sheet, false, true, phone, 105)).toEqual({
       top: 105,
       right: 0,
       bottom: 0,
+      left: 0,
       frameTop: 0,
     });
   });
@@ -76,6 +88,7 @@ describe('panel inset', () => {
       top: 105,
       right: 0,
       bottom: 490,
+      left: 0,
       frameTop: 161,
     });
     expect(panelInset(sheet, false, true, phone, 105, 161).frameTop).toBe(0);
@@ -123,12 +136,14 @@ describe('panel inset', () => {
       top: 0,
       right: 0,
       bottom: 0,
+      left: 0,
       frameTop: 0,
     });
     expect(panelInset(away, true, true, phone)).toEqual({
       top: 0,
       right: 0,
       bottom: 0,
+      left: 0,
       frameTop: 0,
     });
   });
@@ -137,14 +152,33 @@ describe('panel inset', () => {
 describe('the inset, for the stylesheet', () => {
   it('goes on the root as custom properties, and comes off again', () => {
     const root = document.createElement('div');
-    mirrorInset(root, { top: 64, right: 496, bottom: 0, frameTop: 0 });
+    mirrorInset(root, { top: 64, right: 496, bottom: 0, left: 0, frameTop: 0 });
     expect(root.style.getPropertyValue('--panel-inset-top')).toBe('64px');
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('496px');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('0px');
+    expect(root.style.getPropertyValue('--panel-inset-left')).toBe('0px');
+    // Something on the left as well: the fourth side, like the others.
+    mirrorInset(root, { top: 64, right: 372, bottom: 0, left: 420, frameTop: 0 });
+    expect(root.style.getPropertyValue('--panel-inset-right')).toBe('372px');
+    expect(root.style.getPropertyValue('--panel-inset-left')).toBe('420px');
     mirrorInset(root, null);
     expect(root.style.getPropertyValue('--panel-inset-top')).toBe('');
     expect(root.style.getPropertyValue('--panel-inset-right')).toBe('');
     expect(root.style.getPropertyValue('--panel-inset-bottom')).toBe('');
+    expect(root.style.getPropertyValue('--panel-inset-left')).toBe('');
+  });
+
+  it('is what puts the dock prompt in the middle of what is left, in the stylesheet', () => {
+    // The engine's layer ends where a side panel begins, so half of it is the middle of what
+    // the panel leaves; whatever stands on the left moves that middle half as far the other way.
+    const css = readFileSync(path.resolve('src/styles/global.css'), 'utf8');
+    const overlay = /\n {2}html\[data-mode='universe'\] #universe-overlay \{([^}]*)\}/.exec(css);
+    expect(overlay?.[1]).toContain(
+      'inset: 0 var(--panel-inset-right, 0) var(--panel-inset-bottom, 0) 0;',
+    );
+    const prompt = /\n {2}\.dock-prompt \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(prompt).toContain('left: calc(50% + var(--panel-inset-left, 0px) / 2);');
+    expect(prompt).toContain('translate: var(--prompt-x) 0;');
   });
 });
 
@@ -172,12 +206,12 @@ describe('watching the panel', () => {
     document.documentElement.dataset.panel = 'open';
     const seen: [PanelInset, boolean][] = [];
     const stop = watchPanelInset((inset, first) => seen.push([inset, first]));
-    expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0, frameTop: 0 }, true]]);
+    expect(seen).toEqual([[{ top: 0, right: 496, bottom: 0, left: 0, frameTop: 0 }, true]]);
 
     document.documentElement.dataset.panel = 'closed';
     await settle();
     expect(seen).toHaveLength(2);
-    expect(seen[1]).toEqual([{ top: 0, right: 0, bottom: 0, frameTop: 0 }, false]);
+    expect(seen[1]).toEqual([{ top: 0, right: 0, bottom: 0, left: 0, frameTop: 0 }, false]);
 
     // A resize that changes nothing is not news.
     window.dispatchEvent(new Event('resize'));

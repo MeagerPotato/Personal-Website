@@ -172,12 +172,21 @@ the depth buffer a few units coarse from map height.
 
 **The panel and the view.** The info panel covers part of the viewport. The shell measures how
 much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
-(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides
-the WINDOW onto the view with `camera.setViewOffset` so that the middle of the view is the middle
-of what is left: same camera, same perspective, so a planet stays round (turning the camera
-instead would stretch it into an egg near the edge of a wide lens). Modes that frame something are
-told how much is free and stand back accordingly. `#universe-overlay` is inset the same way, so
-the dock prompt is never under a bottom sheet. Which layout is which is one media query, written
+(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom`, `--panel-inset-left` on
+`<html>`). The rig slides the WINDOW onto the view with `camera.setViewOffset` so that the middle
+of the view is the middle of what is left: same camera, same perspective, so a planet stays round
+(turning the camera instead would stretch it into an egg near the edge of a wide lens). Modes that
+frame something are told how much is free and stand back accordingly. `#universe-overlay` is inset
+the same way, so the dock prompt is never under a bottom sheet. **What is left has four sides**
+(`ViewShape`: across from `freeLeft` to `freeWidth`, down from `freeTop` to `freeHeight`, as
+shares of the viewport). A panel takes the right and a sheet the bottom; `left` is for content
+that stands on BOTH sides of the body (the cards: nothing sends one yet, so it is 0). The window
+slides by half of `right - left`; the orbit camera fits its ring to the span between the two
+sides; the names keep to it (`Labels`, `room.left`); the star map is fitted into it and measures
+a pointer from its middle; and the dock prompt, in a layer that already ends where a side panel
+begins, moves right by half of `--panel-inset-left`, into the middle of what is free. The two
+sides together never take more than 80% of the width: past that each gives way in proportion
+(one side alone is held exactly as it always was). Which layout is which is one media query, written
 twice (the stylesheet's sheet block, and `NARROW` in `panel-inset.ts`): narrow AND more than 30rem
 tall is a phone held upright and gets the bottom sheet; a phone held sideways has no height to
 share and keeps the side panel. The inset has a fourth number, `frameTop`: on that upright phone
@@ -371,7 +380,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   LOOKING, not another place to be. The navigator does not know about it: a journey, an approach
   or a docked ship carries on underneath, and the URL and the panel do not change. `M`, the Map
   button (a real button in `#universe-overlay`) or scrolling out opens it; `M`, the button or
-  `Esc` closes it, and the map hears `Esc` before the panel does. The map camera is the SAME
+  `Esc` closes it, and the map hears `Esc` before the panel does. (Scrolling out opens it only
+  while the wheel is the map's to take: `StarMap`'s `wheelOpens`, which `main.ts` answers with
+  "the web layer has set no deck", `setDeck` in `api.ts`. Among cards the wheel steps from one
+  to the next; nothing sets a deck yet.) The map camera is the SAME
   perspective camera, straight down through a 12° lens from far away, north up (+Z up the
   screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
   work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
@@ -450,8 +462,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
   must become a snapshot field. (What the web layer last ASKED for is not the engine's state:
-  `api.ts` keeps the panel's inset, the pause and whether the map is open, and tells the new
-  engine, with a cut. And what the old navigator had queued for its next frame, a Stop pressed
+  `api.ts` keeps the panel's inset, the page's deck of cards (`setDeck`: it follows from the URL
+  and the page, so it is no snapshot field and no part of `galaxyKey`), the pause and whether the
+  map is open, and tells the new engine, with a cut; `api.test.ts` holds it to that with a
+  stand-in for the engine. And what the old navigator had queued for its next frame, a Stop pressed
   since the last one say, is delivered before the snapshot is taken: the new engine only reports
   what it does itself.)
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and

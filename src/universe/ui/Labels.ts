@@ -53,8 +53,11 @@ export interface LabelsOptions {
     readonly theme?: ThemeKey | undefined;
   }>;
   params: LabelsParams;
-  /** The part of the view that the info panel leaves free, as shares of its width and height. */
-  view: { readonly freeWidth: number; readonly freeHeight: number };
+  /**
+   * The part of the view that the page leaves free, as shares of its width and height: across
+   * from `freeLeft` to `freeWidth`, and down to `freeHeight`.
+   */
+  view: { readonly freeLeft: number; readonly freeWidth: number; readonly freeHeight: number };
   /** Row of the body the ship is headed for or docked at, or -1. */
   target(): number;
   /** Is the ship docked (at `target`)? Then its page is open, and its name is on the page. */
@@ -259,7 +262,7 @@ export class Labels implements System {
   private barBottom = 0;
   private foot: { right: number; top: number } | null = null;
   /** Where names may go this frame (CSS px): the free view, less its edges and the top bar. */
-  private readonly room = { right: 0, bottom: 0, top: 0 };
+  private readonly room = { left: 0, right: 0, bottom: 0, top: 0 };
   /**
    * Is the name being placed offered its places without room to spare from the edges of the view
    * (`slackAt`), having none with it?
@@ -346,11 +349,12 @@ export class Labels implements System {
     const ship = this.options.ship?.() ?? null;
     const onMap = this.options.onMap?.() ?? false;
     const { room } = this;
+    room.left = this.width * view.freeLeft + params.edgePx;
     room.right = this.width * view.freeWidth - params.edgePx;
     room.bottom = this.height * view.freeHeight - params.edgePx;
     room.top = Math.max(params.topPx, this.barBottom + params.edgePx);
     // The middle of where names may go: on the map, where the visitor is looking.
-    const middleX = (params.edgePx + room.right) / 2;
+    const middleX = (room.left + room.right) / 2;
     const middleY = (room.top + room.bottom) / 2;
 
     // First, while this frame has not touched the page yet: what is in the way.
@@ -554,7 +558,7 @@ export class Labels implements System {
    */
   private leaving(x: number, y: number, dx: number, dy: number): boolean {
     const { room } = this;
-    const left = x - this.options.params.edgePx;
+    const left = x - room.left;
     const right = room.right - x;
     const top = y - room.top;
     const bottom = room.bottom - y;
@@ -842,7 +846,7 @@ export class Labels implements System {
   ): number {
     const end = tag / 2;
     const wanted = reach === 0 ? centred : reach > 0 ? x - end : x + end - width;
-    const min = this.options.params.edgePx;
+    const min = this.room.left;
     const max = this.room.right - width;
     if (max < min) return Number.NaN;
     const left = Math.min(Math.max(wanted, min), max);
@@ -949,7 +953,7 @@ export class Labels implements System {
   ): boolean {
     const { room } = this;
     return (
-      left >= this.options.params.edgePx + across &&
+      left >= room.left + across &&
       left + width <= room.right - across &&
       top >= room.top + upDown &&
       top + (this.heights[row] ?? 0) <= room.bottom - upDown

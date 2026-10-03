@@ -2736,7 +2736,9 @@ main > .resume-intro > .card-title--quiet {
     --prompt-x: -50%;
 
     position: absolute;
-    left: 50%;
+    /* The middle of what the page leaves free. The layer already ends where a side panel begins;
+       whatever stands on the LEFT (src/shell/panel-inset.ts) moves that middle half as far. */
+    left: calc(50% + var(--panel-inset-left, 0px) / 2);
     bottom: var(--prompt-bottom);
     display: inline-flex;
     align-items: center;

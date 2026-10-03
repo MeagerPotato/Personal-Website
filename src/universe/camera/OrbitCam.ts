@@ -61,7 +61,7 @@ export class OrbitCam implements CameraMode {
     // The free part of the view, as half-angles: the lens is `fov` tall over the WHOLE viewport.
     const tanHalf = Math.tan((params.fovDegrees / 2) * RAD_PER_DEG);
     const halfTall = Math.atan(tanHalf * (view.freeHeight - view.freeTop));
-    const halfWide = Math.atan(tanHalf * view.aspect * view.freeWidth);
+    const halfWide = Math.atan(tanHalf * view.aspect * (view.freeWidth - view.freeLeft));
     const fit = params.fitRingRadii * subject.ringRadius;
 
     out.focus.copy(subject.position);

@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { UniverseOptions } from './api';
+import type { Deck, UniverseOptions } from './api';
 import { CameraRig } from './camera/CameraRig';
 import { MapCam } from './camera/MapCam';
 import { OrbitCam } from './camera/OrbitCam';
@@ -75,6 +75,8 @@ export interface ViewInset {
   top?: number;
   right?: number;
   bottom?: number;
+  /** From the left edge: content that stands on both sides of what matters. */
+  left?: number;
   /** How much of the top the camera leaves out when it frames what matters (none if left out). */
   frameTop?: number;
   /** The page's footer chip over the bottom-left corner: from the left edge to right, top down. */
@@ -86,6 +88,12 @@ export interface Booted {
   navigator: Navigator;
   /** The panel moved, or the top bar grew: frame the world in what is left, keep names off it. */
   setInset(inset: ViewInset, cut: boolean): void;
+  /**
+   * The page's content stands round the docked body as cards, or (null) it does not (api.ts,
+   * `setDeck`). `cut`: at once. So far the engine only leaves the wheel to the page while a deck
+   * is set, and there is nothing to ease.
+   */
+  setDeck(deck: Deck | null, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
   setMapOpen(open: boolean, cut: boolean): void;
   /** Where everything is right now, and in which galaxy (core/snapshot.ts). */
@@ -175,6 +183,9 @@ export function boot(
   const chase = new ChaseCam(ship, { reducedMotion });
   const orbit = new OrbitCam({ reducedMotion });
   const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
+  // What the web layer last said of the page's cards (`setDeck`, below). Not the engine's state:
+  // it follows from the URL and the page, and api.ts tells a rebuilt engine again.
+  let deck: Deck | null = null;
   const starMap = engine.add(
     new StarMap({
       canvas: engine.canvas,
@@ -184,6 +195,8 @@ export function boot(
       view: rig.shape,
       params: tuning.map,
       reducedMotion,
+      // Among cards the wheel goes from one to the next: scrolling out is not asking for the map.
+      wheelOpens: () => deck === null,
       tapMaxPx: tuning.picking.tapMaxPx,
       onChange: (open, cut) => {
         input.setEnabled(!open);
@@ -416,10 +429,16 @@ export function boot(
     engine,
     navigator,
     setInset(inset, cut) {
-      rig.setInset({ top: inset.frameTop, right: inset.right, bottom: inset.bottom }, cut);
+      rig.setInset(
+        { top: inset.frameTop, right: inset.right, bottom: inset.bottom, left: inset.left },
+        cut,
+      );
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
+    },
+    setDeck(next) {
+      deck = next;
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),
     snapshot: () => ({

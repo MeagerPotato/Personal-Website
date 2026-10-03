@@ -42,10 +42,19 @@ export interface StarMapOptions {
   bounds: MapBounds;
   /** ...and where the ship is, which may be out beyond it. None: the galaxy alone. */
   ship?: (() => Readonly<{ x: number; z: number }>) | undefined;
-  /** The part of the view that the info panel leaves free, as shares. A live object (CameraRig). */
-  view: { readonly freeWidth: number; readonly freeHeight: number };
+  /**
+   * The part of the view that the page leaves free, as shares: across from `freeLeft` to
+   * `freeWidth`, and down to `freeHeight`. A live object (CameraRig).
+   */
+  view: { readonly freeLeft: number; readonly freeWidth: number; readonly freeHeight: number };
   params: StarMapParams;
   reducedMotion: boolean;
+  /**
+   * May scrolling out open the map right now? False while the page keeps the wheel for itself
+   * (api.ts, `setDeck`): the wheel is then left alone, for the page to hear. M and the Map button
+   * open the map all the same, and over the open map the wheel is the map's. Left out: always.
+   */
+  wheelOpens?: (() => boolean) | undefined;
   /**
    * A finger that goes down on a name (ui/Labels.ts) and travels further than this (CSS px) is
    * dragging the map, not pressing the name (tuning.picking.tapMaxPx, the same bound as for
@@ -307,13 +316,14 @@ export class StarMap implements System, MapSight {
   }
 
   /**
-   * Where the map lives, in CSS px: what the panel leaves free, below the top bar AND below the
-   * Map button. On a phone with a page open that is a third of the screen, and whatever the map
-   * opens on must be in it, not under a button.
+   * Where the map lives, in CSS px: what the page leaves free (from side to side, whichever
+   * sides it takes), below the top bar AND below the Map button. On a phone with a page open
+   * that is a third of the screen, and whatever the map opens on must be in it, not under a
+   * button.
    */
   private frame(): Readonly<{ width: number; height: number }> {
     const { view } = this.options;
-    this.framed.width = this.width * view.freeWidth;
+    this.framed.width = this.width * (view.freeWidth - view.freeLeft);
     this.framed.height = Math.max(1, this.height * view.freeHeight - this.ceiling());
     return this.framed;
   }
@@ -361,7 +371,7 @@ export class StarMap implements System, MapSight {
   private fromMiddle(clientX: number, clientY: number): { px: number; py: number } {
     const frame = this.frame();
     return {
-      px: clientX - this.left - frame.width / 2,
+      px: clientX - this.left - this.width * this.options.view.freeLeft - frame.width / 2,
       py: clientY - this.top - this.ceiling() - frame.height / 2,
     };
   }
@@ -426,6 +436,11 @@ export class StarMap implements System, MapSight {
     }
     // Flying: scrolling OUT, and meaning it, pulls out to the map. (Ctrl+wheel zooms the page.)
     if (event.ctrlKey || event.metaKey) return;
+    // Not while the wheel is the page's: nor does what was scrolled then count towards it later.
+    if (this.options.wheelOpens?.() === false) {
+      this.wheelOut = 0;
+      return;
+    }
     if (event.timeStamp - this.wheelAt > WHEEL_GESTURE_MS || delta <= 0) this.wheelOut = 0;
     this.wheelAt = event.timeStamp;
     if (delta <= 0) return;
