@@ -2,8 +2,9 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Frame } from '../core/Engine';
 import { tuning } from '../design/tuning';
-import { CameraRig, createPose } from './CameraRig';
-import { OrbitCam, type OrbitSubject } from './OrbitCam';
+import { CameraRig, createPose, type Pose } from './CameraRig';
+import { angleDelta } from '../sim/math';
+import { OrbitCam, type FaceTarget, type OrbitSubject } from './OrbitCam';
 
 const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 const params = tuning.orbitCam;
@@ -216,5 +217,206 @@ describe('the orbit camera', () => {
     // More taken on the left: further back, as for more taken on the right.
     orbit.update(frame(1 / 60), { ...WHOLE, freeLeft: 0.4, freeWidth: 0.75 }, pose);
     expect(pose.distance).toBeGreaterThan(beside);
+  });
+});
+
+describe('the orbit camera, told to face a landmark', () => {
+  const MOVING = { reducedMotion: false };
+  const dt = 1 / 60;
+  const roundOf = (pose: Pose): number => {
+    const stand = new Vector3(0, 0, pose.distance).applyQuaternion(pose.quaternion);
+    return Math.atan2(stand.x, stand.z);
+  };
+  /** How far round the body the camera stands now (a look that moves nothing on). */
+  const standing = (orbit: OrbitCam): number => {
+    const pose = createPose();
+    orbit.update(frame(0), WHOLE, pose);
+    return roundOf(pose);
+  };
+  /** A landmark that stays where it is, round the body. */
+  const fixed = (deg: number, side: -1 | 1): FaceTarget => ({ azimuth: () => deg * DEG, side });
+  const run = (orbit: OrbitCam, seconds: number, each?: (pose: Pose) => void): Pose => {
+    const pose = createPose();
+    for (let i = 0; i < Math.round(seconds / dt); i += 1) {
+      orbit.update(frame(dt), WHOLE, pose);
+      each?.(pose);
+    }
+    return pose;
+  };
+  const started = (): OrbitCam => {
+    const orbit = new OrbitCam(MOVING);
+    // No light: it starts sunwardOffsetDeg round, 35 degrees.
+    orbit.look(planet(0, 0, 12, null));
+    return orbit;
+  };
+
+  it('turns until the landmark rests a little round from the middle, toward its card', () => {
+    const right = started();
+    right.face(fixed(120, 1));
+    run(right, 6);
+    // A card on the right: the landmark is right of the middle, so the camera stands short of it.
+    expect(standing(right) / DEG).toBeCloseTo(120 - params.faceBiasDeg, 3);
+
+    const left = started();
+    left.face(fixed(120, -1));
+    run(left, 6);
+    expect(standing(left) / DEG).toBeCloseTo(120 + params.faceBiasDeg, 3);
+  });
+
+  it('goes the short way round, and never faster than its limit', () => {
+    // From 35 degrees to a stand at 300 - 27 = 273: 122 degrees backwards, not 238 forwards.
+    const orbit = started();
+    orbit.face(fixed(300, 1));
+    let before = standing(orbit);
+    let travelled = 0;
+    let fastest = 0;
+    run(orbit, 6, (pose) => {
+      const step = angleDelta(before, roundOf(pose));
+      travelled += step;
+      fastest = Math.max(fastest, Math.abs(step) / dt);
+      before = roundOf(pose);
+    });
+    expect(travelled / DEG).toBeCloseTo(-122, 2);
+    expect(fastest).toBeLessThanOrEqual(params.faceMaxRadPerSec + 1e-9);
+
+    // Half a turn is held to the limit on the way, and is all but there in 1.6 s.
+    const far = started();
+    far.face(fixed(35 + 180 + params.faceBiasDeg, 1));
+    let top = 0;
+    let at = standing(far);
+    run(far, 1.6, (pose) => {
+      top = Math.max(top, Math.abs(angleDelta(at, roundOf(pose))) / dt);
+      at = roundOf(pose);
+    });
+    expect(top).toBeCloseTo(params.faceMaxRadPerSec, 6);
+    expect(Math.abs(angleDelta(standing(far), (35 + 180) * DEG)) / DEG).toBeLessThan(12);
+  });
+
+  it('eases in and out: no jump when it starts to turn, none when it arrives', () => {
+    const orbit = started();
+    orbit.face(fixed(150, 1));
+    const steps: number[] = [];
+    let before = standing(orbit);
+    run(orbit, 4, (pose) => {
+      steps.push(angleDelta(before, roundOf(pose)));
+      before = roundOf(pose);
+    });
+    // The first frame moves a hair; the fastest frame comes later; the last ones barely move.
+    expect(Math.abs(steps[0] ?? 1)).toBeLessThan(0.005);
+    expect(Math.max(...steps.map(Math.abs))).toBeGreaterThan(0.015);
+    expect(Math.abs(steps.at(-1) ?? 1)).toBeLessThan(1e-4);
+    // And nothing jerks: from one frame to the next the speed never changes by more than the
+    // spring's own pull at the start, with the whole turn still ahead (omega squared times it).
+    const turn = (150 - params.faceBiasDeg - params.sunwardOffsetDeg) * DEG;
+    const hardest = params.faceOmega ** 2 * turn * dt * dt;
+    for (let i = 1; i < steps.length; i += 1) {
+      expect(Math.abs((steps[i] ?? 0) - (steps[i - 1] ?? 0))).toBeLessThanOrEqual(hardest);
+    }
+  });
+
+  it('holds a landmark that goes round with a turning world', () => {
+    const spin = tuning.world.spinRadPerSec;
+    /** How far the camera trails where it should stand, after ten seconds of a turning world. */
+    const behind = (step: number): number => {
+      let at = 80 * DEG;
+      const orbit = started();
+      orbit.face({ azimuth: () => at, side: 1 });
+      const pose = createPose();
+      for (let t = 0; t < 10 - 1e-9; t += step) {
+        at += spin * step;
+        orbit.update(frame(step), WHOLE, pose);
+      }
+      return angleDelta(roundOf(pose), at - params.faceBiasDeg * DEG);
+    };
+    // The world has turned 23 degrees and the camera with it: it trails by the spring's own lag
+    // (2u / omega), about a degree, and no more.
+    expect(behind(dt)).toBeGreaterThan(0);
+    expect(behind(dt)).toBeCloseTo((2 * spin) / params.faceOmega, 3);
+    // The same at half the frame rate: the lag is the spring's, not the frame's.
+    expect(behind(dt * 2)).toBeCloseTo(behind(dt), 3);
+  });
+
+  it('closes in on the body while it faces something, and stands back again after', () => {
+    const orbit = started();
+    const whole = run(orbit, dt).distance;
+    expect(orbit.focus).toBe(0);
+    orbit.face(fixed(60, 1));
+    const closing = run(orbit, 0.3);
+    expect(orbit.focus).toBeGreaterThan(0);
+    expect(orbit.focus).toBeLessThan(1);
+    expect(closing.distance).toBeLessThan(whole);
+    const close = run(orbit, 6);
+    expect(orbit.focus).toBeCloseTo(1, 6);
+    expect(close.distance / whole).toBeCloseTo(params.focusFitRingRadii / params.fitRingRadii, 6);
+
+    orbit.face(null);
+    const back = run(orbit, 6);
+    expect(orbit.focus).toBeCloseTo(0, 6);
+    expect(back.distance).toBeCloseTo(whole, 6);
+  });
+
+  it('wanders on from where it is once it faces nothing, the turn running out into the drift', () => {
+    const orbit = started();
+    orbit.face(fixed(200, 1));
+    run(orbit, 0.5);
+    // Let go in the middle of the turn: it is going fast, and must not stop dead.
+    const mid = standing(orbit);
+    orbit.face(null);
+    const next = roundOf(run(orbit, dt));
+    expect(Math.abs(angleDelta(mid, next)) / dt).toBeGreaterThan(1);
+    run(orbit, 6);
+    const settled = standing(orbit);
+    run(orbit, 10);
+    // From then on, the drift and nothing else.
+    expect(angleDelta(settled, standing(orbit))).toBeCloseTo(params.driftRadPerSec * 10, 6);
+  });
+
+  it('is simply there under reduced motion, and when told to cut', () => {
+    const still = new OrbitCam(STILL);
+    still.look(planet(0, 0, 12, null));
+    let at = 250 * DEG;
+    still.face({ azimuth: () => at, side: -1 });
+    expect(standing(still) / DEG).toBeCloseTo(250 + params.faceBiasDeg - 360, 9);
+    expect(still.focus).toBe(1);
+    // It goes on holding it, wherever it goes, with nothing to ease.
+    at = 20 * DEG;
+    expect(standing(still) / DEG).toBeCloseTo(20 + params.faceBiasDeg, 9);
+    still.face(null);
+    expect(still.focus).toBe(0);
+    expect(standing(still) / DEG).toBeCloseTo(20 + params.faceBiasDeg, 9);
+
+    const moving = started();
+    moving.face(fixed(250, -1), true);
+    expect(moving.focus).toBe(1);
+    expect(standing(moving) / DEG).toBeCloseTo(250 + params.faceBiasDeg - 360, 9);
+    moving.face(null, true);
+    expect(moving.focus).toBe(0);
+  });
+
+  it('arrives facing what it was told to face, and comes back to it after the star map', () => {
+    // Told before the ship docks: the view of the new body starts where the page wants it.
+    const orbit = new OrbitCam(MOVING);
+    let at = 140 * DEG;
+    orbit.face({ azimuth: () => at, side: 1 });
+    orbit.look(planet(0, 0, 12, new Vector3(100, 0, 0)));
+    expect(standing(orbit) / DEG).toBeCloseTo(140 - params.faceBiasDeg, 9);
+    expect(orbit.focus).toBe(1);
+
+    // The rig stops asking while the map is up, and the world turns on. Asked again, the camera
+    // faces where the landmark is NOW, at once: no swing, and no kick from a stale speed.
+    run(orbit, 1);
+    at += 1.2;
+    orbit.enter();
+    expect(angleDelta(standing(orbit), at - params.faceBiasDeg * DEG)).toBeCloseTo(0, 9);
+    const before = standing(orbit);
+    expect(Math.abs(angleDelta(before, roundOf(run(orbit, dt))))).toBeLessThan(1e-3);
+  });
+
+  it('wanders exactly as it always did when nothing was ever faced', () => {
+    const orbit = started();
+    const from = standing(orbit);
+    run(orbit, 10);
+    expect(angleDelta(from, standing(orbit))).toBeCloseTo(params.driftRadPerSec * 10, 12);
+    expect(orbit.focus).toBe(0);
   });
 });

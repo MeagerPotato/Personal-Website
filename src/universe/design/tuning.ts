@@ -3,6 +3,7 @@ import type { ChaseCamParams } from '../camera/ChaseCam';
 import type { MapCamParams } from '../camera/MapCam';
 import type { CruiseParams } from '../sim/autopilot';
 import type { OrbitCamParams } from '../camera/OrbitCam';
+import type { DeckParams } from '../sim/landmarks';
 import type { PointerSteerParams } from '../core/input/PointerSteer';
 import type { TouchParams } from '../core/input/TouchControls';
 import type { JobBudget } from '../core/jobs';
@@ -438,7 +439,37 @@ export const tuning = {
     fitRingRadii: 1.15,
     /** The view wanders round the body, slowly. Off under reduced motion. */
     driftRadPerSec: 0.03,
+    /**
+     * FACING A LANDMARK (a card of the page's deck is open: design/worlds/landmarks.ts). The view
+     * closes in to this many ring radii: with the open card's wider column beside it, the body
+     * stays about the size it was in the overview and the ring runs on behind the cards.
+     */
+    focusFitRingRadii: 0.8,
+    /** 1/s. How quickly the view turns to the landmark and closes in (about a second). */
+    faceOmega: 3.5,
+    /** Never faster round the body than this, rad/s: half a turn takes about 1.6 s. */
+    faceMaxRadPerSec: 2.5,
+    /**
+     * The landmark rests this far round from the middle of the disc, toward its card: 0 would
+     * put it dead centre, 90 on the limb, where it is seen edge-on.
+     */
+    faceBiasDeg: 27,
   } satisfies OrbitCamParams,
+
+  /**
+   * THE DECK: the cards of a page round the docked body (src/shell/cards.ts), as the engine draws
+   * its side of them.
+   */
+  deck: {
+    /**
+     * Where a card with no landmark of its own points (sim/landmarks.ts): this far north, the
+     * first card's this far round, the rest evenly all the way round the body.
+     */
+    defaultLatDeg: 30,
+    defaultLonDeg: 15,
+    /** The station a card's leader ends in: its radius, CSS px (ui/Leaders.ts). */
+    stopRadiusPx: 5,
+  } satisfies DeckParams,
 
   /** Changing between cameras, and making room for the info panel (camera/CameraRig.ts). */
   cameraRig: {

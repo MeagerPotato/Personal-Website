@@ -16,6 +16,7 @@ import { lowerTier, type QualityTier } from './core/quality/tiers';
 import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
+import { LANDMARKS } from './design/worlds/landmarks';
 import { PostFX } from './fx/PostFX';
 import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
@@ -26,7 +27,9 @@ import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { landmarkOf } from './sim/landmarks';
 import { boundsOf } from './sim/mapView';
+import { angleOf } from './sim/math';
 import { spawnPoint } from './sim/spawn';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
@@ -90,8 +93,8 @@ export interface Booted {
   setInset(inset: ViewInset, cut: boolean): void;
   /**
    * The page's content stands round the docked body as cards, or (null) it does not (api.ts,
-   * `setDeck`). `cut`: at once. So far the engine only leaves the wheel to the page while a deck
-   * is set, and there is nothing to ease.
+   * `setDeck`). While a deck is set the wheel is the page's, and the orbit camera turns to the
+   * landmark of the card that is open (`cut`: at once).
    */
   setDeck(deck: Deck | null, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
@@ -238,6 +241,37 @@ export function boot(
   // flourish, not flying.
   let framed: string | null = null;
   let framing = false;
+  // The card that is open points at a LANDMARK of the body its page belongs to (sim/landmarks.ts),
+  // and while the ship is docked at that body the orbit camera faces it. `facing` is what the
+  // camera was last told, so that a deck told again (a card's box moved by a pixel) does not
+  // start the turn afresh.
+  const mark = new Vector3();
+  let facing = '';
+  function aim(cut: boolean): void {
+    const body = deck?.body ?? null;
+    const cards = deck?.cards ?? [];
+    const index =
+      body !== null && body === framed ? cards.findIndex((c) => c.key === deck?.open) : -1;
+    const card = cards[index];
+    const middle = card && body !== null ? galaxy.subject(body)?.position : undefined;
+    const next = card && middle ? `${body}#${card.key}:${card.side}` : '';
+    if (next === facing) return;
+    facing = next;
+    if (!card || !middle || body === null) {
+      orbit.face(null, cut);
+      return;
+    }
+    const landmark = landmarkOf(LANDMARKS, body, card.key, index, cards.length, tuning.deck);
+    orbit.face(
+      {
+        side: card.side,
+        // Where it is round the body NOW: on a turning world it goes round with the ground.
+        azimuth: () =>
+          galaxy.landmark(body, landmark, mark) ? angleOf(mark.x - middle.x, mark.z - middle.z) : 0,
+      },
+      cut,
+    );
+  }
   function direct(cut = false): void {
     const { mode, target } = navigator.state;
     const docked = mode === 'docked' ? target : null;
@@ -246,6 +280,9 @@ export function boot(
       const subject = docked === null ? null : galaxy.subject(docked);
       if (subject) orbit.look(subject);
       framing = subject !== null;
+      // An arrival ends facing what the page's open card points at; a ship that leaves lets the
+      // view ease out of it, since the picture is still the orbit camera's when the blend begins.
+      aim(docked !== null);
     }
     const want = starMap.isOpen ? mapCam : framing ? orbit : chase;
     if (want === rig.active) return;
@@ -437,8 +474,9 @@ export function boot(
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
     },
-    setDeck(next) {
+    setDeck(next, cut) {
       deck = next;
+      aim(cut);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),
     snapshot: () => ({

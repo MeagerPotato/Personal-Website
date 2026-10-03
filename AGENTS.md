@@ -19,7 +19,7 @@ mode. In universe mode the **router** keeps the canvas alive across pages (soft 
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
 narrow ones). On a wide screen (1280 x 576 px and up) a destination's content is a **deck of cards**
 round the docked body: every section a short card; opening one (a click, the wheel, the keys,
-`/about/#rockets`) shows it in full. **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
+`/about/#rockets`) shows it in full and turns the camera to that card's landmark. **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
 **galaxy is built from the real `/universe.json`**: every body (the planets and moons, the suns,
 home, the station, the satellite and the relays) drawn as its **emblem world** (`design/worlds/`:
@@ -158,7 +158,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own) | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own), `worlds/landmarks.ts` (what each card of a page points at) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `manifest.ts` (reads `/universe.json`), `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
@@ -236,6 +236,22 @@ pointing the way it goes round its parent, as Model Rocketry flies nose first ro
 sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
 is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
 on the low tier and on the star map.
+
+**Give a card a landmark.** Opening a card of the deck turns the orbit camera to that card's
+LANDMARK on the body its page belongs to. An entry in `design/worlds/landmarks.ts`, under the
+body's manifest id and then the card's heading id (`rockets` for `/about/#rockets`): a latitude
+and a longitude in the body's own frame, in degrees, as a part is stood on a world in its rows
+(longitude 0 is the body's +Z, 90 its +X), with `alt` (radii above the ground), `hold` (it stands
+on a part that does not turn with the body) and `part` (the part it was read off) where they
+apply. A card with no entry points at its place on a ring round the body (`tuning.deck`), so
+nothing has to be listed. Keep the latitude between -15 and 85: the camera turns round the body
+and never climbs. A landmark is coordinates, never a reference to a part, so that pointing at one
+never pulls in the close-up chunk; `tests/landmarks.test.ts` holds the table to the galaxy (a key
+that names no body, a card its page cannot have, a part that has moved on). The keys are API:
+they are a body's id and a heading's id, which is a fragment people link to. Judge it in flight:
+`sim/landmarks.ts` is the arithmetic, `Galaxy.landmark()` puts it in the world through the mesh's
+own transform, and `OrbitCam.face()` does the turn (`tuning.orbitCam`: `faceOmega`,
+`faceMaxRadPerSec`, `faceBiasDeg`, `focusFitRingRadii`).
 
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,

@@ -159,6 +159,22 @@ else the orbit view while docked, else the chase view; a ship that was PUT at a 
 link, a rebuild) is cut to, one that flew there is eased to, and under reduced motion everything
 is a cut.
 
+**The orbit view turns to what the open card points at.** Every card of a page's deck has a
+LANDMARK on the body the page belongs to: a latitude and a longitude in the body's own frame
+(`sim/landmarks.ts`), from `design/worlds/landmarks.ts`, or for a card nobody gave one its place
+on a ring round the body. `Galaxy.landmark()` puts one in the world through the transform of
+whatever carries it (the part of the body that turns, or the body itself for one that holds
+still), so the body's own turn, the size the star map draws it at and a planned world's smaller
+scale are in it by construction. While the ship is docked at the deck's body, `main.ts` hands
+the open card's landmark to `OrbitCam.face()` as a function, "how far round the body is it
+NOW": the camera turns to it the short way round on a spring (never faster than
+`faceMaxRadPerSec`), rests with it `faceBiasDeg` round from the middle of the disc toward its
+card, closes in (`focusFitRingRadii`), and then goes round with the body as the body turns.
+With no card open it wanders on from where it is. It only ever turns ROUND the body: its height
+never changes. A ship that arrives, and a view that comes back from the star map, start facing
+it; under reduced motion the turn is a cut. None of it is state: it follows from the deck
+(`setDeck`), which follows from the URL.
+
 The mix itself (`mixPose`) is made for the long way out to the map. **Distance mixes by ratio:**
 from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u, so pulling out is one
 steady zoom and not a leap followed by a crawl. **What is looked at moves over in step with the
@@ -454,7 +470,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   two things: what the cards leave free (`setPanelInset`, re-measured in the same task as the
   change, since nothing in the deck moves by width, height or position) and the deck itself
   (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
-  which card is open), which today only gives the wheel to the cards.
+  which card is open), which gives the wheel to the cards and tells the orbit camera what to
+  face (section 4).
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered

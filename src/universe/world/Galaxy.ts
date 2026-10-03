@@ -30,6 +30,7 @@ import {
   type UniverseManifest,
 } from '../manifest';
 import { familyReaches } from '../sim/families';
+import { landmarkPoint, type Landmark } from '../sim/landmarks';
 import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapView';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
@@ -91,6 +92,8 @@ interface BodyView {
   planet: PlanetMesh | null;
   /** An emblem world, drawn from its rows. */
   world: BodyMesh | null;
+  /** A body that is no emblem world, as drawn: its generated mesh, or its model. */
+  surface: Object3D | null;
   /**
    * Row of the body it keeps facing away from, or -1: a relay's arrow and the Contact satellite's
    * trail point away from home, toward the edge of the map.
@@ -446,6 +449,36 @@ export class Galaxy implements System {
     };
   }
 
+  /**
+   * Where a landmark of body `id` is in the world THIS frame (sim/landmarks.ts), into `out`.
+   * False for an unknown id. The point is taken through the transform of whatever carries it, as
+   * that is drawn: the part of the body that turns (or, for a landmark that holds still, and for
+   * a body nothing of which turns, the body itself). So the body's own turn, the size the star
+   * map draws it at and a planned world's smaller scale are all in it, with nothing to keep in
+   * step. Ask after this system's frameUpdate: it has put the body where it is by then.
+   */
+  landmark(id: string, mark: Landmark, out: Vector3): boolean {
+    const view = this.views.find((candidate) => candidate.body.id === id);
+    if (!view) return false;
+    const { world, surface, node, body } = view;
+    let carrier: Object3D = node;
+    // An emblem world's rows and a model are made at radius 1 and scaled; a generated planet's
+    // mesh, and the body's own node, are in units.
+    let unit = body.radius;
+    if (world) {
+      carrier = (mark.hold ? null : world.turning) ?? world.object;
+      unit = 1;
+    } else if (surface && !mark.hold) {
+      carrier = surface;
+      if (!view.planet) unit = 1;
+    }
+    landmarkPoint(mark, unit, out);
+    // The renderer works the matrices out when it draws, which is after anyone asks.
+    carrier.updateWorldMatrix(true, false);
+    out.applyMatrix4(carrier.matrixWorld);
+    return true;
+  }
+
   dispose(): void {
     for (const view of this.views.splice(0)) {
       view.planet?.dispose();
@@ -569,6 +602,7 @@ export class Galaxy implements System {
       spinning: null,
       planet: null,
       world: null,
+      surface: null,
       outward: -1,
       outwardYaw: 0,
     };
@@ -644,6 +678,7 @@ export class Galaxy implements System {
       object = view.planet.mesh;
     }
     node.add(object);
+    view.surface = object;
     // The satellite holds its pose; everything else turns on its own axis.
     view.spinning = body.kind === 'satellite' ? null : object;
     // Each world starts turned its own way, or every planet would show the same face.

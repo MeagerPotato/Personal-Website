@@ -16,6 +16,8 @@ import {
   type ManifestBody,
   type UniverseManifest,
 } from '../manifest';
+import type { Landmark } from '../sim/landmarks';
+import { angleDelta } from '../sim/math';
 import { spawnPoint } from '../sim/spawn';
 import { Galaxy } from './Galaxy';
 import { plannedBands } from './looks';
@@ -225,6 +227,55 @@ describe('Galaxy', () => {
     expect(moonLine?.position.x).toBeCloseTo(node('project/fishai').position.x, 9);
   });
 
+  it('knows where a landmark of a body is, as the body is drawn: turned, carried and sized', () => {
+    const { galaxy, node } = setup();
+    const radius = (id: string): number =>
+      manifest.bodies.find((body) => body.id === id)?.radius ?? Number.NaN;
+    const out = new Vector3();
+    /** How far round its body a landmark is, seen from the body's middle. */
+    const round = (id: string, mark: Landmark): number => {
+      expect(galaxy.landmark(id, mark, out)).toBe(true);
+      const middle = node(id).position;
+      return Math.atan2(out.x - middle.x, out.z - middle.z);
+    };
+    const DEG = Math.PI / 180;
+
+    galaxy.frameUpdate(frame(1));
+    // On the equator: out at the body's radius from its middle, and level with it.
+    round('project/fishai', { lat: 0, lon: 40 });
+    expect(out.distanceTo(node('project/fishai').position)).toBeCloseTo(
+      radius('project/fishai'),
+      6,
+    );
+    expect(out.y).toBeCloseTo(0, 9);
+    // Up north, half a radius above the ground.
+    round('project/fishai', { lat: 60, lon: 40, alt: 0.5 });
+    expect(out.y).toBeCloseTo(1.5 * radius('project/fishai') * Math.sin(60 * DEG), 6);
+    // A model is made at radius 1 and scaled: its landmark is at its radius all the same.
+    round('page/resume', { lat: 0, lon: 0 });
+    expect(out.distanceTo(node('page/resume').position)).toBeCloseTo(radius('page/resume'), 6);
+
+    // It goes round with the ground as the body turns, and along with the body on its orbit...
+    const before = round('project/fishai', { lat: 0, lon: 40 });
+    const was = node('project/fishai').position.clone();
+    galaxy.frameUpdate(frame(2, 1));
+    const after = round('project/fishai', { lat: 0, lon: 40 });
+    expect(angleDelta(before, after)).toBeCloseTo(tuning.world.spinRadPerSec, 9);
+    expect(node('project/fishai').position.distanceTo(was)).toBeGreaterThan(0.1);
+    expect(out.distanceTo(node('project/fishai').position)).toBeCloseTo(
+      radius('project/fishai'),
+      6,
+    );
+    // ...unless it holds still: then it is at its own longitude, however far the body has turned.
+    expect(round('project/fishai', { lat: 0, lon: 40, hold: true })).toBeCloseTo(40 * DEG, 9);
+
+    // A body the galaxy does not have has no landmarks, and nothing is written.
+    out.set(1, 2, 3);
+    expect(galaxy.landmark('project/gone', { lat: 0, lon: 0 }, out)).toBe(false);
+    expect(out.toArray()).toEqual([1, 2, 3]);
+    galaxy.dispose();
+  });
+
   it('draws everything at its true size while flying, and big enough to see on the star map', () => {
     const viewer = { position: new Vector3(0, 0, -120) };
     const moon = manifest.bodies.find((body) => body.id === 'project/fish-onboarding');
@@ -257,6 +308,10 @@ describe('Galaxy', () => {
     expect(node('system/code').scale.x).toBeCloseTo((sunPx * far) / 20, 9);
     expect(galaxy.displayScale[row('system/code')]).toBeCloseTo((sunPx * far) / 20, 9);
     expect(galaxy.displayReach).toBeCloseTo(sunPx * far, 9);
+    // A landmark is on the body as it is DRAWN: out at the bigger sun's edge.
+    const mark = new Vector3();
+    galaxy.landmark('system/code', { lat: 0, lon: 0 }, mark);
+    expect(mark.distanceTo(node('system/code').position)).toBeCloseTo(sunPx * far, 6);
     // ...and the moon is not drawn at all, nor is the circle it travels on.
     expect(galaxy.displayScale[row('project/fish-onboarding')]).toBe(0);
     expect(node('project/fish-onboarding').visible).toBe(false);
