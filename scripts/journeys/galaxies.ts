@@ -28,7 +28,8 @@ import { mergeInto, type DeepPartial } from './merge';
 // THE GALAXIES a journey is measured in: the real one, read from src/content (and the profiles
 // from src/config/site.ts) exactly as the build reads it (Astro's own frontmatter reader, the real
 // schemas, the real toUniverseInput and buildUniverse), and bigger ones made of the real one plus typical systems of the future, laid
-// out by the real layout code in the free slots 2, 3, 4...
+// out by the real layout code in the free slots: the lowest orders no real system holds (2, 4, 6
+// and 7 since 2026-10-03, when Research went from slot 2 to slot 5, placed by hand in its room).
 //
 // Nothing here edits source. Layout changes are applied to tuning.layout IN PLACE for the length
 // of one build (data/layout.ts and data/build.ts read that object) and put back afterwards; a
@@ -49,7 +50,11 @@ export interface LayoutOverrides {
    * round, nudged by up to 100 u seeded by the id (OLD_SPIRAL).
    */
   slotExponent?: number;
-  /** Any formula at all (from code, not JSON). Wins over slotExponent. */
+  /**
+   * Any formula at all (from code, not JSON). Wins over slotExponent. A formula is the whole
+   * layout: a system the content places by hand goes where the formula puts its order, like the
+   * rest (its place was chosen for the honeycomb).
+   */
   slot?: SlotFormula;
   /** Hand-placed systems by id, as content can do with `position: [x, z]`. Wins over both. */
   positions?: Record<string, Slot>;
@@ -353,9 +358,7 @@ export function buildGalaxy(
       const placed = overrides.positions?.[system.id];
       if (placed) return { ...system, position: placed };
       // A sun of a binary has no slot of its own: it goes where its binary goes.
-      if (formula === null || system.position !== 'auto' || system.order === undefined) {
-        return system;
-      }
+      if (formula === null || system.order === undefined) return system;
       return { ...system, position: formula(system.order, system.id, slotPosition) };
     });
     return buildUniverse({ ...input, systems });

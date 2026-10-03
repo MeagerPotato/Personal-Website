@@ -217,23 +217,23 @@ test.describe('on a laptop', () => {
     await page.keyboard.press('m');
     await expect(html(page)).toHaveAttribute('data-map', 'open');
 
-    // Research, whose only work is planned, is at the bottom of the galaxy. Closer in (+, five
-    // times, about the middle), and with the map as far down as it goes (the arrow held until
-    // Research's name holds still), its bodies' names have room beside its sun's.
+    // Research, whose only work is planned, is at the top of the galaxy (until 2026-10-03 it was
+    // at the bottom). Closer in (+, three times, about the middle: about as close as five times
+    // was while the map opened further out), and with the map as far up as it goes (the arrow
+    // held until Research's name holds still), its bodies' names have room beside its sun's.
     const research = nameOf(page, 'Research');
     await settled(research);
-    for (let press = 0; press < 5; press += 1) await page.keyboard.press('Equal');
-    await page.keyboard.down('ArrowDown');
+    for (let press = 0; press < 3; press += 1) await page.keyboard.press('Equal');
+    await page.keyboard.down('ArrowUp');
     await settled(research);
-    await page.keyboard.up('ArrowDown');
+    await page.keyboard.up('ArrowUp');
 
     // Both of Research's bodies are planned: the planet, and Kalshi, its moon. They are on their
     // way round (the planet in six minutes), and a name goes wherever its body leaves it room
-    // (below it, above it, beside it, slid along it): measured headless, in this view both names
-    // show every second of 400 s (before names had more places than below and above, neither
-    // showed for 23 to 37 s at a time). So: whichever shows first, however long the way here took
-    // (a slow machine gets here later in the turn, and draws its frames on the CPU: it is given
-    // time).
+    // (below it, above it, beside it, slid along it): measured headless over a whole turn of the
+    // binary, in this view the planet's name shows every second and the moon's all but one in
+    // fifteen. So: whichever shows first, however long the way here took (a slow machine gets
+    // here later in the turn, and draws its frames on the CPU: it is given time).
     const planned = [
       { title: 'Sports Analysis', path: '/projects/sports-analysis/' },
       { title: 'Kalshi', path: '/projects/kalshi/' },

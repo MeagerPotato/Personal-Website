@@ -90,7 +90,9 @@ const SWEEPS: readonly Sweep[] = [
     most: 20,
     twice: 4,
   },
-  // Research's sun half past the bottom edge, its name above it with less than a keep to spare.
+  // Until 2026-10-03 Research's sun lay half past the bottom edge of this view, its name above it
+  // with less than a keep to spare: what the rule on its name was written for. Where Research
+  // stands now (docs/PLAN.md §5.4) all of it is in this view, and the rule holds as it did.
   {
     name: 'at rest, 360x740, zoomed in three times',
     look: { size: '360x740', zoomIns: 3 },
@@ -106,7 +108,8 @@ const SWEEPS: readonly Sweep[] = [
     most: 20,
     twice: 6,
   },
-  // The home planet half past the bottom edge.
+  // Until 2026-10-03 the home planet lay half past the bottom edge of this view; in the galaxy of
+  // six as it grows now (its fifth and sixth systems in slots 2 and 4) it is near the middle.
   {
     name: 'six systems, 1280x800, zoomed in four times',
     look: { size: '1280x800', galaxy: 6, zoomIns: 4 },

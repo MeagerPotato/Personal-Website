@@ -874,7 +874,8 @@ export const tuning = {
   layout: {
     /**
      * WHERE THE SYSTEMS ARE: these three, and each system's `order`, alone (data/layout.ts,
-     * slotPosition). Systems pack round home like a honeycomb: every one sits homeRoom u from
+     * slotPosition; a system may stand elsewhere in its own slot's room, by a `position` in its
+     * file: handPlace). Systems pack round home like a honeycomb: every one sits homeRoom u from
      * home (centre to centre), or further, and slotRoom u from any other, or further. Slot 1
      * stands clusterAxisDeg from home (degrees from +x toward +z) and the galaxy grows
      * symmetrically about that line: on a diagonal (45, 135...) a galaxy with an even number of

@@ -55,7 +55,11 @@ so adding a project never moves an existing planet. Systems sit on a honeycomb o
 (`tuning.layout.homeRoom`, `slotRoom`, `clusterAxisDeg`), never from the size of a body or a
 ring, so a new system moves no other, and nothing but those keys can move one (a test pins orders
 1 to 8 until `galaxy.lock.json` does). The build refuses rooms that no longer fit the tripwires
-(a system no wider than `maxSystemRadius`, and `minSystemGap` between two).
+(a system no wider than `maxSystemRadius`, and `minSystemGap` between two). A system stands on
+its slot's centre unless its file places it by hand (`position`; Research, since 2026-10-03): a
+place by hand must be in the system's own slot's room and leave every other slot the room of a
+full-size system (`handPlace`), so the promise holds either way, and `tests/places.test.ts` pins
+where each system of the real galaxy stands.
 
 The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
 `/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JourneyResult } from '../scripts/journeys/fly';
-import { buildGalaxy, grow } from '../scripts/journeys/galaxies';
+import { buildGalaxy, grow, readRealInput } from '../scripts/journeys/galaxies';
 import {
   DEFAULT_GATE,
   breachesOf,
@@ -309,5 +309,53 @@ describe('grow', () => {
     const ids = manifest.bodies.map((body) => body.id);
     expect(ids).toContain('system/robotics');
     expect(ids).toContain('project/robotics');
+  });
+
+  it('fills the lowest orders the real galaxy leaves free, beside the system placed by hand', () => {
+    // Today's galaxy holds slots 1, 3 and 5 (Research went from 2 to 5 on 2026-10-03, placed by
+    // hand in that slot's room): the grown ones fill 2 and 4, then 6 and 7. Each new system
+    // stands on its slot's centre and may be full size there: the hand-placed one keeps clear of
+    // every slot but its own (data/layout.ts, handPlace), so both galaxies build.
+    const today = readRealInput();
+    const held = new Set(today.systems.map((system) => system.order));
+    const free: number[] = [];
+    for (let order = 1; free.length < 4; order += 1) if (!held.has(order)) free.push(order);
+    const added = (count: number): Array<number | undefined> =>
+      grow(today, count)
+        .systems.filter((system) => !today.systems.includes(system))
+        .map((system) => system.order);
+    expect(added(6)).toEqual(free.slice(0, 2));
+    expect(added(8)).toEqual(free);
+    for (const count of [6, 8]) {
+      const manifest = buildGalaxy(grow(today, count));
+      expect(manifest.systems).toHaveLength(count);
+      // Nothing of the real galaxy moved to make room for them.
+      const before = buildGalaxy(today);
+      for (const system of before.systems) {
+        expect(manifest.systems.find((entry) => entry.id === system.id)?.position).toEqual(
+          system.position,
+        );
+      }
+    }
+  });
+
+  it('lays a system placed by hand out with the rest under another slot formula', () => {
+    // A formula is the whole layout: the place its file gives a system was chosen for the
+    // honeycomb, and means nothing on a spiral.
+    const today = readRealInput();
+    const spiral = buildGalaxy(today, { slotExponent: 0.5 });
+    const honeycomb = buildGalaxy(today);
+    const byHand = today.systems.filter(
+      (system) => system.order !== undefined && system.position !== 'auto',
+    );
+    expect(byHand.length).toBeGreaterThan(0);
+    for (const system of byHand) {
+      const at = (manifest: typeof spiral) =>
+        manifest.systems.find((entry) => entry.id === system.id)?.position;
+      expect(at(honeycomb)).toEqual(system.position);
+      const [x, z] = at(spiral) ?? [NaN, NaN];
+      // On the old spiral slot k sits 1000 u * sqrt(k) out, nudged by up to 100 u.
+      expect(Math.abs(Math.hypot(x, z) - 1000 * Math.sqrt(system.order ?? NaN))).toBeLessThan(101);
+    }
   });
 });
