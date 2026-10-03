@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Deck } from '../universe/api';
+import { tokens } from '../universe/design/tokens';
 import { showAnchor, startCards, type Cards } from './cards';
 import { FISHAI, HOME, showPage, type TestPage } from './page-fixtures';
 
@@ -77,8 +78,11 @@ const titleOf = (id: string): HTMLElement =>
   document.querySelector<HTMLElement>(`#${id} > a`) as HTMLElement;
 const cardOf = (id: string): HTMLElement => at(id).parentElement as HTMLElement;
 
-/** Whether the window is wide and tall enough for the deck, and a way to change its mind. */
-function layout(deck: boolean): { set(deck: boolean): void } {
+/**
+ * Whether the window is wide and tall enough for the deck, and a way to change its mind
+ * (`quietly`: before anyone is told, as a window is between a resize and its event).
+ */
+function layout(deck: boolean): { set(deck: boolean, quietly?: boolean): void } {
   const listeners = new Set<() => void>();
   const list = {
     matches: deck,
@@ -87,9 +91,9 @@ function layout(deck: boolean): { set(deck: boolean): void } {
   };
   vi.spyOn(window, 'matchMedia').mockReturnValue(list as unknown as MediaQueryList);
   return {
-    set(next) {
+    set(next, quietly = false) {
       list.matches = next;
-      for (const listener of [...listeners]) listener();
+      if (!quietly) for (const listener of [...listeners]) listener();
     },
   };
 }
@@ -689,6 +693,244 @@ describe('the deck', () => {
       // No cards, no deck: the wheel is the map's again.
       expect(roll(120, 0).defaultPrevented).toBe(false);
       main().innerHTML = pristine;
+    });
+  });
+
+  describe('a change of card is seen', () => {
+    /**
+     * Where the stylesheet would put the page's five boxes, in the state <html> says: the head
+     * and "one" down the left of a window 1280 px wide, the rest down the right, 12 px apart.
+     * In the overview the head is 120 px tall and a card 150; with a card open that one is 300,
+     * every other box a title row of 44, and the open card's column 480 px wide instead of 300.
+     */
+    function boxOf(card: Element): DOMRect {
+      const all = [...main().children];
+      const index = all.indexOf(card);
+      const open = Number(root.dataset.cardOpen ?? 0);
+      const heightOf = (box: number): number =>
+        open === 0 ? (box === 0 ? 120 : 150) : box === open ? 300 : 44;
+      const right = index >= 2;
+      const width = open > 0 && open >= 2 === right ? 480 : 300;
+      const left = right ? 1256 - width : 24;
+      let top = 76;
+      for (let box = right ? 2 : 0; box < index; box += 1) top += heightOf(box) + 12;
+      const height = index < 0 ? 0 : heightOf(index);
+      return { left, top, width, height, right: left + width, bottom: top + height } as DOMRect;
+    }
+
+    interface Journey {
+      card: string;
+      frames: unknown;
+      options: unknown;
+      cancel: ReturnType<typeof vi.fn<() => void>>;
+    }
+    let journeys: Journey[] = [];
+    let restore = (): void => undefined;
+    /** Which card set out, and how. */
+    const seen = () => journeys.map(({ card, frames }) => ({ card, frames }));
+
+    beforeEach(() => {
+      journeys = [];
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: Element,
+      ) {
+        return boxOf(this);
+      });
+      // Whatever the test DOM has of the Web Animations API, this is what a card is asked to do.
+      const proto = HTMLElement.prototype as { animate?: unknown };
+      const had = Object.getOwnPropertyDescriptor(proto, 'animate');
+      Object.defineProperty(proto, 'animate', {
+        configurable: true,
+        writable: true,
+        value(this: HTMLElement, frames: unknown, options: unknown) {
+          const journey: Journey = {
+            card: this.querySelector('h2')?.id ?? 'head',
+            frames,
+            options,
+            cancel: vi.fn<() => void>(),
+          };
+          journeys.push(journey);
+          return journey;
+        },
+      });
+      restore = () => {
+        if (had) Object.defineProperty(proto, 'animate', had);
+        else delete proto.animate;
+      };
+    });
+
+    afterEach(() => {
+      restore();
+      delete root.dataset.motion;
+    });
+
+    it('carries every card whose box moved, and unrolls the ones that grew', () => {
+      start();
+      click(titleOf('two'));
+      expect(state()[0]).toBe('2');
+      expect(seen()).toEqual([
+        // "one" is a title row now, under the head's: 76 px higher up.
+        { card: 'one', frames: { translate: ['0px 76px', '0px 0px'] } },
+        // The open card starts as the box it was (its title where its title was, the window's
+        // edge kept), slides toward the body as it widens, and unrolls downward.
+        {
+          card: 'two',
+          frames: {
+            translate: ['180px 0px', '0px 0px'],
+            clipPath: ['inset(0px 180px 150px 0px)', 'inset(0px)'],
+          },
+        },
+        // The cards under it give way, and widen with their column the same way.
+        {
+          card: 'three',
+          frames: {
+            translate: ['180px -150px', '0px 0px'],
+            clipPath: ['inset(0px 180px 0px 0px)', 'inset(0px)'],
+          },
+        },
+        {
+          card: 'four',
+          frames: {
+            translate: ['180px -44px', '0px 0px'],
+            clipPath: ['inset(0px 180px 0px 0px)', 'inset(0px)'],
+          },
+        },
+      ]);
+      // (The head only grew shorter, where it stands: nothing to carry.)
+      // As long, and eased, as the stylesheet's own motion: the leaders wait as long.
+      for (const { options } of journeys) {
+        expect(options).toEqual({
+          duration: Number.parseFloat(tokens.motion.base),
+          easing: tokens.motion.easeOut,
+        });
+      }
+      expect(tokens.motion.base).toBe('240ms');
+    });
+
+    it('unrolls the short cards again when all of them come back, from where they are', () => {
+      start({ hash: '#two' });
+      expect(journeys).toEqual([]);
+      click(titleOf('four'));
+      const first = [...journeys];
+      expect(first.length).toBeGreaterThan(0);
+
+      // Before they have arrived: back to all of them. The journeys under way end there.
+      cards?.escape();
+      for (const journey of first) expect(journey.cancel).toHaveBeenCalledTimes(1);
+      expect(seen().slice(first.length)).toEqual([
+        // The head has its lede again, and a card on the left its text: they unroll downward.
+        { card: 'head', frames: { clipPath: ['inset(0px 0px 76px 0px)', 'inset(0px)'] } },
+        {
+          card: 'one',
+          frames: {
+            translate: ['0px -76px', '0px 0px'],
+            clipPath: ['inset(0px 0px 106px 0px)', 'inset(0px)'],
+          },
+        },
+        // The right column is narrow again: its cards slide back out to the window's edge,
+        // and each unrolls downward as the one above it does.
+        {
+          card: 'two',
+          frames: {
+            translate: ['-180px 0px', '0px 0px'],
+            clipPath: ['inset(0px 0px 106px 0px)', 'inset(0px)'],
+          },
+        },
+        {
+          card: 'three',
+          frames: {
+            translate: ['-180px -106px', '0px 0px'],
+            clipPath: ['inset(0px 0px 106px 0px)', 'inset(0px)'],
+          },
+        },
+        // The card that was open is short again: carried to its place, and simply smaller.
+        { card: 'four', frames: { translate: ['-180px -212px', '0px 0px'] } },
+      ]);
+    });
+
+    it('is seen whoever changes the card: the wheel, a key, the router', () => {
+      start();
+      roll(120, 0);
+      expect(state()[0]).toBe('1');
+      expect(journeys.length).toBeGreaterThan(0);
+      journeys = [];
+      press('PageDown');
+      expect(state()[0]).toBe('2');
+      expect(journeys.length).toBeGreaterThan(0);
+      journeys = [];
+      // Back between two fragments, or a link in the text: the router says so.
+      window.history.replaceState(null, '', '#four');
+      cards?.show('four');
+      expect(state()[0]).toBe('4');
+      expect(journeys.length).toBeGreaterThan(0);
+      journeys = [];
+      // Told what it already shows, nothing sets out.
+      cards?.show('four');
+      expect(journeys).toEqual([]);
+    });
+
+    it('is simply there for a visitor who asked for less motion', () => {
+      root.dataset.motion = 'reduced';
+      start();
+      click(titleOf('two'));
+      press('PageDown');
+      cards?.escape();
+      expect(state()[0]).toBeUndefined();
+      expect(journeys).toEqual([]);
+    });
+
+    it('is not carried on a first load, a navigation, a resize or a change of layout', () => {
+      // A page that opens on a card: the cards are where they belong from the start.
+      const media = start({ hash: '#three' });
+      expect(state()[0]).toBe('3');
+      // Another page's cards (the router's swap), and the same page's again.
+      main().innerHTML = HOME.main;
+      window.history.replaceState(null, '', '/');
+      cards?.sync({ cut: true });
+      main().innerHTML = pristine;
+      window.history.replaceState(null, '', '#one');
+      cards?.sync({ cut: true });
+      expect(state()[0]).toBe('1');
+      // The window changes size; then it is too narrow for a deck, and wide enough again.
+      window.dispatchEvent(new Event('resize'));
+      media.set(false);
+      media.set(true);
+      expect(journeys).toEqual([]);
+    });
+
+    it('is not carried where the page is one column: there a fragment is a place to scroll to', () => {
+      watchScrolls();
+      start({ deck: false });
+      window.history.replaceState(null, '', '#three');
+      cards?.show('three');
+      expect(state()[0]).toBe('3');
+      expect(journeys).toEqual([]);
+    });
+
+    it('is not carried into another layout: a change that finds the deck gone just lands', () => {
+      watchScrolls();
+      const media = start();
+      // The window has grown too narrow for a deck, and nobody has said so yet.
+      media.set(false, true);
+      window.history.replaceState(null, '', '#three');
+      cards?.show('three');
+      expect(state()[0]).toBe('3');
+      expect(journeys).toEqual([]);
+      // And the other way: wide enough again, and the change is what finds that out.
+      media.set(true, true);
+      window.history.replaceState(null, '', '#one');
+      cards?.show('one');
+      expect(state()[0]).toBe('1');
+      expect(journeys).toEqual([]);
+    });
+
+    it('lets go of the journeys under way when it is disposed', () => {
+      start();
+      click(titleOf('three'));
+      const under = [...journeys];
+      expect(under.length).toBeGreaterThan(0);
+      cards?.dispose();
+      for (const journey of under) expect(journey.cancel).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -420,6 +420,7 @@ export function boot(
       focus: () => orbit.focus,
       themeOf: (body) => themes.get(body),
       params: tuning.deck,
+      reducedMotion,
     }),
   );
 

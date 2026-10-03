@@ -412,7 +412,14 @@ of, is in the table under The 3D world.
   (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
   wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
   the card (`/about/#rockets`). The cards arrive with the page (opacity, and 8 px up by
-  `translate`; the right column 80 ms after the left); with reduced motion they are simply there.
+  `translate`; the right column 80 ms after the left). A change of card is carried: the layout
+  changes at once, and each card that moved glides from where it was to where it belongs
+  (`motion.base`, ease-out), its title going with it; a card that grew unrolls from the size it
+  had, so a column unfolds in step. The leaders step aside while the cards travel (out in
+  `motion.fast`, back in `motion.base` once the cards rest), and when they first appear (the
+  ship in orbit, the view at rest) each is drawn from its card to the body, 40 ms after the one
+  before, in `motion.slow`, its station landing as the line arrives. With reduced motion none
+  of this moves: the cards, the lines and every new state are simply there.
 - **The bottom sheet** (a phone held upright) has rounded top corners. At rest it leaves at least
   20rem above it: the bar, the Map button's row and a strip of world for the docked body. The home
   page's welcome text rests lower (at most 45 % of the height), because the chase camera needs a

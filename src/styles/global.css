@@ -2169,8 +2169,13 @@ main > .resume-intro > .card-title--quiet {
    * cards stand round, drawn as a route line that ends in a station. The engine makes them and
    * says where each one runs; this is how they look. One SVG over the canvas and under the page,
    * so a line seems to come out from under its card. `data-shown`: the body is framed.
+   * `data-aside`: the cards are on their way somewhere, and the lines wait until they are there.
    * `data-on`: this card has its line now. `data-open`: its card is the open one, the line ends
    * on what the card points at, and its station is butter: "here".
+   *
+   * They leave by opacity, in --motion-fast: when the ship leaves, when the map comes up, when
+   * the cards set out. And they are back in --motion-base. `visibility` goes with it, so that
+   * what is away is not there at all.
    */
   .leaders {
     position: absolute;
@@ -2178,10 +2183,20 @@ main > .resume-intro > .card-title--quiet {
     width: 100%;
     height: 100%;
     overflow: visible;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-fast) linear,
+      visibility 0s linear var(--motion-fast);
     pointer-events: none;
   }
 
-  .leaders:not([data-shown]),
+  .leaders[data-shown]:not([data-aside]) {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--motion-base) var(--motion-ease-out);
+  }
+
   .leader:not([data-on]) {
     visibility: hidden;
   }
@@ -2190,6 +2205,41 @@ main > .resume-intro > .card-title--quiet {
   .leader__line {
     fill: none;
     stroke-linecap: round;
+  }
+
+  /*
+   * When they appear, each line is drawn from its card to the body, one a moment after the
+   * other (`--i`: its place among them), and its station lands as the line arrives. Every line
+   * is one unit long to its dashes (`pathLength`), so a dash of 1 is all of it, however long it
+   * is on screen; the dash starts a little way back, where its round end does not show. Not for
+   * a visitor who asked for less motion: there they are simply there.
+   */
+  html[data-motion='full'] .leaders[data-shown] .leader__casing,
+  html[data-motion='full'] .leaders[data-shown] .leader__line {
+    animation: leader-draw var(--motion-slow) var(--motion-ease-out) calc(var(--i) * 40ms) backwards;
+  }
+
+  html[data-motion='full'] .leaders[data-shown] .leader__stop {
+    animation: leader-land var(--motion-slow) linear calc(var(--i) * 40ms) backwards;
+  }
+
+  @keyframes leader-draw {
+    from {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 1.05;
+    }
+
+    to {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes leader-land {
+    from,
+    40% {
+      opacity: 0;
+    }
   }
 
   /* A rim of the dark round the line, so that it reads on a white peak as on the night sky. */

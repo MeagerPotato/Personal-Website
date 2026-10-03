@@ -368,7 +368,9 @@ block as a stub, a chip and the open card. That block stands on three declaratio
 where it is (`min-height` on every card, the `- 1px` in both caps, `overflow: clip` on a stub):
 after touching it, look at 1280 x 576 and 1920 x 1080, the overview and a card open, and run
 `tests/e2e/cards.spec.ts`. Nothing in it moves by width, height or position: the shell measures
-the cards in the same task that opens one.
+the cards in the same task that opens one. What a visitor sees move is the shell's doing
+(`carry` in `src/shell/cards.ts`: animations of `translate` and `clip-path`, which write nothing),
+so never give a card a transition of its size or its place.
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
 should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print

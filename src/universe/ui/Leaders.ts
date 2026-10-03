@@ -1,4 +1,5 @@
-import type { System } from '../core/Engine';
+import type { Frame, System } from '../core/Engine';
+import { tokens } from '../design/tokens';
 import { limbPoint } from '../sim/landmarks';
 
 /** A page's deck of cards, as much of it as a leader needs (api.ts, `Deck`). */
@@ -34,11 +35,18 @@ export interface LeadersOptions {
   themeOf(body: string): string | undefined;
   /** Read every frame, so the dev panel's slider shows at once. */
   params: { readonly stopRadiusPx: number };
+  /** The visitor asked for less motion: no card travels, so no line waits for one. */
+  reducedMotion: boolean;
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
 /** As many leaders as a page can have cards (src/shell/deck.ts, MAX_CARDS). */
 const POOL = 8;
+/**
+ * How long the cards take from place to place, in seconds: the shell carries them there in the
+ * stylesheet's `--motion-base` (src/shell/cards.ts, `carry`), and the lines are away meanwhile.
+ */
+const ASIDE_SEC = Number.parseFloat(tokens.motion.base) / 1000;
 
 interface Lead {
   readonly group: SVGElement;
@@ -67,8 +75,14 @@ interface Lead {
  * decides WHERE anything is: every frame the body's disc and the landmark come from this frame's
  * picture (ui/BodiesOnScreen.ts, world/Galaxy.ts), which is how a line follows a planet that
  * turns and travels. What is written is rounded to tenths of a pixel and only written when it
- * changed, so a resting view writes nothing at all. The stylesheet says how it all looks
- * (`.leaders` in src/styles/global.css). Add it AFTER the labels: it needs this frame's picture.
+ * changed, so a resting view writes nothing at all. The stylesheet says how it all looks, and
+ * how it comes and goes (`.leaders` in src/styles/global.css): the lines are drawn in when they
+ * appear (`data-shown`) and fade when they leave.
+ *
+ * WHEN THE CARDS MOVE (a card opens, closes, the page lays them out anew) the page tells its
+ * deck again, with the places the cards are on their way to. The lines step aside meanwhile
+ * (`data-aside`): they fade as they were, and are written anew, and shown again, once the cards
+ * have arrived. Add it AFTER the labels: it needs this frame's picture.
  */
 export class Leaders implements System {
   private readonly svg: SVGElement;
@@ -79,6 +93,11 @@ export class Leaders implements System {
   private shown = false;
   private body: string | null = null;
   private radius = Number.NaN;
+  /** The deck as the lines were last drawn for (the page hands over a new one when it changes). */
+  private told: LeaderDeck | null = null;
+  /** Seconds left of standing aside while the cards travel. */
+  private away = 0;
+  private aside = false;
 
   constructor(private readonly options: LeadersOptions) {
     const doc = options.mount.ownerDocument;
@@ -117,13 +136,26 @@ export class Leaders implements System {
     options.mount.append(this.svg);
   }
 
-  frameUpdate(): void {
+  frameUpdate(frame: Pick<Frame, 'dt'>): void {
     const { options, disc, end, mark } = this;
     const deck = options.deck();
     const body = deck?.body ?? null;
     if (deck === null || body === null || !options.framed(body, disc)) {
+      this.away = 0;
       this.show(false);
+      this.stepAside(false);
       return;
+    }
+    // The cards are on their way to where the page now says they are: the lines that show wait
+    // as they were, fading, and are drawn for the new places once the cards have arrived.
+    if (deck !== this.told) {
+      this.told = deck;
+      if (this.shown && !options.reducedMotion) this.away = ASIDE_SEC;
+    }
+    if (this.away > 0) {
+      this.away -= frame.dt;
+      this.stepAside(true);
+      if (this.away > 0) return;
     }
     if (body !== this.body) {
       this.body = body;
@@ -167,6 +199,7 @@ export class Leaders implements System {
       lead.stop.setAttribute('cy', String(y2 / 10));
     });
     this.show(true);
+    this.stepAside(false);
   }
 
   dispose(): void {
@@ -177,6 +210,12 @@ export class Leaders implements System {
     if (shown === this.shown) return;
     this.shown = shown;
     this.svg.toggleAttribute('data-shown', shown);
+  }
+
+  private stepAside(aside: boolean): void {
+    if (aside === this.aside) return;
+    this.aside = aside;
+    this.svg.toggleAttribute('data-aside', aside);
   }
 
   private set(lead: Lead, on: boolean, open: boolean): void {

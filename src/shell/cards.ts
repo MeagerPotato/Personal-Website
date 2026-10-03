@@ -11,7 +11,9 @@
 //   data-card-open   the open card's place among the page's cards, from 1 (absent: none)
 //   data-card-side   "left" | "right": the column it stands in
 //   --deck-mates     how many other cards share that column (each keeps a title row)
-// Nothing is ever written inside <main>.
+// Nothing is ever written inside <main>. A change of card the visitor makes is also SEEN: the
+// layout changes at once and the cards are carried to their new places (`carry`), by animations,
+// which write nothing either. A first load, a navigation and a resize are not carried.
 
 import type { Deck, Universe } from '../universe/api';
 import { anchorOf, DECK, keyStep, matesOf, sideOf, stepOpen, WHEEL_REST, wheelStep } from './deck';
@@ -61,6 +63,12 @@ export interface Cards {
 
 /** Lines and pages of a wheel in CSS px, as the engine's own wheel counts them (ui/StarMap.ts). */
 const WHEEL_UNIT_PX = [1, 33, 400];
+/**
+ * How long the cards take from place to place, and how they ease: the stylesheet's
+ * `--motion-base` and `--motion-ease-out` (design/tokens.ts; cards.test.ts holds these to them,
+ * and the engine's leaders wait as long: universe/ui/Leaders.ts).
+ */
+const JOURNEY = { duration: 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' };
 /** Where a key press is somebody else's: it types, or it presses the thing it is on. */
 const FIELD = 'input, textarea, select, [contenteditable]';
 const PRESSED = `button, summary, ${FIELD}`;
@@ -106,6 +114,8 @@ function watchCards(
   let wheel = WHEEL_REST;
   /** The focus last moved because of a pointer, not a key: a click says what it wants itself. */
   let byPointer = false;
+  /** The cards that are on their way from place to place (`carry`). */
+  let journeys: Animation[] = [];
 
   /** The page's cards, the head first. None on the home page. */
   const cardsOf = (): HTMLElement[] =>
@@ -194,6 +204,43 @@ function watchCards(
     }
   }
 
+  /**
+   * Make a change of card, and CARRY the cards to where it puts them. The layout changes at
+   * once, so that whatever is measured in the same task is final (the free part of the view,
+   * where the leaders begin); then every card whose box moved sets out from where it was, its
+   * title where its title was, and a card that grew unrolls from the size it had: the one that
+   * opens, and the short ones when all of them come back. (Held by its top left corner and cut
+   * back at its right and its bottom: in the right column, whose cards keep the window's edge,
+   * that slides a card toward the body while it widens, its words going with it.) An animation
+   * is no attribute: nothing is written in the page. None for a visitor who asked for less
+   * motion, and none unless there was a deck before the change and still is.
+   */
+  function carry(cards: readonly HTMLElement[], change: () => void): void {
+    const moving = deck && root.dataset.motion !== 'reduced';
+    // Where each card IS, a journey it may be on included: it sets out again from there.
+    const from = moving ? cards.map((card) => card.getBoundingClientRect()) : [];
+    change();
+    if (!moving || !deck) return;
+    for (const journey of journeys) journey.cancel();
+    journeys = cards.flatMap((card, index) => {
+      const was = from[index];
+      if (!was) return [];
+      const now = card.getBoundingClientRect();
+      const dx = was.left - now.left;
+      const dy = was.top - now.top;
+      const wider = Math.max(0, now.width - was.width);
+      const taller = Math.max(0, now.height - was.height);
+      const frames: PropertyIndexedKeyframes = {};
+      if (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) {
+        frames.translate = [`${dx}px ${dy}px`, '0px 0px'];
+      }
+      if (wider >= 0.5 || taller >= 0.5) {
+        frames.clipPath = [`inset(0px ${wider}px ${taller}px 0px)`, 'inset(0px)'];
+      }
+      return frames.translate || frames.clipPath ? [card.animate(frames, JOURNEY)] : [];
+    });
+  }
+
   /** Open card `to` (0: none). `stay`: the focus is where it belongs already. */
   function go(to: number, stay = false): void {
     if (to === open || options.router.busy) return;
@@ -202,8 +249,10 @@ function watchCards(
     // A card opens at its top: the one that closes is put back there while it can still scroll.
     const closing = open > 0 ? cards[open] : undefined;
     if (closing) closing.scrollTop = 0;
-    options.router.anchor(keyOf(cards[to > 0 ? to : -1]));
-    sync();
+    carry(cards, () => {
+      options.router.anchor(keyOf(cards[to > 0 ? to : -1]));
+      sync();
+    });
     if (!stay) land(within);
   }
 
@@ -314,7 +363,7 @@ function watchCards(
     sync,
     show(id) {
       const was = open;
-      sync();
+      carry(cardsOf(), () => sync());
       if (!deck) return showAnchor(id, doc);
       const target = readingTarget(doc, id);
       // The place itself, inside its card (a card's own title is where the card begins).
@@ -337,6 +386,8 @@ function watchCards(
       listeners.abort();
       view.removeEventListener('wheel', onWheel);
       sizes.disconnect();
+      for (const journey of journeys) journey.cancel();
+      journeys = [];
       universe = null;
       forget();
     },

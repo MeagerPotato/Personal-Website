@@ -192,8 +192,11 @@ With a card open only its line is left, and its end slides from the limb to the 
 the orbit camera's `focus` (0 to 1: how far it has closed in). They show only while the ship is
 docked at the deck's body, the orbit camera is in charge and has arrived (`CameraRig.settled`:
 no blend is under way), and the star map is put away. What is written is rounded to tenths of a
-pixel and written only when it changed: a view at rest writes nothing. How they look is the
-stylesheet's (`.leaders`); `dispose()` takes the SVG away, so a rebuilt engine has one set.
+pixel and written only when it changed: a view at rest writes nothing. How they look, and how
+they come and go, is the stylesheet's (`.leaders`): drawn in from card to body when they appear
+(`data-shown`), faded out when they leave, and aside while the cards travel (`data-aside`: the
+page told its deck anew, and the lines are left as they were until the cards have arrived).
+`dispose()` takes the SVG away, so a rebuilt engine has one set.
 
 The mix itself (`mixPose`) is made for the long way out to the map. **Distance mixes by ratio:**
 from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u, so pulling out is one
@@ -491,7 +494,13 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   change, since nothing in the deck moves by width, height or position) and the deck itself
   (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
   which card is open), which gives the wheel to the cards, tells the orbit camera what to
-  face and gives every card its leader (section 4).
+  face and gives every card its leader (section 4). A change of card the visitor makes is also
+  SEEN (`carry`): the layout has changed already, and every card whose box moved is eased from
+  where it was by an animation on `translate`, a card that grew unrolling by `clip-path`.
+  Animations write no attribute, so the page's content is still what a hard load builds; a
+  first load, a navigation and a resize are not carried, and nothing is under reduced motion.
+  The engine is told the cards' FINAL places at once, so the leaders wait: they step aside for
+  as long as the cards travel (`tokens.motion.base` on both sides) and are drawn anew then.
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered

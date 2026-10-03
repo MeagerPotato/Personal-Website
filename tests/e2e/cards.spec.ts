@@ -638,6 +638,70 @@ test.describe('on a wide screen', () => {
     }
   });
 
+  test('a change of card is seen: the cards are carried there, and the leaders wait for them', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/about/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect.poll(() => count(page)).toBe(ABOUT.length);
+    // (The cards have arrived: nothing in the content is on the move.)
+    await layout(page);
+
+    // What the leaders do from now on: step aside, and come back.
+    await page.evaluate(() => {
+      const svg = document.querySelector('#universe-host svg.leaders');
+      const said: string[] = [];
+      (window as unknown as { e2eAside: string[] }).e2eAside = said;
+      if (!svg) return;
+      new MutationObserver(() =>
+        said.push(svg.hasAttribute('data-aside') ? 'aside' : 'back'),
+      ).observe(svg, { attributes: true, attributeFilter: ['data-aside'] });
+    });
+
+    // Robots opens: the first card of the right column. In the same task the layout is final,
+    // and every card that it moved has set out from where it was.
+    const journeys = await page.evaluate(() => {
+      document.querySelector<HTMLElement>('#robots > a')?.click();
+      const cards = [...document.querySelectorAll('#main > [data-card]')];
+      return document.getAnimations().flatMap((animation) => {
+        const effect = animation.effect as KeyframeEffect | null;
+        const card = effect?.target ? cards.indexOf(effect.target) : -1;
+        if (!effect || card < 0) return [];
+        const first = effect.getKeyframes()[0] ?? {};
+        return [
+          {
+            card,
+            // A journey is made by script: the stylesheet's own animations ended long ago.
+            script: !(animation instanceof CSSAnimation),
+            ms: effect.getTiming().duration,
+            moves: ['translate', 'clipPath'].filter((property) => property in first),
+          },
+        ];
+      });
+    });
+    expect(await state(page)).toMatchObject({ hash: '#robots', open: '4' });
+    const moves = (card: number) => journeys.find((journey) => journey.card === card)?.moves;
+    // The head grew shorter where it stands: nothing to carry.
+    expect(moves(0)).toBeUndefined();
+    // The cards under it are title rows now, higher up.
+    for (const card of [1, 2, 3]) expect(moves(card), `card ${card}`).toEqual(['translate']);
+    // The open card starts as the box it was, its title where its title was: it slides toward
+    // the body as it widens (the window's edge kept) and unrolls downward. The cards under it
+    // give way, and widen with their column the same way.
+    for (const card of [4, 5, 6, 7, 8]) {
+      expect(moves(card), `card ${card}`).toEqual(['translate', 'clipPath']);
+    }
+    expect(journeys.every((journey) => journey.script && journey.ms === 240)).toBe(true);
+
+    // They arrive, and where they rest is the layout: no card over another, nothing left running.
+    expect(problems(await layout(page))).toEqual([]);
+    // The leaders stepped aside while the cards travelled, and came back: the open card's alone.
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { e2eAside: string[] }).e2eAside))
+      .toEqual(['aside', 'back']);
+    await expect.poll(() => count(page)).toBe(1);
+  });
+
   test('every card has a leader to the body, and the open card’s ends on what it points at', async ({
     page,
   }) => {
@@ -849,6 +913,19 @@ test.describe('on a wide screen', () => {
       await openUniverse(page, '/about/');
       const animations = () => page.evaluate(() => document.getAnimations().length);
       await expect.poll(animations).toBe(0);
+      // Nor do the leaders step aside for cards that do not travel: watch them from here on.
+      await expect(prompt(page)).toContainText('Leave orbit', { timeout: 75_000 });
+      await expect.poll(() => count(page)).toBe(ABOUT.length);
+      await page.evaluate(() => {
+        const svg = document.querySelector('#universe-host svg.leaders');
+        const said: string[] = [];
+        (window as unknown as { e2eAside: string[] }).e2eAside = said;
+        if (!svg) return;
+        new MutationObserver(() => said.push('aside')).observe(svg, {
+          attributes: true,
+          attributeFilter: ['data-aside'],
+        });
+      });
       await title(page, 'robots').click();
       await expect(html(page)).toHaveAttribute('data-card-open', '4');
       expect(await animations()).toBe(0);
@@ -858,6 +935,10 @@ test.describe('on a wide screen', () => {
       await expect(html(page)).not.toHaveAttribute('data-card-open');
       expect(await animations()).toBe(0);
       expect(problems(await layout(page))).toEqual([]);
+      await expect.poll(() => count(page)).toBe(ABOUT.length);
+      expect(
+        await page.evaluate(() => (window as unknown as { e2eAside: string[] }).e2eAside),
+      ).toEqual([]);
     });
   });
 });
