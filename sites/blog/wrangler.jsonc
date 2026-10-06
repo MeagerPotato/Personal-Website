@@ -28,8 +28,8 @@
     {
       "binding": "DB",
       "database_name": "allenkh-blog",
-      // Filled in once the database exists (sites/docs/runbooks/blog-setup.md).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Allen's database, made on 2026-10-05 (sites/docs/runbooks/blog-setup.md). Not a secret.
+      "database_id": "3a5b1ef2-fff7-4472-a267-4b9b80a079e2",
     },
   ],
 
