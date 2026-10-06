@@ -41,8 +41,8 @@ p90 4.0 s, the slowest 5.8 s, since Research moved up beside the others on 2026-
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
 journeys` is its gate. **The flight deck and the minimap** are built: KSP's cluster at the bottom
 centre (ball, speed, heading, throttle and g, two lamps), which only reads the simulation
-(`sim/instruments.ts`) and shows whenever the ship is not docked; and a minimap at the bottom
-right, the star map's maths at another size (`sim/minimap.ts`), whose marks fly the ship there,
+(`sim/instruments.ts`) and shows whenever the ship is not docked; and a round minimap at the bottom
+right, the ball's twin: the star map's maths at another size (`sim/minimap.ts`), whose marks fly the ship there,
 with the way and the seconds of a journey drawn on it. A phone has a strip in the Map button's
 row, and no minimap. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
@@ -334,7 +334,7 @@ comment names. Colours only through tokens: a solar system's family arrives as `
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
 either another job. (A lamp of the flight deck that the simulation lights wears the cream face
 too, though nobody pressed it; and butter is also the target on the deck's ball, the ring round
-it on the minimap, and a journey's line and seconds there.) The one
+it on the minimap, and a journey's line, its clock on the rim and its seconds there.) The one
 exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
