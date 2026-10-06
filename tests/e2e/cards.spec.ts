@@ -116,6 +116,62 @@ function problems({ cards, stage }: { cards: Box[]; stage: Box }): string[] {
 }
 
 /**
+ * What is wrong with where the cards stand DOWN their columns, in words. With a card open
+ * (`packed`) both columns stand together at the top of the stage, the deck's gap (12 px) and no
+ * more between one card and the next: the chips over the open card, the open card, the chips
+ * under it, and sky under the last. With none open a column of two cards or more reaches from
+ * the top of the stage to its foot.
+ */
+function misplaced({ cards, stage }: { cards: Box[]; stage: Box }, packed: boolean): string[] {
+  const found: string[] = [];
+  const edges = [...new Set(cards.map((card) => Math.round(card.left)))].sort((a, b) => a - b);
+  edges.forEach((edge, side) => {
+    const name = side === 0 ? 'the left column' : 'the right column';
+    const column = cards
+      .filter((card) => Math.round(card.left) === edge)
+      .sort((a, b) => a.top - b.top);
+    const down = (column[0]?.top ?? NaN) - stage.top;
+    if (!(Math.abs(down) <= 0.5)) found.push(`${name} starts ${down.toFixed(1)} px down`);
+    const gaps = column.slice(1).map((card, above) => card.top - (column[above]?.bottom ?? NaN));
+    if (packed && gaps.some((gap) => !(Math.abs(gap - 12) <= 0.5)))
+      found.push(
+        `${name} has ${gaps.map((gap) => gap.toFixed(1)).join(', ')} px between its cards`,
+      );
+    const under = stage.bottom - (column.at(-1)?.bottom ?? NaN);
+    if (!packed && column.length > 1 && !(Math.abs(under) <= 0.5))
+      found.push(`${name} ends ${under.toFixed(1)} px over the foot of the stage`);
+  });
+  return found;
+}
+
+/**
+ * With a card open: whatever a card that is NOT open still offers besides a section's title.
+ * What a chip holds is cut off under its title row, but it is laid out there all the same, and
+ * packed that is where the next chip's title stands. So each link and button of it has to be
+ * said to be out of sight as well (opacity 0, on it or on something round it), or whatever goes
+ * by where a box lies (axe) finds two things to press in one place.
+ */
+const offered = (page: Page): Promise<string[]> =>
+  page.evaluate(() => {
+    const open = Number(document.documentElement.dataset.cardOpen ?? 0);
+    return [...document.querySelectorAll<HTMLElement>('#main > [data-card]')].flatMap(
+      (card, index) => {
+        if (index === open) return [];
+        const title = card.querySelector(':scope > h2 > a');
+        return [...card.querySelectorAll<HTMLElement>('a[href], button, input, summary')]
+          .filter((control) => {
+            if (control === title) return false;
+            for (let at: Element | null = control; at && at !== card; at = at.parentElement) {
+              if (getComputedStyle(at).opacity === '0') return false;
+            }
+            return true;
+          })
+          .map((control) => `card ${index}: ${control.textContent.trim().slice(0, 24)}`);
+      },
+    );
+  });
+
+/**
  * Every section's card in the overview (a stub): how much of it is left under its title row for
  * what it holds (`under`, in px, inside its hairlines), and how far the middle of its title is
  * from the middle of the card (`off`).
@@ -356,6 +412,8 @@ test.describe('on a wide screen', () => {
       const overview = await layout(page);
       expect(overview.cards).toHaveLength(ABOUT.length + 1);
       expect(problems(overview), `${at}, the overview`).toEqual([]);
+      // Both columns reach from the top of the stage to its foot.
+      expect(misplaced(overview, false), `${at}, the overview`).toEqual([]);
       expect(slivers(await stubs(page)), `${at}, the overview`).toEqual([]);
 
       for (const [index, id] of ABOUT.entries()) {
@@ -363,6 +421,11 @@ test.describe('on a wide screen', () => {
         await expect(html(page)).toHaveAttribute('data-card-open', String(index + 1));
         const open = await layout(page);
         expect(problems(open), `${at}, ${id} open`).toEqual([]);
+        // The title rows are together at the top of both columns, the open card in its place
+        // among them: nothing is spread down a column while a card is being read.
+        expect(misplaced(open, true), `${at}, ${id} open`).toEqual([]);
+        // And a chip offers its title, nothing of what lies cut off under it.
+        expect(await offered(page), `${at}, ${id} open`).toEqual([]);
         // The open card is the wide one, and every other card a title row (44 px).
         const heights = open.cards.map((card) => Math.round(card.bottom - card.top));
         expect(heights[index + 1], `${at}, ${id} open`).toBeGreaterThan(44);
@@ -388,6 +451,7 @@ test.describe('on a wide screen', () => {
       await softNavigate(page, path);
       const overview = await layout(page);
       expect(problems(overview), `${path}, the overview`).toEqual([]);
+      expect(misplaced(overview, false), `${path}, the overview`).toEqual([]);
       const short = await stubs(page);
       expect(slivers(short), `${path}, the overview`).toEqual([]);
       // FishAI's head (crumbs, a sign, a lede) leaves the two sections under it no room for a
@@ -402,7 +466,12 @@ test.describe('on a wide screen', () => {
       for (const [index, id] of ids.entries()) {
         await title(page, id).click();
         await expect(html(page)).toHaveAttribute('data-card-open', String(index + 1));
-        expect(problems(await layout(page)), `${path}, ${id} open`).toEqual([]);
+        // A card longer than its column (the resume's Experience) scrolls inside itself, and the
+        // title rows under it are still on the stage, directly under it.
+        const open = await layout(page);
+        expect(problems(open), `${path}, ${id} open`).toEqual([]);
+        expect(misplaced(open, true), `${path}, ${id} open`).toEqual([]);
+        expect(await offered(page), `${path}, ${id} open`).toEqual([]);
       }
     }
     expect(errors).toEqual([]);

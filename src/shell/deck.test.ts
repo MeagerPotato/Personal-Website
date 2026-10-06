@@ -112,6 +112,91 @@ describe('which column a card stands in', () => {
     expect(block).toMatch(/LOAD-BEARING: clip, not hidden\.[^\n]*\*\/\n {6}overflow: clip;/);
   });
 
+  it('spreads a column’s stubs over its height, and packs its cards toward the top beside an open one', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    const rule = (state: string): string | undefined =>
+      new RegExp(
+        `\\n {4}html\\[data-mode='universe'\\]${state} main:has\\(> \\[data-card\\]\\) \\{([^}]*)\\}`,
+      ).exec(block)?.[1];
+    // One box for both columns: each column is a line of it, the two lines go to the two sides,
+    // and what stands between two cards of a column is the deck's gap at the least.
+    const deck = rule('');
+    expect(deck).toContain('flex-flow: column wrap;');
+    expect(deck).toContain('align-content: space-between;');
+    expect(deck).toContain('gap: var(--deck-gap) 0;');
+    expect(block).toContain('--deck-gap: var(--space-3);');
+    // With none open a column's stubs reach from the top of the stage to its foot...
+    expect(deck).toContain('justify-content: space-between;');
+    // ...and with one open its cards stand together at the top, in the page's order, the gap and
+    // no more between them: the ONE declaration that differs, in a rule that outweighs the
+    // deck's own (an attribute more), wherever it is written.
+    expect(rule('\\[data-card-open\\]')?.trim()).toBe('justify-content: flex-start;');
+    // Packed, a column is as tall as its cards and the gaps between them, and no taller: a chip
+    // neither grows nor shrinks, and the open card stops at the column less a chip and a gap for
+    // each card the shell says shares it (and the pixel: the declarations above). So the last
+    // chip under an open card ends on the stage, however much that card holds.
+    const chip =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open\] main > \[data-card\] \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(chip).toContain('flex: 0 0 var(--chip-h);');
+    expect(chip).toContain('max-height: var(--chip-h);');
+    const row = Number(/--chip-h: ([\d.]+)rem;/.exec(block)?.[1]) * 16;
+    const gap = Number.parseFloat(tokens.space[3]) * 16;
+    expect([row, gap]).toEqual([44, 12]);
+    // Every shape a page can have and every card of it open, in the smallest deck (a window
+    // 36rem tall, less the bar's 4.75rem and the corner chip's 4.25rem) and on a tall monitor.
+    for (const column of [432, 1296]) {
+      for (let boxes = 2; boxes <= MAX_CARDS + 1; boxes += 1) {
+        const sides = Array.from({ length: boxes }, (_, index) => sideOf(index, boxes));
+        for (let index = 1; index < boxes; index += 1) {
+          const at = `box ${index + 1} of ${boxes} open, a column of ${column} px`;
+          // What the stylesheet lets the open card have (`--deck-mates` is `matesOf`: cards.ts)...
+          const cap = column - matesOf(index, boxes) * (row + gap) - 1;
+          // ...and what stands in its column with it: a title row and a gap for each.
+          const beside = sides.filter((side) => side === sides[index]).length - 1;
+          expect(cap + beside * (row + gap), at).toBeLessThan(column);
+          // It always has its own title row and some lines of its text (207 px at the least).
+          expect(cap, at).toBeGreaterThanOrEqual(200);
+          // The other column is title rows alone: five of them at the most, 268 px.
+          const across = boxes - 1 - beside;
+          expect(across * row + (across - 1) * gap, at).toBeLessThan(column);
+        }
+      }
+    }
+  });
+
+  it('says of what a chip holds that it is out of sight, and of the open card’s that it is seen', () => {
+    const block = css.slice(css.indexOf('THE DECK.'));
+    // Under its title row a chip's text and keys are below its cut, and laid out there all the
+    // same: packed, under the next chip's title row. A tool that goes by where a box lies (axe,
+    // which does not know `overflow: clip`) reads a chip's key and the next title as two things
+    // to press in one place, unless the one that cannot be seen says so. Out of sight and
+    // nothing more: no declaration here may take it out of the page, the tab order or
+    // find-in-page (display, visibility, content-visibility), so this is the only one.
+    const held =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open\] main > \[data-card\]:not\(:first-child\) > :not\(h2\) \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(held?.trim()).toBe('opacity: var(--content-opacity, 0);');
+    // The title row is the one thing a chip shows: what the shell opens a card by (cards.ts).
+    expect(block).toContain("html[data-mode='universe'] main > [data-card] > h2[id] > a {");
+    // The open card alone says that what it holds is to be seen.
+    const open =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open='8'\] main > \[data-card\]:nth-child\(9\) \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(open).toContain('--content-opacity: 1;');
+    expect(block.match(/--content-opacity: /g)).toHaveLength(1);
+    // The head's chip says the same of what it holds, and that a press goes through it to the chip.
+    const head =
+      /\n {4}html\[data-mode='universe'\]\[data-card-open\]\n {6}main\n {6}> \[data-card\]:first-child\n {6}:not\(\.page-header, h1\) \{([^}]*)\}/.exec(
+        block,
+      )?.[1];
+    expect(head).toContain('opacity: 0;');
+    expect(head).toContain('pointer-events: none;');
+  });
+
   it('lets a stub grow to what it holds, and never by its basis or its padding', () => {
     const block = css.slice(css.indexOf('THE DECK.'));
     // A column wraps by each card's basis, so that stays a title row; what a stub holds is only

@@ -406,6 +406,13 @@ of, is in the table under The 3D world.
     30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
     its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
     `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+    While a card is open BOTH columns are packed toward the top, in the page's order, with the
+    stubs' own 12 px between one card and the next: the chips over the open card, the open card,
+    the chips under it directly under it, and sky under the last (spread down their column as
+    the stubs are, title rows stood 80 px and more apart with nothing between them). The open
+    card may be as tall as its column less a title row and a gap for each card beside it, so it
+    never pushes one of them off the stage. With none open a column still reaches from the top
+    of the stage to its foot.
     While it has more under its cut, its last lines fade into the plate as a stub's do (48 px,
     a line of its text and the space over it, so that a cut between two paragraphs still has
     words to fade; at the foot of the plate and as wide), until the last of what it holds is in

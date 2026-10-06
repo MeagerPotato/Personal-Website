@@ -3712,13 +3712,27 @@ main > .resume-intro > .card-title--quiet {
       inset: 0;
       display: flex;
       flex-flow: column wrap;
-      /* Each column spreads its cards from top to bottom; the two columns go to the two sides. */
+      /* With none open each column spreads its cards from top to bottom (with one open it packs
+         them: the next rule); the two columns go to the two sides. */
       justify-content: space-between;
       align-content: space-between;
       gap: var(--deck-gap) 0;
       padding: 0;
       overflow: visible;
       pointer-events: none;
+    }
+
+    /*
+     * One card is open: BOTH columns pack their cards toward the top, the deck's gap between
+     * them, in the page's order: the chips over the open card, the open card, and the chips
+     * under it directly under it. The titles a reader goes on to are then together, and beside
+     * the one being read. (Spread over the column, as the stubs are, five title rows stood 80 px
+     * and more apart with nothing between them.) What a column has left is sky under its last
+     * card. The open card's cap is what it was (its rule, below): the column less a title row
+     * and a gap for each card that shares it, so it can never push one of them off the stage.
+     */
+    html[data-mode='universe'][data-card-open] main:has(> [data-card]) {
+      justify-content: flex-start;
     }
 
     /* The break between the columns: as tall as a column, and no width. */
@@ -4076,6 +4090,19 @@ main > .resume-intro > .card-title--quiet {
       content: none;
     }
 
+    /*
+     * What a chip holds under its title row is below its cut, and it is SAID to be out of sight
+     * too, as what the head's chip holds is (below). It is still laid out there, under the chip:
+     * and packed, that is where the next chip's title row stands, 12 px on. Whatever goes by
+     * where a box lies and not by what cuts it (axe does not know `overflow: clip`) would find a
+     * chip's keys under the next title: two things to press in one place. Nothing looks
+     * different, and nothing leaves the page, the tab order or find-in-page. The open card shows
+     * what it holds: its rule sets the property.
+     */
+    html[data-mode='universe'][data-card-open] main > [data-card]:not(:first-child) > :not(h2) {
+      opacity: var(--content-opacity, 0);
+    }
+
     /* The head's chip is the page's title on the row, with Close: everything else of the head
        is still in the page, and out of sight and out of reach. Pressing the chip shows the head
        again (and every card with it). */
@@ -4141,6 +4168,8 @@ main > .resume-intro > .card-title--quiet {
       --more-h: var(--space-12);
       --open-foot: var(--space-4);
       --keys-position: sticky;
+      /* What it holds is to be seen: a chip's is not (the rule over the head's chip). */
+      --content-opacity: 1;
 
       flex: 0 1 auto;
       /* LOAD-BEARING: the 1px, as for the head. */
