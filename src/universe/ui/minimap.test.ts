@@ -307,6 +307,14 @@ describe('when the minimap shows', () => {
     root.getBoundingClientRect = () =>
       ({ left: 1096, top: 604, width: 160, height: 184 }) as DOMRect;
     expect(minimap.box()).toEqual({ left: 1096, top: 604, width: 160, height: 184 });
+    // The pill of a long name reaches past the plate, as far on one side as on the other (the
+    // stylesheet centres it): its two ends are the instrument's too, and no name lies under them.
+    const pill = root.querySelector('.minimap__name') as HTMLElement;
+    Object.defineProperty(pill, 'offsetWidth', { value: 184, configurable: true });
+    expect(minimap.box()).toEqual({ left: 1084, top: 604, width: 184, height: 184 });
+    // A pill no wider than the plate adds nothing.
+    Object.defineProperty(pill, 'offsetWidth', { value: 96, configurable: true });
+    expect(minimap.box()).toEqual({ left: 1096, top: 604, width: 160, height: 184 });
     world.map = true;
     draw();
     expect(minimap.box()).toBeNull();
@@ -865,6 +873,38 @@ describe('the scope, as an instrument', () => {
       'minimap__aim',
       'minimap__ship',
     ]);
+  });
+
+  it('lets its N give way to a pin that stands beside it, and has it back when the pin is gone', () => {
+    const { root, positions, enter, settle, at, mark } = mapOn();
+    const north = root.querySelector('.minimap__north') as Element;
+    // The galaxy: nothing is pinned, and north is marked.
+    expect(north.hasAttribute('data-off')).toBe(false);
+    // From inside home, Projects is a pin up and to the right, 45 degrees off north: clear of it.
+    enter(0);
+    settle();
+    expect(mark(SUN).hasAttribute('data-pin')).toBe(true);
+    expect(north.hasAttribute('data-off')).toBe(false);
+    // Were Projects due north of home, its pin would stand where the N does: the N goes.
+    positions[4] = 0;
+    settle();
+    expect(at(SUN)).toEqual([60, P.rimInsetPx]);
+    expect(north.hasAttribute('data-off')).toBe(true);
+    // A little west of north (+X is to the left), the two would be side by side, a glyph and a
+    // letter some 13 px apart, and read as one sign: still gone.
+    positions[4] = 230;
+    settle();
+    const [pinX, pinY] = at(SUN);
+    expect(Math.hypot(pinX - 60, pinY - 10)).toBeGreaterThan(10);
+    expect(pinX).toBeLessThan(60);
+    expect(north.hasAttribute('data-off')).toBe(true);
+    // Projects where it was, and the ship back between the systems: nothing is pinned, and the N
+    // is back.
+    positions[4] = -900;
+    enter(-1);
+    settle();
+    expect(root.querySelectorAll('[data-pin]')).toHaveLength(0);
+    expect(north.hasAttribute('data-off')).toBe(false);
   });
 
   it('measures a pointer from the face, wherever the face lies in its box', () => {

@@ -127,7 +127,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | a family's light on its tags, `surface.panel` / `surface.raised` | 8.7 / 7.7 | a project's "Built with" tags (a 12 % tint on the facts plate, plain / panel); lilac is the lowest |
 | a family's light on `surface.panel` / `surface.raised` | 10.4 / 9.2 | the facts' labels (Status, When, Role), plain / panel; a system's name under a mouse, on the bare page, is higher still |
 | `ink.low` on the page / `surface.panel` / the panel / `surface.raised` | 6.7 / 6.0 / 5.4 / 5.3 | no text today, only edges and marks (below); the test still holds it to 4.5, so it may carry small print on these grounds |
-| `ink.low` on the HUD plate | 4.49 | **never**: it falls short, and a test fails any rule that sets a chip's text over the world in it |
+| `ink.low` on the HUD plate | 4.49 | **never**: it falls short, and a test fails any rule that sets the text of a chip over the world, or of any part of one, in it: by its own name, or by a property that only hands it on (`--hud-edge`, the plate's edge; `--minimap-tick`, the minimap's ticks, which are marks) |
 | black on white | 21.0 | every page on paper (print keeps to the keywords `black` and `white`) |
 
 | Non-text (3:1) | Ratio | Where it is used |
@@ -233,7 +233,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.4 KiB gzipped on 2026-10-06: the engine 206.0, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.6 KiB gzipped on 2026-10-06: the engine 206.1, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -396,7 +396,11 @@ of, is in the table under The 3D world.
   above the boost pad's place instead. The face's ground is `space.900` inside an `ink.low`
   hairline, with the page's dot grid drawn round: two rings of dots in `surface.line`, a third
   and two thirds of the way out, which is a third and two thirds of what the chip says, and an N
-  at the top (`ink.mid`, under every mark). It shows the whole galaxy while the ship is between
+  at the top (`ink.mid`, under every mark). The N stands where a pin does, so it gives way to
+  one: while a system's pin has its middle within 24 px of the N's, the N is not shown (it
+  fades as a mark does), since an outlined glyph and a letter side by side read as one sign.
+  Today that is home's own scope, where Research lies a little west of due north. A body that
+  is really there may pass over the N. It shows the whole galaxy while the ship is between
   systems or headed for another, else the system the ship is in, north up, and eases from one
   to the other. A sun and the home planet are their family's glyph, filled, with a navy rim;
   planets, docks and moons are discs; planned work is hollow and dashed in `ink.low`; each
@@ -406,7 +410,10 @@ of, is in the table under The 3D world.
   **The pill names**: what the scope shows, set as the sky sets a system's name (spaced
   capitals in `ink.mid` behind the family's glyph; the galaxy wears the wordmark's three
   stations), or a body, as written, in `ink.high`: the one a pointer aims at, else the one a
-  journey is headed for. Docked, the pill rests (it is not shown) until a pointer aims: the
+  journey is headed for. The pill of a long name may reach a rem past the plate on either
+  side (then it is cut short with an ellipsis); it stays centred on the plate, and the names
+  in the sky keep off its two ends as they keep off the rest of the instrument. Docked, the
+  pill rests (it is not shown) until a pointer aims: the
   page beside the scope says where the ship is, and the carried ship passes just above the
   plate on every turn, where the pill was the one part of the instrument it went behind
   (measured: docs/PLAN.md, "the minimap as a scope"). **The chip measures**: RANGE, how far the

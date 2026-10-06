@@ -3385,8 +3385,9 @@ main > .resume-name + .resume-contact {
    *                           data-lit (it names a body)
    *     .minimap__plate       the round plate; its ticks are a gradient on its ::before
    *       svg.minimap__map    THE FACE: one unit of the drawing is one CSS px. Under the marks,
-   *                           two rings of dots and the N, which never move; over them, a
-   *                           journey's clock (.minimap__left)
+   *                           two rings of dots and the N, which never move (the N gives way
+   *                           to a pin beside it: data-off); over them, a journey's clock
+   *                           (.minimap__left)
    *     .minimap__range       the chip: <small> RANGE or ETA, <b> the figures, <small> their
    *                           unit; data-eta on a journey
    *
@@ -3572,7 +3573,11 @@ main > .resume-name + .resume-contact {
     stroke-dasharray: 0.01 0.99;
   }
 
-  /* North: the ball's own letter, at the top of the face, under whatever is drawn there. */
+  /* North: the ball's own letter, at the top of the face, under whatever is drawn there. It
+     stands on the circle the pins stand on, nearly: where a system lies due north of the one the
+     face shows, its pin would be one sign with the letter, an outlined glyph and an N side by
+     side. So the letter gives way to a pin beside it (`data-off`: the engine's doing), and fades
+     as a mark does (below). */
   .minimap__north {
     fill: var(--color-ink-mid);
     stroke: var(--color-space-950);
@@ -3689,13 +3694,20 @@ main > .resume-name + .resume-contact {
     paint-order: stroke;
   }
 
-  /* What is no longer drawn (a moon the scale has no room for, a ring) fades where it was, and
-     is then gone; what comes back is there at once, and fades in. */
-  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here) {
+  /* What is no longer drawn (a moon the scale has no room for, a ring, the N beside a pin) fades
+     where it was, and is then gone; what comes back is there at once, and fades in. */
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here, .minimap__north) {
     transition: opacity var(--motion-fast) var(--motion-ease-out);
   }
 
-  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here, .minimap__left)[data-off] {
+  :is(
+    .minimap__mark,
+    .minimap__orbit,
+    .minimap__aim,
+    .minimap__here,
+    .minimap__left,
+    .minimap__north
+  )[data-off] {
     opacity: 0;
     visibility: hidden;
     transition:
@@ -3737,9 +3749,10 @@ main > .resume-name + .resume-contact {
    * Above: what the scope shows (the galaxy, a system), in quiet ink behind its family's glyph;
    * or, in bright ink, a body: the one a pointer aims at, else the one a journey is headed for.
    * 13 px, like a name in the sky. A long name may reach a rem past the plate on either side, as
-   * the deck's top row reaches past its ball; a longer one gives way. (It fades when it rests,
-   * below: seen for as long as anything of it is, which is what a transition makes of
-   * `visibility`, both ways.)
+   * the deck's top row reaches past its ball; a longer one gives way. It must stay CENTRED on
+   * the plate: the engine tells the names in the sky to keep off its two ends by its width
+   * alone (ui/MiniMap.ts, `box`). (It fades when it rests, below: seen for as long as anything
+   * of it is, which is what a transition makes of `visibility`, both ways.)
    */
   .minimap__name {
     top: 0;

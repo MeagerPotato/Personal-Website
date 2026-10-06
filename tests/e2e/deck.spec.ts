@@ -18,6 +18,8 @@ const minimap = (page: Page) => page.locator('.minimap');
 /** The pill over the minimap's plate (what it shows, or the name of a body), and the chip under it. */
 const pill = (page: Page) => page.locator('.minimap__name');
 const chip = (page: Page) => page.locator('.minimap__range');
+/** The N at the top of the minimap's face. */
+const north = (page: Page) => page.locator('.minimap__north');
 /** The mark of a body on the minimap, by its id in the galaxy's manifest. */
 const markOf = (page: Page, id: string) => page.locator(`.minimap [data-id="${id}"]`);
 const prompt = (page: Page) => page.locator('.dock-prompt');
@@ -293,6 +295,9 @@ test.describe('on a laptop', () => {
     await expect(pill(page)).toHaveText('Galaxy');
     await expect(pill(page)).toBeVisible();
     await expect(chip(page)).toHaveText(/^RANGE\d+(\.\d)?k?m$/);
+    // Every system is in its place on the face, none is a pin, and the N marks north.
+    await expect(page.locator('.minimap__mark[data-pin]:not([data-off])')).toHaveCount(0);
+    await expect(north(page)).toBeVisible();
     expect(
       await overlaps({
         deck: deck(page),
@@ -436,6 +441,12 @@ test.describe('on a laptop', () => {
     // round passes just above the plate), and is back to name what a pointer aims at: here the
     // other sun of the pair. (The marks take no pointer themselves: the plate under them does.)
     await expect(pill(page)).toBeHidden();
+    // (That rest is one rule of the stylesheet, which reads from the minimap whether the deck
+    // shows: it can only while the deck stands before the minimap in the overlay.)
+    expect(
+      await page.evaluate(() => document.querySelector('.flight-deck ~ .minimap') !== null),
+      'the deck stands before the minimap in the overlay',
+    ).toBe(true);
     const other = await boxOf(markOf(page, 'system/hardware'));
     await page.mouse.move(other.x + other.width / 2, other.y + other.height / 2);
     await expect(pill(page)).toBeVisible();
@@ -465,6 +476,54 @@ test.describe('on a laptop', () => {
         prompt: prompt(page),
         'the Map button': mapButton(page),
         'the way to the plain version': plainChip(page),
+      }),
+    ).toEqual([]);
+  });
+
+  test('the N of the minimap gives way to a pin that stands beside it', async ({ page }) => {
+    // Docked at the home planet, the face shows home's own system, and every other system is a
+    // pin on the circle just inside its rim. The N stands on that circle too, at twelve: a pin
+    // right beside it would read as one sign with it, so the N goes, and the pin stays.
+    await openUniverse(page, '/about/');
+    await expect(prompt(page)).toContainText('Leave orbit');
+    await expect(minimap(page)).toBeVisible();
+    await expect(minimap(page)).toHaveAttribute('data-scope', 'home');
+    const pins = page.locator('.minimap__mark[data-pin]:not([data-off])');
+    await expect(pins.first()).toBeVisible();
+    // How far the nearest pin's middle is from the N's (12 o'clock, 10 px down the face).
+    const nearest = await page.evaluate(() => {
+      const face = document.querySelector('.minimap__map')?.getBoundingClientRect();
+      if (!face) throw new Error('no minimap');
+      const [x, y] = [face.left + face.width / 2, face.top + 10];
+      return Math.min(
+        ...[...document.querySelectorAll('.minimap__mark[data-pin]:not([data-off])')].map((pin) => {
+          const box = pin.getBoundingClientRect();
+          return Math.hypot(box.left + box.width / 2 - x, box.top + box.height / 2 - y);
+        }),
+      );
+    });
+    // Which system lies which way is the content's business, so this asks either way: nearer
+    // than 24 px the N is not shown, further off it is. (A glyph's box is not quite about its
+    // middle, hence the 3 px between the two that are asked of nothing. Today Research lies a
+    // little west of due north of home, and its pin stands beside the N.)
+    if (nearest < 21) await expect(north(page)).toBeHidden();
+    if (nearest > 27) await expect(north(page)).toBeVisible();
+    // Either way no pin is left to read as one sign with a letter.
+    expect(
+      await page.evaluate(() => {
+        const letter = document.querySelector('.minimap__north');
+        if (!letter || getComputedStyle(letter).visibility !== 'visible') return [];
+        const n = letter.getBoundingClientRect();
+        return [...document.querySelectorAll('.minimap__mark[data-pin]:not([data-off])')]
+          .map((pin) => pin.getBoundingClientRect())
+          .filter(
+            (box) =>
+              box.left < n.right + 8 &&
+              n.left < box.right + 8 &&
+              box.top < n.bottom &&
+              n.top < box.bottom,
+          )
+          .map((box) => `a pin at ${Math.round(box.left)}, ${Math.round(box.top)}`);
       }),
     ).toEqual([]);
   });

@@ -84,15 +84,39 @@ describe('ink on every surface', () => {
     );
     // (The flight deck and the minimap's pill and chip are no controls, but they sit on the same
     // plate: the rule holds for them too. The minimap's ticks are ink.low, as marks: below.)
+    // A block AND EVERY PART OF IT: `.minimap`, `.minimap__range small`, `.mode-link--to-plain`.
+    // (`\b` alone stops at the block: no word ends between `minimap` and `__range`.)
     const HUD_CONTROL =
-      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck|minimap)\b/;
-    const offenders: string[] = [];
-    for (const [, selector = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      if (HUD_CONTROL.test(selector) && /(^|;)\s*color:\s*var\(--color-ink-low\)/.test(body)) {
-        offenders.push(selector.trim());
+      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck|minimap)(\b|_)/;
+    // Nor by another name: a property of its own that only hands ink.low on (the HUD plate's
+    // edge, the minimap's ticks) is ink.low to this rule, wherever it is the colour of text.
+    const handedOn = [...css.matchAll(/(--[\w-]+):\s*var\(--color-ink-low\)\s*;/g)].map(
+      ([, name = '']) => name,
+    );
+    expect(handedOn).toContain('--minimap-tick');
+    const INK_LOW = new RegExp(
+      `(^|;)\\s*color:\\s*var\\((${['--color-ink-low', ...handedOn].join('|')})\\)`,
+    );
+    const offendersIn = (sheet: string): string[] => {
+      const found: string[] = [];
+      for (const [, selector = '', body = ''] of sheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (HUD_CONTROL.test(selector) && INK_LOW.test(body)) found.push(selector.trim());
       }
-    }
-    expect(offenders).toEqual([]);
+      return found;
+    };
+    expect(offendersIn(css)).toEqual([]);
+    // And the rule bites: on a part of a block, by ink.low's own name and by one it is handed
+    // on under; not on an edge in that colour, which is no text, nor on a class of another block.
+    const tried = [
+      '.minimap__range small { color: var(--color-ink-low); }',
+      '.flight-deck__lamp { font-weight: 700; color: var(--minimap-tick); }',
+      '.dock-prompt__note { border-color: var(--hud-edge); }',
+      '.minimaps { color: var(--color-ink-low); }',
+    ];
+    expect(offendersIn(`${css}\n${tried.join('\n')}`)).toEqual([
+      '.minimap__range small',
+      '.flight-deck__lamp',
+    ]);
   });
 
   it('reads on the cream "on" face of a toggle and on the butter of focus and targets', () => {

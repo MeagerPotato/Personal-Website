@@ -22,6 +22,7 @@ import {
   miniBounds,
   miniScope,
   pickMini,
+  pinNear,
   projectMini,
   routePoints,
   type MiniBodies,
@@ -113,6 +114,14 @@ const SIZE = 120;
 const AIM_GAP = 2.5;
 /** ...and the ring round the body the ship is at or headed for, this far (2 px wide, 3 px off). */
 const HERE_GAP = 4;
+/** px. The middle of the N is this far below the top of the face (the pins' own circle, nearly)... */
+const NORTH = 10;
+/**
+ * ...and it gives way to a system's pin whose middle is nearer to it than this: side by side, an
+ * outlined glyph and a letter of the same height read as one sign of two. (9 px of letter, 10 of
+ * pin: at 24 px there are 14 px of face between them.)
+ */
+const NORTH_CLEAR = 24;
 /** The ship's chevron, 10 units from tip to tail, its nose up. */
 const SHIP = 'M0-5.5 4 4.5 0 2.5-4 4.5Z';
 
@@ -144,7 +153,8 @@ function loop(className: string, parent: Element, radius: string, units: string)
  * body a ship can dock at that has room at that scale is a mark (a sun and the home planet as
  * their family's glyph, the rest as discs), every other system is a pin on a circle just inside
  * the rim, and the ship is a chevron. Under the marks, and never moved: two rings of dots, a
- * third and two thirds of the way out, and an N at the top.
+ * third and two thirds of the way out, and an N at the top, which gives way to a pin that stands
+ * beside it (a system due north of the one the face shows).
  *
  * THE PILL NAMES, THE CHIP MEASURES. The pill says what the face shows (the galaxy, a system), or
  * names a body: the one a pointer aims at, else the one a journey is headed for. The chip says
@@ -173,6 +183,7 @@ function loop(className: string, parent: Element, radius: string, units: string)
  *   data-scope    galaxy, or the id of the system it is fitted to
  *   data-pick     a pointer aims at a mark (the cursor says so)
  *   on a mark     data-id, data-kind, data-theme, data-planned; data-pin at the rim; data-off
+ *   the N         data-off (a pin stands beside it)
  *   the pill      data-theme (the family of what it names); data-lit (it names a body)
  *   the chip      data-eta (it counts a journey's seconds)
  *   the clock     data-off (no journey); --gone, how much of the way round has run (0 to 1)
@@ -191,6 +202,7 @@ export class MiniMap implements System {
   /** The circle each of them travels on. */
   private readonly paths: { readonly node: SVGElement; readonly row: number }[] = [];
   private readonly ship: SVGElement;
+  private readonly north: SVGElement;
   private readonly aim: SVGElement;
   /** The ring round the body the ship is at or headed for, and the way there that is left. */
   private readonly here: SVGElement;
@@ -270,9 +282,9 @@ export class MiniMap implements System {
     const map = (this.map = svg('svg', 'minimap__map', plate));
     loop('minimap__dots', map, '16.67%', '12');
     loop('minimap__dots', map, '33.33%', '24');
-    const north = svg('text', 'minimap__north', map);
+    const north = (this.north = svg('text', 'minimap__north', map));
     north.setAttribute('x', '50%');
-    north.setAttribute('y', '10');
+    north.setAttribute('y', `${NORTH}`);
     north.setAttribute('dy', '0.35em');
     north.textContent = 'N';
 
@@ -356,7 +368,10 @@ export class MiniMap implements System {
     }
     this.shows = shown && room;
     if (!this.shows) {
-      // (Whatever journey is under way when it is back counts down afresh.)
+      // (Whatever journey is under way when it is back counts down afresh, and its clock is whole
+      // again at the seconds that are left. So it is in an engine built again from its snapshot
+      // in the middle of a journey, which keeps neither: the seconds a journey began with are
+      // this picture's own way of telling it, not state anybody else reads.)
       this.awake = false;
       this.goal = -1;
       return;
@@ -460,9 +475,19 @@ export class MiniMap implements System {
     this.shape();
   }
 
-  /** Where the minimap is on the page, or null while it does not show: names keep off it. */
+  /**
+   * Where the minimap is on the page, or null while it does not show: names keep off it. Its box,
+   * and with it the two ends of a pill that reaches past the plate, as the pill of a long name
+   * may by a rem on either side (the stylesheet centres it on the plate): no name lies under them.
+   */
   box(): Readonly<ScreenBox> | null {
-    return this.shows ? boxOf(this.root, this.area) : null;
+    const box = this.shows ? boxOf(this.root, this.area) : null;
+    const past = box ? (this.pill.offsetWidth - box.width) / 2 : 0;
+    if (box && past > 0) {
+      box.left -= past;
+      box.width += 2 * past;
+    }
+    return box;
   }
 
   dispose(): void {
@@ -499,6 +524,9 @@ export class MiniMap implements System {
     bodies.forEach((body, row) => (this.smallest[row] = sizes[body.kind]));
     displayScales(this.sized, perPx, 1, params, this.scales);
     projectMini(view, frame, positions, this.marked, this.scales, params, screen);
+    const half = frame.width / 2;
+    // North gives way to a pin that stands beside it: the two would read as one sign.
+    flag(this.north, 'data-off', pinNear(screen, half, NORTH, NORTH_CLEAR));
 
     this.marks.forEach((mark, row) => {
       const depth = screen.depth[row] ?? 0;
@@ -517,7 +545,6 @@ export class MiniMap implements System {
       if (mark.tagName !== 'path') put(mark, 'r', `${radius}`);
       else if (theme) put(mark, 'd', glyphPath(theme, radius));
     });
-    const half = frame.width / 2;
     for (const { node, row } of this.paths) {
       const parent = orbits.parent[row] ?? -1;
       // Round its parent where that is drawn in its place, or round the middle of its system.

@@ -10,6 +10,7 @@ import {
   miniBounds,
   miniScope,
   pickMini,
+  pinNear,
   projectMini,
   routePoints,
   type MiniBodies,
@@ -315,6 +316,31 @@ describe('where the marks are', () => {
     // (R is the smallest face's: the stylesheet's --minimap-size at its least, less 28 px.)
     const smallest = 120 / 2;
     expect(smallest - P.rimInsetPx).toBeGreaterThan((smallest - P.fitPadPx) / P.fitMargin);
+  });
+
+  it('says whether a pin stands beside a place, and only a pin', () => {
+    // From inside home the sun is a pin, up and to the right; home is a mark in the middle.
+    const { map } = look(HOME, 0, 0);
+    const [x, y] = at(map, SUN);
+    expect(map.depth[SUN]).toBe(PIN_DEPTH);
+    expect(pinNear(map, x, y, 1)).toBe(true);
+    expect(pinNear(map, x - 10, y + 10, 24)).toBe(true);
+    expect(pinNear(map, x - 30, y, 24)).toBe(false);
+    // A body that is really there is no pin, however near: it may lie on whatever asks.
+    expect(map.depth[HOME]).toBe(3);
+    expect(pinNear(map, 66, 66, 24)).toBe(false);
+    // Nor is the heart of a system while it stands in its place on the face.
+    const galaxy = look(GALAXY, 0, 0).map;
+    expect(galaxy.depth[SUN]).toBe(3);
+    expect(pinNear(galaxy, ...at(galaxy, SUN), 24)).toBe(false);
+
+    // Middle to middle, and NEARER than the reach: a pin exactly that far off is clear.
+    const pins = handMap([84, 10, 4.5, PIN_DEPTH], [60, 40, 4.5, 3]);
+    expect(pinNear(pins, 60, 10, 24)).toBe(false);
+    expect(pinNear(pins, 61, 10, 24)).toBe(true);
+    // Rows beyond the count are nobody's.
+    pins.count = 0;
+    expect(pinNear(pins, 84, 10, 24)).toBe(false);
   });
 
   it('queues the pins of systems that lie one behind the other, so that each can be pressed', () => {

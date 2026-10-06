@@ -26,7 +26,8 @@ import { GLYPHS } from './world/glyphs';
  *   WHERE THINGS ARE   on a ROUND FACE of its own: the disc in the middle of its frame, in CSS px
  *                      from the frame's top left corner. Nothing is drawn beyond the face, and
  *                      every system that is off it is pinned on a circle just inside its rim, in
- *                      its direction, so that any system is one press away (`projectMini`).
+ *                      its direction, so that any system is one press away (`projectMini`; the
+ *                      N at the top of the face gives way to a pin beside it: `pinNear`).
  *   WHAT A PRESS MEANS `pickMini`: a mouse as on the canvas; a finger only where it is clear
  *                      which mark it means.
  *
@@ -218,6 +219,24 @@ export function projectMini(
     out.depth[row] = PIN_DEPTH;
   }
   return out;
+}
+
+/**
+ * Does a system's PIN stand within `reach` px of (x, y)? (CSS px from the frame's top left corner,
+ * as `map` is: what `projectMini` wrote.) Whatever lies under the marks at a place of its own asks
+ * before it shows there: the N at the top of the face, which a pin right beside it would make one
+ * glyph of two (ui/MiniMap.ts). Only a pin: a body that is really there passes, and may lie on it.
+ */
+export function pinNear(map: Readonly<ScreenMap>, x: number, y: number, reach: number): boolean {
+  for (let i = 0; i < map.count; i += 1) {
+    if (
+      map.depth[i] === PIN_DEPTH &&
+      Math.hypot((map.x[i] ?? 0) - x, (map.y[i] ?? 0) - y) < reach
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

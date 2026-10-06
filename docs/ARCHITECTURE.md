@@ -149,10 +149,12 @@ reads what the others did, samples the g in `fixedUpdate` (after the ship's step
 star map. What is the minimap's own is in `sim/minimap.ts` too: its face is round, so what it
 fits is a DISC (`miniBounds`: the one that holds every system, or one system's own, grown toward
 the ship where the ship is outside it), a body is a mark only while its middle is on the face,
-and a system that is off it is a pin on a CIRCLE just inside the rim (`projectMini`). The figure
+and a system that is off it is a pin on a CIRCLE just inside the rim (`projectMini`); the N at
+the top of the face gives way to a pin that stands beside it (`pinNear`). The figure
 on its chip, how far the face reaches from its middle, is `rangeShown` in `sim/instruments.ts`;
 the journey's clock on its rim is one number the engine writes (`--gone`), which the stylesheet
-draws. Nothing reads either but the names, which keep off their boxes.
+draws. Nothing reads either but the names, which keep off their boxes (the minimap's `box`
+takes in the two ends of a pill that reaches past its plate, as a long name's does).
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -491,7 +493,7 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
 | What the flight deck shows | nowhere: `ui/FlightDeck.ts` reads the ship, the navigator and the galaxy's positions each frame, through `sim/instruments.ts` | a picture of state that has its owners: nothing to keep, nothing a rebuild could lose |
-| Which system the ship is in, and what the minimap looks at | `main.ts` (`systemAt`, once a frame) and `ui/MiniMap.ts` (`miniScope`): derived from where the ship is and where it is headed; not in the snapshot | it follows from the ship, so a rebuilt engine has it again with its first frame. A journey's line and seconds are the autopilot's own (`surroundings.cruise`), read each frame |
+| Which system the ship is in, and what the minimap looks at | `main.ts` (`systemAt`, once a frame) and `ui/MiniMap.ts` (`miniScope`): derived from where the ship is and where it is headed; not in the snapshot | it follows from the ship, so a rebuilt engine has it again with its first frame. A journey's line and seconds are the autopilot's own (`surroundings.cruise`), read each frame. Two things are the picture's own way of telling a journey and are kept by nobody: that the seconds only count down, and the seconds the journey began with, which is what the clock on the rim is whole at. Whenever the minimap comes back in the middle of a journey (from the star map, or in an engine built again from its snapshot) both begin afresh: the ring is whole again at the seconds that are left. Nothing else reads either, so neither is a snapshot field |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
 | Design values | `design/tokens.ts`, `design/tuning.ts` | one place to look, one place to edit |
@@ -530,7 +532,8 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   engine makes (`src/universe/ui/*.test.ts`): the names, the prompt, the star map's controls, and
   the two pictures, the flight deck and the minimap (hidden from assistive technology, nothing
   to focus, what each writes and that it writes nothing while nothing changes; for the minimap,
-  what its pill and its chip say, how the clock on its rim runs down and is put away, that a
+  what its pill and its chip say, how the clock on its rim runs down and is put away, that its
+  N gives way to a pin beside it, that the names are told of the two ends of a long pill, that a
   pointer is measured from the face wherever the face lies in its box, and what a press on a
   mark, on nothing and on the body the ship is at does).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
@@ -559,8 +562,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   never lands in either, that the minimap's plate and chip stand on the ball's and the HDG chip's
   lines, a press on a mark of the minimap flying there with its line, its clock and its
   seconds, a press on its empty ground or on its chip opening the star map, the corners of its
-  box being the sky's, its pill resting while the ship is docked, and both back after a lost
-  context;
+  box being the sky's, its pill resting while the ship is docked (which hangs on the deck
+  standing before it in the overlay: asked too), its N shown where no pin is near and gone
+  where one stands beside it, and both back after a lost context;
   axe with no serious issue on any page
   in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
   44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
