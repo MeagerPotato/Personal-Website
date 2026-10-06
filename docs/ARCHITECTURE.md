@@ -146,7 +146,13 @@ reads what the others did, samples the g in `fixedUpdate` (after the ship's step
 `frameUpdate`. The minimap is there wherever the deck has its full size (it asks the deck:
 `full`), draws the galaxy's own positions through the star map's maths at another size
 (`sim/minimap.ts`), and its one way of acting is `pickRow`, the canvas's own call, or opening the
-star map. Nothing reads either but the names, which keep off their boxes.
+star map. What is the minimap's own is in `sim/minimap.ts` too: its face is round, so what it
+fits is a DISC (`miniBounds`: the one that holds every system, or one system's own, grown toward
+the ship where the ship is outside it), a body is a mark only while its middle is on the face,
+and a system that is off it is a pin on a CIRCLE just inside the rim (`projectMini`). The figure
+on its chip, how far the face reaches from its middle, is `rangeShown` in `sim/instruments.ts`;
+the journey's clock on its rim is one number the engine writes (`--gone`), which the stylesheet
+draws. Nothing reads either but the names, which keep off their boxes.
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -515,14 +521,18 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   full thrust, a countdown that never rises, a system the ship stays "in" across its edge); and
   the minimap's maths, in the real galaxy and in grown ones of 6 and 8 systems
   (`tests/minimap-galaxy.test.ts`): at every scope and size every body a ship can dock at is
-  inside the frame and every other system is one pin at the rim, in a galaxy wider than tall and
-  in one taller than wide.
+  on the face (which is round) and every other system is one pin on the circle inside its rim,
+  in a galaxy wider than tall and in one taller than wide; the two sizes of face it is held to
+  must be the ones the stylesheet gives (`--minimap-size`, less the plate's ring and band: the
+  test reads them), so a change of size cannot go unmeasured.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
   history rules, the panel, the swap contract, the hint card, the announcer. So does the DOM the
   engine makes (`src/universe/ui/*.test.ts`): the names, the prompt, the star map's controls, and
   the two pictures, the flight deck and the minimap (hidden from assistive technology, nothing
   to focus, what each writes and that it writes nothing while nothing changes; for the minimap,
-  what a press on a mark, on nothing and on the body the ship is at does).
+  what its pill and its chip say, how the clock on its rim runs down and is put away, that a
+  pointer is measured from the face wherever the face lies in its box, and what a press on a
+  mark, on nothing and on the body the ship is at does).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
@@ -546,8 +556,11 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
   pipeline), none of which flies the ship or changes the URL; the flight deck and the minimap
   (`deck.spec.ts`): where they sit and what they keep clear of, the strip on a phone, that Tab
-  never lands in either, a press on a mark of the minimap flying there with its line and its
-  seconds, a press on its empty ground opening the star map, and both back after a lost context;
+  never lands in either, that the minimap's plate and chip stand on the ball's and the HDG chip's
+  lines, a press on a mark of the minimap flying there with its line, its clock and its
+  seconds, a press on its empty ground or on its chip opening the star map, the corners of its
+  box being the sky's, its pill resting while the ship is docked, and both back after a lost
+  context;
   axe with no serious issue on any page
   in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
   44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so

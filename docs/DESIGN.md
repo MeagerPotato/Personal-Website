@@ -82,8 +82,9 @@ Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
   keyboard's focus (the ring), the body the ship is at or headed for (the one filled name tag, its
-  mark on the flight deck's ball, the ring round it on the minimap, and a journey's line and
-  seconds there), and what acts on the body at hand (the E key cap of "Orbit FishAI", "Stop").
+  mark on the flight deck's ball, the ring round it on the minimap, and a journey's line, its
+  clock on the rim and its seconds there), and what acts on the body at hand (the E key cap of
+  "Orbit FishAI", "Stop").
   The home system is butter too, so a focused butter key keeps a navy rim between its fill and
   the ring.
 - **The cream face (`ink.high` fill) means "on":** only what is switched on wears it: a toggle
@@ -111,13 +112,13 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | `ink.high` on the page / the panel | 17.2 / 14.0 | headings, the lede, card titles, the wordmark, a key's label, a fact's value, the current page in the nav |
 | `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card, the Launch the starfield chip; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
 | `ink.high` on `surface.line` | 9.8 | a raised key under a mouse (its face already `surface.raised`, or on a raised plate): the panel bar's Close and Expand, the hint card's "Got it" |
-| `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip; the flight deck's speed and heading; the minimap's caption while it names a body |
+| `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip; the flight deck's speed and heading; the minimap's pill while it names a body, and the figures on its chip |
 | `ink.high` on the ball's sky / ground (`surface.line` / `space.900`) | 9.8 / 17.2 | N, E, S and W on the flight deck's ball (12 px, 700, each on a navy rim): they are painted on the sky |
 | `ink.mid` on the page / the panel | 10.6 / 8.6 | running text, the nav, the crumbs, a card's summary and status chip, the resume's dates, bullets and skills, a caption, the footer |
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
-| `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name; a lamp of the flight deck that is off, its "m/s" and "HDG"; the minimap's caption while it says what the map shows |
+| `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name; a lamp of the flight deck that is off, its "m/s" and "HDG"; the minimap's pill while it says what the scope shows (the galaxy, a system), and "RANGE", "ETA" and the unit on its chip |
 | `accent` (sky) on the page / the panel | 9.9 / 8.0 | links in running text, the legend's links (Elsewhere, Contact), the resume's ways to reach Allen, a card's title under a mouse |
-| butter on the HUD plate | 9.3 | "Stop" in the dock prompt; a journey's seconds in the minimap's caption |
+| butter on the HUD plate | 9.3 | "Stop" in the dock prompt; a journey's seconds on the minimap's chip |
 | `space.900` on cream (`ink.high`) | 17.2 | a toggle that is on (Close map, Shrink, the welcome button), a lit lamp of the flight deck, the key caps W A S D, Shift and M; cream on navy, the M cap of the open Map button |
 | `space.900` / `space.950` on butter | 13.9 / 14.5 | the target's name tag and the E cap of "Orbit" / the skip link |
 | `space.900` on coral | 8.4 | the pressed boost pad |
@@ -138,7 +139,8 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
 | the flight deck's ball, each mark on its sky / ground (`surface.line` / `space.900`) | `ink.high` 9.8 / 17.2; butter 7.9 / 13.9; `ink.low` 3.8 / 6.7; a family's base 3.6 / 6.3; `ink.mid` 6.1 / 10.6 | the nose, prograde and home; the target; the meridians and the rim; the horizon, in the family of the system the ship is in (lilac is the lowest) and in `ink.mid` between systems. Every mark but the meridians has a navy rim (`space.950`) under it, the letters too. The sky is the lighter half, as a sky is, and the two are 1.75 apart, which is all these navies give: the horizon carries the division |
 | `ink.high` / coral on the HUD plate | 11.6 / 5.7 | the flight deck's arcs: the throttle and the g; the throttle while boosting |
-| the minimap's marks on its ground (`space.900`) | a family's base 6.3; `ink.low` 6.7; `ink.high` 17.2; butter 13.9 | suns, the home planet, planets, moons and the pins at the rim (lilac is the lowest); planned work's dashed outline; the ship and the ring of a pointer's aim; the ring that says "here" and a journey's line. The circles the bodies travel on are the family at 35 %: decoration, nothing is found by them |
+| the minimap's marks on its face (`space.900`) | a family's base 6.3; `ink.low` 6.7; `ink.mid` 10.6; `ink.high` 17.2; butter 13.9 | suns, the home planet, planets, moons and the pins just inside the rim (lilac is the lowest); planned work's dashed outline and the face's own rim; the N (12 px, on a navy rim: it clears the bar for text too); the ship and the ring of a pointer's aim; the ring that says "here", a journey's line and its clock on the rim. The circles the bodies travel on are the family at 35 % and the dots of the range rings are `surface.line` (1.7): decoration, nothing is found by them |
+| `ink.low` on the HUD plate, as a mark | 4.49 | the ten ticks on the minimap's plate (marks; as text it falls short: the table above) |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
 | `surface.line` hairline on the page / the panel | 1.7 / 1.4 | decoration, not a boundary: the rules between legend rows, a status or date chip's outline, the resume's rail. Nothing is found by them alone |
 
@@ -221,8 +223,8 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, its family glyph turned navy, the station it stops at (every other tag shows the glyph in its family's base) | the body the ship is headed for |
 | On | The cream face: `ink.high`, navy words, no edge. A toggle is named for what it does next ("Close map", "Shrink"), so the sheet's button carries no `aria-pressed` ("Shrink, toggle button, pressed" contradicted itself) | the Map button while the map is open (`data-state='open'`; its M cap turns navy), the sheet's Shrink (`html[data-panel-size='full']`), "About this site" while its text shows (`aria-expanded`) |
-| Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the minimap's plate, the boost pad |
-| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The flight deck's ball and the minimap's map are `Canvas` with their marks in `CanvasText` (what is hollow stays hollow), and what is lit is `Highlight`: a lamp, the target on the ball, the boosting throttle, the minimap's ring that says "here" and a journey's line. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
+| Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the minimap (as one instrument: plate, pill and chip drop together), the boost pad |
+| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The flight deck's ball and the minimap's face are `Canvas` with their marks in `CanvasText` (what is hollow stays hollow); the minimap's ticks, the dots of its range rings, its face's rim and the circles the bodies travel on are `GrayText`; and what is lit is `Highlight`: a lamp, the target on the ball, the boosting throttle, the minimap's ring that says "here", a journey's line and its clock on the rim. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap, on the wordmark and on the minimap's pill | `@media (forced-colors: active)`, after the rules it overrides |
 | More contrast | The HUD plate and the panel are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
 
 ## The two modes
@@ -231,7 +233,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (215.6 KiB gzipped on 2026-10-03: the engine 205.2, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.4 KiB gzipped on 2026-10-06: the engine 206.0, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -357,7 +359,7 @@ of, is in the table under The 3D world.
   action and not a key being named; "Stop" is set apart by a hairline, in butter. It sits in the
   middle of the free view, and beside the flight deck while that is up at full size: its right end
   12 px left of the cluster, where "Flying to" steps aside (heard, not seen: AUTO, the target on
-  the ball and the minimap's caption say it).
+  the ball and the minimap's pill say it).
 - **The flight deck** is Kerbal Space Program's cluster of instruments at the bottom centre,
   drawn flat: a picture of the simulation, not a control (no ledge, no hover, no focus;
   `aria-hidden`). It shows whenever the ship is not docked and the star map is closed. The
@@ -382,23 +384,46 @@ of, is in the table under The 3D world.
   Map button's row at the far end from it, with the ball, the speed and the heading (or the lit
   lamp's name); nothing moves for it. Under 18.5rem by 20rem, or under a phone's sheet, there
   is none. The first-visit card keeps 12 px above the cluster, and the strip waits for the card.
-- **The minimap** is the star map at another size, bottom right of the free view, wherever the
-  deck has its full size: flying or docked (a reader can hop to the next planet), not on the
-  star map. A plate with a ledge (it can be pressed), `--minimap-size` across (132 to 168 px, by
-  the view's height) over a 1.5rem caption; under a finger it sits above the boost pad's place.
-  The map's ground is `space.900` with the page's dot grid, twice as fine. It shows the whole
-  galaxy while the ship is between systems or headed for another, else the system the ship is
-  in, north up, and eases from one to the other. A sun and the home planet are their family's
-  glyph, filled, with a navy rim; planets, docks and moons are discs; planned work is hollow
-  and dashed in `ink.low`; each travels on a hairline circle in its family; a system off the
-  map is its glyph in outline, pinned at the rim in its direction; the ship is a cream chevron
-  on a navy rim, 13 px long (a little bigger than a sun's mark), on top of whatever it is at.
-  A pointer aims (a 1.5 px cream ring, the name in the caption in `ink.high`) and a press on a
-  mark flies there, exactly as a press on its name does; a press where nothing is opens the
-  star map. **Butter is "here"**: a 2 px ring round the body the ship is at or headed for, the
-  way that is left of a journey as a 2 px line from the ship, and the seconds it still takes at
-  the end of the caption, which only count down. It is a picture too (`aria-hidden`, nothing to
-  focus): the names in the sky and the Map button are the real controls for all of it.
+- **The minimap** is the ball's sibling, a scope: the star map at another size, bottom right of
+  the free view, wherever the deck has its full size: flying or docked (a reader can hop to the
+  next planet), not on the star map. It is built as the ball is. A round plate, `--minimap-size`
+  across (148 to 184 px, by the view's height), wears the deck's ring and, because it can be
+  pressed, a ledge; ten ticks stand on it (`ink.low`, one every 30 degrees but at twelve and
+  six), and the round face lies 14 px inside its edge. A pill is fastened over its top (the
+  speed pill's twin) and a chip under its bottom (the HDG chip's twin), so the plate stands on
+  the line the ball's plate stands on and the chip on the HDG chip's line, at every size
+  (`tests/e2e/deck.spec.ts` holds both to the pixel); under a finger the whole instrument sits
+  above the boost pad's place instead. The face's ground is `space.900` inside an `ink.low`
+  hairline, with the page's dot grid drawn round: two rings of dots in `surface.line`, a third
+  and two thirds of the way out, which is a third and two thirds of what the chip says, and an N
+  at the top (`ink.mid`, under every mark). It shows the whole galaxy while the ship is between
+  systems or headed for another, else the system the ship is in, north up, and eases from one
+  to the other. A sun and the home planet are their family's glyph, filled, with a navy rim;
+  planets, docks and moons are discs; planned work is hollow and dashed in `ink.low`; each
+  travels on a hairline circle in its family; the ship is a cream chevron on a navy rim, 13 px
+  long (a little bigger than a sun's mark), on top of whatever it is at. A system off the face
+  is its glyph in outline, pinned on a circle 9 px inside the rim, on the line to where it is.
+  **The pill names**: what the scope shows, set as the sky sets a system's name (spaced
+  capitals in `ink.mid` behind the family's glyph; the galaxy wears the wordmark's three
+  stations), or a body, as written, in `ink.high`: the one a pointer aims at, else the one a
+  journey is headed for. Docked, the pill rests (it is not shown) until a pointer aims: the
+  page beside the scope says where the ship is, and the carried ship passes just above the
+  plate on every turn, where the pill was the one part of the instrument it went behind
+  (measured: docs/PLAN.md, "the minimap as a scope"). **The chip measures**: RANGE, how far the
+  face reaches from its middle ("RANGE 1.1 km" for the galaxy, "RANGE 470 m" for Projects), or
+  on a journey the seconds it still takes ("ETA 3 s", figures and unit in butter), which only
+  count down. **Butter is "here"**: a 2 px ring round the body the ship is at or headed for,
+  the way that is left of a journey as a 2 px line from the ship, the journey's clock on the
+  rim (a 2 px ring, whole when the journey starts, that a gap eats clockwise from twelve; it
+  fades as it stands at a Stop or on arrival) and the seconds on the chip. A pointer aims (a
+  1.5 px cream ring, the name on the pill; the plate's ring brightens under a mouse) and a
+  press on a mark flies there, exactly as a press on its name does; a press where nothing is
+  (on the face, the plate, the pill or the chip) opens the star map; pressed, the whole
+  instrument drops onto its ledge. The corners of its box are the world's: a press there is a
+  press on the sky. Whoever asked for less motion sees none of it move or fade: the view cuts
+  from one scope to the other, and no journey is flown for them (the ship is put there), so
+  the clock never runs. It is a picture too (`aria-hidden`, nothing to focus): the names in the
+  sky and the Map button are the real controls for all of it.
 - **The first-visit hint card** is an opaque legend card (`surface.raised`: nothing of the world
   ghosts through the words), its band in `ink.low` (a hint is news, not a family, and butter keeps
   its one meaning), with white key caps on a ledge and "Got it" as a key with an `ink.low` edge.
@@ -494,8 +519,8 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); its offers out of sight while the map is open there, where they would sit on the galaxy (`quiet` in `ui/Prompt.ts`); a journey's Stop always shows, since there it is the only way to stop. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
 | The flight deck: how big the free view must be for the cluster and for the strip (`fullMinRem`, `stripMinRem`), from where the ship counts as in a system (`enterRadii`, `leaveRadii`: the horizon's family, and what the minimap looks at), under what speed prograde is put away, what one g is and where the g arc is full (`gUnit`, `gFull`), how quickly the two arcs follow, when ASSIST lights (`assistOn`), the speeds of the chevrons (`warpTiers`), how often the digits change | `tuning.instruments` (the maths: `sim/instruments.ts`) |
 | The LOOK of the flight deck: the plate's size by the view's height (`--deck-size`), half the cluster's width (`--deck-half`), and every fill and stroke of the ball, the arcs, the lamps, the chips and the strip | `.flight-deck` in `src/styles/global.css` |
-| The minimap: how its view is fitted and how quickly it eases from the galaxy to a system (`fitMargin`, `fitPadPx`, `spanMin`, `viewOmega`), the smallest mark of each kind of body in the galaxy's view and in a system's (`minRadiusPx`; 0: its true size), when a moon has room (`clearPx`, `minVisiblePx`), the pins at the rim (`rimInsetPx`, `rimRadiusPx`), how sure a finger must be between two marks (`ambiguityPx`), the points of a journey's line (`routePoints`), how often the marks are moved (`bodiesHz`), the ship's chevron (`shipPx`) | `tuning.minimap` (the maths: `sim/minimap.ts`; a mouse's and a finger's reach are `tuning.picking`'s) |
-| The LOOK of the minimap: its size by the view's height (`--minimap-size`), the ground, the marks, the rings, a journey's line, the caption | `.minimap` in `src/styles/global.css` |
+| The minimap: how its view is fitted and how quickly it eases from the galaxy to a system (`fitMargin`, `fitPadPx`, `spanMin`, `viewOmega`), the smallest mark of each kind of body in the galaxy's view and in a system's (`minRadiusPx`; 0: its true size), when a moon has room (`clearPx`, `minVisiblePx`), the pins of the systems off the face (`rimInsetPx`: how far inside the face's edge the circle they stand on lies; `rimRadiusPx`), how sure a finger must be between two marks (`ambiguityPx`), the points of a journey's line (`routePoints`), how often the marks are moved (`bodiesHz`), the ship's chevron (`shipPx`) | `tuning.minimap` (the maths: `sim/minimap.ts`; a mouse's and a finger's reach are `tuning.picking`'s) |
+| The LOOK of the minimap: its size by the view's height (`--minimap-size`: the plate; `tests/minimap-galaxy.test.ts` reads it), the plate's ring and its ticks, the face's ground, the rings of dots and the N, the marks, the rings, a journey's line and its clock on the rim, the pill, the chip | `.minimap` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
