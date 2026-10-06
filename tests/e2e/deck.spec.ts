@@ -5,8 +5,9 @@
 // the cluster (a phone) has the strip instead, in the Map button's row, and nothing moves for it.
 //
 // And the minimap beside it (src/universe/ui/MiniMap.ts): the star map at another size, there
-// wherever the cluster has room, flying or docked. A press on a mark is pointing at that body,
-// and a press where nothing is opens the map it is the preview of.
+// wherever the cluster has room, flying or docked, and built as the ball is: a round plate on the
+// ball's own line, a pill over it that names, a chip under it that measures. A press on a mark is
+// pointing at that body, and a press where nothing is opens the map it is the preview of.
 
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
@@ -14,7 +15,9 @@ import { expect, nameOf, openUniverse, pointAt, test, watchText } from './suppor
 
 const deck = (page: Page) => page.locator('.flight-deck');
 const minimap = (page: Page) => page.locator('.minimap');
-const caption = (page: Page) => page.locator('.minimap__caption');
+/** The pill over the minimap's plate (what it shows, or the name of a body), and the chip under it. */
+const pill = (page: Page) => page.locator('.minimap__name');
+const chip = (page: Page) => page.locator('.minimap__range');
 /** The mark of a body on the minimap, by its id in the galaxy's manifest. */
 const markOf = (page: Page, id: string) => page.locator(`.minimap [data-id="${id}"]`);
 const prompt = (page: Page) => page.locator('.dock-prompt');
@@ -87,42 +90,59 @@ async function arrived(target: Locator): Promise<void> {
 }
 
 /**
- * A point of the minimap's ground with nothing near it: the corner of the map that is furthest
- * from every mark that shows and from the ship, and how far from them it is, in px. (Which corner
- * that is depends on where the systems lie, and that is the content's business.)
+ * THE MINIMAP IS THE BALL'S SIBLING: its round plate stands on the line the ball's plate stands
+ * on, and its chip on the HDG chip's, to the pixel (all four read in one look at the page).
+ */
+async function onTheDecksLines(page: Page): Promise<void> {
+  const [plate = NaN, ball = NaN, range = NaN, heading = NaN] = await page.evaluate(() =>
+    ['.minimap__plate', '.flight-deck__plate', '.minimap__range', '.flight-deck__hdg'].map(
+      (selector) => document.querySelector(selector)?.getBoundingClientRect().bottom ?? NaN,
+    ),
+  );
+  expect(Math.abs(plate - ball), 'the two plates').toBeLessThanOrEqual(1);
+  expect(Math.abs(range - heading), 'the two chips').toBeLessThanOrEqual(1);
+}
+
+/**
+ * A point of the minimap's face with nothing near it: of a grid of points on the face (6 px
+ * apart, none further from its middle than nine tenths of its radius), the one furthest from
+ * every mark that shows and from the ship, and how far from them it is, in px. (Where that is
+ * depends on where the systems lie, and that is the content's business. The face is round: the
+ * corners of the square round it are no part of the minimap.)
  */
 function emptyGround(page: Page): Promise<{ x: number; y: number; clear: number }> {
   return page.evaluate(() => {
-    const map = document.querySelector('.minimap__map')?.getBoundingClientRect();
-    if (!map) throw new Error('no minimap');
+    const face = document.querySelector('.minimap__map')?.getBoundingClientRect();
+    if (!face) throw new Error('no minimap');
     const marks = [
       ...document.querySelectorAll('.minimap__mark:not([data-off]), .minimap__ship'),
     ].map((mark) => {
       const box = mark.getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     });
-    const inset = 10;
-    return [
-      { x: map.left + inset, y: map.top + inset },
-      { x: map.right - inset, y: map.top + inset },
-      { x: map.left + inset, y: map.bottom - inset },
-      { x: map.right - inset, y: map.bottom - inset },
-    ]
-      .map(({ x, y }) => ({
-        x,
-        y,
-        clear: Math.min(...marks.map((mark) => Math.hypot(mark.x - x, mark.y - y))),
-      }))
-      .reduce((best, corner) => (corner.clear > best.clear ? corner : best));
+    const middle = { x: face.left + face.width / 2, y: face.top + face.height / 2 };
+    const reach = 0.9 * (face.width / 2);
+    let best = { ...middle, clear: -1 };
+    for (let dx = -reach; dx <= reach; dx += 6) {
+      for (let dy = -reach; dy <= reach; dy += 6) {
+        if (Math.hypot(dx, dy) > reach) continue;
+        const [x, y] = [middle.x + dx, middle.y + dy];
+        const clear = Math.min(...marks.map((mark) => Math.hypot(mark.x - x, mark.y - y)));
+        if (clear > best.clear) best = { x, y, clear };
+      }
+    }
+    return best;
   });
 }
 
 /** What the minimap said of a journey while it lasted. */
 interface JourneySeen {
-  /** Each caption that had seconds in it, as "name seconds", in the order they were shown. */
-  captions: string[];
+  /** What the pill and the chip said while the chip counted, as "name seconds s", in order. */
+  counted: string[];
   /** The most points its line was drawn through. */
   points: number;
+  /** How much of the clock on the rim was gone (0 to 1), each time that changed, in order. */
+  gone: number[];
 }
 
 /**
@@ -131,20 +151,33 @@ interface JourneySeen {
  */
 async function watchJourney(page: Page): Promise<() => Promise<JourneySeen>> {
   await page.evaluate(() => {
-    const seen: JourneySeen = { captions: [], points: 0 };
+    const seen: JourneySeen = { counted: [], points: 0, gone: [] };
     (window as unknown as { e2eJourney: JourneySeen }).e2eJourney = seen;
-    const label = document.querySelector('.minimap__caption');
-    const route = document.querySelector('.minimap__route');
-    if (!label || !route) return;
+    const root = document.querySelector('.minimap');
+    const name = root?.querySelector('.minimap__name b');
+    const range = root?.querySelector('.minimap__range');
+    const clock = root?.querySelector<SVGElement>('.minimap__left');
+    const route = root?.querySelector('.minimap__route');
+    if (!root || !name || !range || !clock || !route) return;
     new MutationObserver(() => {
-      const seconds = label.querySelector('small')?.textContent ?? '';
-      const said = `${label.querySelector('b')?.textContent ?? ''} ${seconds}`;
-      if (seconds !== '' && seen.captions.at(-1) !== said) seen.captions.push(said);
-    }).observe(label, { subtree: true, childList: true, characterData: true });
-    new MutationObserver(() => {
+      // The chip counts a journey's seconds only while it says ETA (`data-eta`).
+      if (range.hasAttribute('data-eta')) {
+        const said = `${name.textContent ?? ''} ${range.querySelector('b')?.textContent ?? ''} s`;
+        if (seen.counted.at(-1) !== said) seen.counted.push(said);
+      }
+      // The clock runs while it is out (no `data-off`): put away, it winds itself up unseen.
+      if (!clock.hasAttribute('data-off')) {
+        const gone = Number(clock.style.getPropertyValue('--gone'));
+        if (seen.gone.at(-1) !== gone) seen.gone.push(gone);
+      }
       const points = (route.getAttribute('points') ?? '').split(' ').filter(Boolean).length;
       seen.points = Math.max(seen.points, points);
-    }).observe(route, { attributes: true });
+    }).observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributeFilter: ['data-eta', 'data-off', 'style', 'points'],
+    });
   });
   return () => page.evaluate(() => (window as unknown as { e2eJourney: JourneySeen }).e2eJourney);
 }
@@ -211,8 +244,14 @@ test.describe('on a laptop', () => {
     // At rest at the spawn point, until the pilot flies.
     await expect(speed(page)).toHaveText('0');
     await expect(page.locator('.flight-deck__hdg b')).toHaveText(/^\d{3}°$/);
+    // The minimap beside it is its sibling: plate on plate's line, chip on chip's, at rest...
+    await arrived(deck(page));
+    await arrived(minimap(page));
+    await onTheDecksLines(page);
     await page.keyboard.down('w');
     await expect(speed(page)).not.toHaveText('0');
+    // ...and under way.
+    await onTheDecksLines(page);
     await page.keyboard.up('w');
 
     // On the star map the flight controls are off, and so is the deck. M brings both back.
@@ -248,9 +287,12 @@ test.describe('on a laptop', () => {
   }) => {
     await openUniverse(page, '/');
     await arrived(minimap(page));
-    // The ship starts in open sky, between the systems: the map is fitted to all of them.
+    // The ship starts in open sky, between the systems: the map is fitted to all of them, the
+    // pill says so, and the chip says how far the face reaches from its middle.
     await expect(minimap(page)).toHaveAttribute('data-scope', 'galaxy');
-    await expect(caption(page)).toHaveText('Galaxy');
+    await expect(pill(page)).toHaveText('Galaxy');
+    await expect(pill(page)).toBeVisible();
+    await expect(chip(page)).toHaveText(/^RANGE\d+(\.\d)?k?m$/);
     expect(
       await overlaps({
         deck: deck(page),
@@ -259,12 +301,28 @@ test.describe('on a laptop', () => {
         'the way to the plain version': plainChip(page),
       }),
     ).toEqual([]);
+    // Only the round plate and its two chips are the minimap's: the corners of its box are the
+    // world's, as the corners of the deck's are.
+    expect(
+      await page.evaluate(() => {
+        const plate = document.querySelector('.minimap__plate')?.getBoundingClientRect();
+        if (!plate) throw new Error('no plate');
+        const under = (x: number, y: number): string => {
+          const hit = document.elementFromPoint(x, y);
+          return hit?.closest('.minimap') ? 'the minimap' : (hit?.tagName ?? 'nothing');
+        };
+        return [
+          under(plate.left + 5, plate.bottom - 5),
+          under(plate.left + plate.width / 2, plate.top + plate.height / 2),
+        ];
+      }),
+    ).toEqual(['CANVAS', 'the minimap']);
 
-    // A pointer over a sun aims at it: the caption names it, and the cursor says it can be pressed.
+    // A pointer over a sun aims at it: the pill names it, and the cursor says it can be pressed.
     const sun = markOf(page, 'system/hackathons');
     const at = await boxOf(sun);
     await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
-    await expect(caption(page)).toHaveText('Hackathons');
+    await expect(pill(page)).toHaveText('Hackathons');
     await expect(minimap(page)).toHaveAttribute('data-pick', '');
 
     // Pressed, it is the destination: the very journey a press on its name in the sky starts.
@@ -288,20 +346,34 @@ test.describe('on a laptop', () => {
     await expect(deck(page)).toBeHidden();
     await expect(minimap(page)).toBeVisible();
     await expect(minimap(page)).toHaveAttribute('data-scope', 'hackathons');
-    await expect(caption(page)).toHaveText('Hackathons');
+    await expect(pill(page)).toHaveText('Hackathons');
     await expect(minimap(page)).not.toHaveAttribute('data-pick', /.*/);
+    // Docked, the pill rests: the page beside the minimap says where the ship is, and the ship
+    // it carries round passes just above the plate.
+    await expect(pill(page)).toBeHidden();
 
     // While it flew, the journey read as fast forward: the way that was left as a line from the
-    // ship, and the caption naming the destination over seconds that only ever went down.
-    const { captions, points } = await journey();
+    // ship, the pill naming the destination, and the chip counting seconds that only ever went
+    // down...
+    const { counted, points, gone } = await journey();
     expect(points).toBeGreaterThan(2);
-    expect(captions.length).toBeGreaterThan(0);
-    for (const shown of captions) expect(shown).toMatch(/^Hackathons \d+ s$/);
-    const seconds = captions.map((shown) => Number(/\d+/.exec(shown)?.[0]));
+    expect(counted.length).toBeGreaterThan(0);
+    for (const shown of counted) expect(shown).toMatch(/^Hackathons \d+ s$/);
+    const seconds = counted.map((shown) => Number(/\d+/.exec(shown)?.[0]));
     expect(seconds).toEqual([...seconds].sort((a, b) => b - a));
-    // Arrived: no line and no seconds, and the ring that says "here" round the sun it is at.
+    // ...while the rim ran down as its clock: more of it gone each time, and never less.
+    expect(gone.length).toBeGreaterThan(0);
+    for (const share of gone) {
+      expect(share).toBeGreaterThanOrEqual(0);
+      expect(share).toBeLessThanOrEqual(1);
+    }
+    expect(gone).toEqual([...gone].sort((a, b) => a - b));
+    // Arrived: no line, no seconds and no clock; the chip measures the face again, and the ring
+    // that says "here" is round the sun the ship is at.
     await expect(page.locator('.minimap__route')).toHaveAttribute('points', '');
-    await expect(page.locator('.minimap__caption small')).toBeEmpty();
+    await expect(chip(page)).not.toHaveAttribute('data-eta', /.*/);
+    await expect(chip(page)).toHaveText(/^RANGE\d+(\.\d)?k?m$/);
+    await expect(page.locator('.minimap__left')).toHaveAttribute('data-off', '');
     await expect(page.locator('.minimap__here')).not.toHaveAttribute('data-off', /.*/);
   });
 
@@ -336,7 +408,15 @@ test.describe('on a laptop', () => {
     await page.keyboard.press('m');
     await expect(page.locator('html')).not.toHaveAttribute('data-map', /.*/);
     await expect(deck(page)).toBeVisible();
-    await expect(minimap(page)).toBeVisible();
+    await arrived(minimap(page));
+
+    // The chip under the plate is part of the instrument, and nothing is there either: a press
+    // on it opens the map too.
+    const range = await boxOf(chip(page));
+    await page.mouse.click(range.x + range.width / 2, range.y + range.height / 2);
+    await expect(page.locator('html')).toHaveAttribute('data-map', 'open');
+    await expect(minimap(page)).toBeHidden();
+    expect(pathOf(page)).toBe('/');
   });
 
   test('docked there is no deck; leaving orbit brings it, and the prompt steps beside it', async ({
@@ -350,8 +430,20 @@ test.describe('on a laptop', () => {
     // (FishAI circles Software, one of the two suns of Projects).
     await expect(minimap(page)).toBeVisible();
     await expect(minimap(page)).toHaveAttribute('data-scope', 'projects');
-    await expect(caption(page)).toHaveText('Projects');
+    await expect(pill(page)).toHaveText('Projects');
     expect(await overlaps({ minimap: minimap(page), prompt: prompt(page) })).toEqual([]);
+    // Its pill rests while the ship is docked (the page says where it is, and the ship it carries
+    // round passes just above the plate), and is back to name what a pointer aims at: here the
+    // other sun of the pair. (The marks take no pointer themselves: the plate under them does.)
+    await expect(pill(page)).toBeHidden();
+    const other = await boxOf(markOf(page, 'system/hardware'));
+    await page.mouse.move(other.x + other.width / 2, other.y + other.height / 2);
+    await expect(pill(page)).toBeVisible();
+    await expect(pill(page)).toHaveText('Hardware');
+    await expect(minimap(page)).toHaveAttribute('data-pick', '');
+    await page.mouse.move(other.x - 240, other.y - 240);
+    await expect(pill(page)).toBeHidden();
+    await expect(pill(page)).toHaveText('Projects');
 
     await prompt(page).click();
     await expect(deck(page)).toBeVisible();

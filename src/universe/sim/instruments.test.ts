@@ -13,6 +13,7 @@ import {
   markerShare,
   meridians,
   offBearing,
+  rangeShown,
   relativeBearing,
   systemAt,
   warpTier,
@@ -337,6 +338,28 @@ describe('the countdown', () => {
     expect(etaShown(3, Number.NaN)).toBe(3);
     expect(etaShown(Infinity, Number.NaN)).toBe(Infinity);
     expect(etaShown(Infinity, -1)).toBe(0);
+  });
+});
+
+describe('how far the minimap’s face reaches, as its chip says it', () => {
+  it('says metres to two figures, and kilometres to a tenth from 995 m', () => {
+    expect(rangeShown(77.7)).toEqual(['78', 'm']);
+    expect(rangeShown(134)).toEqual(['130', 'm']);
+    expect(rangeShown(466)).toEqual(['470', 'm']);
+    expect(rangeShown(994)).toEqual(['990', 'm']);
+    expect(rangeShown(995)).toEqual(['1.0', 'km']);
+    expect(rangeShown(1078)).toEqual(['1.1', 'km']);
+    expect(rangeShown(12_345)).toEqual(['12.3', 'km']);
+    expect(rangeShown(9.5)).toEqual(['9.5', 'm']);
+    expect(rangeShown(0)).toEqual(['0', 'm']);
+  });
+
+  it('never shows a figure in a form a chip cannot hold: no exponent, at most four characters', () => {
+    for (let units = 0; units < 60_000; units += 7.3) {
+      const [figures, unit] = rangeShown(units);
+      expect(figures, `${units}`).toMatch(/^\d{1,3}$|^\d{1,2}\.\d$/);
+      expect(['m', 'km']).toContain(unit);
+    }
   });
 });
 

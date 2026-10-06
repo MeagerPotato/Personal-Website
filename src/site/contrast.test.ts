@@ -82,8 +82,8 @@ describe('ink on every surface', () => {
       /\/\*[\s\S]*?\*\//g,
       '',
     );
-    // (The flight deck and the minimap's caption are no controls, but they sit on the same plate:
-    // the rule holds for them too.)
+    // (The flight deck and the minimap's pill and chip are no controls, but they sit on the same
+    // plate: the rule holds for them too. The minimap's ticks are ink.low, as marks: below.)
     const HUD_CONTROL =
       /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck|minimap)\b/;
     const offenders: string[] = [];
@@ -211,7 +211,7 @@ describe('the flight deck', () => {
 });
 
 describe('the minimap', () => {
-  // The map is a solid ground of its own, whatever is behind the plate. What the stylesheet
+  // The face is a solid ground of its own, whatever is behind the plate. What the stylesheet
   // paints it with is READ from it, so that another ground would be measured too.
   const [, stop = ''] =
     CSS.match(/\.minimap__map \{[^}]*?background: var\(--color-space-(\w+)\)/) ?? [];
@@ -223,20 +223,36 @@ describe('the minimap', () => {
     for (const key of THEME_KEYS) {
       expect(contrast(color.system[key].base, ground), key).toBeGreaterThanOrEqual(MARK);
     }
-    // Planned work's dashed outline; the ship, and the ring round what a pointer aims at.
+    // Planned work's dashed outline and the face's own rim; the ship, and the ring round what a
+    // pointer aims at.
     expect(contrast(color.ink.low, ground)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.ink.high, ground)).toBeGreaterThanOrEqual(MARK);
-    // "Here": the ring round the body the ship is at or headed for, and a journey's line.
+    // "Here": the ring round the body the ship is at or headed for, a journey's line, and its
+    // clock on the rim.
     expect(contrast(color.focus, ground)).toBeGreaterThanOrEqual(MARK);
     // The navy rim under a mark is darker than the ground it parts the mark from.
     expect(luminance(color.space[950])).toBeLessThan(luminance(ground));
   });
 
-  it('reads its caption on the plate over white', () => {
-    // What the map shows (ink.mid), the body it names (ink.high), a journey's seconds (butter).
+  it('reads its N on the face', () => {
+    // A letter, so held to what text is held to, in the ink the stylesheet gives it.
+    expect(CSS).toMatch(/\.minimap__north \{\s*fill: var\(--color-ink-mid\)/);
+    expect(contrast(color.ink.mid, ground)).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it('reads its pill and its chip on the plate over white', () => {
+    // What the scope shows and the chip's word and unit (ink.mid), the body the pill names and
+    // the chip's figures (ink.high), a journey's seconds (butter).
     expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
     expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
     expect(contrast(color.focus, HUD)).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it('draws its ticks plainly on the plate over white', () => {
+    // ink.low falls a hair short of text on this plate (above), and is never text on it; a tick
+    // is a mark. The stylesheet hands it over as a colour of its own, not as `color`.
+    expect(CSS).toMatch(/--minimap-tick: var\(--color-ink-low\)/);
+    expect(contrast(color.ink.low, HUD)).toBeGreaterThanOrEqual(MARK);
   });
 });
 

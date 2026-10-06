@@ -143,7 +143,10 @@ function setup(reducedMotion = false) {
     return [x, y];
   };
   const at = (row: number): [number, number] => placeOf(mark(row));
-  const caption = (): string => root.querySelector('.minimap__caption')?.textContent ?? '';
+  const pill = (): string => root.querySelector('.minimap__name')?.textContent ?? '';
+  /** What the chip says: its word, its figures and their unit. */
+  const chip = (): string =>
+    [...root.querySelectorAll('.minimap__range > *')].map((node) => node.textContent).join(' ');
   let stamp = 1000;
   const fire = (
     type: string,
@@ -184,7 +187,8 @@ function setup(reducedMotion = false) {
     shows,
     placeOf,
     at,
-    caption,
+    pill,
+    chip,
     fire,
     tap,
   };
@@ -204,8 +208,8 @@ function mapOn(reducedMotion = false) {
   return made;
 }
 
-/** A point of the map where nothing is: its top left corner, far from every mark of the test. */
-const NOWHERE = [6, 6] as const;
+/** A point of the face where nothing is: up and to the left, far from every mark of the test. */
+const NOWHERE = [25, 25] as const;
 
 describe('the minimap, as a thing on the page', () => {
   it('is a picture: hidden from assistive technology, with nothing to focus, last in the overlay', () => {
@@ -242,14 +246,14 @@ describe('the minimap, as a thing on the page', () => {
     const map = root.querySelector('.minimap__map') as SVGElement;
     // (Nothing can be measured here until it is told: then it draws to its smallest size.)
     draw();
-    expect(map.getAttribute('viewBox')).toBe('0 0 130 130');
-    map.getBoundingClientRect = () => ({ width: 166, height: 166 }) as DOMRect;
+    expect(map.getAttribute('viewBox')).toBe('0 0 120 120');
+    map.getBoundingClientRect = () => ({ left: 0, top: 0, width: 166, height: 166 }) as DOMRect;
     minimap.resize();
     expect(map.getAttribute('viewBox')).toBe('0 0 166 166');
     // Hidden, it has no size to measure, and keeps the one it had.
     world.room = false;
     draw();
-    map.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    map.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 }) as DOMRect;
     minimap.resize();
     expect(map.getAttribute('viewBox')).toBe('0 0 166 166');
   });
@@ -324,10 +328,11 @@ describe('when the minimap shows', () => {
 
 describe('what the minimap looks at', () => {
   it('is the galaxy from between systems: north up and +X to the left, suns and home only', () => {
-    const { root, shows, at, caption } = mapOn();
+    const { root, shows, at, pill, chip } = mapOn();
     expect(root.dataset.scope).toBe('galaxy');
-    expect(caption()).toBe('Galaxy');
-    expect(root.querySelector('.minimap__caption')?.hasAttribute('data-theme')).toBe(false);
+    expect(pill()).toBe('Galaxy');
+    expect(root.querySelector('.minimap__name')?.hasAttribute('data-theme')).toBe(false);
+    expect(chip()).toMatch(/^RANGE \d+(\.\d)? k?m$/);
     expect(shows(HOME)).toBe(true);
     expect(shows(SUN)).toBe(true);
     expect(shows(STATION)).toBe(false);
@@ -342,23 +347,23 @@ describe('what the minimap looks at', () => {
     for (const row of [HOME, SUN]) {
       for (const px of at(row)) {
         expect(px).toBeGreaterThan(0);
-        expect(px).toBeLessThan(130);
+        expect(px).toBeLessThan(120);
       }
     }
   });
 
   it('is the system the ship is in: its bodies in place, every other system a pin at the rim', () => {
-    const { root, enter, settle, shows, at, mark, caption } = mapOn();
+    const { root, enter, settle, shows, at, mark, pill, chip } = mapOn();
     enter(0);
     settle();
     expect(root.dataset.scope).toBe('home');
-    expect(caption()).toBe('Home');
-    expect(root.querySelector('.minimap__caption')?.getAttribute('data-theme')).toBe('butter');
+    expect(pill()).toBe('Home');
+    expect(root.querySelector('.minimap__name')?.getAttribute('data-theme')).toBe('butter');
     // Home in the middle, its station to the LEFT of it (+X), at the size its kind is given.
-    expect(at(HOME)).toEqual([65, 65]);
+    expect(at(HOME)).toEqual([60, 60]);
     expect(shows(STATION)).toBe(true);
-    expect(at(STATION)[0]).toBeLessThan(65);
-    expect(at(STATION)[1]).toBe(65);
+    expect(at(STATION)[0]).toBeLessThan(60);
+    expect(at(STATION)[1]).toBe(60);
     expect(Number(mark(STATION).getAttribute('r'))).toBeGreaterThanOrEqual(
       P.minRadiusPx.system.station,
     );
@@ -366,9 +371,10 @@ describe('what the minimap looks at', () => {
     expect(mark(SUN).hasAttribute('data-pin')).toBe(true);
     const [pinX, pinY] = at(SUN);
     // (On the circle of the pins: 45 degrees up and to the right of the middle of the face.)
-    const reach = (65 - P.rimInsetPx) / Math.SQRT2;
-    expect(pinX).toBeCloseTo(65 + reach, 1);
-    expect(pinY).toBeCloseTo(65 - reach, 1);
+    const reach = (60 - P.rimInsetPx) / Math.SQRT2;
+    expect(pinX).toBeCloseTo(60 + reach, 1);
+    expect(pinY).toBeCloseTo(60 - reach, 1);
+    expect(chip()).toMatch(/^RANGE \d+ m$/);
     expect(shows(PLANET)).toBe(false);
     expect(mark(HOME).hasAttribute('data-pin')).toBe(false);
   });
@@ -406,7 +412,7 @@ describe('what the minimap looks at', () => {
     const cut = mapOn(true);
     cut.enter(0);
     cut.draw(STEP);
-    expect(cut.at(HOME)).toEqual([65, 65]);
+    expect(cut.at(HOME)).toEqual([60, 60]);
     expect(cut.mark(SUN).hasAttribute('data-pin')).toBe(true);
   });
 
@@ -425,7 +431,7 @@ describe('what the minimap looks at', () => {
       at(HOME),
     );
     // As far out as the station is from home.
-    expect(Number(station?.getAttribute('r'))).toBeCloseTo(65 - (at(STATION)[0] ?? 0), 0);
+    expect(Number(station?.getAttribute('r'))).toBeCloseTo(60 - (at(STATION)[0] ?? 0), 0);
   });
 });
 
@@ -528,21 +534,21 @@ describe('pointing at the minimap', () => {
     expect(opened()).toBe(0);
   });
 
-  it('rings the mark a mouse is over and names it in the caption, until the mouse leaves', () => {
-    const { root, enter, settle, at, mark, caption, fire } = mapOn();
+  it('rings the mark a mouse is over and names it on the pill, until the mouse leaves', () => {
+    const { root, enter, settle, at, mark, pill, fire } = mapOn();
     const ring = root.querySelector('.minimap__aim') as Element;
-    const label = root.querySelector('.minimap__caption') as Element;
+    const label = root.querySelector('.minimap__name') as Element;
     expect(ring.hasAttribute('data-off')).toBe(true);
     fire('pointermove', at(SUN));
     expect(ring.hasAttribute('data-off')).toBe(false);
     expect([Number(ring.getAttribute('cx')), Number(ring.getAttribute('cy'))]).toEqual(at(SUN));
     expect(Number(ring.getAttribute('r'))).toBeGreaterThan(P.minRadiusPx.galaxy.sun);
-    expect(caption()).toBe('Software');
+    expect(pill()).toBe('Software');
     expect(label.getAttribute('data-theme')).toBe('sky');
     expect(label.hasAttribute('data-lit')).toBe(true);
     fire('pointerleave', at(SUN));
     expect(ring.hasAttribute('data-off')).toBe(true);
-    expect(caption()).toBe('Galaxy');
+    expect(pill()).toBe('Galaxy');
     expect(label.hasAttribute('data-lit')).toBe(false);
 
     // Planned work says so, as its name in the sky does.
@@ -550,36 +556,36 @@ describe('pointing at the minimap', () => {
     settle();
     expect(mark(MOON).hasAttribute('data-off')).toBe(false);
     fire('pointermove', at(MOON));
-    expect(caption()).toBe('Fish Online, Planned');
+    expect(pill()).toBe('Fish Online, Planned');
     expect(label.querySelector('.minimap__note')?.parentElement).toBe(label);
     fire('pointermove', at(PLANET));
-    expect(caption()).toBe('Days2Meet');
+    expect(pill()).toBe('Days2Meet');
     expect(label.querySelector('.minimap__note')).toBeNull();
   });
 
   it('aims again when the marks have moved under a mouse at rest', () => {
-    const { root, positions, draw, at, caption, fire } = mapOn();
+    const { root, positions, draw, at, pill, fire } = mapOn();
     fire('pointermove', at(SUN));
-    expect(caption()).toBe('Software');
+    expect(pill()).toBe('Software');
     // The sun goes elsewhere; the mouse stays.
     positions[4] = -300;
     positions[5] = 300;
     draw();
-    expect(caption()).toBe('Galaxy');
+    expect(pill()).toBe('Galaxy');
     expect(root.hasAttribute('data-pick')).toBe(false);
   });
 
   it('gives a finger the aim only while it is down, and only where it is clear which mark it means', () => {
-    const { root, world, enter, settle, picked, opened, at, caption, fire, tap } = mapOn();
+    const { root, world, enter, settle, picked, opened, at, pill, fire, tap } = mapOn();
     // A finger that only moves over the map (no press) aims at nothing.
     fire('pointermove', at(SUN), 'touch');
     expect(root.hasAttribute('data-pick')).toBe(false);
     fire('pointerdown', at(SUN), 'touch');
-    expect(caption()).toBe('Software');
+    expect(pill()).toBe('Software');
     fire('pointerup', at(SUN), 'touch', 90);
     expect(picked).toEqual([SUN]);
     // Lifted, it aims at nothing any more.
-    expect(caption()).toBe('Galaxy');
+    expect(pill()).toBe('Galaxy');
     expect(root.hasAttribute('data-pick')).toBe(false);
 
     // Between a planet and its moon, a few px apart, a finger means neither: its tap opens the
@@ -696,71 +702,200 @@ describe('a journey, read as fast forward', () => {
   });
 
   it('names where the journey is headed and counts its seconds down, never up', () => {
-    const { root, world, draw, at, fire } = mapOn();
-    const label = root.querySelector('.minimap__caption') as Element;
+    const { root, world, draw, at, chip, fire } = mapOn();
+    const label = root.querySelector('.minimap__name') as Element;
+    const range = root.querySelector('.minimap__range') as Element;
     const name = (): string => label.querySelector('b')?.textContent ?? '';
-    const seconds = (): string => label.querySelector('small')?.textContent ?? '';
     const path = wayFrom(0, -100, -900, 900);
-    expect(seconds()).toBe('');
+    // At rest the chip says how far the face reaches.
+    expect(chip()).toMatch(/^RANGE /);
+    expect(range.hasAttribute('data-eta')).toBe(false);
 
     world.target = SUN;
     world.journey = { path, index: 0, etaSec: 4.2 };
     draw(STEP);
     expect(name()).toBe('Software');
-    expect(seconds()).toBe('5 s');
+    expect(chip()).toBe('ETA 5 s');
+    expect(range.hasAttribute('data-eta')).toBe(true);
     expect(label.getAttribute('data-theme')).toBe('sky');
     expect(label.hasAttribute('data-lit')).toBe(true);
     // With the frame it changes in, not with the next turn of the marks.
     world.journey = { path, index: 4, etaSec: 3.9 };
     draw(STEP);
-    expect(seconds()).toBe('4 s');
+    expect(chip()).toBe('ETA 4 s');
     // The autopilot plans again and finds the way a little longer: the count does not go up.
     world.journey = { path, index: 6, etaSec: 4.6 };
     draw(STEP);
-    expect(seconds()).toBe('4 s');
+    expect(chip()).toBe('ETA 4 s');
     world.journey = { path, index: 20, etaSec: 1.5 };
     draw(STEP);
-    expect(seconds()).toBe('2 s');
+    expect(chip()).toBe('ETA 2 s');
 
-    // A pointer's aim comes first, and has no seconds; then the journey again.
+    // A pointer's aim comes first, and the chip speaks of the face again; then the journey.
     fire('pointermove', at(HOME));
     expect(name()).toBe('About Me');
-    expect(seconds()).toBe('');
+    expect(chip()).toMatch(/^RANGE /);
+    expect(range.hasAttribute('data-eta')).toBe(false);
     fire('pointerleave', at(HOME));
     expect(name()).toBe('Software');
-    expect(seconds()).toBe('2 s');
+    expect(chip()).toBe('ETA 2 s');
 
     // Sent on to another body while it flies: a new journey, counted from its own first plan.
     world.target = HOME;
     world.journey = { path: wayFrom(-450, 400, 0, 0), index: 0, etaSec: 8.5 };
     draw(STEP);
     expect(name()).toBe('About Me');
-    expect(seconds()).toBe('9 s');
+    expect(chip()).toBe('ETA 9 s');
     expect(label.getAttribute('data-theme')).toBe('butter');
 
-    // Arrived, or stopped: the caption says what the map shows again.
+    // Arrived, or stopped: the pill says what the scope shows again, and the chip how far.
     world.journey = null;
     world.target = -1;
     draw(STEP);
     expect(name()).toBe('Galaxy');
-    expect(seconds()).toBe('');
+    expect(chip()).toMatch(/^RANGE /);
+    expect(range.hasAttribute('data-eta')).toBe(false);
     expect(label.hasAttribute('data-lit')).toBe(false);
   });
 
   it('counts afresh when it comes back from the star map in the middle of a journey', () => {
-    const { root, world, draw } = mapOn();
-    const seconds = (): string => root.querySelector('.minimap__caption small')?.textContent ?? '';
+    const { world, draw, chip } = mapOn();
     const path = wayFrom(0, -100, -900, 900);
     world.target = SUN;
     world.journey = { path, index: 0, etaSec: 1.2 };
     draw(STEP);
-    expect(seconds()).toBe('2 s');
+    expect(chip()).toBe('ETA 2 s');
     // Stopped on the map and sent there again: another journey to the same body, a longer one.
     world.map = true;
     draw(STEP);
     world.journey = { path, index: 0, etaSec: 5.5 };
     world.map = false;
     draw(STEP);
-    expect(seconds()).toBe('6 s');
+    expect(chip()).toBe('ETA 6 s');
+  });
+
+  it('runs the rim down as the journey’s clock, and puts it away after', () => {
+    const { root, world, draw } = mapOn();
+    const clock = root.querySelector('.minimap__left') as SVGElement;
+    const gone = (): string => clock.style.getPropertyValue('--gone');
+    const path = wayFrom(0, -100, -900, 900);
+    expect(clock.hasAttribute('data-off')).toBe(true);
+
+    world.target = SUN;
+    world.journey = { path, index: 0, etaSec: 4.2 };
+    draw(STEP);
+    // Five seconds to go: it is told where to be when the chip counts one less, a fifth gone,
+    // and the stylesheet glides it there.
+    expect(clock.hasAttribute('data-off')).toBe(false);
+    expect(gone()).toBe('0.2');
+    world.journey = { path, index: 4, etaSec: 3.9 };
+    draw(STEP);
+    expect(gone()).toBe('0.4');
+    // The plan grows a little: the seconds do not go up, and the clock does not run back.
+    world.journey = { path, index: 6, etaSec: 4.6 };
+    draw(STEP);
+    expect(gone()).toBe('0.4');
+    world.journey = { path, index: 20, etaSec: 1.5 };
+    draw(STEP);
+    expect(gone()).toBe('0.8');
+    world.journey = { path, index: 20, etaSec: 0.4 };
+    draw(STEP);
+    expect(gone()).toBe('1');
+
+    // Sent on to another body: a new journey, and a clock of its own nine seconds.
+    world.target = HOME;
+    world.journey = { path: wayFrom(-450, 400, 0, 0), index: 0, etaSec: 8.5 };
+    draw(STEP);
+    expect(gone()).toBe('0.111');
+
+    // Arrived, or stopped: put away, to be wound up unseen.
+    world.journey = null;
+    world.target = -1;
+    draw(STEP);
+    expect(clock.hasAttribute('data-off')).toBe(true);
+    expect(gone()).toBe('0');
+  });
+
+  it('steps the clock with the seconds for a visitor who asked for less motion', () => {
+    const { root, world, draw } = mapOn(true);
+    const clock = root.querySelector('.minimap__left') as SVGElement;
+    const gone = (): string => clock.style.getPropertyValue('--gone');
+    const path = wayFrom(0, -100, -900, 900);
+    world.target = SUN;
+    world.journey = { path, index: 0, etaSec: 4.2 };
+    draw(STEP);
+    // Nothing glides: it shows the seconds as they stand, whole at the start.
+    expect(gone()).toBe('0');
+    world.journey = { path, index: 4, etaSec: 3.9 };
+    draw(STEP);
+    expect(gone()).toBe('0.2');
+    world.journey = { path, index: 20, etaSec: 0.4 };
+    draw(STEP);
+    expect(gone()).toBe('0.8');
+  });
+});
+
+describe('the scope, as an instrument', () => {
+  it('is the ball’s sibling in its parts: a pill, a plate with the face on it, a chip', () => {
+    const { root } = mapOn();
+    expect([...root.children].map((node) => node.className)).toEqual([
+      'minimap__name',
+      'minimap__plate',
+      'minimap__range',
+    ]);
+    const map = root.querySelector('.minimap__plate > .minimap__map') as Element;
+    expect(map).not.toBeNull();
+    // Under every mark: the two rings of dots (a third and two thirds of the way out) and north.
+    const order = [...map.children].map((node) => node.getAttribute('class') ?? node.tagName);
+    expect(order.slice(0, 3)).toEqual(['minimap__dots', 'minimap__dots', 'minimap__north']);
+    expect(
+      [...map.querySelectorAll('.minimap__dots')].map((ring) => [
+        ring.getAttribute('r'),
+        ring.getAttribute('pathLength'),
+      ]),
+    ).toEqual([
+      ['16.67%', '12'],
+      ['33.33%', '24'],
+    ]);
+    expect(map.querySelector('.minimap__north')?.textContent).toBe('N');
+    // Over every mark: the journey's clock, "here", a pointer's aim, and the ship on top.
+    expect(order.slice(-4)).toEqual([
+      'minimap__left',
+      'minimap__here',
+      'minimap__aim',
+      'minimap__ship',
+    ]);
+  });
+
+  it('measures a pointer from the face, wherever the face lies in its box', () => {
+    const { minimap, root, enter, settle, draw, at, picked, opened, pill, fire, tap } = mapOn();
+    // The face 14 px in and 27 px down in the instrument's box, as the stylesheet puts it.
+    const map = root.querySelector('.minimap__map') as SVGElement;
+    map.getBoundingClientRect = () => ({ left: 14, top: 27, width: 148, height: 148 }) as DOMRect;
+    root.getBoundingClientRect = () => ({ left: 0, top: 0, width: 176, height: 200 }) as DOMRect;
+    minimap.resize();
+    draw();
+    const inBox = ([x, y]: readonly [number, number]): [number, number] => [x + 14, y + 27];
+    fire('pointermove', inBox(at(SUN)));
+    expect(pill()).toBe('Software');
+    tap(inBox(at(SUN)));
+    expect(picked).toEqual([SUN]);
+
+    // From inside home the sun is a pin, 9 px inside the rim. A finger on the plate's band beside
+    // it, 12 px further out than the pin, means the pin: the band is part of the instrument.
+    enter(0);
+    settle();
+    const [pinX, pinY] = at(SUN);
+    const out = 12 / Math.hypot(pinX - 74, pinY - 74);
+    const beside: [number, number] = [pinX + (pinX - 74) * out, pinY + (pinY - 74) * out];
+    expect(Math.hypot(beside[0] - 74, beside[1] - 74)).toBeGreaterThan(74);
+    tap(inBox(beside), 'touch');
+    expect(picked).toEqual([SUN, SUN]);
+
+    // A tap on the pill, above the plate: nothing is there, so the star map opens.
+    expect(opened()).toBe(0);
+    tap([88, 10]);
+    expect(opened()).toBe(1);
+    expect(picked).toEqual([SUN, SUN]);
   });
 });

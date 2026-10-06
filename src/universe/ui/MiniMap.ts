@@ -3,7 +3,8 @@ import type { Frame, System } from '../core/Engine';
 import type { BodyKind } from '../data/types';
 import type { ThemeKey } from '../design/tokens';
 import type { ScreenBox } from '../sim/declutter';
-import { bearingOf, etaShown, type MiniSystem } from '../sim/instruments';
+import { bearingOf, etaShown, rangeShown, type MiniSystem } from '../sim/instruments';
+import { clamp } from '../sim/math';
 import {
   displayScales,
   fitView,
@@ -42,7 +43,7 @@ export interface MiniMapSystem extends MiniSystem {
   readonly id: string;
   readonly name: string;
   readonly theme: ThemeKey;
-  /** Id of the body at its heart: the mark that stands for the system when it is off the frame. */
+  /** Id of the body at its heart: the mark that stands for the system when it is off the face. */
   readonly center: string;
 }
 
@@ -98,7 +99,7 @@ export interface MiniMapOptions {
   mapOpen(): boolean;
   /** The visitor pointed at the body in this row: the canvas's own call (main.ts, `pickRow`). */
   onPick(row: number): void;
-  /** The visitor pressed the plate where nothing is: open the star map. */
+  /** The visitor pressed the instrument where nothing is: open the star map. */
   onMap(): void;
   params: MiniMapParams;
   /** A mouse's and a finger's reach, and what counts as a tap (tuning.picking). */
@@ -106,8 +107,8 @@ export interface MiniMapOptions {
   reducedMotion: boolean;
 }
 
-/** px. The map where nothing can be measured (no layout: a unit test): its smallest, less its rim. */
-const SIZE = 130;
+/** px. The face where nothing can be measured (no layout: a unit test): its smallest. */
+const SIZE = 120;
 /** px. The ring round the mark a pointer aims at stands this far off it... */
 const AIM_GAP = 2.5;
 /** ...and the ring round the body the ship is at or headed for, this far (2 px wide, 3 px off). */
@@ -122,22 +123,46 @@ const VIEW = ['x', 'z', 'span'] as const;
 const round = (value: number): number => Math.round(value * 10) / 10;
 
 /**
+ * A circle about the middle of its drawing that no script places again: its radius in percent
+ * of the drawing's width, and how many units its outline counts, which the stylesheet dashes it
+ * by (the dots of the range rings, the part of a journey that is left).
+ */
+function loop(className: string, parent: Element, radius: string, units: string): SVGElement {
+  const node = svg('circle', className, parent);
+  node.setAttribute('cx', '50%');
+  node.setAttribute('cy', '50%');
+  node.setAttribute('r', radius);
+  node.setAttribute('pathLength', units);
+  return node;
+}
+
+/**
  * THE MINIMAP (sim/minimap.ts has the maths): the star map at another size, at the bottom right
- * of the view. It looks at the whole galaxy, or at the system the ship is in, north up; nobody
- * pans or zooms it. Every body a ship can dock at that has room at that scale is a mark (a sun
- * and the home planet as their family's glyph, the rest as discs), every other system is a pin
- * at the rim, and the ship is a chevron.
+ * of the view, built as the flight deck's ball is (ui/FlightDeck.ts): a SCOPE. A round PLATE with
+ * a round FACE on it, a PILL fastened over its top and a CHIP under its bottom. The face looks at
+ * the whole galaxy, or at the system the ship is in, north up; nobody pans or zooms it. Every
+ * body a ship can dock at that has room at that scale is a mark (a sun and the home planet as
+ * their family's glyph, the rest as discs), every other system is a pin on a circle just inside
+ * the rim, and the ship is a chevron. Under the marks, and never moved: two rings of dots, a
+ * third and two thirds of the way out, and an N at the top.
  *
- * ONE GESTURE FOR EVERY POINTER. Down, or a move, AIMS: the mark gets a ring and the caption
- * names it. Up on an aimed mark is `onPick(row)`, the very call the canvas makes for a planet
- * pointed at; a tap where nothing is opens the star map (`onMap`), of which this is the preview;
- * a drag that ends on nothing does nothing. The wheel is not touched: it reaches the overlay,
- * where scrolling out opens the map already (ui/StarMap.ts).
+ * THE PILL NAMES, THE CHIP MEASURES. The pill says what the face shows (the galaxy, a system), or
+ * names a body: the one a pointer aims at, else the one a journey is headed for. The chip says
+ * how far the face reaches from its middle (RANGE: `rangeShown`), or on a journey the seconds it
+ * still takes (ETA).
+ *
+ * ONE GESTURE FOR EVERY POINTER. Down, or a move, AIMS: the mark gets a ring and the pill names
+ * it. Up on an aimed mark is `onPick(row)`, the very call the canvas makes for a planet pointed
+ * at; a tap where nothing is (on the face, the plate's band, the pill or the chip) opens the star
+ * map (`onMap`), of which this is the preview; a drag that ends on nothing does nothing. The
+ * corners of its box are the world's (the stylesheet's doing). The wheel is not touched: it
+ * reaches the overlay, where scrolling out opens the map already (ui/StarMap.ts).
  *
  * A JOURNEY READS AS FAST FORWARD HERE. The body the ship is at or headed for wears a butter
  * ring ("here"); while the autopilot flies, the way that is left is a butter line from the ship
- * to that ring, and the caption names the destination and counts the seconds down (`etaShown`:
- * never up, though the autopilot plans again twice a second).
+ * to that ring, the pill names the destination, and the chip counts the seconds down (`etaShown`:
+ * never up, though the autopilot plans again twice a second). And THE RIM IS THE JOURNEY'S CLOCK:
+ * a butter ring on it, whole when the journey starts, that a gap eats clockwise from twelve.
  *
  * IT IS A PICTURE of what real controls offer (the names in the sky, the Map button), so it is
  * `aria-hidden`, with nothing to focus: the canvas's own picking has no other standing either.
@@ -148,10 +173,12 @@ const round = (value: number): number => Math.round(value * 10) / 10;
  *   data-scope    galaxy, or the id of the system it is fitted to
  *   data-pick     a pointer aims at a mark (the cursor says so)
  *   on a mark     data-id, data-kind, data-theme, data-planned; data-pin at the rim; data-off
- *   the caption   data-theme (the family of what it names); data-lit (it names a body)
+ *   the pill      data-theme (the family of what it names); data-lit (it names a body)
+ *   the chip      data-eta (it counts a journey's seconds)
+ *   the clock     data-off (no journey); --gone, how much of the way round has run (0 to 1)
  *
- * A pointer is measured against where the plate RESTS: pressed, the plate drops onto its ledge,
- * and what was aimed at must not slip from under the pointer for it.
+ * A pointer is measured against where the instrument RESTS: pressed, all of it drops onto the
+ * plate's ledge, and what was aimed at must not slip from under the pointer for it.
  *
  * The ship is put in place every frame, the marks `bodiesHz` times a second (or every frame
  * while the view eases to another scope), and nothing at all while it does not show.
@@ -168,11 +195,18 @@ export class MiniMap implements System {
   /** The ring round the body the ship is at or headed for, and the way there that is left. */
   private readonly here: SVGElement;
   private readonly route: SVGElement;
-  private readonly caption: HTMLElement;
+  /** The rim as a journey's clock: the part of the ring that is left of it. */
+  private readonly left: SVGElement;
+  /** The pill over the plate: a glyph, a name (and "Planned" after planned work). */
+  private readonly pill: HTMLElement;
   private readonly label: HTMLElement;
   private readonly name = document.createTextNode('');
   private readonly note = plannedNote('minimap');
-  private readonly seconds: HTMLElement;
+  /** The chip under the plate: a word (RANGE, ETA), its figures, their unit. */
+  private readonly chip: HTMLElement;
+  private readonly word: HTMLElement;
+  private readonly figures: HTMLElement;
+  private readonly unit: HTMLElement;
 
   private readonly screen: ScreenMap;
   private readonly scales: Float64Array;
@@ -194,19 +228,23 @@ export class MiniMap implements System {
   /** The row the ring is round, and the row a journey is headed for (-1: none under way). */
   private target = -1;
   private goal = -1;
-  /** The seconds the caption counts down, and the line as last written. */
+  /** The seconds the chip counts down, those the journey began with, and the line as last written. */
   private eta = Infinity;
+  private whole = Infinity;
   private line = '';
   /** Does it show, as of the last frame? And was it drawn then (else the view starts afresh)? */
   private shows = false;
   private awake = false;
   private placedAt = -Infinity;
-  /** What the caption last said, and where the ship was last drawn: written only when they change. */
+  /** What the pill and the chip last said, and where the ship was last drawn: only written anew. */
   private said = '';
   private shipX = Number.NaN;
   private shipY = Number.NaN;
   private shipTurn = Number.NaN;
-  /** The pointer over the map, from the map's top left corner; a finger only while it is down. */
+  /** Where the face is in the instrument's own box (px from its top left corner). */
+  private inX = 0;
+  private inY = 0;
+  /** The pointer over the plate, from the face's top left corner; a finger only while it is down. */
   private over = false;
   private coarse = false;
   private px = 0;
@@ -221,7 +259,22 @@ export class MiniMap implements System {
     root.className = 'minimap';
     root.setAttribute('aria-hidden', 'true');
     root.hidden = true;
-    const map = (this.map = svg('svg', 'minimap__map', root));
+    // Above the plate, the pill: what the scope shows, or the name of a body.
+    this.pill = html('span', 'minimap__name', root);
+    html('i', '', this.pill);
+    this.label = html('b', '', this.pill);
+    this.label.append(this.name);
+    // The plate (its ticks are the stylesheet's own doing), and the face on it. Under everything
+    // on the face, the range rings (two rings of dots) and north.
+    const plate = html('span', 'minimap__plate', root);
+    const map = (this.map = svg('svg', 'minimap__map', plate));
+    loop('minimap__dots', map, '16.67%', '12');
+    loop('minimap__dots', map, '33.33%', '24');
+    const north = svg('text', 'minimap__north', map);
+    north.setAttribute('x', '50%');
+    north.setAttribute('y', '10');
+    north.setAttribute('dy', '0.35em');
+    north.textContent = 'N';
 
     const depth = bodies.map((body, row) => (docks[row] === 0 ? 0 : markDepth(body.kind)));
     // The circles first, under every mark, and a journey's line over them; then the marks, the
@@ -253,17 +306,17 @@ export class MiniMap implements System {
       flag(line, 'data-off', true);
       this.paths.push({ node: line, row });
     }
+    this.left = loop('minimap__left', map, '49.3%', '1');
     this.here = svg('circle', 'minimap__here', map);
     this.aim = svg('circle', 'minimap__aim', map);
-    for (const ring of [this.here, this.aim]) flag(ring, 'data-off', true);
+    for (const ring of [this.left, this.here, this.aim]) flag(ring, 'data-off', true);
     this.ship = svg('path', 'minimap__ship', map);
     this.ship.setAttribute('d', SHIP);
 
-    this.caption = html('span', 'minimap__caption', root);
-    html('i', '', this.caption);
-    this.label = html('b', '', this.caption);
-    this.label.append(this.name);
-    this.seconds = html('small', '', this.caption);
+    this.chip = html('span', 'minimap__range', root);
+    this.word = html('small', '', this.chip);
+    this.figures = html('b', '', this.chip);
+    this.unit = html('small', '', this.chip);
 
     this.screen = createScreenMap(count);
     this.scales = new Float64Array(count);
@@ -340,6 +393,18 @@ export class MiniMap implements System {
       ? etaShown(goal === this.goal ? this.eta : Infinity, journey.etaSec)
       : Infinity;
     const news = goal !== this.goal || eta !== this.eta;
+    if (news) {
+      // THE RIM IS THE JOURNEY'S CLOCK: whole at the seconds a journey begins with, and gone by
+      // the share of them that has run (`--gone`, 0 to 1: the stylesheet opens that much of a
+      // gap in the ring). Written with the seconds, as where it will be when the chip counts
+      // one less: the stylesheet glides it there, and under reduced motion, where nothing
+      // glides, it shows the seconds as they stand. Put away, the stylesheet winds it up again.
+      if (goal !== this.goal || !(this.whole < Infinity)) this.whole = eta;
+      const lead = options.reducedMotion ? 0 : 1;
+      const gone = eta < Infinity ? clamp(1 - (eta - lead) / Math.max(1, this.whole), 0, 1) : 0;
+      flag(this.left, 'data-off', goal < 0);
+      this.left.style.setProperty('--gone', `${Math.round(gone * 1000) / 1000}`);
+    }
     this.goal = goal;
     this.eta = eta;
 
@@ -390,7 +455,7 @@ export class MiniMap implements System {
     this.route.setAttribute('points', line);
   }
 
-  /** The viewport changed: the plate is sized by its height (`--minimap-size`). */
+  /** The viewport changed: the plate is sized by its height (`--minimap-size`), and the face by it. */
   resize(): void {
     this.shape();
   }
@@ -405,12 +470,18 @@ export class MiniMap implements System {
   }
 
   /**
-   * The map is as big as the stylesheet makes it: draw to that size, so that one unit of the
-   * drawing is one CSS px. Reads layout, so only where the size can have changed.
+   * The face is as big as the stylesheet makes it, and lies where the stylesheet puts it in the
+   * instrument's box (under the pill, inside the plate's band): draw to that size, so that one
+   * unit of the drawing is one CSS px, and note that place for the pointer. Reads layout, so
+   * only where either can have changed.
    */
   private shape(): void {
     if (this.root.hidden) return;
-    const size = round(this.map.getBoundingClientRect().width) || SIZE;
+    const face = this.map.getBoundingClientRect();
+    const box = this.root.getBoundingClientRect();
+    this.inX = face.left - box.left;
+    this.inY = face.top - box.top;
+    const size = round(face.width) || SIZE;
     if (size === this.frame.width && this.map.hasAttribute('viewBox')) return;
     this.frame.width = this.frame.height = size;
     this.map.setAttribute('viewBox', `0 0 ${size} ${size}`);
@@ -481,13 +552,16 @@ export class MiniMap implements System {
   private hit(ignore: number): number {
     const { options, px, py, coarse } = this;
     const { picking } = options;
-    const size = this.frame.width;
-    if (!this.over || px < 0 || py < 0 || px > size || py > size) return -1;
+    // (The plate reaches as far beyond the face as the face lies inside the instrument's box: a
+    // finger on the plate beside a pin means the pin.)
+    const edge = this.inX;
+    const size = this.frame.width + edge;
+    if (!this.over || px < -edge || py < -edge || px > size || py > size) return -1;
     const reach = coarse ? picking.touch : picking.mouse;
     return pickMini(this.screen, px, py, reach, coarse, options.params.ambiguityPx, ignore);
   }
 
-  /** Which mark does the pointer aim at? Ring it, say so, and say in the caption what matters now. */
+  /** Which mark does the pointer aim at? Ring it, and say on the pill and the chip what matters now. */
   private point(): void {
     const { options } = this;
     const { bodies, systems } = options;
@@ -497,39 +571,47 @@ export class MiniMap implements System {
     flag(this.root, 'data-pick', row >= 0);
     this.ring(this.aim, row, AIM_GAP);
 
-    // The caption: the body aimed at, in its family; else where a journey is headed, and the
-    // seconds it still takes; else what the map is fitted to.
+    // The pill: the body aimed at, in its family; else where a journey is headed; else what
+    // the scope is fitted to. The chip: the seconds that journey still takes; else how far the
+    // face reaches from its middle, which is half of what the view spans.
     const body = bodies[row < 0 ? this.goal : row];
     const system = systems[this.scope];
     const text = body ? body.title : system ? system.name : 'Galaxy';
     const theme = body ? body.theme : system?.theme;
     const planned = body?.planned === true;
-    const seconds = body && row < 0 && this.eta < Infinity ? `${this.eta} s` : '';
-    const say = `${text} ${theme} ${planned} ${row} ${seconds}`;
+    const counting = Boolean(body) && row < 0 && this.eta < Infinity;
+    // (Of the view it is HEADED for, not of the one easing there: the figure changes once when the
+    // scope does, and holds still while the face closes in.)
+    const [figures, unit] = counting ? [`${this.eta}`, 's'] : rangeShown(this.want.span / 2);
+    const say = `${text} ${theme} ${planned} ${row} ${figures}${unit}`;
     if (say === this.said) return;
     this.said = say;
     this.name.data = text;
-    this.seconds.textContent = seconds;
-    if (theme) this.caption.dataset.theme = theme;
-    else delete this.caption.dataset.theme;
-    flag(this.caption, 'data-lit', Boolean(body));
+    this.word.textContent = counting ? 'ETA' : 'RANGE';
+    this.figures.textContent = figures;
+    this.unit.textContent = unit;
+    flag(this.chip, 'data-eta', counting);
+    if (theme) this.pill.dataset.theme = theme;
+    else delete this.pill.dataset.theme;
+    flag(this.pill, 'data-lit', Boolean(body));
     // "Planned" stands after the name, in a box of its own: a long name gives way, it does not.
     if (planned) this.label.after(this.note);
     else this.note.remove();
   }
 
   /**
-   * The pointer is at this point of the window: aim from there. Measured against where the map
-   * RESTS: its place in the layout, whatever moves it for the moment (its arrival, the drop of a
-   * pressed plate), and asked each time, since the overlay's edge moves with the page's panel.
+   * The pointer is at this point of the window: aim from there, in px from the face's top left
+   * corner. Measured against where the instrument RESTS: its place in the layout, whatever moves
+   * it for the moment (its arrival, the drop of a pressed plate), and asked each time, since the
+   * overlay's edge moves with the page's panel. (Where the face lies in it is `shape`'s to say.)
    */
   private follow(event: PointerEvent): void {
     const { root } = this;
     const box = this.options.overlay.getBoundingClientRect();
     this.over = true;
     this.coarse = event.pointerType === 'touch';
-    this.px = event.clientX - box.left - root.offsetLeft - root.clientLeft;
-    this.py = event.clientY - box.top - root.offsetTop - root.clientTop;
+    this.px = event.clientX - box.left - root.offsetLeft - this.inX;
+    this.py = event.clientY - box.top - root.offsetTop - this.inY;
     this.point();
   }
 

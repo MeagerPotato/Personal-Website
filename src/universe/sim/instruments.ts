@@ -206,6 +206,15 @@ export function etaShown(previous: number, etaSec: number): number {
   return Math.min(previous, Math.ceil(Math.max(0, etaSec)));
 }
 
+/**
+ * A distance as the scope's chip says it, its figures and its unit: two figures, in metres under
+ * a kilometre ("470", "m") and in kilometres to a tenth from there ("1.1", "km"). A unit is a
+ * metre, as for the speed.
+ */
+export function rangeShown(units: number): [figures: string, unit: string] {
+  return units < 995 ? [`${Number(units.toPrecision(2))}`, 'm'] : [(units / 1000).toFixed(1), 'km'];
+}
+
 // --- whereabouts -----------------------------------------------------------------------------------
 
 /** As much of a system as "which one is the ship in" needs (the manifest's systems fit). */

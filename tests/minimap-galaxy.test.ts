@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildGalaxy, grow, readRealInput } from '../scripts/journeys/galaxies';
 import { buildUniverse } from '../src/universe/data/build';
@@ -38,7 +39,10 @@ import { createScreenMap, type ScreenMap } from '../src/universe/sim/screen';
 
 const P = tuning.minimap;
 const MOUSE = tuning.picking.mouse;
-/** The face, CSS px: its smallest and its largest (the plate less 28 px). */
+/**
+ * The face, CSS px: its smallest and its largest (the plate less 28 px). The first test below
+ * reads both from the stylesheet: change `--minimap-size` there, and these with it.
+ */
 const SIZES = [120, 156];
 /** Seconds: the bodies are on their way round. */
 const TIMES = [0, 137, 4321];
@@ -174,6 +178,27 @@ function* placesAbout(manifest: UniverseManifest, all: MapBounds) {
 
 const marks = (map: ScreenMap): number[] =>
   Array.from({ length: map.count }, (_, row) => row).filter((row) => (map.depth[row] ?? 0) > 0);
+
+describe('the faces every galaxy is fitted to', () => {
+  it('are the stylesheet’s: the plate at its least and at its most, less its ring and its band', () => {
+    const css = readFileSync(new URL('../src/styles/global.css', import.meta.url), 'utf8');
+    /** The lengths a rule gives in rem, as CSS px (a rem is 16 of them). */
+    const px = (pattern: RegExp): number[] => {
+      const found = css.match(pattern);
+      // A rewritten rule must fail here, not quietly leave an old size measured.
+      if (!found) throw new Error(`global.css no longer matches ${pattern}`);
+      return found.slice(1).map((rem) => Number(rem) * 16);
+    };
+    // The plate: `--minimap-size: clamp(least, by the view's height, most)`.
+    const [least = NaN, most = NaN] = px(
+      /--minimap-size: clamp\(([\d.]+)rem, [\d.]+svh, ([\d.]+)rem\)/,
+    );
+    // The face lies inside the plate's ring, and a band of plate inside that, all round.
+    const [ring = NaN] = px(/\.minimap__plate \{[^}]*?border: ([\d.]+)rem solid/);
+    const [band = NaN] = px(/\.minimap__map \{[^}]*?width: calc\(100% - ([\d.]+)rem\)/);
+    expect([least, most].map((plate) => plate - 2 * ring - band)).toEqual(SIZES);
+  });
+});
 
 describe('the galaxies themselves', () => {
   it('come in every shape: about square, wide and tall', () => {

@@ -1883,9 +1883,10 @@ main > .resume-name + .resume-contact {
     --deck-half: 7.5rem;
     --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
     --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
-    /* The minimap beside it (universe/ui/MiniMap.ts), by the view's height too: 132 px across in
-       a view up to 660 px tall, 144 at 720, 160 at 800, 168 from 840 up. */
-    --minimap-size: clamp(8.25rem, 20svh, 10.5rem);
+    /* The minimap's round plate (universe/ui/MiniMap.ts), by the view's height too: 148 px across
+       in a view up to 672 px tall, 176 at 800, 184 from 837 up. Its face is 28 px less
+       (tests/minimap-galaxy.test.ts reads this line, and fits every galaxy to both ends of it). */
+    --minimap-size: clamp(9.25rem, 22svh, 11.5rem);
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
@@ -3369,42 +3370,58 @@ main > .resume-name + .resume-contact {
 
   /*
    * THE MINIMAP (universe/ui/MiniMap.ts): the star map at another size, at the bottom right of
-   * the view. A square of the map's own ground (the page's dot grid, twice as fine) over a
-   * caption that says what it shows: the galaxy, or the system the ship is in. It is there
-   * wherever the deck has its full size, flying or docked, and goes while the star map is open.
+   * the view, as a SCOPE: the ball's sibling. The same round plate with the boost pad's ring,
+   * the same 14 px of plate round a face with an ink.low hairline for a rim, a pill fastened over
+   * its top (the speed pill's twin) and a chip under its bottom (the HDG chip's twin). Its plate
+   * stands on the ball's plate's line and its chip on the HDG chip's, at every size. What the ball
+   * has no use for, and this has: a ledge under the plate (it can be pressed), and a face of the
+   * map's own ground. It is there wherever the deck has its full size, flying or docked, and goes
+   * while the star map is open.
    *
-   * A sun and the home planet are their family's GLYPH, filled, with a navy rim; planets, docks
-   * and moons are discs in their family; planned work is hollow and dashed; the circles they
-   * travel on are hairlines in the family; a system that is off the map is its glyph in outline,
-   * pinned at the rim in its direction; the ship is a cream chevron. A pointer AIMS at a mark (a
-   * cream ring round it, its name in the caption) and flies there on release; a press where
-   * nothing is opens the star map. So the plate has a ledge, as whatever can be pressed has, and
-   * drops onto it while pressed. It is hidden from assistive technology: the names in the sky
-   * and the Map button are the real controls for all of it.
+   * What the engine writes:
    *
-   * BUTTER IS "HERE", as everywhere: a ring round the body the ship is at or headed for, the way
-   * that is left of a journey (a line from the ship to that ring), and the seconds it still
-   * takes, at the end of the caption.
+   *   .minimap                the box of all of it; hidden, data-shown, data-scope, data-pick
+   *     .minimap__name        the pill: <i> glyph, <b> name, the "Planned" note; data-theme,
+   *                           data-lit (it names a body)
+   *     .minimap__plate       the round plate; its ticks are a gradient on its ::before
+   *       svg.minimap__map    THE FACE: one unit of the drawing is one CSS px. Under the marks,
+   *                           two rings of dots and the N, which never move; over them, a
+   *                           journey's clock (.minimap__left)
+   *     .minimap__range       the chip: <small> RANGE or ETA, <b> the figures, <small> their
+   *                           unit; data-eta on a journey
    *
-   * The drawing carries classes and data attributes only: every fill and stroke is here, and
-   * src/site/contrast.test.ts reads the map's ground from here and holds every mark to it.
+   * ON THE FACE a sun and the home planet are their family's GLYPH, filled, with a navy rim;
+   * planets, docks and moons are discs in their family; planned work is hollow and dashed; the
+   * circles they travel on are hairlines in the family; a system that is off the face is its
+   * glyph in outline, pinned just inside the rim in its direction; the ship is a cream chevron.
+   * A pointer AIMS at a mark (a cream ring round it, its name on the pill) and flies there on
+   * release; a press where nothing is opens the star map. It is hidden from assistive technology:
+   * the names in the sky and the Map button are the real controls for all of it.
+   *
+   * BUTTER IS "HERE", as everywhere: a ring round the body the ship is at or headed for, and on a
+   * journey the way that is left (a line from the ship to that ring), its clock on the rim, and
+   * the seconds it still takes, on the chip.
+   *
+   * The drawing carries classes and data attributes only, and one number (--gone, for the
+   * clock): every fill and stroke is here, and src/site/contrast.test.ts reads the face's ground
+   * from here and holds every mark to it. Every circle that does not move has its geometry in
+   * percent of its own drawing, so no script measures or places it.
    */
   .minimap {
     position: absolute;
     right: max(var(--space-6), env(safe-area-inset-right));
     bottom: var(--deck-gap);
     width: var(--minimap-size);
-    overflow: hidden;
-    border: 1px solid var(--hud-edge);
-    border-radius: var(--radius-md);
-    color: var(--color-ink-mid);
-    background: var(--hud);
-    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.5rem;
+    /* The plate, with half a pill above it and half a chip below: the deck's own 1.5rem. So its
+       chip stands on the HDG chip's line, whatever the two plates measure. */
+    height: calc(var(--minimap-size) + 1.5rem);
+    color: var(--color-ink-high);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
     white-space: nowrap;
-    /* A finger on the map aims: it never scrolls or zooms the page, nor selects the caption. */
+    /* A finger on the scope aims: it never scrolls or zooms the page, nor selects a name. */
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
@@ -3423,16 +3440,50 @@ main > .resume-name + .resume-contact {
     }
   }
 
+  /* Only the plate and its two chips take a press: the corners of its box are the world's. (The
+     drawing on the plate is square, and so is the box its ticks are painted in: they take none,
+     and the round plate under them does.) */
+  #universe-overlay > .minimap,
+  .minimap__plate::before,
+  .minimap__map {
+    pointer-events: none;
+  }
+
+  .minimap > * {
+    position: absolute;
+    pointer-events: auto;
+  }
+
+  /*
+   * The plate: the deck's round plate (`.flight-deck__plate`: the same ring, the same ground,
+   * the same 0.8125rem under the top of its box), and under it the ledge of whatever can be
+   * pressed. Change the ring there, change it here: the round things of the HUD are one family.
+   */
+  .minimap__plate {
+    top: 0.8125rem;
+    left: 0;
+    width: var(--minimap-size);
+    height: var(--minimap-size);
+    border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+    border-radius: 50%;
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    transition: border-color var(--motion-fast) var(--motion-ease-out);
+  }
+
   @media (hover: hover) {
-    .minimap:hover {
-      border-color: var(--color-ink-low);
+    .minimap:hover .minimap__plate {
+      border-color: color-mix(in srgb, var(--color-ink-high) 80%, transparent);
     }
   }
 
-  /* Pressed: the plate drops onto its ledge. (The engine measures a pointer against where the
-     plate rests, so what was aimed at stays aimed at.) */
+  /* Pressed: the whole instrument drops onto the plate's ledge. (The engine measures a pointer
+     against where it rests, so what was aimed at stays aimed at.) */
   .minimap:active {
     translate: 0 var(--ledge);
+  }
+
+  .minimap:active .minimap__plate {
     box-shadow: none;
   }
 
@@ -3440,14 +3491,96 @@ main > .resume-name + .resume-contact {
     cursor: pointer;
   }
 
-  /* The map: one unit of the drawing is one CSS px (the engine sets its viewBox to this size). */
+  /*
+   * THE TICKS, on the plate: ten, one every 30 degrees where the ball has a meridian (north is up
+   * here, always, so they never move), and none at twelve and at six, where the pill and the chip
+   * are fastened over the plate. No element and no drawing: a gradient that goes round, on the
+   * plate's ::before, cut down to a band 4 px deep, from 6.5 to 10.5 px inside the plate's edge:
+   * half way between the ring and the face. A tick is a degree wide (1.1 to 1.5 px here), with
+   * half a degree of slope on either side: that slope is all the smoothing a gradient's edge
+   * gets, and the band's two ends slope over half a px for the same reason. The gradient repeats
+   * after half a turn and begins just before one o'clock. (The mask may be any opaque colour:
+   * only how opaque it is counts. A token, as every colour here is.)
+   *
+   * Tried first, and measured: one dashed circle with a `pathLength` of 360. On a dense screen
+   * its ticks stood up to half a px before their hours by the end of the circle in Chromium, and
+   * up to a third of a px after them in WebKit (the length a browser scales such dashes by is,
+   * it seems, not quite the length of the path it lays them on). A gradient has no length to
+   * measure.
+   */
+  .minimap__plate::before {
+    --minimap-tick: var(--color-ink-low);
+
+    content: '';
+    position: absolute;
+    inset: 0.21875rem;
+    background: repeating-conic-gradient(
+      from 29.25deg,
+      transparent 0deg,
+      var(--minimap-tick) 0.5deg 1deg,
+      transparent 1.5deg 30deg,
+      var(--minimap-tick) 30.5deg 31deg,
+      transparent 31.5deg 60deg,
+      var(--minimap-tick) 60.5deg 61deg,
+      transparent 61.5deg 90deg,
+      var(--minimap-tick) 90.5deg 91deg,
+      transparent 91.5deg 120deg,
+      var(--minimap-tick) 120.5deg 121deg,
+      transparent 121.5deg 180deg
+    );
+    mask: radial-gradient(
+      closest-side,
+      transparent calc(100% - 4.5px),
+      var(--color-ink-low) calc(100% - 4px) calc(100% - 0.5px),
+      transparent
+    );
+  }
+
+  /*
+   * THE FACE: the map, 14 px inside the plate's edge, as the ball is. Its ground is the map's
+   * own (space.900: the star map's navy, and the ground half of the ball), which
+   * src/site/contrast.test.ts reads from here and holds every mark to. Its rim is the ball's
+   * rim, a hairline in ink.low, drawn under the drawing. One unit of the drawing is one CSS px
+   * (the engine sets its viewBox to this size).
+   */
   .minimap__map {
-    display: block;
-    width: calc(var(--minimap-size) - 2px);
-    height: calc(var(--minimap-size) - 2px);
-    background: var(--color-space-900)
-      radial-gradient(circle, var(--color-space-700) 0.0625rem, transparent 0.09375rem) 0 0 /
-      0.75rem 0.75rem;
+    position: absolute;
+    top: 0.6875rem;
+    left: 0.6875rem;
+    overflow: hidden;
+    width: calc(100% - 1.375rem);
+    height: calc(100% - 1.375rem);
+    border-radius: 50%;
+    background: var(--color-space-900);
+    box-shadow: inset 0 0 0 1px var(--color-ink-low);
+  }
+
+  /*
+   * THE RANGE RINGS, in the house's own hand: the page's dot grid, drawn for a round face. A dot
+   * every 30 degrees a third of the way out and every 15 degrees at two thirds, so the dots lie
+   * 10 to 14 px apart on both (the page's grid: 12) and in line with the ticks; they stand at a
+   * third and at two thirds of what the chip says the face reaches. Dots, not lines: a line that
+   * goes round on this face is the path of a body, in its family's colour. (`pathLength` is the
+   * number of dots on the ring: a hair of a dash with a round cap is a dot. Not a dash of
+   * NOTHING: an engine may skip one.)
+   */
+  .minimap__dots {
+    fill: none;
+    stroke: var(--color-surface-line);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 0.01 0.99;
+  }
+
+  /* North: the ball's own letter, at the top of the face, under whatever is drawn there. */
+  .minimap__north {
+    fill: var(--color-ink-mid);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    font-size: 0.75rem;
+    text-anchor: middle;
   }
 
   /* A mark: its family's fill, and a navy rim (the stroke, painted first: half of it shows). */
@@ -3468,7 +3601,7 @@ main > .resume-name + .resume-contact {
     paint-order: normal;
   }
 
-  /* A system that is off the map: its glyph in outline, at the rim in its direction. */
+  /* A system that is off the scope: its glyph in outline, just inside the rim in its direction. */
   .minimap__mark[data-pin] {
     fill: var(--color-space-900);
     stroke: var(--theme-base);
@@ -3490,9 +3623,20 @@ main > .resume-name + .resume-contact {
     stroke-width: 1.5;
   }
 
-  /* "Here": the ring round the body the ship is at or headed for, and the way there. */
+  /*
+   * BUTTER IS "HERE": a ring round the body the ship is at or headed for, and on a journey the
+   * way that is left, a line from the ship to that ring. And THE RIM IS THE JOURNEY'S CLOCK: a
+   * butter ring lies on it, whole when the journey starts; a gap opens at twelve and grows
+   * clockwise as the seconds run out, until nothing is left. 2 px, the weight of everything
+   * butter on this face. Its `pathLength` is 1 and the engine writes one number, `--gone`, how
+   * much of the way round is gone (0 to 1), each time the seconds on the chip change; between
+   * two of them it glides, and under reduced motion (no transitions on the deck or here) it
+   * steps. (Turned a quarter back, so that the circle begins at twelve: nothing here moves by
+   * `transform`, and the engine writes none on it.)
+   */
   .minimap__here,
-  .minimap__route {
+  .minimap__route,
+  .minimap__left {
     fill: none;
     stroke: var(--color-focus);
     stroke-width: 2;
@@ -3500,11 +3644,23 @@ main > .resume-name + .resume-contact {
     stroke-linejoin: round;
   }
 
+  .minimap__left {
+    /* Nothing, then a gap as long as what is gone, then the rest of the way round. */
+    stroke-dasharray: 0 var(--gone, 0) 1;
+    stroke-linecap: butt;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition:
+      stroke-dasharray 1s linear,
+      opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
   /*
    * Locked on: the ring closes in on its mark, once, here and on the deck's ball (whose ring is
    * whole from the moment a journey or an approach is locked on). The stylesheet's doing alone:
    * it plays when a ring appears, and a journey sent on to another body while it flies keeps the
-   * ring it has.
+   * ring it has. (These three rules are the ball's mark's too: they live here, with the ring
+   * they were written for.)
    */
   .minimap__here:not([data-off]),
   .flight-deck__mark[data-lock] :is(.flight-deck__under, .flight-deck__over) {
@@ -3539,7 +3695,7 @@ main > .resume-name + .resume-contact {
     transition: opacity var(--motion-fast) var(--motion-ease-out);
   }
 
-  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here)[data-off] {
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here, .minimap__left)[data-off] {
     opacity: 0;
     visibility: hidden;
     transition:
@@ -3547,19 +3703,76 @@ main > .resume-name + .resume-contact {
       visibility 0s linear var(--motion-fast);
   }
 
-  /* The caption: what the map shows, in quiet ink behind its family's glyph (the galaxy has no
-     family, and no glyph); or, in bright ink, a body: the one a pointer aims at, else the one a
-     journey is headed for, with the seconds it still takes. 13 px, like a name in the sky; a
-     name too long for it gives way, and what follows it never does. */
-  .minimap__caption {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    height: 1.5rem;
-    padding-inline: var(--space-2);
+  /* Put away (the journey is over, or was stopped), the clock fades as it stands and winds
+     itself up again once it is out of sight: the next journey finds it whole. */
+  .minimap__left[data-off] {
+    stroke-dasharray: 0 0 1;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility 0s linear var(--motion-fast),
+      stroke-dasharray 0s linear var(--motion-fast);
   }
 
-  .minimap__caption i {
+  /*
+   * The two chips, fastened to the plate as the deck's are, half on it, half off, and made as
+   * the deck's are (`.flight-deck__speed`, `.flight-deck__hdg`): the plate under every chip, its
+   * edge, a pill's ends.
+   */
+  .minimap__name,
+  .minimap__range {
+    right: 0;
+    left: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    margin-inline: auto;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+  }
+
+  /*
+   * Above: what the scope shows (the galaxy, a system), in quiet ink behind its family's glyph;
+   * or, in bright ink, a body: the one a pointer aims at, else the one a journey is headed for.
+   * 13 px, like a name in the sky. A long name may reach a rem past the plate on either side, as
+   * the deck's top row reaches past its ball; a longer one gives way. (It fades when it rests,
+   * below: seen for as long as anything of it is, which is what a transition makes of
+   * `visibility`, both ways.)
+   */
+  .minimap__name {
+    top: 0;
+    right: -1rem;
+    left: -1rem;
+    gap: 0.375rem;
+    min-width: 4.5rem;
+    max-width: calc(100% + 2rem);
+    height: 1.625rem;
+    padding-inline: 0.625rem;
+    color: var(--color-ink-mid);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility var(--motion-fast);
+  }
+
+  /*
+   * Docked, the deck is away, somebody is reading, and the page beside the scope says where the
+   * ship is: the pill rests, and is back to name what a pointer aims at, or where a journey goes.
+   * That keeps the sky above the plate clear, where the carried ship passes on every turn round
+   * its planet (measured: docs/PLAN.md, "the minimap as a scope"). No script decides it: the deck
+   * comes before the minimap in the overlay, and is not shown exactly while the ship is docked.
+   * (No transition of its own here: this rule outweighs the one that stills the deck and the
+   * minimap for a visitor who asked for less motion, and the pill's own does not.)
+   */
+  .flight-deck:not([data-shown]) ~ .minimap .minimap__name:not([data-lit]) {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .minimap__name i {
     flex: none;
     width: 0.5rem;
     height: 0.5rem;
@@ -3568,37 +3781,47 @@ main > .resume-name + .resume-contact {
     scale: var(--theme-glyph-scale);
   }
 
-  .minimap__caption:not([data-theme]) i {
+  /* The galaxy has no family: it wears the wordmark's little line of three stations. (A body
+     without a family, should there ever be one, has no glyph.) */
+  .minimap__name:not([data-theme]) i {
+    width: 1.375rem;
+    height: 0.375rem;
+    background:
+      radial-gradient(circle closest-side, var(--color-system-coral-base) 92%, transparent) 0 50% /
+        0.375rem 0.375rem no-repeat,
+      radial-gradient(circle closest-side, var(--color-system-butter-base) 92%, transparent) 50%
+        50% / 0.375rem 0.375rem no-repeat,
+      radial-gradient(circle closest-side, var(--color-system-mint-base) 92%, transparent) 100%
+        50% / 0.375rem 0.375rem no-repeat,
+      linear-gradient(var(--color-ink-low), var(--color-ink-low)) 50% 50% / 90% 0.125rem no-repeat;
+    clip-path: none;
+    scale: none;
+  }
+
+  .minimap__name[data-lit]:not([data-theme]) i {
     display: none;
   }
 
-  .minimap__caption b {
+  .minimap__name b {
     overflow: hidden;
     min-width: 0;
     font-weight: inherit;
     text-overflow: ellipsis;
   }
 
-  .minimap__caption[data-lit] b {
+  /* What the scope shows is a district on a map, set as the sky sets a system's name; a body is
+     named as it is written, in bright ink. */
+  .minimap__name:not([data-lit]) b {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .minimap__name[data-lit] b {
     color: var(--color-ink-high);
   }
 
-  /* The seconds a journey still takes: butter, at the caption's end, each digit as wide as the
-     next. */
-  .minimap__caption small {
-    flex: none;
-    margin-left: auto;
-    color: var(--color-focus);
-    font-size: inherit;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .minimap__caption small:empty {
-    display: none;
-  }
-
-  /* "Planned" after the name of planned work (universe/ui/planned.ts), as on its name tag; the
-     comma before it is for a screen reader, and nothing here is read out. */
   .minimap__note {
     flex: none;
     font-size: 0.75rem;
@@ -3610,12 +3833,61 @@ main > .resume-name + .resume-contact {
     display: none;
   }
 
-  /* Forced colours: the map is the page's ground and its marks the page's text; what is hollow
-     stays hollow. An <svg> keeps its own colours unless told, so it is told. */
+  /*
+   * Below: the HDG chip's twin. How far the face reaches from its middle ("RANGE 1.1 km": a unit
+   * is a metre, as for the speed), and on a journey the seconds it still takes, in butter, which
+   * only count down.
+   */
+  .minimap__range {
+    bottom: 0;
+    gap: 0.375rem;
+    min-width: 4.5rem;
+    height: 1.375rem;
+    padding-inline: var(--space-2);
+  }
+
+  .minimap__range b {
+    font-weight: inherit;
+  }
+
+  .minimap__range small {
+    color: var(--color-ink-mid);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  .minimap__range[data-eta] :is(b, b + small) {
+    color: var(--color-focus);
+  }
+
+  .minimap__range b + small {
+    margin-left: -0.1875rem;
+  }
+
+  /* Forced colours: the plate and the face are the page's ground, the marks its text, and what
+     is butter the system's highlight. */
   @media (forced-colors: active) {
+    .minimap__plate::before,
     .minimap__map {
       forced-color-adjust: none;
+    }
+
+    .minimap__plate::before {
+      --minimap-tick: GrayText;
+    }
+
+    .minimap__map {
       background: Canvas;
+      box-shadow: inset 0 0 0 1px GrayText;
+    }
+
+    .minimap__dots {
+      stroke: GrayText;
+    }
+
+    .minimap__north {
+      fill: CanvasText;
+      stroke: Canvas;
     }
 
     .minimap__mark,
@@ -3639,13 +3911,18 @@ main > .resume-name + .resume-contact {
     }
 
     .minimap__here,
-    .minimap__route {
+    .minimap__route,
+    .minimap__left {
       stroke: Highlight;
     }
 
-    .minimap__caption i {
+    .minimap__name i {
       forced-color-adjust: none;
       background: CanvasText;
+    }
+
+    .minimap__name:not([data-theme]) i {
+      display: none;
     }
   }
 

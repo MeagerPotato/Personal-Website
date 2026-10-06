@@ -587,9 +587,11 @@ export const tuning = {
 
   /**
    * THE MINIMAP (ui/MiniMap.ts, sim/minimap.ts): the star map at another size, beside the flight
-   * deck. It looks at the whole galaxy, or at the system the ship is in; a press on a mark flies
-   * there. How it LOOKS is CSS (`.minimap`); these are the star map's own knobs (`map`, above)
-   * at its scale, and what is its own.
+   * deck and built as its ball is: a round face on a plate, a pill over it and a chip under it.
+   * It looks at the whole galaxy, or at the system the ship is in; a press on a mark flies
+   * there. How it LOOKS is CSS (`.minimap`: the plate and its ticks, the pill, the chip, the
+   * rings of dots); these are the star map's own knobs (`map`, above) at its scale, and what is
+   * its own.
    */
   minimap: {
     /**
@@ -618,13 +620,13 @@ export const tuning = {
     /** ...and no mark under this (radius, CSS px) is drawn at all. */
     minVisiblePx: 1.5,
     /**
-     * A system off the face is a mark at the rim, rimInsetPx inside the edge in its direction
-     * and rimRadiusPx in radius: always one press away, clear of the ring that lies on the rim
-     * while a journey lasts (2 px of it, and 1.5 px of air), and with the whole of a finger's
-     * 44 px on the plate. (The face is round: on the view that shows all of the galaxy, a
-     * system at its edge stands (R - fitPadPx) / fitMargin from the middle of a face of radius
-     * R. Keep rimInsetPx under what is left of R, 10.4 px on the smallest face of 120 px, or
-     * that system is pinned there.)
+     * A system off the face is a mark on a CIRCLE rimInsetPx inside the face's edge, on the line
+     * to where it is, and rimRadiusPx in radius: always one press away, clear of the ring that
+     * lies on the rim while a journey lasts (its clock: 2 px of it, and 1.5 px of air), and with
+     * the whole of a finger's 44 px on the plate. (The face is round: on the view that shows all
+     * of the galaxy, a system at its edge stands (R - fitPadPx) / fitMargin from the middle of a
+     * face of radius R. Keep rimInsetPx under what is left of R, 10.4 px on the smallest face of
+     * 120 px, or that system is pinned there.)
      */
     rimInsetPx: 9,
     rimRadiusPx: 4.5,
