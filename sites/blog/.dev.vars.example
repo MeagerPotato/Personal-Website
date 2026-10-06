@@ -2,5 +2,6 @@
 RP_ID=localhost
 ORIGIN=http://localhost:4322
 SETUP_TOKEN=local-setup-code
-# Mail stays in the outbox instead of being sent; GET /api/test/mailbox shows it.
-E2E_MAILBOX=1
+# The email list is off, as in production. To work on it, uncomment: mail then stays in the
+# outbox instead of being sent, and GET /api/test/mailbox shows it.
+# E2E_MAILBOX=1

@@ -43,8 +43,8 @@ export default defineConfig({
       designTokens(),
       appIcons({
         mark: 'blog',
-        name: 'Captain’s Log',
-        shortName: 'Log',
+        name: 'Allen Hsieh',
+        shortName: 'Blog',
         description: 'Allen’s blog.',
       }),
     ],

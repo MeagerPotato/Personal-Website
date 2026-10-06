@@ -33,7 +33,7 @@ let env: BlogEnv;
 let mail: FakeMail;
 beforeEach(async () => {
   mail = new FakeMail();
-  env = await freshEnv(platform, { EMAIL: mail, MAIL_FROM: 'Captain’s Log <allen@allenkh.com>' });
+  env = await freshEnv(platform, { EMAIL: mail, MAIL_FROM: 'Allen Hsieh <allen@allenkh.com>' });
 });
 
 /** A published post to comment on, written straight into the table. */
@@ -196,9 +196,9 @@ describe('subscribing by email', () => {
     const [confirm] = mail.sent;
     expect(confirm).toMatchObject({
       to: 'reader@example.com',
-      subject: 'Confirm your subscription to Captain’s Log',
+      subject: 'Confirm your subscription to Allen Hsieh',
     });
-    expect(confirm?.from).toEqual({ email: 'allen@allenkh.com', name: 'Captain’s Log' });
+    expect(confirm?.from).toEqual({ email: 'allen@allenkh.com', name: 'Allen Hsieh' });
 
     const target = await post();
     // Not confirmed yet: nobody gets the post.

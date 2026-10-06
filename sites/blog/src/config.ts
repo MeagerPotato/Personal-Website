@@ -1,9 +1,9 @@
 /**
- * The blog's words about itself, in one place. "Captain’s Log" is the working name from the main
- * site's plan (docs/PLAN.md, decision 19): Allen's to change.
+ * The blog's words about itself, in one place. The name is Allen's choice (2026-10-05): the blog
+ * goes by its writer's name. The description is still a working one: Allen's to change.
  */
 export const site = {
-  title: 'Captain’s Log',
+  title: 'Allen Hsieh',
   description: 'Allen’s blog: notes on building things, and on what they teach.',
   author: 'Allen',
   /** The main site, where "Allen" leads. */

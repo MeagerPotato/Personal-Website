@@ -38,7 +38,7 @@ export interface BlogEnv {
   readonly TURNSTILE_SECRET?: string;
 
   /**
-   * End-to-end tests only (tests/e2e/e2e.env): mail is kept in the outbox instead of sent, and
+   * Tests and the dev server only (.dev.vars): mail is kept in the outbox instead of sent, and
    * GET /api/test/mailbox shows it. Never set in wrangler.jsonc.
    */
   readonly E2E_MAILBOX?: string;

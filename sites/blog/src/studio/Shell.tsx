@@ -86,7 +86,7 @@ function NavLink({ item, route, count }: { item: NavItem; route: Route; count: n
   );
 }
 
-function Screen({ route }: { route: Route }) {
+function Screen({ route, mailOff }: { route: Route; mailOff: boolean }) {
   switch (route.name) {
     case 'posts':
       return <Posts />;
@@ -95,7 +95,7 @@ function Screen({ route }: { route: Route }) {
     case 'comments':
       return <Comments />;
     case 'subscribers':
-      return <Subscribers />;
+      return mailOff ? <Missing /> : <Subscribers />;
     case 'organize':
       return <Organize />;
     case 'settings':
@@ -138,6 +138,9 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
     };
   }, [route.name]);
 
+  // Email is off until it is set up (the runbook's §7): until then the studio has no list to show.
+  const mailOn = overview?.mail.ready ?? false;
+  const nav = NAV.filter((item) => mailOn || item.route.name !== 'subscribers');
   const pending = overview?.pendingComments ?? 0;
   const counts = (item: NavItem) => (item.route.name === 'comments' ? pending : 0);
 
@@ -150,7 +153,7 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
             <span>Studio</span>
           </div>
           <div className="sidebar__list">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <NavLink key={item.label} item={item} route={route} count={counts(item)} />
             ))}
           </div>
@@ -166,10 +169,10 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
           </div>
         </nav>
         <main className="main" id="main">
-          <Screen route={route} />
+          <Screen route={route} mailOff={overview !== null && !mailOn} />
         </main>
         <nav className="tabbar" aria-label="Studio">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink key={item.label} item={item} route={route} count={counts(item)} />
           ))}
         </nav>

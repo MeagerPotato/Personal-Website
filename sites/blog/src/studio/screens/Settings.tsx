@@ -1,6 +1,6 @@
 /**
- * The studio's passkeys (one per device you write on; add, rename, remove), signing out, and
- * whether email is set up.
+ * The studio's passkeys (one per device you write on; add, rename, remove), signing out, and,
+ * once email is set up, how it is doing.
  */
 import { KeyRound, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -158,24 +158,17 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="settings__section" aria-labelledby="email-title">
-        <h2 id="email-title" className="settings__title">
-          Email
-        </h2>
-        {mail === null ? (
-          <p className="hint">Checking…</p>
-        ) : mail.ready ? (
+      {mail?.ready ? (
+        <section className="settings__section" aria-labelledby="email-title">
+          <h2 id="email-title" className="settings__title">
+            Email
+          </h2>
           <p>
             Set up: readers can subscribe, and each post can be emailed to them once.
             {mail.failed > 0 ? ` ${mail.failed} could not be delivered.` : ''}
           </p>
-        ) : (
-          <p>
-            Not set up yet, so the blog doesn’t offer subscribing. The steps are in the blog’s
-            runbook (sites/docs/runbooks/blog-setup.md).
-          </p>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       <section className="settings__section" aria-labelledby="session-title">
         <h2 id="session-title" className="settings__title">

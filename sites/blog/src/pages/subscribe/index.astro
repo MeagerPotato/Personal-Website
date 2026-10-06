@@ -1,5 +1,6 @@
 ---
-/** Subscribing by email (double opt-in), or the feed. */
+/** Subscribing by email (double opt-in), or the feed. While email is off, there is no such page. */
+import NotFound from '../../components/NotFound.astro';
 import Base from '../../layouts/Base.astro';
 import { HONEYPOT } from '../../server/forms';
 import { subscribePage } from '../../server/pages';
@@ -7,67 +8,68 @@ import { blogEnv } from '../../site/env';
 
 const page = await subscribePage(blogEnv(), Astro.request);
 if (page.kind === 'redirect') return Astro.redirect(page.location, page.status);
-const state = page.kind === 'subscribe' ? page : null;
+if (page.kind === 'missing') Astro.response.status = 404;
 ---
 
-<Base
-  title="Subscribe"
-  path="/subscribe/"
-  current="subscribe"
-  description="New posts from Allen’s blog, by email or RSS."
->
-  <header class="page-header">
-    <h1 class="page-title">Subscribe</h1>
-    <p class="page-lede">Each new post, by email or in your feed reader.</p>
-  </header>
-  {!state?.mailOn ? (
-    <p>
-      Email subscriptions are not open yet. Meanwhile, the <a href="/rss.xml">RSS feed</a> has every
-      post.
-    </p>
-  ) : state.sent ? (
-    <div class="notice" role="status">
-      <p>
-        <strong>Check your inbox.</strong> A confirmation is on its way: click the link in it, and
-        each new post will arrive by email.
-      </p>
-    </div>
-  ) : (
-    <form class="subscribe-form" method="post" action="/subscribe/">
-      {state.form.error && (
-        <p class="form-error" role="alert">
-          {state.form.error}
+{page.kind === 'subscribe' ? (
+  <Base
+    title="Subscribe"
+    path="/subscribe/"
+    current="subscribe"
+    description="New posts from Allen’s blog, by email or RSS."
+  >
+    <header class="page-header">
+      <h1 class="page-title">Subscribe</h1>
+      <p class="page-lede">Each new post, by email or in your feed reader.</p>
+    </header>
+    {page.sent ? (
+      <div class="notice" role="status">
+        <p>
+          <strong>Check your inbox.</strong> A confirmation is on its way: click the link in it, and
+          each new post will arrive by email.
         </p>
-      )}
-      <input type="hidden" name="t" value={state.form.token} />
-      <label class="field">
-        <span>Email address</span>
-        <input
-          class="input"
-          type="email"
-          name="email"
-          autocomplete="email"
-          inputmode="email"
-          maxlength="254"
-          required
-          value={state.form.email}
-        />
-      </label>
-      <div class="hp">
-        <label>
-          Leave this empty <input name={HONEYPOT} tabindex="-1" autocomplete="off" />
-        </label>
       </div>
-      <button class="button button--primary" type="submit">
-        Subscribe
-      </button>
-      <p class="form-note">
-        One email per new post and nothing else. Every email has a one-click unsubscribe link. Your
-        address is kept only for this, and never shared.
-      </p>
-    </form>
-  )}
-  <p class="aside-line">
-    Prefer a feed reader? <a href="/rss.xml">The RSS feed</a> has every post in full.
-  </p>
-</Base>
+    ) : (
+      <form class="subscribe-form" method="post" action="/subscribe/">
+        {page.form.error && (
+          <p class="form-error" role="alert">
+            {page.form.error}
+          </p>
+        )}
+        <input type="hidden" name="t" value={page.form.token} />
+        <label class="field">
+          <span>Email address</span>
+          <input
+            class="input"
+            type="email"
+            name="email"
+            autocomplete="email"
+            inputmode="email"
+            maxlength="254"
+            required
+            value={page.form.email}
+          />
+        </label>
+        <div class="hp">
+          <label>
+            Leave this empty <input name={HONEYPOT} tabindex="-1" autocomplete="off" />
+          </label>
+        </div>
+        <button class="button button--primary" type="submit">
+          Subscribe
+        </button>
+        <p class="form-note">
+          One email per new post and nothing else. Every email has a one-click unsubscribe link.
+          Your address is kept only for this, and never shared.
+        </p>
+      </form>
+    )}
+    <p class="aside-line">
+      Prefer a feed reader? <a href="/rss.xml">The RSS feed</a> has every post in full.
+    </p>
+  </Base>
+) : (
+  <Base title="Not found" path="/subscribe/" noindex>
+    <NotFound />
+  </Base>
+)}
