@@ -16,6 +16,7 @@ import { boot, type Booted, type ViewInset } from './main';
 import { galaxyKey, readManifest } from './manifest';
 import { FLIGHT, type AppState } from './state/appMachine';
 import type { NavigatorEvents } from './state/Navigator';
+import type { SkyState } from './world/SkyBake';
 
 export type { QualityTier } from './core/quality/tiers';
 export type { StartOptions } from './core/snapshot';
@@ -30,6 +31,10 @@ export async function createLab(options: {
   mount: HTMLElement;
   quality?: QualityTier;
   onQuality(tier: QualityTier): void;
+  /** What to show, from the page's address (lab/LabScene.ts, `LabOptions.query`). */
+  query?: ReadonlyMap<string, string>;
+  /** The lab's first frame is on the screen. */
+  onReady?(): void;
 }): Promise<{ dispose(): void }> {
   if (import.meta.env.DEV) {
     const { bootLab } = await import('./lab/LabScene');
@@ -37,6 +42,8 @@ export async function createLab(options: {
       mount: options.mount,
       tier: isTier(options.quality) ? options.quality : 'high',
       onTier: options.onQuality,
+      ...(options.query ? { query: options.query } : {}),
+      ...(options.onReady ? { onReady: options.onReady } : {}),
     });
   }
   throw new Error('the lab exists in development only');
@@ -107,6 +114,12 @@ export type UniverseEvents = {
   undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
+  /**
+   * The baked sky (the Milky Way's haze, far galaxies): `baking` from the first frame, while
+   * the sky is still only navy and stars, then `ready`, or `off` where it cannot be painted (it
+   * stays navy and stars). Again after every rebuild of the engine.
+   */
+  sky: { state: SkyState };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -268,6 +281,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       mapOpen = open;
       events.emit('map', { open });
     },
+    onSky: (state: SkyState): void => events.emit('sky', { state }),
     onContextLost: (): void => {
       if (disposed || !current || !deliverPending()) return;
       const snapshot = (last = current.snapshot());

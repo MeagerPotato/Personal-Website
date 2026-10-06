@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { bead, fin, FONT, pix, text, tile } from './atoms';
-import { centroidOf, dot, normalOf, type Vec3 } from './kit';
+import { bead, BEAD_SIDES, fin, FONT, pix, text, tile } from './atoms';
+import { centroidOf, corner, dot, normalOf, type Vec3 } from './kit';
 
 // The atoms' triangle counts are the vocabulary's (section 4.1).
 
 const WHITE: Vec3 = [1, 1, 1];
 
 describe('the atoms', () => {
-  it('makes a bead, an octahedron of 8 triangles facing out', () => {
+  it('makes a bead, a ball: sides x (bands - 1) x 2 triangles facing out, lit as a ball', () => {
     const tris = bead(0.1, WHITE);
-    expect(tris).toHaveLength(8);
+    expect(BEAD_SIDES).toBe(6);
+    expect(tris).toHaveLength(24);
     expect(tris.every((t) => dot(normalOf(t), centroidOf(t)) > 0)).toBe(true);
+    const fine = bead(0.1, WHITE, 16);
+    expect(fine).toHaveLength(16 * 7 * 2);
+    for (const t of [...tris, ...fine]) {
+      for (let v = 0; v < 3; v += 1) {
+        const at = corner(t, v);
+        // On the ball, and its normal within a band's turn of straight out (exactly so at a pole).
+        expect(Math.hypot(...at)).toBeCloseTo(0.1, 6);
+        const n = corner({ ...t, p: Array.from(t.n ?? []) }, v);
+        expect(dot(n, at) / 0.1).toBeGreaterThan(0.86);
+        if (Math.abs(at[1]) > 0.0999) expect(Math.abs(n[1])).toBeCloseTo(1, 6);
+      }
+    }
   });
 
   it('makes a tile, a flat n-gon of n - 2 triangles facing up', () => {

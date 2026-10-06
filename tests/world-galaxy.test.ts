@@ -186,7 +186,7 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
-  it('draws a sun’s world with the key light’s material: its ball glows, its signs are flat', () => {
+  it('draws a sun’s world in a material of its own, lit by the key light: its ball glows in tones, its signs are flat', () => {
     const { galaxy, world, finish } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
@@ -194,12 +194,88 @@ describe('the real galaxy, drawn from its rows', () => {
       const mesh = world(sun.id).getObjectByName('far:hold') as Mesh;
       const material = mesh.material as ToonMaterial;
       expect(material.uniforms.uSunPosition.value.equals(KEY_LIGHT_POSITION), sun.id).toBe(true);
+      // The SUN variant, with the ladder of its own family: no planet shares it.
+      expect(material.defines).toHaveProperty('SUN');
+      expect(material.uniforms).toHaveProperty('uSunTone');
       const unlit = mesh.geometry.getAttribute('aUnlit');
-      const kinds = new Set(Array.from(unlit.array));
-      // Nothing of it is lit: the ball glows (2), the rest is flat (1). Except Hardware's gears
-      // (design/worlds/gears.ts), which glow too: flat beside the ball's halo they would wash out.
-      expect([...kinds].sort(), sun.id).toEqual(sun.id === 'system/hardware' ? [2] : [1, 2]);
+      const kinds = [...new Set(Array.from(unlit.array))].sort((a, b) => a - b);
+      // Nothing of it is lit: the ball glows, every facet flagged as the surface with the sun's
+      // own number above 6 (sim/sunSurface.ts, `sunFlag`), and the rest is flat (1). Except
+      // Hardware: its frame ball and its gears (design/worlds/gears.ts) are plain glow (2); flat
+      // beside the halo they would wash out.
+      if (sun.id === 'system/hardware') expect(kinds, sun.id).toEqual([2]);
+      else {
+        expect(kinds, sun.id).toHaveLength(2);
+        expect(kinds[0], sun.id).toBe(1);
+        expect(kinds[1], sun.id).toBeGreaterThanOrEqual(6);
+        expect(kinds[1], sun.id).toBeLessThan(16);
+      }
     }
+    // Two suns of one family would share a material; these four are four families.
+    const materials = withRows
+      .filter((body) => body.kind === 'sun')
+      .map((sun) => (world(sun.id).getObjectByName('far:hold') as Mesh).material);
+    expect(new Set(materials).size).toBe(materials.length);
+    galaxy.dispose();
+  });
+
+  it('gives each world with air a material of its own, in its light, round its own centre', () => {
+    const { galaxy, node, world, finish } = setup();
+    finish();
+    galaxy.frameUpdate(frame(1));
+    const surfaceOf = (id: string): ToonMaterial => {
+      const mesh = (world(id).getObjectByName('far:turn') ??
+        world(id).getObjectByName('far:hold')) as Mesh;
+      return mesh.material as ToonMaterial;
+    };
+    const airs = Object.keys(tuning.look.air.worlds);
+    expect(galaxy.airWorlds.map((air) => air.id).sort()).toEqual([...airs].sort());
+    for (const air of galaxy.airWorlds) {
+      const material = surfaceOf(air.id);
+      expect(material.defines, air.id).toHaveProperty('AIR');
+      // The very vector that moves with the world, and the very light its neighbours are lit by.
+      expect(material.uniforms.uAirCenter?.value, air.id).toBe(node(air.id).position);
+      expect(material.uniforms.uSunPosition.value, air.id).toBe(air.light);
+      expect(air.row, air.id).toBe(galaxy.orbits.indexOf(air.id));
+    }
+    expect(new Set(airs.map(surfaceOf)).size).toBe(airs.length);
+    // Home is lit by the key light; a planet by its sun, wherever that is this frame.
+    const home = galaxy.airWorlds.find((air) => air.id === 'page/about');
+    expect(home?.light.equals(KEY_LIGHT_POSITION)).toBe(true);
+    const calHacks = galaxy.airWorlds.find((air) => air.id === 'project/cal-hacks-13');
+    expect(calHacks?.light.equals(node('system/hackathons').position)).toBe(true);
+    // A world without air keeps the one material of its light, shared with its neighbours.
+    expect(surfaceOf('project/days2meet').defines).not.toHaveProperty('AIR');
+    expect(surfaceOf('project/days2meet')).toBe(surfaceOf('project/fishai'));
+    galaxy.dispose();
+  });
+
+  it('lights lamps on home’s night side up close, and nowhere else', async () => {
+    const { galaxy, viewer, node, world, finish } = setup();
+    finish();
+    galaxy.frameUpdate(frame(1));
+    await Promise.resolve();
+    const lampsIn = (id: string, tier: string): number => {
+      let lamps = 0;
+      world(id).traverse((child) => {
+        if (!child.name.startsWith(`${tier}:`) || !('geometry' in child)) return;
+        const unlit = (child as Mesh).geometry.getAttribute('aUnlit');
+        if (unlit) for (const value of Array.from(unlit.array)) if (value === 3) lamps += 1;
+      });
+      return lamps;
+    };
+    for (const id of ['page/about', 'project/cal-hacks-13']) {
+      viewer.position.copy(node(id).position).add(new Vector3(0, 0, -30));
+      galaxy.frameUpdate(frame(1));
+      finish();
+      galaxy.frameUpdate(frame(1));
+    }
+    // Four triangles a lamp, three corners each; in the group that turns with the ground.
+    expect(lampsIn('page/about', 'near')).toBe(tuning.look.air.windows.most * 12);
+    expect(lampsIn('page/about', 'far')).toBe(0);
+    expect(lampsIn('project/cal-hacks-13', 'near')).toBe(0);
+    const turn = world('page/about').getObjectByName('near:turn') as Mesh;
+    expect(Array.from(turn.geometry.getAttribute('aUnlit').array)).toContain(3);
     galaxy.dispose();
   });
 

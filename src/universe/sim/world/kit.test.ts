@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TAU } from '../math';
+import { ROUND_FROM } from '../meshBuilder';
 import {
+  bent,
+  AS_WRITTEN,
   box,
   brg,
   centroidOf,
@@ -19,6 +22,7 @@ import {
   rotm,
   mulM,
   rq,
+  sidesFor,
   sub,
   tri,
   xf,
@@ -104,6 +108,199 @@ describe('the kit', () => {
     expect(wave.map((t) => t.c)).toEqual(
       Array.from({ length: 16 }, (_, i) => [i % 2 ? BLUE : RED, i % 2 ? BLUE : RED]).flat(),
     );
+  });
+
+  // --- round or edged --------------------------------------------------------------------------
+
+  /** The normal a triangle carries at corner `v`. */
+  const carried = (t: Tri, v: number): Vec3 => corner({ ...t, p: Array.from(t.n ?? []) }, v);
+
+  it('says once what is round: a lathe of five sides or more carries its curve, the rest nothing', () => {
+    for (const round of [
+      cyl(1, 0, 1, ROUND_FROM, RED),
+      cone(1, 0, 0, 1, 12, RED),
+      dome(1, 8, 3, RED),
+    ])
+      expect(round.every((t) => t.n?.length === 9)).toBe(true);
+    for (const edged of [
+      cyl(1, 0, 1, 4, RED),
+      cone(1, 0, 0, 1, 4, RED),
+      box(1, 1, 1, RED),
+      prism(square, 0, 1, RED),
+      rq(0, 0.5, 1, 0.1, 0.05, 0, 0.1, RED),
+      quad([0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], RED),
+    ])
+      expect(edged.every((t) => t.n === undefined)).toBe(true);
+  });
+
+  it('lights a tube straight out from its axis, standing on +Y, and its caps flat', () => {
+    for (const t of cyl(0.5, 0, 2, 12, RED)) {
+      for (let v = 0; v < 3; v += 1) {
+        const [x, , z] = corner(t, v);
+        const n = carried(t, v);
+        if (Math.abs(normalOf(t)[1]) > 0.5) expect(dot(n, normalOf(t))).toBeCloseTo(1, 6);
+        else {
+          expect(n[0]).toBeCloseTo(x / 0.5, 5);
+          expect(n[1]).toBeCloseTo(0, 5);
+          expect(n[2]).toBeCloseTo(z / 0.5, 5);
+        }
+      }
+    }
+  });
+
+  it('lights a dome as the half ball it is: every normal straight out, its pole straight up', () => {
+    for (const t of dome(1, 16, 4, RED).filter((d) => centroidOf(d)[1] > 1e-6)) {
+      for (let v = 0; v < 3; v += 1) {
+        const at = corner(t, v);
+        expect(dot(carried(t, v), at)).toBeGreaterThan(Math.cos(Math.PI / 16) - 1e-6);
+        if (at[1] > 0.9999) expect(carried(t, v)[1]).toBeCloseTo(1, 6);
+      }
+    }
+  });
+
+  it('builds a circle with the sides its size wants, and never fewer than were written', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    // The middle of a side stays within the sag of the true circle.
+    for (const r of [0.03, 0.1, 0.29, 1, 1.4]) {
+      const n = sidesFor(r, 6, fine);
+      expect(r * (1 - Math.cos(Math.PI / n))).toBeLessThanOrEqual(fine.sag * 1.001);
+      expect(r * (1 - Math.cos(Math.PI / (n - 2)))).toBeGreaterThan(fine.sag * 0.7);
+    }
+    expect(sidesFor(0.29, 8, fine)).toBe(24);
+    expect(sidesFor(0.001, 12, fine)).toBe(12);
+    expect(sidesFor(50, 8, fine)).toBe(64);
+    // A square stays a square, a pyramid a pyramid; and as written, nothing grows.
+    expect(sidesFor(1, 4, fine)).toBe(4);
+    expect(sidesFor(1, 3, fine)).toBe(3);
+    expect(sidesFor(1, 8, AS_WRITTEN)).toBe(8);
+  });
+
+  it('builds a gentle bend of a profile as an arc inside its corner, and leaves a fold alone', () => {
+    const fine = { sag: 0.0025, max: 64 };
+    const several = (colors: string | readonly string[]): colors is readonly string[] =>
+      typeof colors !== 'string';
+    // A tube, a shoulder that bends by 45 degrees, a cap that folds by 59.
+    const profile: Vec2[] = [
+      [0, 0],
+      [0, 0.5],
+      [1, 0.5],
+      [1.3, 0.2],
+      [1.25, 0],
+    ];
+    const { rings, colors } = bent(profile, ['a', 'b', 'c', 'd'], fine, several);
+    expect(rings.length).toBeGreaterThan(profile.length + 2);
+    expect(colors).toHaveLength(rings.length - 1);
+    // The folds stand where they stood; the bend's corner is cut, never passed.
+    for (const kept of [profile[0], profile[1], profile[3], profile[4]])
+      expect(rings).toContainEqual(kept);
+    expect(rings).not.toContainEqual(profile[2]);
+    for (const [y, r] of rings) {
+      expect(r).toBeLessThanOrEqual(0.5 + 1e-9);
+      expect(y).toBeLessThanOrEqual(1.3 + 1e-9);
+      // Inside the corner: under the tube's line and under the shoulder's.
+      expect(r + (y - 1)).toBeLessThanOrEqual(0.5 + 1e-9);
+    }
+    // It turns the same way all along, a little at a time.
+    const turns = rings.slice(1, -1).map((at, i) => {
+      const [before, after] = [rings[i] ?? at, rings[i + 2] ?? at];
+      return Math.atan2(
+        (at[0] - before[0]) * (after[1] - at[1]) - (at[1] - before[1]) * (after[0] - at[0]),
+        (at[0] - before[0]) * (after[0] - at[0]) + (at[1] - before[1]) * (after[1] - at[1]),
+      );
+    });
+    const arc = turns.filter((turn) => Math.abs(turn) > 1e-9 && Math.abs(turn) < 1);
+    expect(arc.length).toBeGreaterThan(2);
+    for (const turn of arc) expect(Math.abs(turn)).toBeLessThan((20 * Math.PI) / 180);
+    // The colours change in the middle of the arc: b before it, c after.
+    const list = colors as readonly string[];
+    expect(list[0]).toBe('a');
+    expect(list.at(-1)).toBe('d');
+    expect(list.filter((c) => c === 'b').length).toBeGreaterThan(1);
+    expect(list.filter((c) => c === 'c').length).toBeGreaterThan(1);
+    // One colour stays one colour; as written, and a bend too slight to see, stay as they are.
+    expect(bent(profile, 'a', fine, several).colors).toBe('a');
+    expect(bent(profile, 'a', AS_WRITTEN, several).rings).toBe(profile);
+    const slight: Vec2[] = [
+      [0, 0.5],
+      [0.1, 0.5],
+      [0.2, 0.495],
+    ];
+    expect(bent(slight, 'a', fine, several).rings).toBe(slight);
+  });
+
+  it('carries a normal through a move, a turn and a squash', () => {
+    const [side] = cyl(1, 0, 1, 12, RED).filter((t) => Math.abs(normalOf(t)[1]) < 0.5);
+    if (!side) throw new Error('fixture');
+    // Moved: unchanged. Turned: turned with it.
+    expect(carried(xf([side], { at: [3, 4, 5] })[0] ?? side, 0)).toEqual(carried(side, 0));
+    const turned = xf([side], { rot: [0, 0, Math.PI / 2] })[0] ?? side;
+    const was = carried(side, 0);
+    expect(carried(turned, 0)[0]).toBeCloseTo(-was[1], 6);
+    expect(carried(turned, 0)[1]).toBeCloseTo(was[0], 6);
+    // Squashed along x: the tube is an ellipse, and its normal leans toward the squashed axis.
+    const squashed = xf(cyl(1, 0, 1, 24, RED), { s: [0.5, 1, 1] });
+    for (const t of squashed.filter((q) => Math.abs(normalOf(q)[1]) < 0.5)) {
+      for (let v = 0; v < 3; v += 1) {
+        const [x, , z] = corner(t, v);
+        const n = carried(t, v);
+        expect(Math.hypot(...n)).toBeCloseTo(1, 6);
+        // The ellipse x^2 / 0.25 + z^2 = 1: its gradient is (x / 0.25, z).
+        const g = Math.hypot(x / 0.25, z);
+        expect(n[0]).toBeCloseTo(x / 0.25 / g, 5);
+        expect(n[2]).toBeCloseTo(z / g, 5);
+      }
+    }
+  });
+
+  it("lights a hoop's walls as one curve, out from its axis and in toward it", () => {
+    const hoop = ring([1, 1.2], 0, TAU, 24, 0, 0.1, RED);
+    const walls = hoop.filter((t) => Math.abs(normalOf(t)[1]) < 0.5);
+    expect(walls).toHaveLength(96);
+    expect(hoop.filter((t) => Math.abs(normalOf(t)[1]) > 0.5).every((t) => !t.n)).toBe(true);
+    for (const t of walls) {
+      for (let v = 0; v < 3; v += 1) {
+        const [x, , z] = corner(t, v);
+        const r = Math.hypot(x, z);
+        const outer = r > 1.1;
+        const n = carried(t, v);
+        expect(n[0]).toBeCloseTo(((outer ? 1 : -1) * x) / r, 5);
+        expect(n[2]).toBeCloseTo(((outer ? 1 : -1) * z) / r, 5);
+      }
+    }
+    // An arc swept the other way round faces the same way.
+    for (const t of ring([1, 1.2], 1, 0, 6, 0, 0.1, RED).filter((w) => w.n)) {
+      const [x, , z] = centroidOf(t);
+      expect(dot(carried(t, 0), [x, 0, z]) > 0).toBe(Math.hypot(x, z) > 1.1);
+    }
+  });
+
+  it('keeps a block of one step flat, and a fold in a wall an edge', () => {
+    // A stand of a stadium: one step.
+    expect(ring([0.56, 0.84], 0, TAU / 16, 1, 0.5, 1.1, RED).every((t) => !t.n)).toBe(true);
+    // A square wave of radius: its risers are folds of 90 degrees, and stay sharp.
+    const teeth = ring(
+      (b) => [1, Math.floor((b / TAU) * 16) % 2 ? 1.6 : 1.2],
+      0,
+      TAU,
+      64,
+      0,
+      0.1,
+      RED,
+    );
+    const outer = teeth.filter((t) => t.n && Math.hypot(centroidOf(t)[0], centroidOf(t)[2]) > 1.1);
+    const sharp = outer.filter((t) =>
+      [0, 1, 2].every((v) => dot(carried(t, v), normalOf(t)) > 0.999),
+    );
+    expect(sharp.length).toBeGreaterThan(0);
+    for (const t of outer)
+      for (let v = 0; v < 3; v += 1) expect(dot(carried(t, v), normalOf(t))).toBeGreaterThan(0.9);
+  });
+
+  it('paints a ring built finer than it was written where it was painted', () => {
+    const coarse = ring([1, 1.2], 0, TAU, 4, 0, 0, [RED, BLUE]);
+    const fine = ring([1, 1.2], 0, TAU, 12, 0, 0, [RED, BLUE], RED, 0, 3);
+    expect(coarse.map((t) => t.c)).toEqual([RED, RED, BLUE, BLUE, RED, RED, BLUE, BLUE]);
+    expect(fine.map((t) => t.c)).toEqual(coarse.flatMap((t) => [t.c, t.c, t.c]));
   });
 
   it('lays a trapezoid of 10 triangles (or 2 when it is flat) along a bearing', () => {

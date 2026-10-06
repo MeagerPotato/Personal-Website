@@ -28,11 +28,18 @@ import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
 import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
+import { sunSeed } from './sim/sunSurface';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
+import { AirShells } from './world/AirShells';
 import { Backdrop } from './world/Backdrop';
+import { Chart } from './world/Chart';
 import { Galaxy } from './world/Galaxy';
+import { livingSun, lookOf } from './world/looks';
+import { SkyBake, type SkyState } from './world/SkyBake';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
+import { SunCorona } from './world/SunCorona';
+import { Traffic } from './world/Traffic';
 
 /**
  * Composition root: builds the engine and adds systems in an explicit order, because the order
@@ -61,6 +68,8 @@ export interface BootHooks {
   onNavigation<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
   /** The star map opened or closed, whoever did it. */
   onMap(open: boolean): void;
+  /** The baked sky is on its way, there, or not to be had (world/SkyBake.ts). */
+  onSky(state: SkyState): void;
 }
 
 export interface BootQuality {
@@ -347,9 +356,83 @@ export function boot(
   }
 
   const backdrop = engine.add(new Backdrop());
-  const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
+  const starfield = engine.add(
+    new Starfield({ coarsePointer, reducedMotion, low: quality.tier === 'low' }),
+  );
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
-  engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
+  // The light round every sun. After the galaxy: it reads where the suns are this frame.
+  const sunFamilies = familiesOf(manifest);
+  const coronas = engine.add(
+    new SunCorona({
+      suns: manifest.bodies.flatMap((body) => {
+        const family = sunFamilies.get(body.id);
+        if (body.kind !== 'sun' || family === undefined) return [];
+        return {
+          row: surroundings.orbits.indexOf(body.id),
+          family,
+          radius: body.radius,
+          seed: sunSeed(body.id),
+          living: livingSun(lookOf(body, family)),
+        };
+      }),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      low: quality.tier === 'low',
+      reducedMotion,
+    }),
+  );
+  // The air of the worlds that have it. After the galaxy too. Which of them wear clouds is the
+  // tier's to say: none on low, home alone on medium (where phones start), every one on high.
+  const cloudy = tuning.look.air.cloudTiers[quality.tier];
+  const homeId = manifest.bodies.find((body) => body.kind === 'home')?.id;
+  const air = engine.add(
+    new AirShells({
+      worlds: galaxy.airWorlds.map((world) => {
+        const clouds = cloudy === 'all' || (cloudy === 'home' && world.id === homeId);
+        return clouds ? world : { ...world, cloud: undefined };
+      }),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      low: quality.tier === 'low',
+      reducedMotion,
+    }),
+  );
+  // The dots that go round the orbit lines, in each line's family. After the galaxy, as the
+  // coronas are. A relay's orbit has none: nothing docks there, so nothing goes there.
+  const traffic = engine.add(
+    new Traffic({
+      orbits: surroundings.orbits,
+      families: surroundings.orbits.ids.map((id, row) =>
+        surroundings.field.docks[row] === 0 ? undefined : sunFamilies.get(id),
+      ),
+      positions: galaxy.positions,
+      scales: galaxy.displayScale,
+      reducedMotion,
+    }),
+  );
+  // The star map's ground: a district for each system. After the map, whose scale it reads.
+  const chart = engine.add(
+    new Chart({
+      districts: manifest.systems.map(({ position: [x, z], radius, theme }) => ({
+        x,
+        z,
+        radius,
+        family: theme,
+      })),
+      map: starMap,
+    }),
+  );
+  engine.scene.add(
+    backdrop.object,
+    chart.object,
+    starfield.object,
+    dust.object,
+    galaxy.object,
+    coronas.object,
+    air.object,
+    traffic.object,
+    ship.object,
+  );
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
   // sky, no dust, and the ship as a marker big enough to find, lying on top of what it is beside.
   engine.add({
@@ -357,12 +440,29 @@ export function boot(
       const { weight } = starMap;
       setToonFlatness(weight * tuning.map.flatness);
       starfield.setCalm(weight, tuning.map.starOpacity);
+      coronas.setCalm(weight);
+      air.setCalm(weight);
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));
+      sky.setView(navigator.state.mode === 'docked', weight);
     },
     dispose: () => setToonFlatness(0),
   });
+  // The baked sky (the Milky Way's haze, far galaxies), painted once after the first frame, a
+  // band a frame; those frames say nothing about the device, so the governor is not fed them.
+  // After the block above: it shows this frame's view. A snapshot only says whether the visitor
+  // has seen it.
+  const sky = engine.add(
+    new SkyBake({
+      renderer: engine.renderer,
+      tier: tuning.look.sky.tiers[quality.tier],
+      seen: start?.skyRevealed === true,
+      reducedMotion,
+      onState: hooks.onSky,
+      onBand: () => engine.excuseFrame(),
+    }),
+  );
   engine.add(jobs);
 
   if (options.overlay) {
@@ -409,7 +509,7 @@ export function boot(
   // with it (scripts/verify-dist.mjs checks).
   if (import.meta.env.DEV && options.debug?.tweak) {
     void import('./core/debug/TweakPanel').then(({ TweakPanel }) => {
-      if (!engine.isDisposed) engine.add(new TweakPanel({ input, ship }));
+      if (!engine.isDisposed) engine.add(new TweakPanel({ input, ship, sky }));
     });
   }
 
@@ -430,6 +530,7 @@ export function boot(
       dock: navigator.snapshot(),
       halting: navigator.halting,
       guarding: navigator.guarding,
+      skyRevealed: sky.seen,
       galaxy: stamp,
     }),
   };
