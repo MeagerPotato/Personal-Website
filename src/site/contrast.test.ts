@@ -146,6 +146,19 @@ describe('edges and rings', () => {
     expect(contrast(color.focus, PANEL)).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.focus, color.surface.panel)).toBeGreaterThanOrEqual(MARK);
   });
+
+  it('draws a leader on a casing of its own, and its station as a ring on a disc', () => {
+    // A leader crosses whatever the world shows, a white peak as well as the night sky: what its
+    // line meets is its casing (space.950), in every family. So does the open card's butter dot.
+    for (const key of THEME_KEYS) {
+      expect(contrast(color.system[key].base, color.space[950])).toBeGreaterThanOrEqual(MARK);
+    }
+    expect(CSS).toMatch(/\.leader__casing \{[^}]*stroke: var\(--color-space-950\);/);
+    // A station on the limb: a white ring round a navy disc. On the sky the ring is what shows,
+    // on a pale ground the disc.
+    expect(contrast(color.ink.high, color.space[900])).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.space[900], WHITE)).toBeGreaterThanOrEqual(MARK);
+  });
 });
 
 describe('primer, the clay of unbuilt work', () => {

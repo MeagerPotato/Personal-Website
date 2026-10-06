@@ -81,8 +81,9 @@ needs a sixth glyph. Every family's numbers are in the contrast tables below.
 Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
-  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), and what
-  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"). The home system is butter
+  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), what
+  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"), and the card of the deck
+  that is open (the ring before its title, and the station its leader ends on). The home system is butter
   too, so a focused butter key keeps a navy rim between its fill and the ring.
 - **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
   Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
@@ -131,6 +132,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | butter on the page / the panel / the HUD plate | 13.9 / 11.3 / 9.3 | the ring where it meets the ground outside it; the current page's bar under its word (plain / universe) |
 | `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
+| a family's base on `space.950` | 6.5 (lilac) to 14.8 (mint) | a leader's line on its casing, whatever the world shows under it; the open card's butter station on its rim (14.5) |
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
 | `surface.line` hairline on the page / the panel | 1.7 / 1.4 | decoration, not a boundary: the rules between legend rows, a status or date chip's outline, the resume's rail. Nothing is found by them alone |
@@ -209,21 +211,21 @@ Every state is designed, not only the resting one, and each has a shape as well 
 
 | State | How it looks | Where |
 | --- | --- | --- |
-| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
+| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring; a card of the deck that is not open takes an edge in its family's base, and nothing moves (a moved card would leave its place round the body). **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips, the deck's cards |
 | Focus (`:focus-visible`) | A 3 px butter ring outside a 2 px `space.950` rim, so it reads on anything: a white peak, a pale ring, a butter key (butter meets navy, never butter). A key at rest carries the same three shadows with the rim at nothing, so a focus eases in the rim and nothing else | everything focusable, in both modes. The ring goes round a name's tag, not its 44 px box, round a nav word's 36 px chip (no rim: it sits on navy already), and round a card title's words. The heading the router focuses after a soft navigation, and `<main>` where the skip link lands, show none: they are not controls |
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, its family glyph turned navy, the station it stops at (every other tag shows the glyph in its family's base) | the body the ship is headed for |
 | On | The cream face: `ink.high`, navy words, no edge. A toggle is named for what it does next ("Close map", "Shrink"), so the sheet's button carries no `aria-pressed` ("Shrink, toggle button, pressed" contradicted itself) | the Map button while the map is open (`data-state='open'`; its M cap turns navy), the sheet's Shrink (`html[data-panel-size='full']`), "About this site" while its text shows (`aria-expanded`) |
 | Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the boost pad |
-| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
-| More contrast | The HUD plate and the panel are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
+| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail, the crumbs' dashes and the deck's leaders (on a `Canvas` casing, the open card's station `Highlight`) are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
+| More contrast | The HUD plate, the panel and the deck's cards are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
 
 ## The two modes
 
 | | Plain | Universe |
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
-| `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
+| `<main>` is | the page | the info panel: a deck of cards round the docked body on a wide screen (1280 by 576 px and up), a side panel on a smaller one (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
 | JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (about 176 KiB gzipped: the engine 169, the shell 7) loads on demand, of a 220 KiB budget |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
@@ -263,7 +265,18 @@ transit map.
   colour on every page.
 - **The projects page:** each solar system is a line whose first station, the terminus, is its
   sun, with the family's glyph cut out of it like a line's bullet on a transit map. The tagline is
-  the sun's caption.
+  the sun's caption, and under it one line, "The Software system" (`sm`, 600), is the way to the
+  sun's own page.
+- **A section's title is a link to itself** (`/about/#rockets` is that section). It looks like
+  the heading it is, `ink.high` and not underlined; a mouse lights it in the family's light and
+  underlines it. Its room for a finger (44 px) lies round the words and takes no space. A link
+  to a section lands it a step (`space-6`) below the top of what scrolls, the window or the
+  panel, as a page's first line stands, and in the universe it adds no step to Back. A part
+  of a page with no heading of its own (a project's facts, the opening of About, the resume's
+  contact line) has a **quiet title**: a heading for a screen reader, unseen until its link has
+  the keyboard's focus, when it shows as a small label (`sm`, 600) on a plate of the ground in
+  the gap above its part, so that nothing on the page moves. On paper a title is plain black
+  words and a quiet title is gone.
 - **A project's page:** the facts are a legend plate (`surface.panel`, a 4 px band in the family,
   a ledge), their labels in the family's light, in caps; what it is built with is a row of tags
   tinted in the family (12 %) with a hairline edge; the cover sits in a hairline frame.
@@ -312,7 +325,9 @@ of, is in the table under The 3D world.
   568 px with tighter chips; at 400 % zoom (320 by 256) it takes the phone's two rows.
 - **"About this site"** (the home page only): the welcome text waits behind it, and it wears the
   cream face while the text shows.
-- **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
+- **The Map button**, top right under the bar (over a deck: top centre of the part of the world
+  the cards leave free, where the dock prompt stands at the bottom; both slide there as a card
+  opens and its column widens): "Map" with its M key cap; on the map, "Close map"
   in the cream face. A finger gets no key cap and a fixed width, and so does a mouse beside a
   phone-shaped sheet, where the row is short of room. Whatever shares its row keeps --space-3
   clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`, where a
@@ -360,6 +375,85 @@ of, is in the table under The 3D world.
   route sign's plate 24, the crumbs' words 22). The panel
   pins the type scale to its narrow end. On a wide screen it is a side panel on the HUD's grid: its
   right edge flush with the nav tray, its bottom level with the Plain version chip.
+- **The deck** (a window at least 1280 px wide and 576 px tall) is the same content as cards
+  round the docked body, not beside it: two columns on the HUD's grid (18 to 22rem wide, the
+  window's edges at most 120rem apart), the body between them. The page's head (crumbs, route
+  sign, the `<h1>` at `xl`, the lede at `sm` in `ink.mid`) stands top left with Close beside its
+  first line; the sections follow in reading order, down the left column, then down the right
+  (the two columns hold as many boxes as each other, the head counted: of three or four
+  sections the first stands under the head, of five or six the first two, of seven or eight
+  the first three; one or two sections stand on the right, facing the head). Eight sections at
+  most. Every card is one of three things:
+  - **a stub** (the overview): its title row, 44 px, with a 10 px station ring in the family's
+    base before the words (`base`, 600), then its section at `sm` in `ink.mid`. A stub is as
+    tall as what it holds while its column has the room: a page with one section shows all of
+    it on arrival (Contact, its links with it), and a monitor shows most cards whole. In a
+    column that is full the stubs still growing share what is left, and each is cut under a
+    fade to the plate, as tall as the space under a stub's text (24 px), so a stub that shows
+    everything fades none of its words. A stub that ENDS with its keys (the resume's Download)
+    keeps that row at its foot however little of it shows, the text fading out behind it: what
+    a page is for is never under a cut (from 130 px; a shorter stub lets the keys go with the
+    rest). One left under 72 px, with no room for a line of its
+    text, is its title alone in the middle of the card, never a sliver of what it holds (the
+    two under a project's head in a window 576 px tall). (Firefox keeps a cap of 7.5 to 11rem,
+    `--stub-max`, until it is seen to size a box by what it holds: not run.) The plate is the panel's
+    (`surface.panel` at 96 %), with no
+    blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
+    cards read as the ends of lines to it;
+  - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
+    `base` on one line, with Close. What a chip holds under that row is cut off, and it is also
+    said to be out of sight (`opacity: 0`, on everything of a chip that is not its title row;
+    the open card alone sets it back): it is still laid out there, where the next chip's title
+    stands, and a tool that goes by where a box lies would find a chip's keys under that title.
+    Nothing looks different, and nothing leaves the page, the tab order or find-in-page;
+  - **the open card**: the whole section at the panel's sizes in `ink.high`, as wide as
+    30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
+    its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
+    `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+    While a card is open BOTH columns are packed toward the top, in the page's order, with the
+    stubs' own 12 px between one card and the next: the chips over the open card, the open card,
+    the chips under it directly under it, and sky under the last (spread down their column as
+    the stubs are, title rows stood 80 px and more apart with nothing between them). The open
+    card may be as tall as its column less a title row and a gap for each card beside it, so it
+    never pushes one of them off the stage. With none open a column still reaches from the top
+    of the stage to its foot.
+    While it has more under its cut, its last lines fade into the plate as a stub's do (48 px,
+    a line of its text and the space over it, so that a cut between two paragraphs still has
+    words to fade; at the foot of the plate and as wide), until the last of what it holds is in
+    sight: a scrollbar says the same, but many browsers show none at rest. The fade comes and goes at
+    once, and in forced colours there is none. An open card that ENDS with its keys (the
+    resume's first, in a window too short for it) keeps them in sight as its stub does: the
+    row sticks to the foot of what shows, on a plate that the text fades out behind, and
+    stands in its own place once the card is read to its end.
+  **Leaders** tie the cards to the body, as Allen drew them: from each card (the middle of
+  its title row, on the edge that faces the body) a route line in the body's family, 3 px on a
+  7 px casing of `space.950` so that it reads on a white peak as on the night sky, runs straight
+  to the nearest point of the body's limb and ends in a station: a `space.900` disc in a 2 px
+  `ink.high` ring, 12 px across. They all make for the middle of the disc, so no two cross.
+  With a card open only its own leader is left; as the camera turns to what the card points at
+  and closes in, the line's end slides off the limb to that place, and its station is the
+  butter dot that stands before the open card's title (10 px, in a 2 px rim of `space.950`:
+  butter meets navy, never the world): here. The lines lie over the world and under the cards,
+  are nothing a visitor can press or a screen reader hears, and are away on the star map and
+  while the ship is not in orbit. In forced colours they are `CanvasText` on `Canvas`, the open
+  station `Highlight`.
+  A section's cover picture is not in its card where the card's body is the planet itself
+  (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
+  wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
+  the card (`/about/#rockets`). A keyboard that closes a card (Esc, Home, up from the first)
+  is left on that card's title, in its focus ring, a press away from opening it again: never
+  on the page's heading, which wears no ring. The cards arrive with the page (opacity, and 8 px up by
+  `translate`; the right column 80 ms after the left). A change of card is carried: the layout
+  changes at once, and each card that moved glides from where it was to where it belongs
+  (`motion.base`, ease-out), its title going with it; a card that grew unrolls from the size it
+  had, so a column unfolds in step, and where the head unrolls sideways (a card opens under
+  it, and its column widens) Close rides the head's edge, never ahead of it on the sky. The
+  leaders step aside while the cards travel (out in
+  `motion.fast`, back in `motion.base` once the cards rest; a window that is only resized
+  takes them along at once, since nothing travels), and when they first appear (the
+  ship in orbit, the view at rest) each is drawn from its card to the body, 40 ms after the one
+  before, in `motion.slow`, its station landing as the line arrives. With reduced motion none
+  of this moves: the cards, the lines and every new state are simply there.
 - **The bottom sheet** (a phone held upright) has rounded top corners. At rest it leaves at least
   20rem above it: the bar, the Map button's row and a strip of world for the docked body. The home
   page's welcome text rests lower (at most 45 % of the height), because the chase camera needs a
@@ -425,7 +519,9 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans (never more than `bankRad`, however hard the autopilot turns it, eased at `bankOmega`), nods and bobs, and how the flame follows the throttle | `tuning.ship` (the lean: `sim/bank.ts`) |
 | The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
-| The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders | `tuning.orbitCam` |
+| The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders; and, while a card of the deck is open, how quickly it turns to that card's landmark (`faceOmega`, never faster than `faceMaxRadPerSec`), how far round from the middle of the disc the landmark rests, toward its card (`faceBiasDeg`), and how far it closes in (`focusFitRingRadii`) | `tuning.orbitCam` |
+| What each card of a page points at on its body: a latitude and a longitude for a card that should mean something (About's Rockets is the launch pad, each section of the resume a pod of the station), and where the rest point, evenly round the body | `design/worlds/landmarks.ts`; the ring: `tuning.deck` (`defaultLatDeg`, `defaultLonDeg`) |
+| The leaders from the cards to the body: the line, its casing and the stations (colours, widths), in the stylesheet; how big a station is | `.leaders` in `src/styles/global.css`; `tuning.deck.stopRadiusPx` |
 | Changing between cameras and making room for the panel: seconds from chase view to orbit view, how quickly the view slides over | `tuning.cameraRig` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 | Orbit assist: how fast and how far out a ship that lets go is eased onto a ring, how early a ship flying at a planet is swung round it | `tuning.assist` |
@@ -446,7 +542,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.map`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.deck`, `tuning.cameraRig`, `tuning.map`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on

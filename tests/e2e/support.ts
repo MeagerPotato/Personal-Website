@@ -247,6 +247,31 @@ export function sameCanvas(page: Page): Promise<boolean> {
   );
 }
 
+/**
+ * Take the WebGL context away, the way a browser would (a phone that put the tab in the
+ * background): the engine then builds itself again on a fresh canvas (src/universe/api.ts).
+ * Answers false where that cannot be done on request.
+ */
+export function loseContext(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');
+    if (!canvas) return false;
+    canvas.setAttribute('data-e2e-canvas', 'lost');
+    // The canvas has a context already, and asking again hands back that very one.
+    const lose = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
+    lose?.loseContext();
+    return Boolean(lose);
+  });
+}
+
+/** The canvas whose context was taken (`loseContext`) is gone, and a new one stands in its place. */
+export function rebuilt(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector('#universe-host canvas');
+    return canvas !== null && canvas.getAttribute('data-e2e-canvas') !== 'lost';
+  });
+}
+
 /** One thing said, and the path the page was at when it was said. */
 export interface Said {
   text: string;

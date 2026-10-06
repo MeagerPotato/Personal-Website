@@ -65,6 +65,22 @@ export class BodiesOnScreen implements System {
     return projectPoint(this.viewProjection.elements, this.width, this.height, x, y, z, out);
   }
 
+  /**
+   * Body `row`'s disc in the picture of this frame, CSS px into `out`, out to `reach` units from
+   * its middle rather than to the radius the map has it at: its GROUND, where the map measures a
+   * world out to its rings and signs (the leaders end on the limb). False if it is not in front
+   * of the camera, or is no row of the map. Ask after this system's frameUpdate.
+   */
+  disc(row: number, reach: number, out: { x: number; y: number; radius: number }): boolean {
+    const { x, y, radius, depth } = this.map;
+    const mapped = this.options.radii[row] ?? 0;
+    if (!((depth[row] ?? 0) > 0) || !(mapped > 0)) return false;
+    out.x = x[row] ?? 0;
+    out.y = y[row] ?? 0;
+    out.radius = ((radius[row] ?? 0) * reach) / mapped;
+    return true;
+  }
+
   resize(viewport: Viewport): void {
     this.width = viewport.width;
     this.height = viewport.height;
