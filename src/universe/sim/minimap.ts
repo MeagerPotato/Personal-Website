@@ -2,7 +2,6 @@ import type { BodyKind } from '../data/types';
 import type { ThemeKey } from '../design/tokens';
 import type { MiniSystem } from './instruments';
 import {
-  takeIn,
   unitsPerPx,
   type MapBounds,
   type MapBoundsOut,
@@ -22,14 +21,16 @@ import { GLYPHS } from './world/glyphs';
  * the minimap never has a rule the star map lacks. What is its own is here:
  *
  *   WHAT IT LOOKS AT   one of two things, never a view the visitor moved: the whole galaxy, or
- *                      the system the ship is in (`miniScope`, `miniBounds`; then `fitView`).
- *   WHERE THINGS ARE   on a frame of its own, in CSS px from its top left corner, with every
- *                      system that is off the frame pinned at the rim in its direction, so that
- *                      any system is one press away (`projectMini`).
+ *                      the system the ship is in (`miniScope`), each as a DISC (`miniBounds`;
+ *                      then `fitView`).
+ *   WHERE THINGS ARE   on a ROUND FACE of its own: the disc in the middle of its frame, in CSS px
+ *                      from the frame's top left corner. Nothing is drawn beyond the face, and
+ *                      every system that is off it is pinned on a circle just inside its rim, in
+ *                      its direction, so that any system is one press away (`projectMini`).
  *   WHAT A PRESS MEANS `pickMini`: a mouse as on the canvas; a finger only where it is clear
  *                      which mark it means.
  *
- * Nothing here knows the galaxy's shape: a frame of any size fits a galaxy of any aspect.
+ * Nothing here knows the galaxy's shape: a face of any size fits a galaxy of any aspect.
  */
 
 /** The scope that is not a system: the whole galaxy. */
@@ -47,9 +48,11 @@ export function miniScope(at: number, targetSystem: number): number {
 }
 
 /**
- * The rectangle a scope has to show, into `out`: the galaxy (`all`: sim/mapView.ts, `boundsOf`),
- * or the square round one system's reach; either grown to hold the ship at (x, z), which may be
- * out beyond it. `fitView` then fits it into a frame of any shape.
+ * THE DISC a scope has to show, as the square round it, into `out`: one system's reach, or the
+ * disc about the middle of the galaxy (`all`: sim/mapView.ts, `boundsOf`) that holds every
+ * system's; either grown, by no more than it must, to hold the ship at (x, z), which may be out
+ * beyond it. `fitView` then fits that square into the square round the face, so the disc lies on
+ * the round face, margin and padding and all.
  */
 export function miniBounds(
   scope: number,
@@ -60,13 +63,30 @@ export function miniBounds(
   out: MapBoundsOut,
 ): MapBoundsOut {
   const system = systems[scope];
-  if (!system) return takeIn(all, x, z, out);
-  const [cx, cz] = system.position;
-  out.minX = cx - system.radius;
-  out.maxX = cx + system.radius;
-  out.minZ = cz - system.radius;
-  out.maxZ = cz + system.radius;
-  return takeIn(out, x, z, out);
+  let cx = (all.minX + all.maxX) / 2;
+  let cz = (all.minZ + all.maxZ) / 2;
+  let reach = 0;
+  if (system) {
+    [cx, cz] = system.position;
+    reach = system.radius;
+  } else {
+    for (const { position, radius } of systems) {
+      reach = Math.max(reach, Math.hypot(position[0] - cx, position[1] - cz) + radius);
+    }
+  }
+  // The smallest disc that holds that one and the ship: half of what is missing, toward the ship.
+  const far = Math.hypot(x - cx, z - cz);
+  if (far > reach) {
+    const step = (far - reach) / 2 / far;
+    cx += (x - cx) * step;
+    cz += (z - cz) * step;
+    reach = (reach + far) / 2;
+  }
+  out.minX = cx - reach;
+  out.maxX = cx + reach;
+  out.minZ = cz - reach;
+  out.maxZ = cz + reach;
+  return out;
 }
 
 /**
@@ -93,7 +113,7 @@ export interface MiniBodies {
   readonly depth: ArrayLike<number>;
   /**
    * By system: the row of the body at its heart (its sun, the home planet, a binary's primary
-   * sun), which stands for the system when it is off the frame. -1: none.
+   * sun), which stands for the system when it is off the face. -1: none.
    */
   readonly centers: ArrayLike<number>;
 }
@@ -101,7 +121,7 @@ export interface MiniBodies {
 export interface MiniDrawParams {
   /** A mark that would be smaller than this (radius, CSS px) is not drawn, and cannot be pressed. */
   readonly minVisiblePx: number;
-  /** A system off the frame is pinned this far inside the frame's edge (CSS px)... */
+  /** A system off the face is pinned on a circle this far inside the face's edge (CSS px)... */
   readonly rimInsetPx: number;
   /** ...as a mark of this radius. */
   readonly rimRadiusPx: number;
@@ -109,14 +129,16 @@ export interface MiniDrawParams {
 
 /**
  * WHERE EVERY MARK IS, into `out`, by row: CSS px from the frame's top left corner, its radius,
- * and its `depth` (see `markDepth`). A row whose depth is 0 has no mark: the body is too small at
+ * and its `depth` (see `markDepth`). THE FACE IS ROUND: the disc in the middle of the frame, as
+ * wide as the frame's shorter side. A row whose depth is 0 has no mark: the body is too small at
  * this scale (`scales`: sim/mapView.ts, `displayScales`, with the minimap's own sizes), nothing
- * docks at it, or it is off the frame. Its place is written all the same.
+ * docks at it, or its middle is off the face (the corners of the frame are no map). Its place is
+ * written all the same.
  *
- * Then the rim: the body at the heart of each system, when it lies outside the frame less
- * `rimInsetPx`, is put ON that inner edge, on the line from the middle of the frame toward where
- * it really is, with depth PIN_DEPTH. So a mark slides to the rim and stays there as the view
- * closes in on another system, and never jumps.
+ * Then the rim: the body at the heart of each system, when it lies outside the circle
+ * `rimInsetPx` inside the face's edge, is put ON that circle, on the line from the middle of the
+ * face toward where it really is, with depth PIN_DEPTH. So a mark slides to the rim and stays
+ * there as the view closes in on another system, and never jumps, whichever way it lies.
  *
  * Two systems that lie one behind the other would be one pin on top of the other, and only one
  * of them a press away. So a pin makes way for the pins of the systems BEFORE its own (home, the
@@ -137,6 +159,8 @@ export function projectMini(
   const perPx = unitsPerPx(view.span, frame);
   const midX = frame.width / 2;
   const midY = frame.height / 2;
+  // THE FRAME IS ROUND: the disc in the middle of it, the face of the scope.
+  const face = Math.min(midX, midY);
   const rows = Math.min(bodies.count, out.x.length);
   out.count = rows;
   for (let i = 0; i < rows; i += 1) {
@@ -146,12 +170,7 @@ export function projectMini(
     const radius = ((bodies.radius[i] ?? 0) * (scales[i] ?? 1)) / perPx;
     const depth = bodies.depth[i] ?? 0;
     const shows =
-      depth > 0 &&
-      radius >= params.minVisiblePx &&
-      x >= 0 &&
-      x <= frame.width &&
-      y >= 0 &&
-      y <= frame.height;
+      depth > 0 && radius >= params.minVisiblePx && Math.hypot(x - midX, y - midY) <= face;
     out.x[i] = x;
     out.y[i] = y;
     out.radius[i] = shows ? radius : 0;
@@ -160,25 +179,20 @@ export function projectMini(
     out.ownY[i] = 0;
   }
 
-  const reachX = Math.max(0, midX - params.rimInsetPx);
-  const reachY = Math.max(0, midY - params.rimInsetPx);
+  const reach = Math.max(0, face - params.rimInsetPx);
   const apart = 2 * params.rimRadiusPx;
   for (let s = 0; s < bodies.centers.length; s += 1) {
     const row = bodies.centers[s] ?? -1;
     if (row < 0 || row >= rows || !((bodies.depth[row] ?? 0) > 0)) continue;
     const dx = (out.x[row] ?? 0) - midX;
     const dy = (out.y[row] ?? 0) - midY;
-    // How much of the way from the middle to the body is inside the inner edge: 1 or more, all.
-    const share = Math.min(
-      dx === 0 ? Infinity : reachX / Math.abs(dx),
-      dy === 0 ? Infinity : reachY / Math.abs(dy),
-    );
-    if (share >= 1) continue;
-    // Px from the middle along the line to the body: as far as the inner edge, less whatever
+    // Inside the circle of the pins, it is where it is.
+    const far = Math.hypot(dx, dy);
+    if (far <= reach) continue;
+    // Px from the middle along the line to the body: as far as that circle, less whatever
     // the pins already there need (each seen from this line: so far along it, so far beside).
     // Stepping back from one may meet another, so look again until it is clear of them all.
-    const far = Math.hypot(dx, dy);
-    let along = share * far;
+    let along = reach;
     let again = true;
     while (again) {
       again = false;

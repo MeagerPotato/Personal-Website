@@ -593,9 +593,10 @@ export const tuning = {
    */
   minimap: {
     /**
-     * The view: fitted to the galaxy or to one system (and the ship, wherever it is), fitMargin
-     * times the room that needs plus fitPadPx on every side (CSS px: no names here, only room
-     * for a mark at the edge to be whole), and never closer than spanMin world units across.
+     * The view: fitted to a DISC, the one that holds every system or one system's own (and the
+     * ship, wherever it is), fitMargin times the room that needs plus fitPadPx all round (CSS px:
+     * no names here, only room for a mark at the edge to be whole), and never closer than spanMin
+     * world units across. Its face is round, so that disc is all there is to fit.
      */
     spanMin: 100,
     zoomOutPastFit: 1,
@@ -617,11 +618,15 @@ export const tuning = {
     /** ...and no mark under this (radius, CSS px) is drawn at all. */
     minVisiblePx: 1.5,
     /**
-     * A system off the frame is a mark at the rim, rimInsetPx inside the edge in its direction
-     * and rimRadiusPx in radius: always one press away. (Keep rimInsetPx under fitPadPx, or a
-     * system at the edge of the galaxy is pinned on the view that shows all of it.)
+     * A system off the face is a mark at the rim, rimInsetPx inside the edge in its direction
+     * and rimRadiusPx in radius: always one press away, clear of the ring that lies on the rim
+     * while a journey lasts (2 px of it, and 1.5 px of air), and with the whole of a finger's
+     * 44 px on the plate. (The face is round: on the view that shows all of the galaxy, a
+     * system at its edge stands (R - fitPadPx) / fitMargin from the middle of a face of radius
+     * R. Keep rimInsetPx under what is left of R, 10.4 px on the smallest face of 120 px, or
+     * that system is pinned there.)
      */
-    rimInsetPx: 7,
+    rimInsetPx: 9,
     rimRadiusPx: 4.5,
     /** CSS px. A finger near two marks aims at one only if the other is this much further off. */
     ambiguityPx: 8,

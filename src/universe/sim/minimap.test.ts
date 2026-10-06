@@ -104,6 +104,14 @@ const at = (map: ScreenMap, row: number): [number, number] => [
   map.y[row] ?? NaN,
 ];
 
+/** The disc a square of bounds stands round: its middle and its radius. */
+const discOf = (b: { minX: number; maxX: number; minZ: number; maxZ: number }) => ({
+  x: (b.minX + b.maxX) / 2,
+  z: (b.minZ + b.maxZ) / 2,
+  r: (b.maxX - b.minX) / 2,
+  square: b.maxX - b.minX - (b.maxZ - b.minZ),
+});
+
 /** A map of marks put down by hand: [x, y, radius, depth] each. */
 function handMap(...rows: Array<[number, number, number, number]>): ScreenMap {
   const map = createScreenMap(rows.length);
@@ -130,23 +138,46 @@ describe('what the minimap shows', () => {
     expect(miniScope(-1, 1)).toBe(GALAXY);
   });
 
-  it('fits the galaxy, or the square round one system, and the ship wherever it is', () => {
+  it('fits a disc: the one that holds every system, or one system’s own, and the ship wherever it is', () => {
     const out = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
-    expect(miniBounds(GALAXY, SYSTEMS, ALL, 0, 0, out)).toEqual(ALL);
-    // Out beyond the edge of the galaxy, the ship is still on it.
-    expect(miniBounds(GALAXY, SYSTEMS, ALL, 400, -300, out)).toEqual({
-      ...ALL,
-      maxX: 400,
-      minZ: -300,
+    // The galaxy: the disc about the middle of its bounds that holds every system whole, given
+    // as the square round it.
+    const midX = (ALL.minX + ALL.maxX) / 2;
+    const midZ = (ALL.minZ + ALL.maxZ) / 2;
+    const reach = Math.max(
+      ...SYSTEMS.map(({ position: [x, z], radius }) => Math.hypot(x - midX, z - midZ) + radius),
+    );
+    expect(miniBounds(GALAXY, SYSTEMS, ALL, midX, midZ, out)).toEqual({
+      minX: midX - reach,
+      maxX: midX + reach,
+      minZ: midZ - reach,
+      maxZ: midZ + reach,
     });
+    // Out beyond it, the ship is still on it: the disc grows toward the ship by half of what is
+    // missing, so that the ship stands on its edge and no system leaves it.
+    const grown = discOf(miniBounds(GALAXY, SYSTEMS, ALL, 1400, -1300, out));
+    expect(grown.square).toBeCloseTo(0, 9);
+    expect(Math.hypot(1400 - grown.x, -1300 - grown.z)).toBeCloseTo(grown.r, 9);
+    expect(grown.r).toBeGreaterThan(reach);
+    for (const { position, radius } of SYSTEMS) {
+      const far = Math.hypot(position[0] - grown.x, position[1] - grown.z) + radius;
+      expect(far).toBeLessThanOrEqual(grown.r + 1e-9);
+    }
+    // One system: its own disc.
     expect(miniBounds(1, SYSTEMS, ALL, -735, 618, out)).toEqual({
       minX: -938,
       maxX: -532,
       minZ: 415,
       maxZ: 821,
     });
-    // The scope is kept until the ship is 1.3 radii out: it never leaves the frame on the way.
-    expect(miniBounds(1, SYSTEMS, ALL, -735 + 264, 618, out).maxX).toBe(-471);
+    // The scope is kept until the ship is 1.3 radii out: it never leaves the face on the way, and
+    // the far side of its system stays where it was.
+    expect(miniBounds(1, SYSTEMS, ALL, -735 + 264, 618, out)).toEqual({
+      minX: -938,
+      maxX: -471,
+      minZ: 618 - 233.5,
+      maxZ: 618 + 233.5,
+    });
     expect(miniBounds(0, SYSTEMS, ALL, 0, 0, out)).toEqual({
       minX: -66,
       maxX: 66,
@@ -154,7 +185,12 @@ describe('what the minimap shows', () => {
       maxZ: 66,
     });
     // A system the galaxy does not have is no scope: everything, then.
-    expect(miniBounds(7, SYSTEMS, ALL, 0, 0, out)).toEqual(ALL);
+    expect(miniBounds(7, SYSTEMS, ALL, midX, midZ, out)).toEqual({
+      minX: midX - reach,
+      maxX: midX + reach,
+      minZ: midZ - reach,
+      maxZ: midZ + reach,
+    });
   });
 });
 
@@ -202,38 +238,41 @@ describe('where the marks are', () => {
     expect(marks(look(HOME, 0, 0).map)).toEqual([HOME, STATION, SATELLITE, SUN]);
   });
 
-  it('pins a system that is off the frame at the rim, in its direction', () => {
+  it('pins a system that is off the face on a circle inside its rim, in its direction', () => {
     // From inside the sun's system, home is far off to the left and below.
     const { map } = look(1, -735, 618);
     expect(map.depth[HOME]).toBe(PIN_DEPTH);
     expect(map.radius[HOME]).toBe(P.rimRadiusPx);
     const [x, y] = at(map, HOME);
-    // On the inner edge: rimInsetPx inside the frame on the side it lies, and within it across.
-    expect(x).toBeCloseTo(P.rimInsetPx, 9);
+    // On the circle rimInsetPx inside the face's edge, on the side it lies...
+    expect(Math.hypot(x - 66, y - 66)).toBeCloseTo(66 - P.rimInsetPx, 9);
+    expect(x).toBeLessThan(66);
     expect(y).toBeGreaterThan(66);
-    expect(y).toBeLessThanOrEqual(132 - P.rimInsetPx);
-    // On the line from the middle of the frame toward where home really is: the view's middle
+    // ...on the line from the middle of the face toward where home really is: the view's middle
     // is the sun, at (-735, 618), and home is at (0, 0).
     expect((y - 66) / (x - 66)).toBeCloseTo((618 - 0) / (-735 - 0), 9);
-    // Home's own docks are not there: a system off the frame is one mark.
+    // Home's own docks are not there: a system off the face is one mark.
     expect(map.depth[STATION]).toBe(0);
     expect(map.depth[SATELLITE]).toBe(0);
 
     // And from inside home, the sun: up and to the right.
     const home = look(HOME, 0, 0).map;
+    const [sx, sy] = at(home, SUN);
     expect(home.depth[SUN]).toBe(PIN_DEPTH);
-    expect(home.x[SUN]).toBeCloseTo(132 - P.rimInsetPx, 9);
-    expect(home.y[SUN]).toBeLessThan(66);
+    expect(Math.hypot(sx - 66, sy - 66)).toBeCloseTo(66 - P.rimInsetPx, 9);
+    expect(sx).toBeGreaterThan(66);
+    expect(sy).toBeLessThan(66);
     expect(home.depth[PLANET]).toBe(0);
   });
 
-  it('slides a mark to the rim without a jump as the view closes in', () => {
-    // The body at the heart of a system, a pixel inside the inner edge and a pixel outside it.
+  it('slides a mark to the rim without a jump as the view closes in, whichever way it lies', () => {
+    // The body at the heart of a system, a pixel inside the circle of the pins and a pixel
+    // outside it.
     const bodies: MiniBodies = { count: 1, radius: [10], depth: [3], centers: [0] };
     const view = { x: 0, z: 0, span: 132 };
     const edge = 66 - P.rimInsetPx;
-    const place = (x: number): ScreenMap =>
-      projectMini(view, FRAME, [x, 0], bodies, [1], P, createScreenMap(1));
+    const place = (x: number, z = 0): ScreenMap =>
+      projectMini(view, FRAME, [x, z], bodies, [1], P, createScreenMap(1));
     const inside = place(edge - 1);
     expect(inside.depth[0]).toBe(3);
     expect(inside.x[0]).toBeCloseTo(66 - (edge - 1), 9);
@@ -242,10 +281,40 @@ describe('where the marks are', () => {
     expect(outside.x[0]).toBeCloseTo(66 - edge, 9);
     // Dead centre is nobody's direction: no pin, and no division by nothing.
     expect(place(0).depth[0]).toBe(3);
-    // Far off along a diagonal (-X is right, +Z is up): the corner of the inner edge.
-    const corner = projectMini(view, FRAME, [-900, 900], bodies, [1], P, createScreenMap(1));
-    expect(corner.x[0]).toBeCloseTo(132 - P.rimInsetPx, 9);
-    expect(corner.y[0]).toBeCloseTo(P.rimInsetPx, 9);
+    // The rim is a circle: along a diagonal (-X is right, +Z is up) the step from "in place" to
+    // "pinned" comes at the same distance from the middle...
+    const near = (edge - 1) / Math.SQRT2;
+    const past = (edge + 1) / Math.SQRT2;
+    expect(place(-near, near).depth[0]).toBe(3);
+    expect(place(-past, past).depth[0]).toBe(PIN_DEPTH);
+    // ...and far off along it, the pin is on that circle, up and to the right, at 45 degrees.
+    const corner = place(-900, 900);
+    expect(corner.x[0]).toBeCloseTo(66 + edge / Math.SQRT2, 9);
+    expect(corner.y[0]).toBeCloseTo(66 - edge / Math.SQRT2, 9);
+  });
+
+  it('draws nothing beyond the face: the corners of its square are no map', () => {
+    // A planet (no system's heart, so never a pin), 10 px in radius at 1 u to the px.
+    const bodies: MiniBodies = { count: 1, radius: [10], depth: [1], centers: [] };
+    const view = { x: 0, z: 0, span: 132 };
+    const place = (x: number, z: number): ScreenMap =>
+      projectMini(view, FRAME, [x, z], bodies, [1], P, createScreenMap(1));
+    // 60 px out along an axis it is on the face; 60 px out both ways it is in the corner, 85 px
+    // from the middle of a face 66 px in radius.
+    expect(place(-60, 0).depth[0]).toBe(1);
+    expect(place(-60, 60).depth[0]).toBe(0);
+    // On the very edge it is still drawn; a hair beyond it, not.
+    expect(place(-66, 0).depth[0]).toBe(1);
+    expect(place(-66.5, 0).depth[0]).toBe(0);
+  });
+
+  it('reads what the tuning must keep true: a pin stands clear of the edge of the galaxy’s view', () => {
+    // On the galaxy's view a system at the very edge of the fitted disc stands
+    // (R - fitPadPx) / fitMargin from the middle of a face R px in radius; a pin stands at
+    // R - rimInsetPx. The pin must be the further out, or a system on the face would be pinned.
+    // (R is the smallest face's: the stylesheet's --minimap-size at its least, less 28 px.)
+    const smallest = 120 / 2;
+    expect(smallest - P.rimInsetPx).toBeGreaterThan((smallest - P.fitPadPx) / P.fitMargin);
   });
 
   it('queues the pins of systems that lie one behind the other, so that each can be pressed', () => {
@@ -292,7 +361,7 @@ describe('where the marks are', () => {
   it('keeps a pin on its own line, clear of the pin before it, and at the rim whenever there is room', () => {
     const bodies: MiniBodies = { count: 2, radius: [10, 10], depth: [3, 3], centers: [0, 1] };
     const view = { x: 0, z: 0, span: 132 };
-    const edge = 132 - P.rimInsetPx;
+    const reach = 66 - P.rimInsetPx;
     const apart = 2 * P.rimRadiusPx;
     let queued = 0;
     let atRim = 0;
@@ -309,20 +378,22 @@ describe('where the marks are', () => {
       );
       const [x, y] = at(map, 1);
       const gap = Math.hypot(x - (map.x[0] ?? NaN), y - (map.y[0] ?? NaN));
+      const out = Math.hypot(x - 66, y - 66);
       // The first never moves. The second is never on it, never off its own line (-z down in
-      // 1000 across), never past the rim...
-      expect(map.x[0], `z ${z}`).toBeCloseTo(edge, 9);
+      // 1000 across), never past the circle of the pins...
+      expect(map.x[0], `z ${z}`).toBeCloseTo(66 + reach, 9);
       expect(map.y[0], `z ${z}`).toBeCloseTo(66, 9);
       expect(gap, `z ${z}`).toBeGreaterThanOrEqual(apart - 1e-9);
       expect((y - 66) * 1000, `z ${z}`).toBeCloseTo((x - 66) * -z, 6);
-      expect(x, `z ${z}`).toBeLessThanOrEqual(edge + 1e-9);
-      // ...and is either at the rim, or as near it as the first lets it be: touching.
-      if (Math.abs(x - edge) < 1e-9) atRim += 1;
+      expect(out, `z ${z}`).toBeLessThanOrEqual(reach + 1e-9);
+      // ...and is either on it, or as near it as the first lets it be: touching.
+      if (Math.abs(out - reach) < 1e-9) atRim += 1;
       else {
         queued += 1;
         expect(gap, `z ${z}`).toBeCloseTo(apart, 9);
-        // It only ever steps back as long as their two places at the rim are too close.
-        expect((edge - 66) * (-z / 1000), `z ${z}`).toBeLessThan(apart);
+        // It only ever steps back as long as their two places on the circle are too close: the
+        // chord between them.
+        expect(2 * reach * Math.sin(Math.atan2(-z, 1000) / 2), `z ${z}`).toBeLessThan(apart);
       }
     }
     expect(queued).toBeGreaterThan(50);
@@ -359,26 +430,26 @@ describe('where the marks are', () => {
     }
   });
 
-  it('fits a frame of any shape', () => {
+  it('fits a frame of any shape: the face is the disc in the middle of it', () => {
     for (const frame of [
-      { width: 132, height: 132 },
-      { width: 168, height: 168 },
+      { width: 120, height: 120 },
+      { width: 156, height: 156 },
       { width: 200, height: 120 },
       { width: 120, height: 200 },
     ]) {
       const { map } = look(1, -735, 618, frame);
+      const face = Math.min(frame.width, frame.height) / 2;
+      const out = (x: number, y: number): number =>
+        Math.hypot(x - frame.width / 2, y - frame.height / 2);
       for (const row of [SUN, PLANET, MOON, OUTER]) {
         const [x, y] = at(map, row);
         const radius = map.radius[row] ?? 0;
         expect(radius, `row ${row}`).toBeGreaterThan(0);
-        expect(x - radius, `row ${row}`).toBeGreaterThanOrEqual(0);
-        expect(x + radius, `row ${row}`).toBeLessThanOrEqual(frame.width);
-        expect(y - radius, `row ${row}`).toBeGreaterThanOrEqual(0);
-        expect(y + radius, `row ${row}`).toBeLessThanOrEqual(frame.height);
+        expect(out(x, y) + radius, `row ${row}`).toBeLessThanOrEqual(face);
       }
       const [x, y] = at(map, HOME);
       expect(map.depth[HOME]).toBe(PIN_DEPTH);
-      expect(Math.min(x, frame.width - x, y, frame.height - y)).toBeCloseTo(P.rimInsetPx, 9);
+      expect(out(x, y)).toBeCloseTo(face - P.rimInsetPx, 9);
     }
   });
 });

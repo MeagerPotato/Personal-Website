@@ -365,8 +365,10 @@ describe('what the minimap looks at', () => {
     // Projects is off the map: its sun is pinned inside the rim, up and to the right, in outline.
     expect(mark(SUN).hasAttribute('data-pin')).toBe(true);
     const [pinX, pinY] = at(SUN);
-    expect(pinX).toBeCloseTo(130 - P.rimInsetPx, 1);
-    expect(pinY).toBeCloseTo(P.rimInsetPx, 1);
+    // (On the circle of the pins: 45 degrees up and to the right of the middle of the face.)
+    const reach = (65 - P.rimInsetPx) / Math.SQRT2;
+    expect(pinX).toBeCloseTo(65 + reach, 1);
+    expect(pinY).toBeCloseTo(65 - reach, 1);
     expect(shows(PLANET)).toBe(false);
     expect(mark(HOME).hasAttribute('data-pin')).toBe(false);
   });

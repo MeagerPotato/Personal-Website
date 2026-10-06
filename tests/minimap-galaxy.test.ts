@@ -26,20 +26,20 @@ import { createScreenMap, type ScreenMap } from '../src/universe/sim/screen';
 // THE MINIMAP IN THE GALAXIES THERE ARE (sim/minimap.ts, wired as ui/MiniMap.ts wires it): the
 // real one, read from src/content as the build reads it, the journeys harness's grown ones of 6
 // and 8 systems, and the real one pulled out wide and pulled out tall. Whatever the galaxy's
-// shape, whatever is fitted (the galaxy, or any one system), at the smallest plate and the
+// shape, whatever is fitted (the galaxy, or any one system), at the smallest face and the
 // largest, and wherever the bodies are on their way round:
 //
-//   every body a ship can dock at in what is fitted is inside the frame, whole;
-//   every OTHER system is exactly one mark inside it, in place or pinned at the rim, and a
-//   press on that mark means that system: any system is one press away;
+//   every body a ship can dock at in what is fitted is on the face (a disc), whole;
+//   every OTHER system is exactly one mark on it, in place or pinned on the circle inside its
+//   rim, and a press on that mark means that system: any system is one press away;
 //   the ship is on it.
 //
 // Nothing here pins a number of today's galaxy: content, and the layout, may move every system.
 
 const P = tuning.minimap;
 const MOUSE = tuning.picking.mouse;
-/** The plate, CSS px: its smallest and its largest. */
-const SIZES = [132, 168];
+/** The face, CSS px: its smallest and its largest (the plate less 28 px). */
+const SIZES = [120, 156];
 /** Seconds: the bodies are on their way round. */
 const TIMES = [0, 137, 4321];
 /** The ship keeps its system's scope until it is this many radii out (sim/instruments.ts). */
@@ -93,7 +93,7 @@ function tableOf(manifest: UniverseManifest) {
 
 type Table = ReturnType<typeof tableOf>;
 
-/** The minimap of `scope` with the ship at (x, z), `t` seconds in, on a plate `size` px square. */
+/** The minimap of `scope` with the ship at (x, z), `t` seconds in, on a face `size` px across. */
 function look(table: Table, scope: number, x: number, z: number, size: number, t: number) {
   const { manifest, orbits, rows, bodies, all } = table;
   const frame = { width: size, height: size };
@@ -124,7 +124,7 @@ function look(table: Table, scope: number, x: number, z: number, size: number, t
   const ship = pointOn(view, x, z, frame, new Float64Array(2));
   return {
     map,
-    /** Where body `row` really is, CSS px from the MIDDLE of the plate: on it or far off it. */
+    /** Where body `row` really is, CSS px from the MIDDLE of the face: on it or far off it. */
     truly: (row: number): [number, number] => [
       (view.x - (positions[row * 2] ?? NaN)) / perPx,
       (view.z - (positions[row * 2 + 1] ?? NaN)) / perPx,
@@ -134,8 +134,9 @@ function look(table: Table, scope: number, x: number, z: number, size: number, t
   };
 }
 
-/** How far inside the frame a point is, CSS px: negative outside it. */
-const inside = (x: number, y: number, size: number): number => Math.min(x, size - x, y, size - y);
+/** How far inside the round face a point is, CSS px from its edge: negative outside it. */
+const inside = (x: number, y: number, size: number): number =>
+  size / 2 - Math.hypot(x - size / 2, y - size / 2);
 
 /** Where the ship may be while a system is the scope: at its heart, at its edge, and as far out as the scope is kept. */
 function* placesIn(system: { position: readonly [number, number]; radius: number }) {
@@ -204,7 +205,7 @@ describe.each(GALAXIES)('the minimap of %s', (_name, manifest) => {
           rows.forEach((body, row) => {
             if ((bodies.depth[row] ?? 0) === 0) return;
             const at = `${body.id}, ${where}`;
-            // Every body a ship can dock at is on the plate, whether it is big enough for a mark
+            // Every body a ship can dock at is on the face, whether it is big enough for a mark
             // or not; and nothing is pinned: all of it is there.
             const [mx = NaN, my = NaN] = [map.x[row], map.y[row]];
             expect(inside(mx, my, size), at).toBeGreaterThanOrEqual(0);
@@ -235,7 +236,7 @@ describe.each(GALAXIES)('the minimap of %s', (_name, manifest) => {
             const where = `${system.id}, ${size} px, t ${t}, ship at ${Math.round(x)}, ${Math.round(z)}`;
             expect(inside(shipX, shipY, size), where).toBeGreaterThanOrEqual(0);
 
-            // Every mark is on the plate, and is big enough to see.
+            // Every mark is on the face, and is big enough to see.
             for (const row of marks(map)) {
               const [mx = NaN, my = NaN] = [map.x[row], map.y[row]];
               expect(inside(mx, my, size), `${rows[row]?.id}, ${where}`).toBeGreaterThanOrEqual(0);
@@ -244,7 +245,7 @@ describe.each(GALAXIES)('the minimap of %s', (_name, manifest) => {
               );
             }
 
-            // Its own bodies: on the plate, whole, never pinned; its heart is always a mark.
+            // Its own bodies: on the face, whole, never pinned; its heart is always a mark.
             rows.forEach((body, row) => {
               if (systemOf[row] !== scope || (bodies.depth[row] ?? 0) === 0) return;
               const at = `${body.id}, ${where}`;
@@ -269,7 +270,7 @@ describe.each(GALAXIES)('the minimap of %s', (_name, manifest) => {
                 return;
               }
               expect(map.radius[row], at).toBe(P.rimRadiusPx);
-              // A pin is on the line from the middle of the plate toward where its heart is...
+              // A pin is on the line from the middle of the face toward where its heart is...
               const [tx, ty] = truly(row);
               const [px, py] = [mx - size / 2, my - size / 2];
               expect((px * ty - py * tx) / Math.hypot(tx, ty), at).toBeCloseTo(0, 6);
