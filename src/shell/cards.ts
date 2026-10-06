@@ -100,6 +100,8 @@ function watchCards(
   panel: HTMLElement,
 ): Cards {
   const root = doc.documentElement;
+  /** The panel's bar: Close is in it, at the right end of the head (`carry`). */
+  const bar = panel.querySelector<HTMLElement>(':scope > .panel-bar');
   const media = view.matchMedia(DECK);
   const listeners = new AbortController();
   /**
@@ -278,6 +280,13 @@ function watchCards(
    * that slides a card toward the body while it widens, its words going with it.) An animation
    * is no attribute: nothing is written in the page. None for a visitor who asked for less
    * motion, and none unless there was a deck before the change and still is.
+   *
+   * Close goes with the head. It stands at the right end of the head's first row and is no part
+   * of the head: it is in the panel's bar, which the stylesheet makes as wide as the head's
+   * column, so it is at its new place at once. Where the head unrolls sideways (its column
+   * widens for a card that opens in it), that place is out on the sky until the head's edge
+   * reaches it: so the bar sets out as far back as the head is cut, and Close rides the edge.
+   * (The head itself never moves: it is the first box of its column.)
    */
   function carry(cards: readonly HTMLElement[], change: () => void): void {
     const moving = deck && root.dataset.motion !== 'reduced';
@@ -301,7 +310,11 @@ function watchCards(
       if (wider >= 0.5 || taller >= 0.5) {
         frames.clipPath = [`inset(0px ${wider}px ${taller}px 0px)`, 'inset(0px)'];
       }
-      return frames.translate || frames.clipPath ? [card.animate(frames, JOURNEY)] : [];
+      const set = frames.translate || frames.clipPath ? [card.animate(frames, JOURNEY)] : [];
+      if (index === 0 && wider >= 0.5 && bar) {
+        set.push(bar.animate({ translate: [`${-wider}px 0px`, '0px 0px'] }, JOURNEY));
+      }
+      return set;
     });
     // A journey that is over is let go of: it holds its card and, after a navigation, the whole
     // page that card was in.

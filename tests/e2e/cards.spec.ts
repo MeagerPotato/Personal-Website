@@ -121,6 +121,10 @@ function problems({ cards, stage }: { cards: Box[]; stage: Box }): string[] {
  * more between one card and the next: the chips over the open card, the open card, the chips
  * under it, and sky under the last. With none open a column of two cards or more reaches from
  * the top of the stage to its foot.
+ *
+ * A column is the cards that share a left edge. Ask `problems` of the same layout FIRST: it
+ * holds a deck to two such edges, so an open card that came out wider or narrower than the
+ * chips of its column (a third edge, and a gap here that nobody measures) is found there.
  */
 function misplaced({ cards, stage }: { cards: Box[]; stage: Box }, packed: boolean): string[] {
   const found: string[] = [];
@@ -150,6 +154,10 @@ function misplaced({ cards, stage }: { cards: Box[]; stage: Box }, packed: boole
  * packed that is where the next chip's title stands. So each link and button of it has to be
  * said to be out of sight as well (opacity 0, on it or on something round it), or whatever goes
  * by where a box lies (axe) finds two things to press in one place.
+ *
+ * And the other way round: the one thing a chip shows, its title (the head's chip: the page's
+ * heading), is NOT said to be out of sight. The stylesheet hides what a chip holds by what is
+ * not its title row, so a title that was no longer a card's own `<h2>` would go with the rest.
  */
 const offered = (page: Page): Promise<string[]> =>
   page.evaluate(() => {
@@ -157,16 +165,20 @@ const offered = (page: Page): Promise<string[]> =>
     return [...document.querySelectorAll<HTMLElement>('#main > [data-card]')].flatMap(
       (card, index) => {
         if (index === open) return [];
-        const title = card.querySelector(':scope > h2 > a');
-        return [...card.querySelectorAll<HTMLElement>('a[href], button, input, summary')]
-          .filter((control) => {
-            if (control === title) return false;
-            for (let at: Element | null = control; at && at !== card; at = at.parentElement) {
-              if (getComputedStyle(at).opacity === '0') return false;
-            }
-            return true;
-          })
-          .map((control) => `card ${index}: ${control.textContent.trim().slice(0, 24)}`);
+        const unseen = (element: Element): boolean => {
+          for (let at: Element | null = element; at && at !== card; at = at.parentElement) {
+            if (getComputedStyle(at).opacity === '0') return true;
+          }
+          return false;
+        };
+        const title = card.querySelector(index === 0 ? 'h1' : ':scope > h2 > a');
+        const kept = title && !unseen(title) ? [] : [`card ${index}: its title is out of sight`];
+        return [
+          ...kept,
+          ...[...card.querySelectorAll<HTMLElement>('a[href], button, input, summary')]
+            .filter((control) => control !== title && !unseen(control))
+            .map((control) => `card ${index}: ${control.textContent.trim().slice(0, 24)}`),
+        ];
       },
     );
   });
@@ -1055,6 +1067,68 @@ test.describe('on a wide screen', () => {
       .poll(() => page.evaluate(() => (window as unknown as { e2eAside: string[] }).e2eAside))
       .toEqual(['aside', 'back']);
     await expect.poll(() => count(page)).toBe(1);
+
+    // "In short" opens, under the head: the LEFT column is the wide one now, and the head
+    // unrolls toward the body from the width it had. Close stands at the head's end and is no
+    // part of it (the panel's bar, which is as wide as the head's column at once): it sets out
+    // from where it stood, on the edge that is cut back, and is never ahead of it on the sky.
+    const ride = await page.evaluate(() => {
+      const head = document.querySelector('#main > [data-card]');
+      const close = document.querySelector('.panel-bar [data-panel-close]');
+      const bar = close?.closest('.panel-bar');
+      if (!head || !close || !bar) return null;
+      const was = close.getBoundingClientRect();
+      document.querySelector<HTMLElement>('#about-intro > a')?.click();
+      const journeys = document.getAnimations().flatMap((animation) => {
+        const effect = animation.effect as KeyframeEffect | null;
+        if (!effect || (effect.target !== head && effect.target !== bar)) return [];
+        const first = effect.getKeyframes()[0] ?? {};
+        return [
+          {
+            of: effect.target === head ? 'head' : 'Close',
+            script: !(animation instanceof CSSAnimation),
+            ms: effect.getTiming().duration,
+            moves: ['translate', 'clipPath'].filter((property) => property in first),
+          },
+        ];
+      });
+      // As they are DRAWN while they set out: a journey's first frame holds from the start.
+      const cut = /^inset\(0px ([\d.]+)px/.exec(getComputedStyle(head).clipPath);
+      const now = close.getBoundingClientRect();
+      return {
+        journeys,
+        cut: Number(cut?.[1] ?? NaN),
+        moved: Math.hypot(now.left - was.left, now.top - was.top),
+        // How far inside the head's edge Close ends, the head as it is drawn (its cut taken off).
+        inside: head.getBoundingClientRect().right - Number(cut?.[1] ?? NaN) - now.right,
+      };
+    });
+    expect(await state(page)).toMatchObject({ hash: '#about-intro', open: '1', side: 'left' });
+    // One journey each, made as the cards' own are and as long: the head is cut, Close is moved.
+    expect(ride?.journeys).toEqual([
+      { of: 'head', script: true, ms: 240, moves: ['clipPath'] },
+      { of: 'Close', script: true, ms: 240, moves: ['translate'] },
+    ]);
+    // The column is wider by a good deal (173 px in this window), and all of that is cut back.
+    expect(ride?.cut).toBeGreaterThan(100);
+    expect(ride?.moved).toBeLessThan(0.5);
+    expect(ride?.inside).toBeGreaterThan(0);
+    // At rest Close is as far inside the head's end as it set out: where the stylesheet has it.
+    await layout(page);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const head = document.querySelector('#main > [data-card]');
+          const close = document.querySelector('.panel-bar [data-panel-close]');
+          const journey = document.getAnimations().some((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            return target === close?.parentElement;
+          });
+          if (!head || !close || journey) return NaN;
+          return head.getBoundingClientRect().right - close.getBoundingClientRect().right;
+        }),
+      )
+      .toBeCloseTo(ride?.inside ?? NaN, 0);
   });
 
   test('a window resized takes the leaders along with the cards: nothing steps aside', async ({

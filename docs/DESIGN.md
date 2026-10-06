@@ -401,7 +401,11 @@ of, is in the table under The 3D world.
     blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
     cards read as the ends of lines to it;
   - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
-    `base` on one line, with Close;
+    `base` on one line, with Close. What a chip holds under that row is cut off, and it is also
+    said to be out of sight (`opacity: 0`, on everything of a chip that is not its title row;
+    the open card alone sets it back): it is still laid out there, where the next chip's title
+    stands, and a tool that goes by where a box lies would find a chip's keys under that title.
+    Nothing looks different, and nothing leaves the page, the tab order or find-in-page;
   - **the open card**: the whole section at the panel's sizes in `ink.high`, as wide as
     30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
     its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
@@ -442,7 +446,9 @@ of, is in the table under The 3D world.
   `translate`; the right column 80 ms after the left). A change of card is carried: the layout
   changes at once, and each card that moved glides from where it was to where it belongs
   (`motion.base`, ease-out), its title going with it; a card that grew unrolls from the size it
-  had, so a column unfolds in step. The leaders step aside while the cards travel (out in
+  had, so a column unfolds in step, and where the head unrolls sideways (a card opens under
+  it, and its column widens) Close rides the head's edge, never ahead of it on the sky. The
+  leaders step aside while the cards travel (out in
   `motion.fast`, back in `motion.base` once the cards rest; a window that is only resized
   takes them along at once, since nothing travels), and when they first appear (the
   ship in orbit, the view at rest) each is drawn from its card to the body, 40 ms after the one

@@ -922,7 +922,8 @@ describe('the deck', () => {
         writable: true,
         value(this: HTMLElement, frames: unknown, options: unknown) {
           const journey: Journey = {
-            card: this.querySelector('h2')?.id ?? 'head',
+            // (The panel's bar is no card: it is what Close stands in.)
+            card: this.matches('.panel-bar') ? 'Close' : (this.querySelector('h2')?.id ?? 'head'),
             frames,
             options,
             cancel: vi.fn<() => void>(),
@@ -1024,6 +1025,62 @@ describe('the deck', () => {
         // The card that was open is short again: carried to its place, and simply smaller.
         { card: 'four', frames: { translate: ['-180px -212px', '0px 0px'] } },
       ]);
+    });
+
+    it('takes Close along where the head widens: it rides the edge, never ahead of it on the sky', () => {
+      // "three" is open, in the right column: the left one is narrow, and Close at its end.
+      start({ hash: '#three' });
+      click(titleOf('one'));
+      expect(state()).toEqual(['1', 'left', '1']);
+      const of = (card: string) => journeys.filter((journey) => journey.card === card);
+      // The left column is the wide one now. The head unrolls toward the body from the width
+      // it had (180 px are cut back), where it stands...
+      expect(of('head').map(({ frames }) => frames)).toEqual([
+        { clipPath: ['inset(0px 180px 0px 0px)', 'inset(0px)'] },
+      ]);
+      // ...and Close, which the stylesheet has put at the wide head's end already, sets out as
+      // far back as the head is cut: with the edge, in the same time and with the same easing.
+      expect(of('Close').map(({ frames }) => frames)).toEqual([
+        { translate: ['-180px 0px', '0px 0px'] },
+      ]);
+      expect(of('Close')[0]?.options).toEqual(of('head')[0]?.options);
+      expect(of('Close')[0]?.options).toEqual({
+        duration: Number.parseFloat(tokens.motion.base),
+        easing: tokens.motion.easeOut,
+      });
+
+      // Back among all of them, before anything has arrived: the journey Close was on ends with
+      // the cards' own. The head is narrow again at once, and so is the bar: the head only
+      // unrolls downward, to the height it has with its lede, and Close has nothing to ride.
+      const first = of('Close')[0];
+      journeys = [];
+      cards?.escape();
+      expect(first?.cancel).toHaveBeenCalledTimes(1);
+      expect(of('head').map(({ frames }) => frames)).toEqual([
+        { clipPath: ['inset(0px 0px 76px 0px)', 'inset(0px)'] },
+      ]);
+      expect(of('Close')).toEqual([]);
+
+      // And a card of the right column, from the overview: the head only grows shorter.
+      journeys = [];
+      click(titleOf('four'));
+      expect(of('head')).toEqual([]);
+      expect(of('Close')).toEqual([]);
+    });
+
+    it('carries no Close for a visitor who asked for less motion, or on a page without the bar', () => {
+      root.dataset.motion = 'reduced';
+      start({ hash: '#three' });
+      click(titleOf('one'));
+      expect(state()[0]).toBe('1');
+      expect(journeys).toEqual([]);
+
+      delete root.dataset.motion;
+      document.querySelector('.panel-bar')?.remove();
+      start({ hash: '#three' });
+      click(titleOf('one'));
+      expect(journeys.some((journey) => journey.card === 'head')).toBe(true);
+      expect(journeys.some((journey) => journey.card === 'Close')).toBe(false);
     });
 
     it('is seen whoever changes the card: the wheel, a key, the router', () => {
