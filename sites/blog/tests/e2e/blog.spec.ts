@@ -550,9 +550,17 @@ test('no page has a serious accessibility issue', async ({ browser }) => {
     await check(reader.page, name);
   }
 
+  // The email list is off (no mail is set up): readers are offered none, and neither is the studio.
+  expect((await reader.page.goto('/subscribe/'))?.status()).toBe(404);
+  await check(reader.page, 'subscribe-off');
+  await reader.page.goto('/');
+  await expect(reader.page.getByRole('link', { name: /subscribe/i })).toHaveCount(0);
+
   // The studio's screens, and the post being written.
   const { page } = allen;
-  for (const name of ['Posts', 'Comments', 'Subscribers', 'Organize', 'Settings']) {
+  await expect(sidebar(page, 'Settings')).toBeVisible();
+  await expect(sidebar(page, 'Subscribers')).toHaveCount(0);
+  for (const name of ['Posts', 'Comments', 'Organize', 'Settings']) {
     await sidebar(page, name).click();
     await expect(heading(page, name)).toBeVisible();
     // Organize's rows open into their forms: one is opened, so a form is checked too.
@@ -596,5 +604,6 @@ test('no page logged an error or a CSP violation', () => {
   // What the tests asked to be refused (the wrong setup code, the save over a newer one, the save
   // tried while signed out), and no more.
   expect(allen.refused).toEqual(['403 (Forbidden)', '409 (Conflict)', '401 (Unauthorized)']);
-  expect(reader.refused).toEqual(['404 (Not Found)']); // the page that is not there
+  // The subscribe page while the email list is off, and the page that is not there.
+  expect(reader.refused).toEqual(['404 (Not Found)', '404 (Not Found)']);
 });

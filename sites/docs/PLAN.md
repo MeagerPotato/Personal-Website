@@ -128,7 +128,7 @@ cron drains and retries.
 | **J3** | Launch: Allen follows the runbook; the journal goes live | Done 2026-10-01 |
 | **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Done |
 | **B2** | Comments, held for approval | Done |
-| **B3** | Email subscriptions, double opt-in, and a new post by email | Built; sending waits on Allen's choice (§7) |
+| **B3** | Email subscriptions, double opt-in, and a new post by email | Built and switched off: Allen's choice on 2026-10-05, "for now" (§7) |
 | **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | Waiting on Allen |
 | **D** | The details: Allen's pass over both sites, and the list below | Ongoing |
 
@@ -138,8 +138,8 @@ cron drains and retries.
   locally on 2026-09-30 with `npx wrangler check startup` in each app (a dry-run build and a
   local profile: nothing is deployed): the journal's Worker is 864 KiB and starts in about 15 ms
   of CPU, the blog's is 3.0 MB and starts in about 46 ms. Cloudflare's limit is 1 s.
-- The blog's name ("Captain's Log", the main site's working name) and its one-line description
-  are placeholders for Allen's words.
+- The blog's one-line description is a placeholder for Allen's words (asked 2026-10-05:
+  "decide later"; ask again before the first post). Its name is decided: "Allen Hsieh".
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
   Math) with the blog.
 - The studio could tell Allen about a new comment by email, once email is set up.
@@ -176,11 +176,17 @@ cron drains and retries.
 ## 7. Open items for Allen
 
 - **B4:** the blog's Cloudflare setup ([runbook](runbooks/blog-setup.md)).
-- **The blog's email** (B3). Built for Cloudflare's own Email Service, which sends from a Worker
-  with no API key but needs Workers Paid ($5 a month, 3,000 emails included) to reach readers;
-  the runbook's §7 sets it up. The other road is a separate service (Resend, Postmark, Amazon
-  SES) with an API key, a small change in `blog/src/server/mail.ts`. Either way the sending
-  domain needs DNS records, which are Allen's to add.
-- **Turnstile** for the comment form (a free Cloudflare widget, the runbook's §8): until it
-  exists, comments rely on a honeypot, a minimum time to fill the form, rate limits and approval.
-- **The blog's name and description,** and **the first post,** once the blog is up.
+- **The blog's email** (B3): **off for now** (Allen, 2026-10-05). While the Worker has no
+  `send_email` binding and no `MAIL_FROM`, nothing of it shows: no Subscribe link or page for
+  readers (`/subscribe/` answers 404), no Subscribers screen or Email section in the studio. The
+  code and its tests stay, so bringing it back is setup alone. It is built for Cloudflare's own
+  Email Service, which sends from a Worker with no API key but needs Workers Paid ($5 a month,
+  3,000 emails included) to reach readers; the runbook's §7 sets it up. The other road is a
+  separate service (Resend, Postmark, Amazon SES) with an API key, a small change in
+  `blog/src/server/mail.ts`. Either way the sending domain needs DNS records, which are Allen's
+  to add.
+- **Turnstile** for the comment form: **not now** (Allen, 2026-10-05). Comments rely on the
+  honeypot, a minimum time to fill the form, rate limits and approval; the runbook's §8 adds the
+  widget (free) if spam gets through anyway.
+- **The blog's description** (its name is "Allen Hsieh", decided 2026-10-05), and **the first
+  post,** once the blog is up.

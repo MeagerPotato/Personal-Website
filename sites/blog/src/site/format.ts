@@ -33,6 +33,6 @@ export const readingMinutes = (words: number): number =>
 /** "4 min read" */
 export const readingTime = (words: number): string => `${readingMinutes(words)} min read`;
 
-/** A page's <title>: "Post title · Captain’s Log", or the blog's name alone. */
+/** A page's <title>: "Post title · Allen Hsieh", or the blog's name alone. */
 export const pageTitle = (title: string | null, blog: string): string =>
   title ? `${title} · ${blog}` : blog;
