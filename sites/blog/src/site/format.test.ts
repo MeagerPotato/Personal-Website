@@ -23,7 +23,7 @@ describe('format', () => {
   });
 
   it('names the page, then the blog', () => {
-    expect(pageTitle('First light', 'Captain’s Log')).toBe('First light · Captain’s Log');
-    expect(pageTitle(null, 'Captain’s Log')).toBe('Captain’s Log');
+    expect(pageTitle('First light', 'Allen Hsieh')).toBe('First light · Allen Hsieh');
+    expect(pageTitle(null, 'Allen Hsieh')).toBe('Allen Hsieh');
   });
 });

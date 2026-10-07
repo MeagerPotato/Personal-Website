@@ -144,7 +144,6 @@ export async function seriesPage(
 
 export interface SubscribePage {
   kind: 'subscribe';
-  mailOn: boolean;
   form: SubscribeFormState;
   /** The form was just sent: "check your inbox". */
   sent: boolean;
@@ -155,11 +154,11 @@ export async function subscribePage(
   request: Request,
   now = Date.now(),
 ): Promise<Loaded<SubscribePage>> {
+  if (!mailReady(env)) return { kind: 'missing' };
   const form = await subscribeForm(env, request, now);
   if (form.kind === 'redirect') return { kind: 'redirect', location: form.location, status: 303 };
   return {
     kind: 'subscribe',
-    mailOn: mailReady(env),
     form,
     sent: new URL(request.url).searchParams.get('sent') === '1',
   };

@@ -53,9 +53,10 @@ const BUDGET = {
   /**
    * All JavaScript reachable only through import(): what universe mode costs on top. 180 KiB until
    * 2026-09-23, when Allen raised it to 220 for Phase 3 (the map, the lanes, the traffic, a glTF
-   * loader): docs/PLAN.md §9. Plain mode never downloads any of it.
+   * loader), and 220 until 2026-10-06, when Allen raised it to 250 for the look, the cards, the
+   * flight deck and hyperspace: docs/PLAN.md §9. Plain mode never downloads any of it.
    */
-  lazyScripts: 220 * 1024,
+  lazyScripts: 250 * 1024,
   /**
    * Every font a page PRELOADS, in raw bytes (woff2 is compressed already): fetched with the page
    * in both modes, so part of what a first visit costs, and counted on its own line so that a

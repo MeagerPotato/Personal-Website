@@ -233,7 +233,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.6 KiB gzipped on 2026-10-06: the engine 206.1, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 220 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.6 KiB gzipped on 2026-10-06: the engine 206.1, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,

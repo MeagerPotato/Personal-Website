@@ -83,7 +83,7 @@ builds fail until this is on `main`: wait for the merge before §3.
    | --- | --- |
    | Project / Worker name | `allenkh-blog` (**must match** `name` in `sites/blog/wrangler.jsonc`) |
    | Production branch | `main` |
-   | Root directory | `sites/blog` |
+   | Root directory | `sites/blog` (it may sit under **Advanced settings**; if it is left empty the build fails at `npm ci`, "can only install with an existing package-lock.json") |
    | Build command | `cd .. && npm ci && npm run build --workspace=blog` |
    | Deploy command | `npx wrangler deploy` |
    | Builds for non-production branches (Preview builds) | **off** |
@@ -116,7 +116,10 @@ address first can claim it. While the studio has a passkey the code opens nothin
    ```
 
 2. The Worker → **Settings** → **Variables and secrets** → **Add** → type **Secret**, name
-   `SETUP_TOKEN`, the code as its value → **Deploy**.
+   `SETUP_TOKEN`, the code as its value → **Deploy**. This is the section at the top level of
+   **Settings**, not the one of the same name under **Settings** → **Build**: a build variable
+   never reaches the running Worker, and setup then answers "Setup is switched off (no
+   SETUP_TOKEN)".
 
 ## 5. Put it on blog.allenkh.com
 
@@ -140,7 +143,9 @@ own HSTS header without `includeSubDomains`, like the main site.
 
 ## 7. Email to readers (optional; Workers Paid)
 
-Without this the blog works fully, and simply has no subscribe form. With it, readers subscribe
+**Skip this for now:** Allen chose on 2026-10-05 to leave the email list off. Without this
+section the blog works fully and shows nothing of the list: no subscribe page for readers, no
+Subscribers screen in the studio. The steps stay here for the day it is wanted. With it, readers subscribe
 (a confirmation email first), and each post can be emailed to them once, from the post's page in
 the studio. Cloudflare's own Email Service sends it; its sending is a beta on Workers Paid only.
 
@@ -157,16 +162,17 @@ the studio. Cloudflare's own Email Service sends it; its sending is a beta on Wo
    next deploy: the file owns the Worker's settings).
 4. **The sender:** the Worker → **Settings** → **Variables and secrets** → **Add** → type
    **Secret**, name `MAIL_FROM`, value the blog's name and an address at allenkh.com, in the
-   form `Captain’s Log <allen@allenkh.com>`. A secret, not a plain variable, because a deploy
+   form `Allen Hsieh <allen@allenkh.com>`. A secret, not a plain variable, because a deploy
    keeps secrets. Use the public address, or another one at allenkh.com that you read: readers
    may reply.
-5. **Check:** the studio's Settings says email is set up, and the blog shows its subscribe form.
+5. **Check:** the studio now has a Subscribers screen and its Settings says email is set up, and
+   the blog shows its subscribe form.
    Subscribe with your own address, confirm from the email, then on a published post in the
    studio press **Email subscribers**.
 
 ## 8. Turnstile on the comment form (optional)
 
-Until it is on, comments rely on a hidden honeypot field, a rate limit and your approval, which
+**Skip this for now** too (Allen, 2026-10-05: the built-in protection only). Until it is on, comments rely on a hidden honeypot field, a rate limit and your approval, which
 is enough for a quiet blog. If spam gets through anyway:
 
 1. Dashboard → **Turnstile** → **Add widget**: name `allenkh-blog`, hostname `blog.allenkh.com`,

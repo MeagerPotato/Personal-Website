@@ -196,10 +196,25 @@ describe('lists', () => {
 });
 
 describe('subscribing and its links', () => {
+  it('has no subscribe page while email is off, and takes nobody’s address', async () => {
+    expect(await subscribePage(env, get('/subscribe/'))).toEqual({ kind: 'missing' });
+    const token = await issueFormToken(env.DB, 'subscribe', T0);
+    const sent = await subscribePage(
+      env,
+      post('/subscribe/', { t: token, [HONEYPOT]: '', email: 'reader@example.com' }),
+      T0 + 5000,
+    );
+    expect(sent).toEqual({ kind: 'missing' });
+    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM subscribers').first<{
+      n: number;
+    }>();
+    expect(row?.n).toBe(0);
+  });
+
   it('shows the form, and after sending, “check your inbox”', async () => {
     env = await freshEnv(platform, { EMAIL: new FakeMail(), MAIL_FROM: 'allen@allenkh.com' });
     const page = await subscribePage(env, get('/subscribe/'));
-    expect(page).toMatchObject({ kind: 'subscribe', mailOn: true, sent: false });
+    expect(page).toMatchObject({ kind: 'subscribe', sent: false });
     const token = await issueFormToken(env.DB, 'subscribe', T0);
     const sent = await subscribePage(
       env,
