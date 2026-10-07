@@ -119,13 +119,21 @@ address first can claim it. While the studio has a passkey the code opens nothin
    `SETUP_TOKEN`, the code as its value → **Deploy**. This is the section at the top level of
    **Settings**, not the one of the same name under **Settings** → **Build**: a build variable
    never reaches the running Worker, and setup then answers "Setup is switched off (no
-   SETUP_TOKEN)".
+   SETUP_TOKEN)". Two more ways it goes wrong, both from the form itself: the type is left at
+   **Text** (the dashboard then shows the value and offers it for `wrangler.jsonc`: never copy
+   it there, delete the variable and add it again as a Secret), or the name is typed with a
+   hyphen (it is an underscore). A code that has been shown anywhere is used up: make another.
 
 ## 5. Put it on blog.allenkh.com
 
 1. The Worker → **Settings** → **Domains & Routes** → **Add** → **Custom Domain** →
    `blog.allenkh.com` → **Add Custom Domain**.
 2. Cloudflare creates the DNS record and the certificate itself. Give it a few minutes.
+
+If your browser then says the site can't be reached (`ERR_NAME_NOT_RESOLVED`) while Claude sees
+it from outside: your network asked for the name before it existed (§0's check does that) and
+remembers the answer for up to half an hour. Wait and reload, or use another network; nothing
+needs redoing in the dashboard.
 
 **Custom Domain, never Route**: a route pattern can capture other hostnames. The blog sends its
 own HSTS header without `includeSubDomains`, like the main site.
