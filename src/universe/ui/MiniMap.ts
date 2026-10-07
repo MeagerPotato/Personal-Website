@@ -263,6 +263,8 @@ export class MiniMap implements System {
   private py = 0;
   private aimed = -1;
   private press: { id: number; x: number; y: number; at: number } | null = null;
+  /** Says when the stylesheet gives the face another size (null where nothing can watch). */
+  private readonly watcher: ResizeObserver | null;
 
   constructor(private readonly options: MiniMapOptions) {
     const { bodies, systems, orbits, radii, docks } = options;
@@ -354,6 +356,12 @@ export class MiniMap implements System {
     root.addEventListener('pointerleave', this.onLeave);
     // Last in the overlay: nothing in it takes the focus, so the order of what does is unchanged.
     options.overlay.append(root);
+    // The plate has two sizes, and the stylesheet eases from one to the other as the ship docks
+    // and leaves (`.minimap`, "its two sizes"): the drawing and the pointer's frame follow the
+    // face all the way. (`box()` reads the page each time it is asked.)
+    this.watcher =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => this.shape());
+    this.watcher?.observe(map);
   }
 
   frameUpdate(frame: Frame): void {
@@ -491,6 +499,7 @@ export class MiniMap implements System {
   }
 
   dispose(): void {
+    this.watcher?.disconnect();
     this.root.remove();
   }
 
@@ -498,7 +507,8 @@ export class MiniMap implements System {
    * The face is as big as the stylesheet makes it, and lies where the stylesheet puts it in the
    * instrument's box (under the pill, inside the plate's band): draw to that size, so that one
    * unit of the drawing is one CSS px, and note that place for the pointer. Reads layout, so
-   * only where either can have changed.
+   * only where either can have changed: the view was resized, the instrument came back, or the
+   * face itself changed size (the watcher: once a frame while the stylesheet eases it).
    */
   private shape(): void {
     if (this.root.hidden) return;
@@ -510,8 +520,11 @@ export class MiniMap implements System {
     if (size === this.frame.width && this.map.hasAttribute('viewBox')) return;
     this.frame.width = this.frame.height = size;
     this.map.setAttribute('viewBox', `0 0 ${size} ${size}`);
-    // Everything is put in place again with the next frame, at once.
-    this.awake = false;
+    // Every mark is put in place again with the next frame. The view is not cut for it: what the
+    // face looks at is the same, and how much of it shows changes by a fiftieth (the padding at
+    // its edge is in px), which eases; a cut here would end the ease into a system's scope that
+    // a ship arriving in it is in the middle of.
+    this.placedAt = -Infinity;
   }
 
   /** Put every mark, and the circle it travels on, where it is in `view`. */

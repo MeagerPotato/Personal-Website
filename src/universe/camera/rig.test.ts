@@ -570,6 +570,37 @@ describe('the camera rig, making room for the panel', () => {
     expect(subject.seen?.freeLeft).toBeCloseTo(400 / 1280, 6);
   });
 
+  it('knows at once that the page wants some of the view, and that it is whole only when it is', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    const { rig } = rigWith(subject, 1280, 800);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // A panel opens, and the view eases over: two frames on nearly all of it still reads as free
+    // (which is how a link's journey, begun in the same moment, once had its hyperspace offered).
+    rig.setInset({ right: 504 });
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.shape.freeWidth).toBeGreaterThan(0.99);
+    expect(rig.whole).toBe(false);
+
+    // It closes: nothing is wanted any more, but the view has not slid back yet.
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    rig.setInset({});
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // A phone's sheet covers from the bottom. A band at the top alone is the bar, not a page.
+    rig.setInset({ bottom: 300 }, true);
+    expect(rig.whole).toBe(false);
+    rig.setInset({ top: 160 }, true);
+    expect(rig.whole).toBe(true);
+  });
+
   it('measures again when the viewport changes', () => {
     const subject = new Looking(0, 0, 60, 40);
     const { camera, rig } = rigWith(subject, 1280, 800);

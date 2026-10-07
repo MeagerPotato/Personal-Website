@@ -381,3 +381,36 @@ export function collectErrors(page: Page): string[] {
   });
   return errors;
 }
+
+/**
+ * Every value `<html>` gives the attribute `name` from now on, in order (null: it has none),
+ * starting with the one it has now. As `watchText` is for what was said: a jump is over in a
+ * second or two, and a machine drawing on its CPU may not look while it lasts. Changes made
+ * within one task are all kept (each record of a mutation carries the value before it).
+ */
+export async function watchAttribute(
+  page: Page,
+  name: string,
+): Promise<() => Promise<(string | null)[]>> {
+  const key = `e2eAttribute:${name}`;
+  await page.evaluate(
+    ({ name, key }) => {
+      const root = document.documentElement;
+      const seen: (string | null)[] = [root.getAttribute(name)];
+      (window as unknown as Record<string, unknown>)[key] = seen;
+      const note = (value: string | null): void => {
+        if (seen.at(-1) !== value) seen.push(value);
+      };
+      new MutationObserver((records) => {
+        for (const record of records.slice(1)) note(record.oldValue);
+        note(root.getAttribute(name));
+      }).observe(root, { attributes: true, attributeFilter: [name], attributeOldValue: true });
+    },
+    { name, key },
+  );
+  return () =>
+    page.evaluate(
+      (key) => (window as unknown as Record<string, (string | null)[]>)[key] ?? [],
+      key,
+    );
+}

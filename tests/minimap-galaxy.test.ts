@@ -40,10 +40,13 @@ import { createScreenMap, type ScreenMap } from '../src/universe/sim/screen';
 const P = tuning.minimap;
 const MOUSE = tuning.picking.mouse;
 /**
- * The face, CSS px: its smallest and its largest (the plate less 28 px). The first test below
- * reads both from the stylesheet: change `--minimap-size` there, and these with it.
+ * The face, CSS px: its smallest and its largest (the plate less 28 px). The plate has two sizes
+ * (in flight, and held: docked, or under a finger), each by the view's height: the smallest face
+ * is the held one in a short view, the largest the one in flight in a tall view. The first test
+ * below reads all four from the stylesheet: change `--minimap-size` or `--minimap-held` there,
+ * and these with it.
  */
-const SIZES = [120, 156];
+const SIZES = [120, 192];
 /** Seconds: the bodies are on their way round. */
 const TIMES = [0, 137, 4321];
 /** The ship keeps its system's scope until it is this many radii out (sim/instruments.ts). */
@@ -189,14 +192,18 @@ describe('the faces every galaxy is fitted to', () => {
       if (!found) throw new Error(`global.css no longer matches ${pattern}`);
       return found.slice(1).map((rem) => Number(rem) * 16);
     };
-    // The plate: `--minimap-size: clamp(least, by the view's height, most)`.
-    const [least = NaN, most = NaN] = px(
-      /--minimap-size: clamp\(([\d.]+)rem, [\d.]+svh, ([\d.]+)rem\)/,
-    );
+    // The plate, in flight and held: `clamp(least, by the view's height, most)`.
+    const flying = px(/--minimap-size: clamp\(([\d.]+)rem, [\d.]+svh, ([\d.]+)rem\)/);
+    const held = px(/--minimap-held: clamp\(([\d.]+)rem, [\d.]+svh, ([\d.]+)rem\)/);
     // The face lies inside the plate's ring, and a band of plate inside that, all round.
     const [ring = NaN] = px(/\.minimap__plate \{[^}]*?border: ([\d.]+)rem solid/);
     const [band = NaN] = px(/\.minimap__map \{[^}]*?width: calc\(100% - ([\d.]+)rem\)/);
-    expect([least, most].map((plate) => plate - 2 * ring - band)).toEqual(SIZES);
+    const faces = (plates: number[]): number[] => plates.map((plate) => plate - 2 * ring - band);
+    expect(faces(flying)).toEqual([148, 192]);
+    expect(faces(held)).toEqual([120, 156]);
+    // Every galaxy below is fitted to the two ends of all that.
+    const all = [...faces(flying), ...faces(held)];
+    expect([Math.min(...all), Math.max(...all)]).toEqual(SIZES);
   });
 });
 

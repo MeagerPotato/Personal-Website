@@ -131,6 +131,14 @@ export class ShipSystem implements System {
     this.rocket.mark(scale, raised);
   }
 
+  /**
+   * Hyperspace's pull on the flame, 0 to 1 (world/Hyperspace.ts): it burns longer in the tunnel.
+   * Looks only, like the marker.
+   */
+  setSurge(surge: number): void {
+    this.flame.setSurge(surge);
+  }
+
   /** Put the ship somewhere at rest, with no in-between frame (spawning, deep links). */
   placeAt(x: number, z: number, heading: number): void {
     this.restore(createShipState(x, z, heading));

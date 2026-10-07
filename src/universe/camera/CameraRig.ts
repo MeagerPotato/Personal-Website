@@ -180,6 +180,9 @@ export function mixPose(from: Pose, to: Pose, k: number, out: Pose, turn?: Turn)
  *
  * Add it AFTER whatever the modes follow, so that it sees this frame's ship and planets.
  */
+/** A view that has slid back to within this share of all of it is whole (`CameraRig.whole`). */
+const WHOLE = 0.99;
+
 export class CameraRig implements System {
   private readonly pose = createPose();
   private readonly other = createPose();
@@ -238,6 +241,22 @@ export class CameraRig implements System {
   /** The shape of the view right now, the free part of it included. A LIVE object: do not keep copies. */
   get shape(): ViewShape {
     return this.view;
+  }
+
+  /**
+   * Is the whole viewport the world's? Nothing of the page covers any of it AS ASKED (the last
+   * `setInset`: at once, not eased), and the view has slid all the way back from what did.
+   * Whatever belongs on a whole screen only asks this and not `shape`: the free part of the
+   * view EASES, so for the first frames a panel is open nearly all of the view still reads as
+   * free (two frames at 60 a second, for a side panel 500 px wide).
+   */
+  get whole(): boolean {
+    return (
+      this.wantRight === 0 &&
+      this.wantBottom === 0 &&
+      this.view.freeWidth > WHOLE &&
+      this.view.freeHeight > WHOLE
+    );
   }
 
   /** Hand over to `mode` over `blendSec` seconds. 0 is a cut. */

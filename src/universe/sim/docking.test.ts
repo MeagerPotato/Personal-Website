@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import {
+  HYPER_NONE,
+  HYPER_OFFERED,
+  HYPER_SPENT,
+  HYPER_TUNNEL,
+  HYPER_WINDUP,
   approachPace,
   arrive,
   dockAt,
@@ -10,6 +15,7 @@ import {
   requestDock,
 } from './docking';
 import { NO_INPUT, createShipState, speedOf } from './flight';
+import { engageHyper } from './hyper';
 import { TAU } from './math';
 import { createRng } from './rng';
 import {
@@ -617,5 +623,127 @@ describe('docking', () => {
       // Clear of the moon's cushion, not merely of its shell.
       expect(least, `heading ${heading}`).toBeGreaterThan(tuning.cushion.depth);
     }
+  });
+});
+
+// HYPERSPACE (sim/hyper.ts) is a journey's, and ends wherever the journey does: at every place
+// the dock's phase is assigned. (What the pilot's own controls do to it: sim/takeover.test.ts.)
+describe('hyperspace and the dock', () => {
+  /** A flight with the bodies in place, and a way of saying "it is in the tunnel now". */
+  function jumping(): { flight: Flight; far: (id: string) => void; jump: () => void } {
+    const flight = start(0, 0);
+    step(flight);
+    const { dock, orbits } = flight.world;
+    return {
+      flight,
+      far: (id) => requestDock(dock, orbits.indexOf(id), NO_INPUT, true, 1.5),
+      jump: () => {
+        dock.hyper = HYPER_TUNNEL;
+        dock.hyperSec = 0.7;
+      },
+    };
+  }
+
+  it('starts every journey with none', () => {
+    const { flight, far } = jumping();
+    const { dock } = flight.world;
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_NONE, 0]);
+    far('planet');
+    expect(dock.phase).toBe('cruise');
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_NONE, 0]);
+  });
+
+  it('keeps a jump when the ship is told what it already knows', () => {
+    const { flight, far, jump } = jumping();
+    const { dock } = flight.world;
+    far('planet');
+    jump();
+    far('planet');
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_TUNNEL, 0.7]);
+  });
+
+  it('ends a jump with its journey: another destination, an approach, letting go, Stop, a cut, arriving', () => {
+    const { flight, far, jump } = jumping();
+    const { dock, assist, orbits, field } = flight.world;
+    const none = (how: string): void => {
+      expect([dock.hyper, dock.hyperSec], how).toEqual([HYPER_NONE, 0]);
+    };
+
+    far('planet');
+    jump();
+    far('moon');
+    expect(dock.phase).toBe('cruise');
+    none('another destination');
+
+    jump();
+    requestDock(dock, orbits.indexOf('sun'), NO_INPUT);
+    expect(dock.phase).toBe('approach');
+    none('a body within reach, asked for with E');
+
+    far('planet');
+    jump();
+    releaseDock(dock, assist);
+    expect(dock.phase).toBe('free');
+    none('the web layer letting go');
+
+    far('planet');
+    jump();
+    haltDock(dock, assist);
+    expect(dock.halting).toBe(true);
+    none('Stop');
+
+    far('planet');
+    jump();
+    dockAt(field, flight.state, tuning.dock, dock, orbits.indexOf('station'), 1);
+    expect(dock.phase).toBe('docked');
+    none('a page opened on a body');
+
+    releaseDock(dock, assist);
+    far('planet');
+    jump();
+    arrive(field, flight.state, dock, 1);
+    expect(dock.phase).toBe('docked');
+    none('arriving');
+  });
+
+  it('is offered on a long journey, taken, flown through and over before the ship is in orbit', () => {
+    // From beside home to the planet of the other system, 900 u away.
+    const flight = near('home', 1, 0, 0);
+    const { dock, orbits } = flight.world;
+    requestDock(dock, orbits.indexOf('planet'), NO_INPUT, true, tuning.cruise.minJourneySec);
+    // The first step makes the first plan, and the offer with it.
+    step(flight);
+    expect(dock.hyper).toBe(HYPER_OFFERED);
+    expect(engageHyper(dock)).toBe(true);
+    const seen = new Set<number>([dock.hyper]);
+    let tunnelSteps = 0;
+    let steps = 1;
+    for (; steps < 60 * 30 && dock.phase === 'cruise'; steps += 1) {
+      step(flight);
+      seen.add(dock.hyper);
+      if (dock.hyper === HYPER_TUNNEL) {
+        tunnelSteps += 1;
+        // The tunnel is the fast stretch: the ship is never slow in it.
+        expect(speedOf(flight.state)).toBeGreaterThan(tuning.hyper.punchSpeed - 20);
+      }
+    }
+    expect(dock.phase).toBe('docked');
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_NONE, 0]);
+    expect([...seen].sort()).toEqual([HYPER_NONE, HYPER_WINDUP, HYPER_TUNNEL, HYPER_SPENT]);
+    // A tunnel of half a second or more, on a journey of a few.
+    expect(tunnelSteps * STEP).toBeGreaterThan(tuning.hyper.minTunnelSec);
+    expect(steps * STEP).toBeLessThan(8);
+  });
+
+  it('is never offered on an approach', () => {
+    const flight = near('planet', 1.6, 0, 0);
+    request(flight, 'planet');
+    const { dock } = flight.world;
+    for (let i = 0; i < 600 && dock.phase !== 'docked'; i += 1) {
+      step(flight);
+      expect(dock.hyper).toBe(HYPER_NONE);
+    }
+    expect(dock.phase).toBe('docked');
+    expect(engageHyper(dock)).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
+import type { HyperParams } from '../sim/hyper';
 import type { InstrumentParams } from '../sim/instruments';
 import type { MiniMapParams } from '../sim/minimap';
 import type { PlanetLook } from '../sim/planet';
@@ -23,6 +24,7 @@ import type { LabelsParams } from '../ui/Labels';
 import type { PickerParams } from '../ui/Picker';
 import type { StarMapParams } from '../ui/StarMap';
 import type { MapLookParams } from '../world/Galaxy';
+import type { HyperViewParams } from '../world/Hyperspace';
 import type {
   AirWorld,
   HeroStar,
@@ -274,6 +276,49 @@ export const tuning = {
     leaveDeadZone: 0.25,
   } satisfies DockParams,
 
+  /**
+   * HYPERSPACE (sim/hyper.ts, world/Hyperspace.ts): a journey's fast stretch, shown as a jump.
+   * The flight is the same flight: these decide when the jump is offered, when its tunnel opens
+   * and when it closes. Measured on every journey of the real galaxy (scripts/journeys prints
+   * the block "hyperspace"): do not move one without running it.
+   */
+  hyper: {
+    /** u/s. No offer unless the plan ahead still reaches this (a hop inside home never does). */
+    minPlannedSpeed: 400,
+    /** u/s. The tunnel closes when the plan ahead never reaches this again. */
+    dropSpeed: 300,
+    /** u/s. The tunnel opens at this speed... */
+    punchSpeed: 200,
+    /** s. ...and never sooner than this after the press: the wind-up. */
+    windupSec: 0.35,
+    /** s. No offer unless a wind-up and this much fast flight are still ahead. */
+    minTunnelSec: 0.5,
+
+    // HOW IT LOOKS (world/Hyperspace.ts, design/shaders/hyperspace.ts). Free to move: nothing
+    // below reaches the flight.
+    /** s. Any way out (arriving, Stop, the controls), the picture has gone this long after. */
+    dropoutSec: 0.35,
+    /** The real stars dim to this share of themselves in the tunnel: the dashes are the stars. */
+    starOpacity: 0.15,
+    /** How many dashes there are, by quality tier: four vertices each, one draw call. */
+    dashes: { high: 1400, medium: 900, low: 700 },
+    /** rad. The dark eye of the tunnel, where the ship is going: the destination grows out of it. */
+    eyeRad: 0.1,
+    /** The tunnel's wash, navy for every destination (materials.ts): its alpha, on every other band. */
+    wash: [0.3, 0.46],
+    /** The thin line at each band's edge (the family's base; none on the low tier), and the two rings. */
+    ribAlpha: 0.35,
+    ringAlpha: 0.55,
+    /** Bands for each time the angle off the course grows e-fold: 3 shows about seven at once. */
+    bands: 3,
+    /** How fast it all streams at the autopilot's top speed (the dashes cross in 1 / this s). */
+    flowPerSec: 2.4,
+    /** A dash at full stretch reaches this share of the way back to the eye from its head. */
+    dashLength: 0.4,
+    /** CSS px. How wide a dash is, which is how big it is as a dot. */
+    dashWidthPx: 2,
+  } satisfies HyperParams & HyperViewParams,
+
   /** How fingers and the mouse become flight (core/input/). The keyboard has nothing to tune. */
   input: {
     /** The touch stick: how far the knob travels (CSS px), and the dead middle as a share of that. */
@@ -445,6 +490,15 @@ export const tuning = {
      * frames. At 5 it is two thirds of the way there in 0.43 s, never more than 0.4 degrees a frame.
      */
     fovOmega: 5,
+    /**
+     * HYPERSPACE (world/Hyperspace.ts): in the tunnel the lens opens this much further (55 + 13 +
+     * 14 = 82 degrees, under maxFovDegrees) and the ship may pull this much further ahead of the
+     * view (u, on top of maxTrail): the lunge. Eased at surgeOmega, rad/s: [in, out]. Not under
+     * reduced motion, which has no hyperspace.
+     */
+    surgeFovDegrees: 14,
+    surgeTrail: 3.5,
+    surgeOmega: [9, 7],
     /**
      * A wider lens shrinks the ship. 0 = let it; 1 = move in exactly enough to keep its size, while
      * the sky still stretches (a dolly zoom).

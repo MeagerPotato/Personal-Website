@@ -3,7 +3,7 @@
 // takes the focus to its heading, and that says where they are better than this could; so a cut
 // (a deep link, reduced motion) says nothing here at all.
 
-import type { Universe } from '../universe/api';
+import type { HyperState, Universe } from '../universe/api';
 
 export interface AnnouncerOptions {
   /**
@@ -32,6 +32,8 @@ export function startAnnouncer({ element, universe, titleOf }: AnnouncerOptions)
   let flyingTo: string | null = null;
   /** Did the journey that just ended end in a Stop (the ship brakes to rest), or in the pilot's hands? */
   let halting = true;
+  /** Hyperspace, as last told. */
+  let hyper: HyperState = 'off';
   /** ' to FishAI', or nothing for a body this page has never heard of: 'Flying.' is still true. */
   const named = (word: string, id: string): string => {
     const title = titleOf(id);
@@ -67,6 +69,14 @@ export function startAnnouncer({ element, universe, titleOf }: AnnouncerOptions)
     }),
     universe.on('map', ({ open }) => {
       say(element, open ? 'Star map open.' : 'Star map closed.');
+    }),
+    // The jump, when it happens: the tunnel opening after the visitor's own press. Not the offer
+    // (nobody asked for it), not its end (docking says that), and not a tunnel a rebuilt engine
+    // took up again (it comes with no wind-up before it: it was said already). The destination
+    // was named a second ago, and is named again on arrival.
+    universe.on('hyper', ({ state }) => {
+      if (state === 'tunnel' && hyper === 'windup') say(element, 'Hyperspace.');
+      hyper = state;
     }),
   ];
 

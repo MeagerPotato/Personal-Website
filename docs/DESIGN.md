@@ -83,15 +83,17 @@ Three words of the vocabulary never change meaning:
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
   keyboard's focus (the ring), the body the ship is at or headed for (the one filled name tag, its
   mark on the flight deck's ball, the ring round it on the minimap, and a journey's line, its
-  clock on the rim and its seconds there), what acts on the body at hand (the E key cap of
-  "Orbit FishAI", "Stop"), and the card of the page's deck that is open (the ring before its
-  title, and the station its leader ends on).
+  clock on the rim and its seconds there), what acts on the body at hand or on the journey to it
+  (the E key cap of "Orbit FishAI", "Stop", the Shift key cap of "Hyperspace", the word on
+  hyperspace's pad under a finger, and the one ring that offer arrives with), and the card of the
+  page's deck that is open (the ring before its title, and the station its leader ends on).
   The home system is butter too, so a focused butter key keeps a navy rim between its fill and
   the ring.
 - **The cream face (`ink.high` fill) means "on":** only what is switched on wears it: a toggle
   (the Map button while the map is open, the sheet's Shrink, the welcome button while its text
-  shows), and a lamp of the flight deck (ASSIST, AUTO), which the simulation switches and nobody
-  presses. The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button)
+  shows), a lamp of the flight deck (ASSIST, AUTO), which the simulation switches and nobody
+  presses, and the offer of hyperspace from its press until the tunnel opens: the press was
+  heard (under a finger that offer is the boost pad's twin, and coral as the pad is). The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button)
   are drawn as the white keys they are; they are not a control's face.
 - **One solid family fill per view:** the primary action. Route signs above the headings and a
   project's tags are tinted, with a hairline edge; secondary keys are outlined in `ink.low`.
@@ -119,7 +121,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
 | `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name; a lamp of the flight deck that is off, its "m/s" and "HDG"; the minimap's pill while it says what the scope shows (the galaxy, a system), and "RANGE", "ETA" and the unit on its chip |
 | `accent` (sky) on the page / the panel | 9.9 / 8.0 | links in running text, the legend's links (Elsewhere, Contact), the resume's ways to reach Allen, a card's title under a mouse |
-| butter on the HUD plate | 9.3 | "Stop" in the dock prompt; a journey's seconds on the minimap's chip |
+| butter on the HUD plate | 9.3 | "Stop" in the dock prompt; a journey's seconds on the minimap's chip; "HYPER" on hyperspace's pad under a finger |
 | `space.900` on cream (`ink.high`) | 17.2 | a toggle that is on (Close map, Shrink, the welcome button), a lit lamp of the flight deck, the key caps W A S D, Shift and M; cream on navy, the M cap of the open Map button |
 | `space.900` / `space.950` on butter | 13.9 / 14.5 | the target's name tag and the E cap of "Orbit" / the skip link |
 | `space.900` on coral | 8.4 | the pressed boost pad |
@@ -210,8 +212,8 @@ device's own mono stack (`font.mono`), which costs nothing. The other four stage
   when motion is reduced.
 - DOM motion tokens: `motion.fast base slow` with `easeOut` and `easeInOut`. Things ease out when
   they arrive and ease in-out when they move. Nothing bounces more than once.
-- **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax. The
-  static frame must still look composed.
+- **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax, no
+  hyperspace (it is never offered). The static frame must still look composed.
 - Engine timings (camera blends, flight feel) are in `design/tuning.ts`, in seconds. _(open: A3)_
 
 ## States
@@ -322,7 +324,9 @@ transit map.
 
 The DOM over the 3D world. Every control is a **chip on the HUD plate** (`--hud`: `surface.panel`
 at 90 %, with a faint `--hud-edge`), opaque enough that its words pass AA over the brightest thing
-behind it. Where the engine makes a control (the names, the prompt, the Map button, the touch
+behind it. **In hyperspace's tunnel the plate is solid** (`html[data-hyper='tunnel']`): the tenth
+of the world that shows through a plate is then hundreds of bright lines on the move, and the
+words over them swam, on a phone's nav and prompt most of all. Where the engine makes a control (the names, the prompt, the Map button, the touch
 controls), the stylesheet only says how it looks. Where each one sits, and what it keeps clear
 of, is in the table under The 3D world.
 
@@ -345,7 +349,8 @@ of, is in the table under The 3D world.
   tag at the end nearest its body (the top below it, the bottom above it), like a label on a
   transit map, 13 px at every width and on the map. A sun or the
   home planet names a whole system, in spaced caps at 700; a moon is quieter (`ink.mid`, 500).
-  The body the ship is headed for has the one butter tag. Whichever side of its body, a tag sits
+  The body the ship is headed for has the one butter tag; in hyperspace's tunnel every other
+  name (but one the keyboard is on) steps back to 40 %, still a button. Whichever side of its body, a tag sits
   2 px off the disc. On the map the ship's marker is "you are here": no name's tag lies on it,
   or on the Plain version chip. A name the ship would be under glides a few pixels past it, away
   from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
@@ -375,6 +380,28 @@ of, is in the table under The 3D world.
   middle of the free view, and beside the flight deck while that is up at full size: its right end
   12 px left of the cluster, where "Flying to" steps aside (heard, not seen: AUTO, the target on
   the ball and the minimap's pill say it).
+- **The offer of hyperspace** ("Shift Hyperspace") is the prompt's chip once more, a real
+  button right after it (Tab goes Stop, then Hyperspace): the same plate, edge and ledge, and
+  its Shift key cap is butter as the prompt's E is, because it is this chip's action and not a
+  key being named. It is there only on a journey that is fast for long enough to be shown as a
+  jump, and only while the world has the whole screen (no page open, the star map closed);
+  never for a visitor who asked for less motion. **It arrives with one butter ring** that goes
+  out from its edge, a rem, and fades (0.48 s, once; an offer does not nag): it is there for a
+  second or two, in a corner of a picture that moves, and a chip larger than the prompt it sits
+  by would outrank it, so it keeps the HUD's size at every width and says so once instead.
+  Pressed, it is "on" through the wind-up, on
+  the cream face, and it leaves with the punch. It stands in one of three places. Beside the
+  seated deck: a row above the prompt, its right end 12 px left of the cluster as the prompt's
+  is, the ship in the middle. Where the deck is the strip, or there is none: the bottom right
+  corner (no minimap stands there without the full cluster), and in a window under 26rem wide
+  the key cap alone (the word is heard). Under a finger: **the boost pad's own box, as a round
+  pad that reads HYPER** in the pad's ring and type, **its word in butter** (what acts on the
+  journey, as "Stop" is; it is also what tells it at a glance from the boost pad it stands in
+  for), coral while pressed and through the
+  wind-up: on a journey, boost is hyperspace (the boost pad is out in free flight only, so its
+  box is free, and the prompt and the minimap keep off it already). The rest of the word stays
+  in its line at no size, so the pad is heard as one word, "Hyperspace" (taken out of the line
+  it was heard as two).
 - **The flight deck** is Kerbal Space Program's cluster of instruments at the bottom centre,
   drawn flat: a picture of the simulation, not a control (no ledge, no hover, no focus;
   `aria-hidden`). It shows whenever the ship is not docked and the star map is closed. The
@@ -394,7 +421,10 @@ of, is in the table under The 3D world.
   left the throttle (coral while boosting), up its right the g (full at 15 g, then a peg lights
   at its top end); above it the speed pill ("42 m/s", with one to three chevrons from 82, 300
   and 600: only the autopilot gets there), below it the heading chip ("HDG 067°", 000 is
-  north), and a lamp on each shoulder: ASSIST and AUTO, on the cream face while lit. Where the
+  north), and a lamp on each shoulder: ASSIST and AUTO, on the cream face while lit. In
+  hyperspace's tunnel the autopilot's lamp reads HYPER (the same lamp, lit as before; an offer
+  or a wind-up is not the tunnel) and the pill's chevrons run, one after the other; the speed
+  stays the real speed. Where the
   free view is under 48rem by 36rem it is **the strip**: one pill, 7.75rem by 2.75rem, in the
   Map button's row at the far end from it, with the ball, the speed and the heading (or the lit
   lamp's name); nothing moves for it. Under 18.5rem by 20rem, or under a phone's sheet, there
@@ -405,7 +435,13 @@ of, is in the table under The 3D world.
 - **The minimap** is the ball's sibling, a scope: the star map at another size, bottom right of
   the free view, wherever the deck has its full size: flying or docked (a reader can hop to the
   next planet), not on the star map. It is built as the ball is. A round plate, `--minimap-size`
-  across (148 to 184 px, by the view's height), wears the deck's ring and, because it can be
+  across, by the view's height and in two sizes. In flight under a mouse it is 176 to 220 px
+  (212 in a view 800 px tall), a fifth larger than it was, so that the marks of a system stand
+  further apart (Allen, 2026-10-06: "slightly larger so it can show things more clear").
+  Docked, and always under a finger, it holds the 148 to 184 px it was measured at
+  (`--minimap-held`): the carried ship passes right above this corner on every turn round its
+  body, and a thumb has the boost pad's place under it. It eases from one size to the other,
+  at once when it shrinks and after a wait when it grows. The plate wears the deck's ring and, because it can be
   pressed, a ledge; ten ticks stand on it (`ink.low`, one every 30 degrees but at twelve and
   six), and the round face lies 14 px inside its edge. A pill is fastened over its top (the
   speed pill's twin) and a chip under its bottom (the HDG chip's twin), so the plate stands on
@@ -438,7 +474,8 @@ of, is in the table under The 3D world.
   face reaches from its middle ("RANGE 1.1 km" for the galaxy, "RANGE 470 m" for Projects), or
   on a journey the seconds it still takes ("ETA 3 s", figures and unit in butter), which only
   count down. **Butter is "here"**: a 2 px ring round the body the ship is at or headed for,
-  the way that is left of a journey as a 2 px line from the ship, the journey's clock on the
+  the way that is left of a journey as a 2 px line from the ship (in hyperspace's tunnel,
+  dashes that run toward where it is going), the journey's clock on the
   rim (a 2 px ring, whole when the journey starts, that a gap eats clockwise from twelve; it
   fades as it stands at a Stop or on arrival) and the seconds on the chip. A pointer aims (a
   1.5 px cream ring, the name on the pill; the plate's ring brightens under a mouse) and a
@@ -550,6 +587,7 @@ of, is in the table under The 3D world.
   Motorways; the boost pad is a ring on the HUD plate that fills coral while it is pressed. It is
   out in free flight only: boost multiplies the pilot's own thrust, and docked or on a journey
   the stick is what takes the controls back, so there the pad would light up and do nothing.
+  On a journey that is offered a jump, hyperspace's pad stands in its box instead (above).
 - **The Plain version chip** sits bottom left, a HUD chip with a sky station ring. Focused, it
   comes up above any panel.
 
@@ -591,7 +629,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `traffic.ts` (the dots on the orbit lines), `chart.ts` (the star map's ground), `sky.ts` (backdrop and stars), `skyBake.ts` (the Milky Way's haze and the far galaxies, painted once), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `traffic.ts` (the dots on the orbit lines), `chart.ts` (the star map's ground), `sky.ts` (backdrop and stars), `skyBake.ts` (the Milky Way's haze and the far galaxies, painted once), `dust.ts`, `hyperspace.ts` (the tunnel and the dashes of a jump), `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
@@ -600,6 +638,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`, or a class's own), the five classes (`classes`, `hero`: brightness, core, halos, spikes), how much of each class lies along the Milky Way (`bandShare`), the stars of the Milky Way's bulge (`bulge`: how many more, in which warm tints), where the eight heroes and the six clusters are (three of the clusters are the sky's compass: one at each system's bearing from home) and how a cluster is made (`cluster`: its bright heart), the double stars (`pairs`), twinkle, a hero's breath, drift (0: the sky is painted) | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
+| Hyperspace, the look of a journey's fast stretch: how long the picture takes to go (`dropoutSec`), how far the real stars dim under it (`starOpacity`), how many dashes there are on each tier (`dashes`), how wide and how long one is (`dashWidthPx`, `dashLength`), how fast it all streams (`flowPerSec`), the dark eye the destination grows out of (`eyeRad`), and the walls: their bands, how thick the wash is on one band and on the next, the thin lines and the ring (`bands`, `wash`, `ribAlpha`, `ringAlpha`). The first five keys of the block are not a look: they say WHEN a jump is offered and when its tunnel opens and closes, measured on every journey (`npm run journeys` prints the block "hyperspace": run it after moving one) | `tuning.hyper` (what shows at which moment: `hyperLook` in `sim/hyper.ts`; which token goes where, and how many dashes wear which: `createHyperTubeMaterial`, `wearHyperFamily` and `HYPER_TINT_SHARES` in `design/materials.ts`; where the dashes run: `DASH_SPAN`, `DASH_EASE` in `shaders/hyperspace.ts`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
 | Every body's emblem world: its ground and parts (`bodies.ts` and the files it gathers: `home.ts`, `projects.ts`, `research.ts`, `hackathons.ts`, and `gears.ts`, the Hardware sun's ball of fourteen meshing gears, each a slab with a wall under every edge of its plate, which `tests/world-gears.test.ts` keeps from jamming and from being paper at the limb); a recipe may say `still` and `faces: 'prograde'` (Model Rocketry is a rocket whose nose follows its orbit round its sun), what it adds up close (`near.ts`), how its parts move (`motion.ts`), and how far its solid reaches (`reach.ts`, measured by `tests/world-reach.test.ts`) | `design/worlds/` |
 | The planet ring; the station, the satellite and a relay as models, for a recipe in `design/worlds.ts` that asks for one, or a body of that kind with no rows | `design/models/docks.ts` |
@@ -607,7 +646,7 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans (never more than `bankRad`, however hard the autopilot turns it, eased at `bankOmega`), nods and bobs, and how the flame follows the throttle | `tuning.ship` (the lean: `sim/bank.ts`) |
-| The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
+| The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), how much further it opens in hyperspace's tunnel and how far the ship lunges ahead of the view there (`surgeFovDegrees`, `surgeTrail`, eased in and out at `surgeOmega`), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
 | The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders; and, while a card of the deck is open, how quickly it turns to that card's landmark (`faceOmega`, never faster than `faceMaxRadPerSec`), how far round from the middle of the disc the landmark rests, toward its card (`faceBiasDeg`), and how far it closes in (`focusFitRingRadii`) | `tuning.orbitCam` |
 | What each card of a page points at on its body: a latitude and a longitude for a card that should mean something (About's Rockets is the launch pad, each section of the resume a pod of the station), and where the rest point, evenly round the body | `design/worlds/landmarks.ts`; the ring: `tuning.deck` (`defaultLatDeg`, `defaultLonDeg`) |
 | The leaders from the cards to the body: the line, its casing and the stations (colours, widths), in the stylesheet; how big a station is | `.leaders` in `src/styles/global.css`; `tuning.deck.stopRadiusPx` |
@@ -626,16 +665,17 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Where the systems sit: how far from home and from each other (`homeRoom`, `slotRoom`) and which way the cluster grows (`clusterAxisDeg`). Not a look: **changing any of the three moves every system** (a test pins them, and `galaxy.lock.json` will), so ask Allen first. The build refuses rooms too small for the tripwires (`maxSystemRadius`, `minSystemGap`). One system is not on its slot's centre: Research, placed by hand in its file (`position`), which is content and Allen's to move, not a look (docs/PLAN.md §5.4). | `tuning.layout` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); its offers out of sight while the map is open there, where they would sit on the galaxy (`quiet` in `ui/Prompt.ts`); a journey's Stop always shows, since there it is the only way to stop. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
+| The offer of hyperspace: the chip beside the prompt, its three places (the corner, beside the seated deck, the boost pad's box under a finger), the one ring it arrives with (`hyper-offer-ping`), "on" through the wind-up (`data-on`). And what the tunnel does to the rest of the screen, by the stylesheet alone: the deck's chevrons and the minimap's route run, the other names step back, and the HUD plate is solid | `.hyper-offer` and the `html[data-hyper='tunnel']` rules in `src/styles/global.css` (the lamp's word: `ui/FlightDeck.ts`) |
 | The flight deck: how big the free view must be for the cluster and for the strip (`fullMinRem`, `stripMinRem`), from where the ship counts as in a system (`enterRadii`, `leaveRadii`: the horizon's family, and what the minimap looks at), under what speed prograde is put away, what one g is and where the g arc is full (`gUnit`, `gFull`), how quickly the two arcs follow, when ASSIST lights (`assistOn`), the speeds of the chevrons (`warpTiers`), how often the digits change | `tuning.instruments` (the maths: `sim/instruments.ts`) |
 | The LOOK of the flight deck: the plate's size by the view's height (`--deck-size`), half the cluster's width (`--deck-half`), and every fill and stroke of the ball, the arcs, the lamps, the chips and the strip | `.flight-deck` in `src/styles/global.css` |
 | The minimap: how its view is fitted and how quickly it eases from the galaxy to a system (`fitMargin`, `fitPadPx`, `spanMin`, `viewOmega`), the smallest mark of each kind of body in the galaxy's view and in a system's (`minRadiusPx`; 0: its true size), when a moon has room (`clearPx`, `minVisiblePx`), the pins of the systems off the face (`rimInsetPx`: how far inside the face's edge the circle they stand on lies; `rimRadiusPx`), how sure a finger must be between two marks (`ambiguityPx`), the points of a journey's line (`routePoints`), how often the marks are moved (`bodiesHz`), the ship's chevron (`shipPx`) | `tuning.minimap` (the maths: `sim/minimap.ts`; a mouse's and a finger's reach are `tuning.picking`'s) |
-| The LOOK of the minimap: its size by the view's height (`--minimap-size`: the plate; `tests/minimap-galaxy.test.ts` reads it), the plate's ring and its ticks, the face's ground, the rings of dots and the N, the marks, the rings, a journey's line and its clock on the rim, the pill, the chip | `.minimap` in `src/styles/global.css` |
+| The LOOK of the minimap: its two sizes by the view's height (`--minimap-size`: the plate in flight under a mouse; `--minimap-held`: docked, and under a finger; `tests/minimap-galaxy.test.ts` reads both) and how it eases between them (`--minimap-wait`), the plate's ring and its ticks, the face's ground, the rings of dots and the N, the marks, the rings, a journey's line and its clock on the rim, the pill, the chip | `.minimap` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.input`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.deck`, `tuning.cameraRig`, `tuning.map`, `tuning.instruments`, `tuning.minimap`, `tuning.ship` and `tuning.shading` is a slider that acts at once (the flight deck's two room sizes at the next resize); "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.hyper` (but the number of dashes, which an engine takes when it is built), `tuning.input`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.deck`, `tuning.cameraRig`, `tuning.map`, `tuning.instruments`, `tuning.minimap`, `tuning.ship` and `tuning.shading` is a slider that acts at once (the flight deck's two room sizes at the next resize); "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on
@@ -648,8 +688,37 @@ the top bar, with three quarters of the screen empty below them.
 or still, or its star map variant), a planet (any biome, any seed, with or without rings,
 everyday or close-up detail), moon, sun, the rocket, the station, the satellite or a relay on a
 turntable in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
-for `shading`, `planet`, `world`, `post` and `ship`; "copy tuning as JSON" gives you what to paste
+for `shading`, `planet`, `world`, `post`, `ship` and `hyper`; "copy tuning as JSON" gives you what to paste
 back into `tuning.ts`. Token colours are not sliders: edit `tokens.ts` and the page reloads.
+The subject **hyperspace** is a jump seen from behind the rocket: hold it at any moment from the
+press on (the wind-up, the punch, the tunnel, the way out) or play it in a loop, at any speed,
+in any family's lines. Judge a change to the jump there in all five families, and on LOW.
+
+**Hyperspace is flat too** (`world/Hyperspace.ts`). A jump is drawn the way the rest of the world
+is: flat colour and hard edges, no blur, no flash, no gradient, and nothing of it blooms. In the
+wind-up dots come up over the stars and are pulled out into dashes, all pointing away from the
+one spot the ship is going to, while the real stars dim. At the punch a thin cream ring races out
+from that spot and the tunnel opens behind it: walls in bands that stream outward, a wash of
+navy (`space.700`) that is thinner on one band and thicker on the next, a hairline in the
+destination family's base at each band's edge, and in the middle a dark eye (`space.950`) that
+the destination grows out of. All of it
+is sky: every planet, the ship and the orbit lines are in front of it, so where the ship is
+going is never smeared. **Half of the dashes are starlight** (the stars' own white, cool and
+warm) **and half wear the five families' bases**: the destination's a quarter of all, the other
+four a few each (`HYPER_TINT_SHARES` in `design/materials.ts`), so a jump reads as where it is
+going at a glance and as the galaxy's own pastels at a second one. A coloured dash is never
+dimmer than half of itself (a pastel at a fifth over navy is a grey); a white one may be. (As
+first built one dash in seven had a colour, and the jump read as white on navy: timid.) On the
+way out the same ring closes round the course onto the eye, all but unseen while it is wide and
+clearest as it gets there, and the
+dashes shrink back into dots: gone 0.35 s after whatever ended the jump. (**The ring is round
+the course, never round the destination**, which is seldom in the middle of the view: drawn
+round it, the closing ring crossed the whole screen as one grey arc.) The lens opens 14 degrees further in
+the tunnel and the flame burns as long as at boost. LOW has 700 dashes and no hairlines, MEDIUM
+900, HIGH 1400; it is two draw calls on every tier. **The family is in the lines and the dashes,
+never in the walls:** a wash in the family's own shade was tried, and it is a clean blue, green and purple
+for sky, mint and lilac, but over the navy sky coral's goes brick and butter's goes khaki (the
+lesson below, again). One rule for all five, so the walls are navy.
 
 **Judge a look on every tier.** `/?universe&q=low`, `&q=medium` and `&q=high` show the three
 side by side in three tabs. LOW has no bloom and no vignette, so nothing may DEPEND on them: they
@@ -665,7 +734,8 @@ nothing run through noise, nothing cut into levels. **Dark gradients band in 8
 bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that
 line if you rewrite the shader. **A big warm glow on navy reads as brown:** the chase camera looks
 down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part cool, and warm
-colours small and high.
+colours small and high. (It holds for any big see-through warm area over the sky, not only a
+glow: hyperspace's walls in coral's or butter's shade went brick and khaki.)
 
 ## Deep light _(a preview: branch `claude/deep-space`, not on `main`)_
 

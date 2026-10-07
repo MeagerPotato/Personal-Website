@@ -34,6 +34,7 @@ import { readManifest, type ManifestBody, type ManifestSystem } from '../manifes
 import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
+import { HYPER_SPENT, HYPER_TUNNEL, HYPER_WINDUP, type Hyper } from '../sim/docking';
 import { TAU } from '../sim/math';
 import { bodyPositions, createOrbitTable } from '../sim/orbits';
 import { planetTriangleCount } from '../sim/planet';
@@ -48,6 +49,7 @@ import { AirShells } from '../world/AirShells';
 import { Backdrop } from '../world/Backdrop';
 import { Chart } from '../world/Chart';
 import { BodyMesh, CloseUpLoader } from '../world/BodyMesh';
+import { Hyperspace } from '../world/Hyperspace';
 import { PlanetMesh } from '../world/PlanetMesh';
 import { SkyBake } from '../world/SkyBake';
 import { starCount, starGeometry, Starfield } from '../world/Starfield';
@@ -69,6 +71,7 @@ const SUBJECTS = [
   'stars',
   'orbits',
   'chart',
+  'hyperspace',
 ] as const;
 type Subject = (typeof SUBJECTS)[number];
 
@@ -181,7 +184,10 @@ const KIND_OF = {
   satellite: 'satellite',
   relay: 'link',
 } as const satisfies Record<
-  Exclude<Subject, 'rocket' | 'world' | 'sun' | 'sky' | 'stars' | 'orbits' | 'chart'>,
+  Exclude<
+    Subject,
+    'rocket' | 'world' | 'sun' | 'sky' | 'stars' | 'orbits' | 'chart' | 'hyperspace'
+  >,
   LookedAt['kind']
 >;
 
@@ -201,7 +207,9 @@ const ORBITS_AHEAD = 220;
 const ORBITS_BELOW = 30;
 
 /** The blocks of design/tuning.ts whose effect can be judged here. */
-const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship'] as const;
+const LAB_BLOCKS = ['shading', 'planet', 'world', 'post', 'ship', 'hyper'] as const;
+/** The hyperspace subject's jump: its tunnel closes this many seconds after the press. */
+const JUMP_TUNNEL_END = 1.95;
 
 /** Rebuilding a planet on every tick of a slider would queue dozens of them. */
 const REBUILD_AFTER_MS = 120;
@@ -275,7 +283,9 @@ export function bootLab(options: LabOptions): { dispose(): void } {
     pixelRatio: 1,
   });
   const starfield = engine.add(new Starfield({ coarsePointer: false, reducedMotion: still, low }));
-  const table = engine.add(new Turntable(assets, jobs, camera, starfield, low, viewport, query));
+  const table = engine.add(
+    new Turntable(assets, jobs, camera, starfield, low, viewport, query, engine.camera),
+  );
   // The worlds' kinds and sizes, as the galaxy has them; until then, and without it, a guess.
   void fetch('/universe.json')
     .then((response) => response.json())
@@ -404,6 +414,13 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const rocket = gui.addFolder('rocket');
   rocket.add(state, 'thrust', 0, 1, 0.01);
   rocket.add(state, 'boost');
+  // A jump (world/Hyperspace.ts), seen from behind the rocket: held anywhere on its timeline
+  // (the wind-up, the tunnel from tuning.hyper.windupSec, on its way out from 1.95 s), or played.
+  const jump = gui.addFolder('hyperspace (subject: hyperspace)');
+  jump.add(state, 'jumpAt', 0, JUMP_TUNNEL_END + 0.5, 0.005).name('seconds after the press');
+  jump.add(state, 'jumpPlay').name('play in a loop');
+  jump.add(state, 'jumpSpeed', 0, 700, 10).name('speed u/s');
+  jump.add(state, 'theme', Object.keys(tokens.color.system)).name('family');
   const view = gui.addFolder('light and view');
   view.add(state, 'lightAzimuthDeg', -180, 180, 1).name('light azimuth');
   view.add(state, 'lightElevationDeg', -90, 90, 1).name('light elevation');
@@ -597,6 +614,9 @@ class Turntable implements System {
     lineOpacity: 0,
     trackOpacity: 0,
     chartSpanU: 2000,
+    jumpAt: 1.2,
+    jumpPlay: false,
+    jumpSpeed: 600,
   };
 
   private scope = new Scope();
@@ -629,6 +649,15 @@ class Turntable implements System {
   private disposed = false;
   private rocket: Rocket | null = null;
   private flame: EngineFlame | null = null;
+  /** The hyperspace subject: the view, and the made-up dock, ship and destination it reads. */
+  private jump: {
+    view: Hyperspace;
+    dock: { hyper: Hyper; hyperSec: number };
+    ship: { position: Vector3; velocity: Vector3; heading: number; speed: number };
+    target: { id: string; theme: ThemeKey };
+    /** The turntable as it was, to give back. */
+    was: { fov: number; turnRate: number };
+  } | null = null;
   private lit: Array<{ uniforms: { uSunPosition: { value: Vector3 } } }> = [];
   private triangles = 0;
   private readonly light = new Vector3();
@@ -642,6 +671,7 @@ class Turntable implements System {
     private readonly low: boolean,
     private readonly viewport: () => Viewport,
     query: ReadonlyMap<string, string>,
+    private readonly lens: { readonly fov: number },
   ) {
     this.object.name = 'universe-lab';
     applyQuery(this.state, query);
@@ -665,6 +695,7 @@ class Turntable implements System {
   resize(viewport: Viewport): void {
     this.view = viewport;
     this.traffic?.resize(viewport);
+    this.jump?.view.resize(viewport);
   }
 
   describe(): string {
@@ -747,11 +778,12 @@ class Turntable implements System {
       this.showWorld(surface);
       return;
     }
-    if (subject === 'rocket') {
+    if (subject === 'rocket' || subject === 'hyperspace') {
       this.rocket = new Rocket(assets, scope);
       this.flame = new EngineFlame(assets, this.rocket.engine, scope, tuning.ship.flame, true);
       this.object.add(this.rocket.object);
       this.camera.frame(ROCKET_FRAME_RADIUS);
+      if (subject === 'hyperspace') this.showJump();
       return;
     }
 
@@ -847,6 +879,7 @@ class Turntable implements System {
 
     this.input.thrust = state.thrust;
     this.input.boost = state.boost;
+    this.stepJump(frame);
     this.flame?.update(this.input, frame);
     // Up close as if the ship were at its surface; far as if across its system.
     this.world?.update(state.near ? 0 : 1000, frame.dt, frame.simTime, state.onMap);
@@ -949,6 +982,55 @@ class Turntable implements System {
     ground.add(this.chart.object);
     this.object.add(ground);
     this.scope.onDispose(() => ground.removeFromParent());
+  }
+
+  /** The hyperspace subject: a jump along +Z, which is where the rocket points, seen from behind. */
+  private showJump(): void {
+    const dock = { hyper: HYPER_SPENT as Hyper, hyperSec: 0 };
+    const ship = { position: new Vector3(), velocity: new Vector3(), heading: 0, speed: 0 };
+    const target = { id: '', theme: this.state.theme };
+    const view = new Hyperspace({
+      dock,
+      ship,
+      target: () => target,
+      mapWeight: () => 0,
+      camera: this.lens,
+      dashes: tuning.hyper.dashes[this.low ? 'low' : 'high'],
+      ribs: !this.low,
+    });
+    view.resize(this.view);
+    this.object.add(view.object);
+    const was = { fov: this.camera.fov, turnRate: this.camera.turnRate };
+    this.jump = { view, dock, ship, target, was };
+    // From behind and a little above, through the lens the chase camera has in the tunnel.
+    const { fovDegrees } = tuning.camera;
+    const { fovBoostDegrees, surgeFovDegrees } = tuning.chaseCam;
+    this.camera.fov = fovDegrees + fovBoostDegrees + surgeFovDegrees;
+    this.camera.yaw = Math.PI;
+    this.camera.pitch = 0.2;
+    this.camera.turnRate = 0;
+  }
+
+  /** Put the jump where the sliders say it is on its timeline, and draw that. */
+  private stepJump(frame: Frame): void {
+    const { jump, state } = this;
+    if (!jump) return;
+    const wind = tuning.hyper.windupSec;
+    jump.ship.speed = state.jumpSpeed;
+    jump.ship.velocity.set(0, 0, state.jumpSpeed);
+    jump.target.theme = state.theme;
+    jump.target.id = `lab/${state.theme}`;
+    const at = (seconds: number, dt: number): void => {
+      jump.dock.hyper =
+        seconds < wind ? HYPER_WINDUP : seconds < JUMP_TUNNEL_END ? HYPER_TUNNEL : HYPER_SPENT;
+      jump.dock.hyperSec = seconds < wind ? seconds : seconds - wind;
+      jump.view.frameUpdate({ elapsed: frame.elapsed, dt, alpha: 1, simTime: seconds });
+    };
+    const seconds = state.jumpPlay ? frame.elapsed % (JUMP_TUNNEL_END + 1.5) : state.jumpAt;
+    // Held on its way out, it has to have been in the tunnel a moment before.
+    if (!state.jumpPlay && seconds >= JUMP_TUNNEL_END) at(JUMP_TUNNEL_END - 1e-3, 0);
+    at(seconds, frame.dt);
+    this.flame?.setSurge(jump.view.look.surge);
   }
 
   private bodyOf(id: string): WorldBody {
@@ -1101,6 +1183,11 @@ class Turntable implements System {
     this.world = null;
     this.rocket = null;
     this.flame = null;
+    if (this.jump) {
+      this.jump.view.dispose();
+      Object.assign(this.camera, this.jump.was);
+      this.jump = null;
+    }
     this.lit = [];
     this.scope.dispose();
     this.scope = new Scope();

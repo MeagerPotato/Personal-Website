@@ -17,11 +17,19 @@ export function belongsToPage(event: KeyboardEvent): boolean {
   return element?.closest(PAGE_OWNS_KEYS) != null;
 }
 
-/** WASD / arrows to fly, Shift to boost. */
+/**
+ * WASD / arrows to fly, Shift to boost. `onJourney`: is the ship being flown somewhere for the
+ * pilot (the autopilot, an approach)? Asked as of now, at every key and every step: on a journey
+ * Shift is not boost, and one that went down on it is not boost afterwards either, until it is
+ * pressed afresh (keys.ts, `press`).
+ */
 export class KeyboardInput implements InputSource {
   private readonly keys = new KeyState();
 
-  constructor(private readonly target: Window = window) {
+  constructor(
+    private readonly target: Window = window,
+    private readonly onJourney: () => boolean = () => false,
+  ) {
     target.addEventListener('keydown', this.onKeyDown);
     target.addEventListener('keyup', this.onKeyUp);
     target.addEventListener('blur', this.onBlur);
@@ -29,6 +37,8 @@ export class KeyboardInput implements InputSource {
   }
 
   read(out: FlightInput): void {
+    // A Shift held into a journey is let go of with the journey's first step.
+    if (this.onJourney()) this.keys.releaseBoost();
     this.keys.read(out);
   }
 
@@ -43,7 +53,7 @@ export class KeyboardInput implements InputSource {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (!isFlightKey(event.code) || belongsToPage(event)) return;
 
-    this.keys.press(event.code);
+    this.keys.press(event.code, !this.onJourney(), event.repeat);
     // Arrow keys would scroll the page under the ship.
     event.preventDefault();
   };

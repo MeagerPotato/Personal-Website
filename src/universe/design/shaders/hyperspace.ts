@@ -1,0 +1,201 @@
+/**
+ * HYPERSPACE: a journey's fast stretch, shown as a jump (world/Hyperspace.ts draws these; the
+ * flight under them is the same flight). Two draws, both SKY by the backdrop's rule
+ * (shaders/sky.ts): directions only, turned by the view and never moved by it, at the far plane
+ * (`z = w`). They come after the stars and before everything else, so every planet, the ship,
+ * the dust and the orbit lines are in front, and the destination is never smeared.
+ *
+ * Flat colour and hard edges, like the rest of the world: no blur, no flash, no gradient. Neither
+ * blooms: both blend their colour and leave the picture's alpha, the bloom guest list, alone
+ * (materials.ts, keepBloomMask).
+ */
+
+/**
+ * THE TUBE: the walls of the tunnel, round the course. A sphere seen from inside. `rho` is the
+ * angle off the course; the walls are bands at equal RATIOS of it (`log(rho) * uBands`), which is
+ * what rings at equal distances down a tunnel look like, and `uFlow` slides them outward. In the
+ * middle is the eye: the dark the destination grows out of.
+ *
+ * All of it sits inside an iris that opens from the eye outward with `uOpen`, and shows at
+ * `uOpen` of its alpha. One thin ring is drawn besides, round the course like everything else
+ * here: it races out from the eye as the tunnel opens and closes back onto it as the tunnel goes
+ * (world/Hyperspace.ts says where it is).
+ *
+ * Uniforms: uAxis (the course, a unit vector in world space); uOpen (0 to 1: the look's veil);
+ * uFlow; uRing (the ring: its angle off the course, rad, and its alpha, 0 for none); uBands; uEye
+ * (rad); uRibs (0 or 1: the thin line at each band's edge); uWash (the wash's alpha, on every
+ * other band); uRibAlpha; and the linear colours uGround (the eye), uShade (the wash), uLine (the
+ * ribs), uInk (the ring).
+ *
+ * How the fragment goes about it (said here and not in the GLSL, which is shipped as it is
+ * written, comments and all):
+ * - `stroke(px, width)`: how much of a line `width` px wide a pixel `px` pixels from its middle
+ *   is inside. `rho` is an atan of the cross and the dot, exact near 0 too (the acos of the dot
+ *   is not).
+ * - The bands are a triangle wave over two of them, cut at its middle, one pixel soft: `cut` is
+ *   how many pixels a fragment is from the nearest edge, so the wash's alpha steps there and the
+ *   rib is a stroke along it.
+ * - The wall is the wash with the rib over it; the eye covers it; the iris holds all of it. It is
+ *   premultiplied while it is put together and divided out at the end.
+ * - The ring goes over everything: 2 px, round the course.
+ */
+export const hyperTube = {
+  vertexShader: /* glsl */ `
+    varying vec3 vDirection;
+
+    void main() {
+      vDirection = position;
+      vec4 clip = projectionMatrix * vec4(mat3(viewMatrix) * position, 1.0);
+      clip.z = clip.w;
+      gl_Position = clip;
+    }
+  `,
+
+  fragmentShader: /* glsl */ `
+    uniform vec3 uAxis;
+    uniform float uOpen;
+    uniform float uFlow;
+    uniform vec2 uRing;
+    uniform float uBands;
+    uniform float uEye;
+    uniform float uRibs;
+    uniform vec2 uWash;
+    uniform float uRibAlpha;
+    uniform vec3 uGround;
+    uniform vec3 uShade;
+    uniform vec3 uLine;
+    uniform vec3 uInk;
+
+    varying vec3 vDirection;
+
+    float stroke(float px, float width) {
+      return 1.0 - smoothstep(0.5 * width - 0.5, 0.5 * width + 0.5, px);
+    }
+
+    void main() {
+      vec3 direction = normalize(vDirection);
+      float rho = atan(length(cross(direction, uAxis)), dot(direction, uAxis));
+      float pixel = max(fwidth(rho), 1e-6);
+
+      float t = log(max(rho, 0.02)) * uBands - uFlow;
+      float wave = abs(fract(0.5 * t) - 0.5) * 2.0;
+      float soft = max(fwidth(t), 1e-6);
+      float cut = (wave - 0.5) / soft;
+      float wash = mix(uWash.x, uWash.y, clamp(cut + 0.5, 0.0, 1.0));
+      float rib = uRibs * uRibAlpha * stroke(abs(cut), 1.5);
+
+      vec4 wall = vec4(uShade * wash, wash);
+      wall = vec4(uLine * rib, rib) + wall * (1.0 - rib);
+      float eye = clamp((uEye - rho) / pixel + 0.5, 0.0, 1.0);
+      wall = mix(wall, vec4(uGround, 1.0), eye);
+      float iris = clamp((uOpen * 3.2 - rho) / pixel + 0.5, 0.0, 1.0);
+      wall *= uOpen * iris;
+
+      float ring = uRing.y * stroke(abs(rho - uRing.x) / pixel, 2.0);
+      wall = vec4(uInk * ring, ring) + wall * (1.0 - ring);
+
+      gl_FragColor = vec4(wall.a > 0.0 ? wall.rgb / wall.a : vec3(0.0), wall.a);
+      #include <colorspace_fragment>
+    }
+  `,
+};
+
+/**
+ * A dash runs from this far off the course (as a tangent: 4.6 degrees, just inside the rim of the
+ * eye) out to this (69 degrees, past the corner of any screen).
+ */
+export const DASH_SPAN: readonly [inner: number, outer: number] = [0.08, 2.6];
+/**
+ * How a dash's place along its ray is bent (1: not at all). Under 1 it leaves the middle sooner:
+ * unbent, a quarter of all the dashes would crowd the first tenth of the way out, and the middle
+ * of the picture would be white.
+ */
+export const DASH_EASE = 0.6;
+/** How many tints the dashes are dealt from (materials.ts says which, and how many of each). */
+export const DASH_TINTS = 8;
+
+/** A number as GLSL wants a float written: never without its decimal point. */
+const glsl = (value: number): string =>
+  Number.isInteger(value) ? value.toFixed(1) : String(value);
+
+/**
+ * THE DASHES: dots over the stars that stretch into streaks, all pointing away from one spot,
+ * and run. One mesh of plain quads, four vertices a dash, not instanced.
+ *
+ * Each dash lives on a ray in the plane that faces the course (a tangent plane: a point (x, y)
+ * of it is the direction (x, y, 1)). Its place along the ray is p, 0 to 1, growing with uFlow at
+ * its own rate and wrapping: the head stands DASH_SPAN[0] * (DASH_SPAN[1] / DASH_SPAN[0]) ^
+ * (p ^ DASH_EASE) out from the middle, so it speeds up as it comes, as things passing do. The
+ * tail reaches uStretch * uLength of the way back to the middle. At uStretch 0 the dash is a
+ * round dot of its own width, a star: that is the whole of the wind-up and of the drop-out, and
+ * why nothing here touches the real stars. Flat colour, a hard round-ended edge one pixel soft.
+ * It comes up over the first fifth of its way (so the eye stays dark, and what the ship is flying
+ * to stays clear in it) and goes over the last of it, so a dash that wraps never pops.
+ *
+ * Geometry: position = (the angle of its ray round the course, rad; its phase, 0 to 1; how bright
+ * it is, 0 to 1). aDash = (which end: -1 the tail, +1 the head; which side: -1 or +1; its rate;
+ * its tint, a whole number under DASH_TINTS).
+ * In the vertex shader the quad reaches half a width past each end of the dash, room for its
+ * round caps, and hands the fragment capsule coordinates in half widths: x along the dash from
+ * its middle, y across it.
+ * Uniforms: uFrame (mat3 of unit columns: right, up, the course), uFlow, uTwist (a number of the
+ * destination's own: each has its own field), uStretch (0 to 1), uAlpha (0 to 1: the look's
+ * dots), uLength, uWidth (the width, in the plane's units), uPixel (one device pixel in those
+ * units: no dash is thinner), uTint (DASH_TINTS linear colours).
+ */
+export const hyperDashes = {
+  vertexShader: /* glsl */ `
+    attribute vec4 aDash;
+
+    uniform mat3 uFrame;
+    uniform float uFlow;
+    uniform float uTwist;
+    uniform float uStretch;
+    uniform float uAlpha;
+    uniform float uLength;
+    uniform float uWidth;
+    uniform float uPixel;
+    uniform vec3 uTint[${DASH_TINTS}];
+
+    varying vec2 vCapsule;
+    varying float vHalfLength;
+    varying float vAlpha;
+    varying vec3 vColor;
+
+    void main() {
+      vec2 ray = vec2(cos(position.x), sin(position.x));
+      vec2 side = vec2(-ray.y, ray.x);
+      float p = fract(position.y + (uFlow + uTwist) * aDash.z);
+      float head = ${glsl(DASH_SPAN[0])} * pow(${glsl(DASH_SPAN[1] / DASH_SPAN[0])}, pow(p, ${glsl(DASH_EASE)}));
+      float tail = head * (1.0 - uStretch * uLength);
+      float halfWidth = 0.5 * max(uWidth, uPixel);
+      float along = aDash.x > 0.0 ? head + halfWidth : tail - halfWidth;
+      vec2 at = ray * along + side * (aDash.y * halfWidth);
+      vec3 direction = uFrame * normalize(vec3(at, 1.0));
+      vec4 clip = projectionMatrix * vec4(mat3(viewMatrix) * direction, 1.0);
+      clip.z = clip.w;
+      gl_Position = clip;
+
+      vHalfLength = 0.5 * (head - tail) / halfWidth;
+      vCapsule = vec2(aDash.x * (vHalfLength + 1.0), aDash.y);
+      vAlpha = uAlpha * position.z * smoothstep(0.0, 0.2, p) * (1.0 - smoothstep(0.85, 1.0, p));
+      vColor = uTint[int(aDash.w + 0.5)];
+    }
+  `,
+
+  fragmentShader: /* glsl */ `
+    varying vec2 vCapsule;
+    varying float vHalfLength;
+    varying float vAlpha;
+    varying vec3 vColor;
+
+    void main() {
+      float beyond = max(abs(vCapsule.x) - vHalfLength, 0.0);
+      float reach = length(vec2(beyond, vCapsule.y));
+      float soft = max(fwidth(reach), 1e-6);
+      float inside = clamp((1.0 - reach) / soft, 0.0, 1.0);
+      gl_FragColor = vec4(vColor, inside * vAlpha);
+      #include <colorspace_fragment>
+    }
+  `,
+};

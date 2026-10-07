@@ -313,7 +313,7 @@ describe('where the marks are', () => {
     // On the galaxy's view a system at the very edge of the fitted disc stands
     // (R - fitPadPx) / fitMargin from the middle of a face R px in radius; a pin stands at
     // R - rimInsetPx. The pin must be the further out, or a system on the face would be pinned.
-    // (R is the smallest face's: the stylesheet's --minimap-size at its least, less 28 px.)
+    // (R is the smallest face's: the stylesheet's --minimap-held at its least, less 28 px.)
     const smallest = 120 / 2;
     expect(smallest - P.rimInsetPx).toBeGreaterThan((smallest - P.fitPadPx) / P.fitMargin);
   });

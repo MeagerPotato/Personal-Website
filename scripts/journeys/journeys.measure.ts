@@ -58,13 +58,26 @@ import { measure, optionsFromEnv } from './measure';
 //                  With every kind and Stop: about 5 minutes for the real galaxy (four systems),
 //                  and 7 and 11 for 6 and 8 systems, so run a galaxy per process
 //                  ("galaxies": [8]) to have all three in 11.
+//   hyper          HYPERSPACE is the same flight shown as a jump (sim/hyper.ts), and this is
+//                  where that is held. "real" (the default): every journey of the real galaxy is
+//                  flown a second time by a visitor who takes the jump the moment it is offered,
+//                  and held to its twin bit for bit (the ship after every step, the step it
+//                  docks on, the closest it came to anything); a twin that flew differently is a
+//                  failure, "hyper", gate off or on. The block "hyperspace" says how many
+//                  journeys were offered a jump and how long the jumps were. true: that for
+//                  every galaxy, and with "stress" its visitor presses too, on every flight,
+//                  whenever a jump is offered (so every way a journey is handed back is also
+//                  tried in hyperspace; a jump that outlives its journey is a failure, "hyper").
+//                  false: nobody presses (as example.json has it: its variants are compared for
+//                  their times).
 //   gate           what each galaxy must show. By default (gate.ts)
 //                  { "real": { "failures": 0, "p90Sec": 4.2, "maxSec": 6.5, "over5sShare": 0.015 },
 //                    "*": { "failures": 0 } }, "*" being every galaxy not named ("real", "6").
 //                  Given here, it replaces that whole; false switches every limit off (as
 //                  example.json does: its variants are slower on purpose). A galaxy held to any
 //                  limit must have been flown (built, and a sample that is not empty). Stress
-//                  flights and Stop, when they ran, are always held to 0 failures, gate off or on.
+//                  flights, Stop and the twins of hyperspace, when they ran, are always held to
+//                  0 failures, gate off or on.
 //   seed, includeDrafts, rows (print every journey), out (write every journey as JSON)
 //
 // JOURNEYS_OUT=<file.json> also writes every journey. A formula that JSON cannot say goes in a

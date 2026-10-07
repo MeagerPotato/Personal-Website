@@ -18,6 +18,11 @@ export interface ChaseCamParams {
   readonly fovBoostDegrees: number;
   readonly fovBoostSpeeds: readonly [from: number, to: number];
   readonly fovOmega: number;
+  /** Hyperspace: this much more lens (degrees) and this much more trail (u) at a surge of 1. */
+  readonly surgeFovDegrees: number;
+  readonly surgeTrail: number;
+  /** rad/s: how quickly the surge comes on, and how quickly it goes. */
+  readonly surgeOmega: readonly [on: number, off: number];
   readonly fovDolly: number;
   readonly minHorizontalFovDegrees: number;
   readonly maxFovDegrees: number;
@@ -60,6 +65,8 @@ export class ChaseCam implements CameraMode {
   /** How much of the speed's widening of the lens is on (0 to 1), and how far ahead it looks (u). */
   private readonly rush = createSpring();
   private readonly ahead = createSpring();
+  /** How much of hyperspace's surge is on (0 to 1): more lens, and the ship further ahead. */
+  private readonly kick = createSpring();
   private readonly eye = new Vector3();
   private readonly look = new Matrix4();
   private lastX = 0;
@@ -69,7 +76,14 @@ export class ChaseCam implements CameraMode {
 
   constructor(
     private readonly target: ChaseTarget,
-    private readonly options: { reducedMotion: boolean },
+    private readonly options: {
+      reducedMotion: boolean;
+      /**
+       * Hyperspace's pull on the lens, 0 to 1 (world/Hyperspace.ts, the look's `surge`). It may
+       * step; the view eases after it. Not for a visitor who asked for less motion.
+       */
+      surge?: () => number;
+    },
     private readonly params: ChaseCamParams = tuning.chaseCam,
   ) {}
 
@@ -100,12 +114,14 @@ export class ChaseCam implements CameraMode {
       params.lookAheadMax,
       params.lookAheadBase + params.lookAheadPerSpeed * target.speed,
     );
+    const kickTo = this.options.reducedMotion ? 0 : clamp(this.options.surge?.() ?? 0, 0, 1);
     if (!this.following) {
       snapSpring(this.x, x);
       snapSpring(this.z, z);
       snapSpring(this.yaw, target.heading);
       snapSpring(this.rush, rushTo);
       snapSpring(this.ahead, aheadTo);
+      snapSpring(this.kick, kickTo);
       this.following = true;
     } else if (dt > 0) {
       stepSpring(this.x, x, params.positionOmega, dt, (x - this.lastX) / dt);
@@ -126,6 +142,8 @@ export class ChaseCam implements CameraMode {
       }
       stepSpring(this.rush, rushTo, params.fovOmega, dt);
       stepSpring(this.ahead, aheadTo, params.fovOmega, dt);
+      const [on, off] = params.surgeOmega;
+      stepSpring(this.kick, kickTo, kickTo > this.kick.value ? on : off, dt);
     }
     this.lastX = x;
     this.lastZ = z;
@@ -133,18 +151,20 @@ export class ChaseCam implements CameraMode {
 
     // The spring may trail as far as it likes; the VIEW trails by at most maxTrail, easing into
     // that limit, so a boosting ship pulls away and then holds instead of shrinking to a dot.
+    // In hyperspace it may pull a little further ahead: the lunge.
+    const kick = clamp(this.kick.value, 0, 1);
+    const maxTrail = params.maxTrail + params.surgeTrail * kick;
     const trailX = x - this.x.value;
     const trailZ = z - this.z.value;
     const trail = Math.hypot(trailX, trailZ);
     const held =
-      trail > 1e-6 && params.maxTrail > 0
-        ? (params.maxTrail * Math.tanh(trail / params.maxTrail)) / trail
-        : 1;
+      trail > 1e-6 && maxTrail > 0 ? (maxTrail * Math.tanh(trail / maxTrail)) / trail : 1;
     const anchorX = x - trailX * held;
     const anchorZ = z - trailZ * held;
 
     const base = tuning.camera.fovDegrees;
-    const wanted = base + params.fovBoostDegrees * clamp(this.rush.value, 0, 1);
+    const wanted =
+      base + params.fovBoostDegrees * clamp(this.rush.value, 0, 1) + params.surgeFovDegrees * kick;
     const halfHorizontal = (params.minHorizontalFovDegrees / 2) * RAD_PER_DEG;
     const needed = (2 * Math.atan(Math.tan(halfHorizontal) / aspect)) / RAD_PER_DEG;
     // The free strip sees `strip` of the lens's height (in tangents: the view offset keeps the
