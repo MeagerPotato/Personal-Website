@@ -190,7 +190,7 @@ export class BodyMesh {
   private building: { readonly tier: TierName; readonly cancel: () => void } | null = null;
   private readonly edges: Material | null;
   /** The size of the rows' radius 1, as a share of the body's radius (planned work is smaller). */
-  private readonly share: number;
+  readonly share: number;
   /** Does it look any different up close? Unknown until the close-up rows have arrived. */
   private closer: boolean | null = null;
   private awaySec = 0;

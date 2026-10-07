@@ -17,6 +17,7 @@ const LIVE_BLOCKS = [
   'input',
   'chaseCam',
   'orbitCam',
+  'deck',
   'cameraRig',
   'map',
   'ship',

@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { UniverseOptions } from './api';
+import type { Deck, UniverseOptions } from './api';
 import { CameraRig } from './camera/CameraRig';
 import { MapCam } from './camera/MapCam';
 import { OrbitCam } from './camera/OrbitCam';
@@ -16,17 +16,21 @@ import { lowerTier, type QualityTier } from './core/quality/tiers';
 import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
 import { tuning } from './design/tuning';
+import { LANDMARKS } from './design/worlds/landmarks';
 import { PostFX } from './fx/PostFX';
 import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
 import { Labels } from './ui/Labels';
+import { Leaders } from './ui/Leaders';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { landmarkOf, type Landmark } from './sim/landmarks';
 import { boundsOf } from './sim/mapView';
+import { angleOf } from './sim/math';
 import { spawnPoint } from './sim/spawn';
 import { sunSeed } from './sim/sunSurface';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
@@ -84,6 +88,8 @@ export interface ViewInset {
   top?: number;
   right?: number;
   bottom?: number;
+  /** From the left edge: content that stands on both sides of what matters. */
+  left?: number;
   /** How much of the top the camera leaves out when it frames what matters (none if left out). */
   frameTop?: number;
   /** The page's footer chip over the bottom-left corner: from the left edge to right, top down. */
@@ -95,6 +101,13 @@ export interface Booted {
   navigator: Navigator;
   /** The panel moved, or the top bar grew: frame the world in what is left, keep names off it. */
   setInset(inset: ViewInset, cut: boolean): void;
+  /**
+   * The page's content stands round the docked body as cards, or (null) it does not (api.ts,
+   * `setDeck`). While a deck is set the wheel is the page's, every card has a leader to the body
+   * (ui/Leaders.ts), and the orbit camera turns to the landmark of the card that is open (`cut`:
+   * at once).
+   */
+  setDeck(deck: Deck | null, cut: boolean): void;
   /** Open or close the star map. `cut`: be there at once (a rebuilt engine, picking up where it was). */
   setMapOpen(open: boolean, cut: boolean): void;
   /** Where everything is right now, and in which galaxy (core/snapshot.ts). */
@@ -184,6 +197,9 @@ export function boot(
   const chase = new ChaseCam(ship, { reducedMotion });
   const orbit = new OrbitCam({ reducedMotion });
   const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
+  // What the web layer last said of the page's cards (`setDeck`, below). Not the engine's state:
+  // it follows from the URL and the page, and api.ts tells a rebuilt engine again.
+  let deck: Deck | null = null;
   const starMap = engine.add(
     new StarMap({
       canvas: engine.canvas,
@@ -193,6 +209,8 @@ export function boot(
       view: rig.shape,
       params: tuning.map,
       reducedMotion,
+      // Among cards the wheel goes from one to the next: scrolling out is not asking for the map.
+      wheelOpens: () => deck === null,
       tapMaxPx: tuning.picking.tapMaxPx,
       onChange: (open, cut) => {
         input.setEnabled(!open);
@@ -234,6 +252,41 @@ export function boot(
   // flourish, not flying.
   let framed: string | null = null;
   let framing = false;
+  // The card that is open points at a LANDMARK of the body its page belongs to (sim/landmarks.ts),
+  // and while the ship is docked at that body the orbit camera faces it. `facing` is what the
+  // camera was last told, so that a deck told again (a card's box moved by a pixel) does not
+  // start the turn afresh. `faced` is that card's landmark, kept for the card's leader, which
+  // ends on it and asks where it is every frame.
+  const mark = new Vector3();
+  let facing = '';
+  let faced: { body: string; key: string; landmark: Landmark } | null = null;
+  function aim(cut: boolean): void {
+    const body = deck?.body ?? null;
+    const cards = deck?.cards ?? [];
+    const index =
+      body !== null && body === framed ? cards.findIndex((c) => c.key === deck?.open) : -1;
+    const card = cards[index];
+    const middle = card && body !== null ? galaxy.subject(body)?.position : undefined;
+    const next = card && middle ? `${body}#${card.key}:${card.side}` : '';
+    if (next === facing) return;
+    facing = next;
+    if (!card || !middle || body === null) {
+      faced = null;
+      orbit.face(null, cut);
+      return;
+    }
+    const landmark = landmarkOf(LANDMARKS, body, card.key, index, cards.length, tuning.deck);
+    faced = { body, key: card.key, landmark };
+    orbit.face(
+      {
+        side: card.side,
+        // Where it is round the body NOW: on a turning world it goes round with the ground.
+        azimuth: () =>
+          galaxy.landmark(body, landmark, mark) ? angleOf(mark.x - middle.x, mark.z - middle.z) : 0,
+      },
+      cut,
+    );
+  }
   function direct(cut = false): void {
     const { mode, target } = navigator.state;
     const docked = mode === 'docked' ? target : null;
@@ -242,6 +295,9 @@ export function boot(
       const subject = docked === null ? null : galaxy.subject(docked);
       if (subject) orbit.look(subject);
       framing = subject !== null;
+      // An arrival ends facing what the page's open card points at; a ship that leaves lets the
+      // view ease out of it, since the picture is still the orbit camera's when the blend begins.
+      aim(docked !== null);
     }
     const want = starMap.isOpen ? mapCam : framing ? orbit : chase;
     if (want === rig.active) return;
@@ -297,6 +353,7 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  const themes = familiesOf(manifest);
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
   // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
   // whatever it is beside. Drawn so below; the names keep off it as drawn.
@@ -354,6 +411,38 @@ export function boot(
       }),
     );
   }
+
+  // A line from each card of the page's deck to the body the cards stand round, while that body
+  // is framed and nothing is in the way: the orbit view, arrived, and no star map.
+  engine.add(
+    new Leaders({
+      mount: options.mount,
+      deck: () => deck,
+      framed: (body, out) =>
+        body === framed &&
+        rig.active === orbit &&
+        rig.settled &&
+        !(starMap.weight > 0) &&
+        // Out to the edge of its GROUND, as that is drawn: the map of the screen has a world
+        // out to its rings and signs, and planned work's maquette is smaller than its body.
+        onScreen.disc(surroundings.orbits.indexOf(body), galaxy.ground(body), out),
+      landmark: (body, index, out) => {
+        const count = deck?.cards.length ?? 0;
+        const key = deck?.cards[index]?.key ?? '';
+        // The one the camera faces, which is this card's while its leader closes in on it (a
+        // card with no landmark of its own would have one made for it every frame).
+        const at =
+          faced !== null && faced.body === body && faced.key === key
+            ? faced.landmark
+            : landmarkOf(LANDMARKS, body, key, index, count, tuning.deck);
+        return galaxy.landmark(body, at, mark) && onScreen.pointAt(mark.x, mark.z, out, mark.y);
+      },
+      focus: () => orbit.focus,
+      themeOf: (body) => themes.get(body),
+      params: tuning.deck,
+      reducedMotion,
+    }),
+  );
 
   const backdrop = engine.add(new Backdrop());
   const starfield = engine.add(
@@ -518,10 +607,17 @@ export function boot(
     engine,
     navigator,
     setInset(inset, cut) {
-      rig.setInset({ top: inset.frameTop, right: inset.right, bottom: inset.bottom }, cut);
+      rig.setInset(
+        { top: inset.frameTop, right: inset.right, bottom: inset.bottom, left: inset.left },
+        cut,
+      );
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
+    },
+    setDeck(next, cut) {
+      deck = next;
+      aim(cut);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),
     snapshot: () => ({

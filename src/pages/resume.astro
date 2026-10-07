@@ -2,11 +2,13 @@
 // The resume, rendered from src/content/resume.yaml. The print stylesheet (src/styles/global.css,
 // section 4) turns this same page into the paper version, and `npm run resume-pdf` prints that
 // version into the PDF the page offers (verify-dist fails when the two drift apart).
-import { getCollection, getEntry, render } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
+import Card from '../components/Card.astro';
 import PageHeader from '../components/PageHeader.astro';
 import ResumeRoles from '../components/ResumeRoles.astro';
 import Base from '../layouts/Base.astro';
 import { site } from '../config/site';
+import { CARD, wholeText } from '../site/cards';
 import { toResume } from '../site/resume';
 import { routes } from '../site/routes';
 import { pageTitle } from '../site/seo';
@@ -14,49 +16,52 @@ import { DOCK_LABEL, displayUrl } from '../site/view-models';
 
 const page = await getEntry('pages', 'resume');
 if (!page) throw new Error('src/content/pages/resume.md is missing');
-const { Content } = await render(page);
+const intro = wholeText(page);
 const resume = toResume(await getCollection('resume'));
 ---
 
 <Base title={pageTitle(page.data.title)} description={page.data.summary}>
-  <PageHeader eyebrow={DOCK_LABEL[page.data.dock]} title={page.data.title} />
-
-  <!-- The name that heads the paper version (the print stylesheet sets it at a heading's size). -->
-  <p class="resume-name">{site.fullName}</p>
-
-  <ul class="resume-contact">
-    <li>
-      <a href={`mailto:${site.email}`}>{site.email}</a>
-    </li>
-    <li>
-      <a href={site.url}>{displayUrl(site.url)}</a>
-    </li>
-    <li>
-      <a href={site.socials.github} rel="me noopener">
-        {displayUrl(site.socials.github)}
-      </a>
-    </li>
-    <li>
-      <a href={site.socials.linkedin} rel="me noopener">
-        {displayUrl(site.socials.linkedin)}
-      </a>
-    </li>
-  </ul>
-
-  <div class="prose screen-only">
-    <Content />
+  <div data-card>
+    <PageHeader eyebrow={DOCK_LABEL[page.data.dock]} title={page.data.title} />
   </div>
 
-  <ul class="actions">
-    <li>
-      <a class="button button--primary" href={routes.resumePdf()} download>
-        Download the PDF
-      </a>
-    </li>
-  </ul>
+  <Card {...CARD.resumeContact} class="resume-intro">
+    <!-- The name that heads the paper version (the print stylesheet sets it at a heading's size). -->
+    <p class="resume-name">{site.fullName}</p>
 
-  <section class="resume-section" aria-labelledby="resume-education">
-    <h2 id="resume-education">Education</h2>
+    <ul class="resume-contact">
+      <li>
+        <a href={`mailto:${site.email}`}>{site.email}</a>
+      </li>
+      <li>
+        <a href={site.url}>{displayUrl(site.url)}</a>
+      </li>
+      <li>
+        <a href={site.socials.github} rel="me noopener">
+          {displayUrl(site.socials.github)}
+        </a>
+      </li>
+      <li>
+        <a href={site.socials.linkedin} rel="me noopener">
+          {displayUrl(site.socials.linkedin)}
+        </a>
+      </li>
+    </ul>
+
+    <div class="prose screen-only">
+      <Fragment set:html={intro} />
+    </div>
+
+    <ul class="actions">
+      <li>
+        <a class="button button--primary" href={routes.resumePdf()} download>
+          Download the PDF
+        </a>
+      </li>
+    </ul>
+  </Card>
+
+  <Card {...CARD.resumeEducation} class="resume-section">
     <ul class="entries">
       {resume.education.map((item) => (
         <li class="entry">
@@ -70,20 +75,17 @@ const resume = toResume(await getCollection('resume'));
         </li>
       ))}
     </ul>
-  </section>
+  </Card>
 
-  <section class="resume-section" aria-labelledby="resume-experience">
-    <h2 id="resume-experience">Experience</h2>
+  <Card {...CARD.resumeExperience} class="resume-section">
     <ResumeRoles roles={resume.experience} />
-  </section>
+  </Card>
 
-  <section class="resume-section" aria-labelledby="resume-leadership">
-    <h2 id="resume-leadership">Leadership</h2>
+  <Card {...CARD.resumeLeadership} class="resume-section">
     <ResumeRoles roles={resume.leadership} />
-  </section>
+  </Card>
 
-  <section class="resume-section" aria-labelledby="resume-skills">
-    <h2 id="resume-skills">Skills</h2>
+  <Card {...CARD.resumeSkills} class="resume-section">
     <dl class="skills">
       {resume.skills.map((group) => (
         <div>
@@ -92,10 +94,9 @@ const resume = toResume(await getCollection('resume'));
         </div>
       ))}
     </dl>
-  </section>
+  </Card>
 
-  <section class="resume-section" aria-labelledby="resume-awards">
-    <h2 id="resume-awards">Awards</h2>
+  <Card {...CARD.resumeAwards} class="resume-section">
     <ul class="awards">
       {resume.awards.map((award) => (
         <li>
@@ -104,5 +105,5 @@ const resume = toResume(await getCollection('resume'));
         </li>
       ))}
     </ul>
-  </section>
+  </Card>
 </Base>

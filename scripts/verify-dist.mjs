@@ -15,6 +15,10 @@
 //   7. SWAP CONTRACT: outside <main> and [data-page-head], every page is byte-identical (the
 //      nav's aria-current aside), and has exactly one <h1>. The router (Phase 2) swaps only
 //      those parts, so this is what makes a soft navigation end in the same DOM as a hard one.
+//  7b. CARDS: inside <main>, every one of those pages but the home page is a list of cards: a
+//      first <div data-card> with the <h1>, then at most eight <section data-card>, each opening
+//      with an <h2 id> that links to its own fragment (scripts/lib/cards.mjs). The home page has
+//      none.
 //   8. THE RESUME'S PDF says what the resume page says: it is the file config/resume-pdf.json
 //      describes, printed from this very page and print stylesheet (`npm run resume-pdf`).
 //   9. THE CLOSE-UP CHUNK: the emblem worlds' close-up rows and motions are one chunk of their
@@ -36,6 +40,7 @@ import {
   pageSkeleton,
   toSitePath,
 } from './lib/html.mjs';
+import { cardProblems, homeCardProblems } from './lib/cards.mjs';
 import { CLOSE_UP_CHUNK, CLOSE_UP_BUDGET, closeUpProblems } from './lib/closeup.mjs';
 import { REDIRECTS, redirectProblems } from './lib/redirects.mjs';
 import { RESUME_PAGE, RESUME_PDF, RESUME_PDF_LOCK, resumePdfProblems } from './lib/resume-pdf.mjs';
@@ -320,6 +325,20 @@ for (const page of [...swappable].sort((a, b) => a.pagePath.length - b.pagePath.
       ].join('\n      '),
     );
   }
+}
+
+// 7b --- cards ----------------------------------------------------------------------------------
+// The same pages again, from the inside: what a page says is a list of cards, so that every
+// layout of it (a column, a panel, a sheet, cards round a body) reads the one markup.
+for (const page of swappable) {
+  let problems;
+  try {
+    problems = page.pagePath === '/' ? homeCardProblems(page.html) : cardProblems(page.html);
+  } catch {
+    // No single <main>: said above, under 7.
+    continue;
+  }
+  errors.push(...problems.map((problem) => `${page.pagePath}: ${problem}`));
 }
 
 // 8 --- the resume's PDF ------------------------------------------------------------------------

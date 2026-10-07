@@ -17,7 +17,10 @@ Status: Phase 0 (foundations) is built; **Phase 2's web track** is under way: th
 and every v0.1 page exist (home, about, resume, contact, projects, systems) and read well in plain
 mode. In universe mode the **router** keeps the canvas alive across pages (soft navigation) and
 the page's content sits in a **panel** over the world (side panel on wide screens, bottom sheet on
-narrow ones). **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
+narrow ones). On a wide screen (1280 x 576 px and up) a destination's content is a **deck of cards**
+round the docked body: every section a short card with a **leader** to the body; opening one (a
+click, the wheel, the keys, `/about/#rockets`) shows it in full and turns the camera to that
+card's landmark, where its leader then ends. **Phase 1 (flight) is built** (its gate: below): the engine runs on a fixed 60 Hz simulation
 clock; a procedural rocket flies with keyboard or touch, followed by the chase camera; and the
 **galaxy is built from the real `/universe.json`**: every body (the planets and moons, the suns,
 home, the station, the satellite and the relays) drawn as its **emblem world** (`design/worlds/`:
@@ -59,7 +62,8 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
 
 1. **One URL, two modes.** Every route is a real pre-rendered HTML page holding the full content.
    _Plain mode_ is the base CSS with no attribute set. _Universe mode_ boots the 3D engine on top
-   and the page's `<main>` becomes the info panel. Content is written once.
+   and the page's `<main>` becomes the info panel (a deck of cards round the docked body on wide
+   screens, a side panel or a bottom sheet elsewhere). Content is written once.
 2. **Plain mode never downloads three.js and ships no framework JavaScript.** The engine is only
    reachable through a dynamic `import()`. `scripts/verify-dist.mjs` fails the build otherwise, and
    enforces gzip weight budgets for both modes.
@@ -75,6 +79,8 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
    router's own rule: **a soft navigation is only an optimisation of a hard one.** Both must end
    in the same DOM, and on any doubt (failed fetch, non-HTML, a new deploy, a plain-only page)
    the router lets the browser load the page normally. Plain mode never loads the router.
+   The fragment is a reading position, not a page: `router.anchor()` replaces it in the entry
+   that is showing (same state, no new entry), and a same-page link goes through it.
 8. **Colours live in `src/universe/design/tokens.ts` and nowhere else.** CSS reads them as custom
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
    a lit surface is exactly the token hex and 3D matches the DOM.
@@ -88,7 +94,11 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
     page is byte-identical, and every page has exactly one `<h1>`. The router (Phase 2) swaps only
     those parts, so this is what makes a soft navigation end in the same DOM as a hard one. One
     documented exception: `aria-current` on the main nav, derived by `src/site/nav.ts` on both
-    sides. The plain-only 404 is exempt. `verify-dist` enforces all of it.
+    sides. The plain-only 404 is exempt. `verify-dist` enforces all of it. Inside `<main>`, every
+    page but home and the 404 is a list of cards: a first `<div data-card>` with the one `<h1>`,
+    then at most eight `<section data-card>`, each starting with an `<h2 id>` whose text links to
+    its own fragment. Nothing writes inside `<main>` at run time: state goes on `<html>`.
+    `verify-dist` enforces the shape.
 
 Invariants 5, 6, 7 and 10 (its import rule) are lint rules (`eslint.config.js`); `tests/lint-boundaries.test.ts`
 proves they still bite. **Flat-config gotcha:** a later block's rule _replaces_ an earlier block's
@@ -102,7 +112,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run build` | asset checks → `astro build` → `dist/_headers` with CSP hashes |
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
-| `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. On Windows, Chromium draws on the GPU (without it, headless Chromium draws the universe on the CPU: about 7 cores a page) and a quarter of the cores run tests; CI has no GPU and keeps the software renderer, which `E2E_SOFTWARE_GL=1` also gives locally. The machine is Allen's computer too: while iterating, run the specs a change touches, and the whole suite once at the end, never two whole suites at once. **Not** part of `verify`: CI runs it as a second, non-required job. |
+| `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. On Windows, Chromium draws on the GPU (without it, headless Chromium draws the universe on the CPU: about 7 cores a page) and a quarter of the cores run tests; CI has no GPU and keeps the software renderer, which `E2E_SOFTWARE_GL=1` also gives locally. The machine is Allen's computer too: while iterating, run the specs a change touches, and the whole suite once at the end, never two whole suites at once. The desktop projects (1280 x 800) see the deck; a spec that needs the side panel sets a viewport under 1280 px wide. **Not** part of `verify`: CI runs it as a second, non-required job. |
 | `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy (four systems) and in grown ones of 6 and 8, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. It **fails on a breach of the gate** (`scripts/journeys/gate.ts`, each breach printed in words): the real galaxy no failures, p90 ≤ 4.2 s, the slowest ≤ 6.5 s, at most 1.5% over 5 s; the grown ones no failures; stress and Stop, when run, no failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 5 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout; CI runs it as a non-required job on pull requests that touch the content (or `src/site`, which reads it), the site config, the engine or the harness. |
 | `npm run map-names` | The star map's names over whole turns (`tests/map-names/sweep.measure.ts`): every look (two phones and a laptop; at rest at the first view and zoomed in, opened with the blend, beside a page, dragged, under the fingers, and in grown galaxies of 6 and 8) watched frame by frame through the real map, camera, `Labels` and declutter. It prints what the names did and **fails on a breach** of each look's rules: no planet's or moon's name on a sun or the home planet, every system named where it must be, no name changing back and forth. About two minutes. `npm test` runs samples of the same looks (`tests/map-names/checks.ts`). **Not** part of `verify`: run it after touching the names, the map or the layout; CI runs it as a non-required job on pull requests that touch the content, `src/site`, the site config, the engine or the harness. |
 | `npm run resume-pdf` | build → prints `/resume/` through the print stylesheet into `public/allen-hsieh-resume.pdf` (Playwright's Chromium) and records what it printed from in `config/resume-pdf.json`. `verify-dist` fails a build whose resume page or print stylesheet changed since, so run it after any resume change and commit both files. |
@@ -153,7 +163,7 @@ Do not "fix" these back to what you remember. `npm run verify` is the arbiter.
 
 | Path | What | Who edits |
 | --- | --- | --- |
-| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own) | **Astra**, Claude |
+| `src/universe/design/**` | tokens, tuning, `materials.ts` (which token feeds which shader input), `shaders/` (GLSL), `models/` (procedural models), `assets.ts` (the asset manifest), `worlds.ts` (bodies with a look of their own), `worlds/landmarks.ts` (what each card of a page points at) | **Astra**, Claude |
 | `src/styles/**` | the one global stylesheet set | **Astra**, Claude |
 | `public/models/**` | `.glb` models (from Phase 3) | **Astra**, Claude |
 | `src/universe/**` (rest) | engine: `api.ts`, `main.ts`, `manifest.ts` (reads `/universe.json`), `core/`, `sim/`, `ship/`, `camera/`, `world/` … | Claude |
@@ -232,6 +242,23 @@ sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact ti
 is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
 on the low tier and on the star map.
 
+**Give a card a landmark.** Opening a card of the deck turns the orbit camera to that card's
+LANDMARK on the body its page belongs to. An entry in `design/worlds/landmarks.ts`, under the
+body's manifest id and then the card's heading id (`rockets` for `/about/#rockets`): a latitude
+and a longitude in the body's own frame, in degrees, as a part is stood on a world in its rows
+(longitude 0 is the body's +Z, 90 its +X), with `alt` (radii above the ground), `hold` (it stands
+on a part that does not turn with the body) and `part` (the part it was read off) where they
+apply. A card with no entry points at its place on a ring round the body (`tuning.deck`), so
+nothing has to be listed. Keep the latitude between -15 and 85: the camera turns round the body
+and never climbs. A landmark is coordinates, never a reference to a part, so that pointing at one
+never pulls in the close-up chunk; `tests/landmarks.test.ts` holds the table to the galaxy (a key
+that names no body, a card its page cannot have, a part that has moved on). The keys are API:
+they are a body's id and a heading's id, which is a fragment people link to. Judge it in flight:
+`sim/landmarks.ts` is the arithmetic, `Galaxy.landmark()` puts it in the world through the mesh's
+own transform, and `OrbitCam.face()` does the turn (`tuning.orbitCam`: `faceOmega`,
+`faceMaxRadPerSec`, `faceBiasDeg`, `focusFitRingRadii`). The open card's leader ends on it
+(`ui/Leaders.ts`), so what a card points at is there to see.
+
 **Where things are.** Nobody stores a world position. `sim/orbits.ts` gives the position (and
 velocity) of every body as a pure function of time: the simulation asks for the time of its step,
 a view for the exact time of its frame (`frame.simTime - (1 - frame.alpha) / stepHz`). Anything
@@ -305,18 +332,58 @@ belongs in the main nav is one line in `src/config/site.ts`. For search engines 
 previews, pass `jsonLd` (nodes from `src/site/seo.ts`) and, if the page has a picture of its
 own, `image`; otherwise it gets the site's card, `/og/default.png`, which
 `src/site/og.ts` draws from the tokens. Any new per-page `<head>` node needs `data-page-head`.
+Everything in `<main>` goes into cards: a first `<div data-card>` with `Crumbs` and `PageHeader`,
+then `Card` components (`MarkdownCards` for Markdown split by `sectionize`,
+`src/site/sections.ts`). Eight at most; the head holds the sign, the `<h1>` and the lede only.
+Which cards a page has, and the id and title of each one that is not a Markdown heading, is
+`src/site/cards.ts`: ids are API (they are the page's fragments), and a title the page would not
+show on its own is `quiet` (a heading for screen readers, seen only while its link has the
+focus, and never on paper).
 
-**The panel's one rule.** In universe mode the panel's state is a function of the URL
-(`src/shell/panel.ts`): every page except the home page is a destination, its panel is open, and
-closing it means LEAVING (`router.leave()`: back if the visitor came from one of our pages, else
-home). Only the home page's welcome text is a toggle. State lives on `<html>` as `data-panel`,
-`data-panel-home`, `data-panel-size`; CSS does the showing. Never add a second way to hide a
-destination's panel: Back would stop meaning what it looks like.
+**The panel's rule.** In universe mode what shows is a function of the URL (`src/shell/panel.ts`,
+`src/shell/cards.ts`). The path says which page: every page except the home page is a
+destination, its content is up, and closing it means LEAVING (`router.leave()`: back if the
+visitor came from one of our pages, else home). The fragment says which card is open; none is
+the overview. Only the home page's welcome text is a toggle. State lives on `<html>` as
+`data-panel`, `data-panel-home`, `data-panel-size`, `data-card-open`, `data-card-side`; CSS does
+the showing. Never add a second way to hide a destination's content, nor a card state that is not
+in the URL: Back would stop meaning what it looks like. (`data-card-more` is no state of that
+kind: it says that the open card has more under its cut than its scroll shows, as a scrollbar
+does, so that the stylesheet can fade its last lines.)
+
+**The deck.** One content box, three layouts, chosen by media query alone: the deck (at least
+80rem wide and 36rem tall), the side panel, the bottom sheet. The stylesheet lays the deck out
+("the deck", `src/styles/global.css`); `src/shell/deck.ts` is the same arithmetic as pure
+functions (which column a card stands in, what a wheel or a key means among cards, what the
+cards leave free) and `src/shell/cards.ts` is the half that listens: every change of card is
+`router.anchor(key | null)` then `cards.sync()`, which reads the URL again. `deck.test.ts` and
+`panel-inset.test.ts` read the stylesheet and hold the two together (the query, the left
+column's selectors, one selector for each card that can be open), so change them together. The
+engine hears of the deck through `setPanelInset` (what is free, both sides) and `setDeck`; while
+one is up the wheel and the scroll keys are the cards', and the map is `M` or its button.
+**A stub is as tall as what it holds** while its column has the room (`max-height: max-content`),
+and is cut, under a fade, only in a column that is full; one that ends with its `.actions` (the
+resume's Download) keeps that row of keys at its foot however little of it shows, and so does
+that card when it is open and cut (the row sticks to the foot of what shows). A column still
+wraps by each card's BASIS, and the least a card can be is its padding and its hairlines: both
+stay under a title row (`deck.test.ts`), so room for anything new in a stub is a margin inside
+it, never its padding. Firefox keeps a fixed cap (`--stub-max`, behind `@supports
+(-moz-appearance: none)`): it has not been run, and the guard goes once it has.
 
 **Link to something the router must leave alone.** It already leaves alone other sites, files
-(any path with an extension), downloads, `target`, modified clicks, and anchors on the page that is
-showing. For anything else (the mode switches are the example), add `data-router-ignore` to the
-link or to an ancestor.
+(any path with an extension), downloads, `target`, modified clicks, and "Skip to content" (a
+fragment that names no place inside `<main>`). For anything else (the mode switches are the
+example), add `data-router-ignore` to the link or to an ancestor.
+
+**Link to a part of the page that is showing.** An ordinary `<a href="#id">`, as every card's
+title is. In universe mode the router takes it (`samePageAnchor`, `src/shell/navigation.ts`):
+it replaces the fragment, never pushes it, and tells `onAnchor`, whose listener shows the part
+(`src/shell/cards.ts`: the panel scrolls to it; in the deck the card that holds it opens).
+Anything else that changes the part being read calls `router.anchor(id)`, and never writes the
+URL itself (invariant 7). The place a fragment names is in sight whoever put it in the URL: a
+page that ARRIVES at one goes there too (`arrive`: on a reload Chromium follows no fragment,
+because the router restores scroll positions by hand), and so does a deck that the window has
+just made one column (`relay`).
 
 **Style something new.** One stylesheet, `src/styles/global.css`, in the section its header
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
@@ -325,7 +392,17 @@ comment names. Colours only through tokens: a solar system's family arrives as `
 either another job. The one exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
-Check 360 px wide, and check print if the resume could be affected.
+Check 360 px wide, and check print if the resume could be affected. A card of a page is styled
+three times over: as a block of one column (plain mode, the panel, the sheet), and in the deck's
+block as a stub, a chip and the open card. That block stands on three declarations, each marked
+where it is (`min-height` on every card, the `- 1px` in both caps, `overflow: clip` on a stub):
+after touching it, look at 1280 x 576 and 1920 x 1080, the overview and a card open, and run
+`tests/e2e/cards.spec.ts`. No CARD in it moves by width, height or position: the shell measures
+the cards in the same task that opens one. What a visitor sees move is the shell's doing
+(`carry` in `src/shell/cards.ts`: animations of `translate` and `clip-path`, which write nothing),
+so never give a card a transition of its size or its place. (The engine's own controls there,
+the Map button and the dock prompt, do slide to their new middle by `left`: nothing measures
+them once, the names ask where they are every frame.)
 
 **Edit the resume.** `src/content/resume.yaml`: one entry per section, items in the order they
 should appear, dates as you would write them on paper ("Summer 2025"). `/resume/` and its print
@@ -345,6 +422,10 @@ optional `cover: { src: ./cover.png, alt }` (without one the page shows its plan
 `projects/days2meet/index.md`.
 Images are served as AVIF with a WebP fallback at three widths (`components/Shot.astro`), so
 commit one good source image, at least 1200 px wide, and let the build do the rest.
+A page has room for eight cards: At a glance, The story, one per `##`, Gallery, Moons, Connected
+by motorway. The text is cut at its `##` headings (`sectionize`), so each is plain words at the
+top level of the text, and a ninth card fails the build: merge two sections. Pictures go in
+`cover` and `gallery`, never in the text (the build refuses a text with one).
 
 **Add a moon (a sub-project).** Exactly the same, with `parent: <project id>` instead of `system`.
 Moons cannot have moons. Promoting a moon to a planet is swapping that one line; the URL stays.
