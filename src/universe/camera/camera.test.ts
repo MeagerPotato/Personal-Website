@@ -382,8 +382,8 @@ describe('the chase camera in hyperspace: the surge', () => {
     const pose = createPose();
     // A phone held upright, and the same with the sheet up: the lens is already wide there.
     for (const shape of [
-      { aspect: 360 / 740, freeWidth: 1, freeHeight: 1, freeTop: 0 },
-      { aspect: 360 / 740, freeWidth: 1, freeHeight: 407 / 740, freeTop: 157 / 740 },
+      { aspect: 360 / 740, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 },
+      { aspect: 360 / 740, freeWidth: 1, freeHeight: 407 / 740, freeTop: 157 / 740, freeLeft: 0 },
     ]) {
       c.cam.update(frame(1 / 60), shape, pose);
       expect(pose.fov).toBeLessThanOrEqual(params.maxFovDegrees);

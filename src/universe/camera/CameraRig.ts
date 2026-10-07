@@ -249,11 +249,17 @@ export class CameraRig implements System {
    * Whatever belongs on a whole screen only asks this and not `shape`: the free part of the
    * view EASES, so for the first frames a panel is open nearly all of the view still reads as
    * free (two frames at 60 a second, for a side panel 500 px wide).
+   *
+   * From ANY side the page stands on: the right (a side panel, a deck's right column), the
+   * bottom (a sheet) and the left. A page whose deck is its head card alone covers the left and
+   * nothing else (shell/deck.ts, `deckInset`).
    */
   get whole(): boolean {
     return (
       this.wantRight === 0 &&
       this.wantBottom === 0 &&
+      this.wantLeft === 0 &&
+      this.view.freeLeft < 1 - WHOLE &&
       this.view.freeWidth > WHOLE &&
       this.view.freeHeight > WHOLE
     );

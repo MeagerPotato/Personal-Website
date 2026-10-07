@@ -601,6 +601,38 @@ describe('the camera rig, making room for the panel', () => {
     expect(rig.whole).toBe(true);
   });
 
+  it('is not whole while a page stands on the left alone: a deck that is one head card', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    const { rig } = rigWith(subject, 1600, 900);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // The head card of a page with no section cards: the left column, and nothing on the right.
+    rig.setInset({ left: 436 });
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    rig.frameUpdate(frame(1 / 60));
+    // The view has hardly slid yet, and nothing at all is covered from the right.
+    expect(rig.shape.freeLeft).toBeLessThan(0.01);
+    expect(rig.shape.freeWidth).toBe(1);
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.shape.freeLeft).toBeCloseTo(436 / 1600, 6);
+    expect(rig.whole).toBe(false);
+
+    // The page closes: whole again only once the view has slid all the way back.
+    rig.setInset({});
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // Both columns of a deck, cut to (a page opened by its address).
+    rig.setInset({ left: 436, right: 436 }, true);
+    expect(rig.whole).toBe(false);
+  });
+
   it('measures again when the viewport changes', () => {
     const subject = new Looking(0, 0, 60, 40);
     const { camera, rig } = rigWith(subject, 1280, 800);
