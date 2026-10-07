@@ -398,6 +398,95 @@ test('Stop in the tunnel ends the jump with the journey, and the ship comes to r
   await expect(html(page)).toHaveAttribute('data-panel', 'closed');
 });
 
+test('the Shift that took the jump is not boost when the controls take the journey back', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'a keyboard, and the full deck (its throttle says what was flown)');
+  await openUniverse(page, '/');
+  const hyper = await watchAttribute(page, 'data-hyper');
+  interface Shift {
+    /** Was the ship flown with boost while only the jump's own Shift was down? */
+    stale: boolean;
+    /** The throttle has been open that long, with that Shift still down. */
+    flown: boolean;
+    /** Was it flown with boost once Shift was pressed afresh? */
+    fresh: boolean;
+  }
+  type Held = Window & { e2eShift: Shift };
+  // The page presses Shift when the jump is offered and KEEPS IT DOWN, takes the journey back
+  // with an arrow in the tunnel, and opens the throttle: on a journey Shift is hyperspace's, and
+  // the guard that brakes a ship taken back at the autopilot's speed believes a boost it is
+  // shown (sim/docking.ts, guardInput).
+  await page.evaluate(() => {
+    const noted: Shift = { stale: false, flown: false, fresh: false };
+    (window as unknown as Held).e2eShift = noted;
+    const root = document.documentElement;
+    const deck = document.querySelector('.flight-deck');
+    if (!deck) return;
+    let pressedAfresh = false;
+    new MutationObserver(() => {
+      if (!deck.hasAttribute('data-boost')) return;
+      if (pressedAfresh) noted.fresh = true;
+      else noted.stale = true;
+    }).observe(deck, { attributes: true, attributeFilter: ['data-boost'] });
+
+    const key = (type: 'keydown' | 'keyup', code: string, more: KeyboardEventInit = {}): void => {
+      window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, ...more }));
+    };
+    const shift = { key: 'Shift', shiftKey: true };
+    const frames = (count: number): Promise<void> =>
+      new Promise((done) => {
+        const step = (): void => {
+          count -= 1;
+          if (count < 0) done();
+          else requestAnimationFrame(step);
+        };
+        step();
+      });
+    const done = new Set<string>();
+    new MutationObserver(() => {
+      const state = root.dataset.hyper;
+      if (state === undefined || done.has(state)) return;
+      done.add(state);
+      if (state === 'offered') key('keydown', 'ShiftLeft', shift);
+      if (state !== 'tunnel') return;
+      void (async () => {
+        // An arrow, for three frames; Shift is down all the while (and repeats, as held keys do).
+        key('keydown', 'ArrowLeft', { shiftKey: true });
+        await frames(3);
+        key('keyup', 'ArrowLeft', { shiftKey: true });
+        key('keydown', 'ShiftLeft', { ...shift, repeat: true });
+        key('keydown', 'KeyW', { shiftKey: true });
+        await frames(20);
+        key('keydown', 'ShiftLeft', { ...shift, repeat: true });
+        await frames(4);
+        noted.flown = true;
+        // Let go of, and pressed again: a fresh press in the pilot's own flight is boost.
+        key('keyup', 'ShiftLeft');
+        pressedAfresh = true;
+        key('keydown', 'ShiftLeft', shift);
+      })();
+    }).observe(root, { attributes: true, attributeFilter: ['data-hyper'] });
+  });
+  await setOut(page, 'Hackathons');
+
+  const shift = (): Promise<Shift> => page.evaluate(() => (window as unknown as Held).e2eShift);
+  await expect.poll(async () => (await shift()).flown, FLIGHT).toBe(true);
+  // The arrow took the journey back in the tunnel, and the jump went with it.
+  expect(await hyper()).toEqual([null, 'offered', 'windup', 'tunnel', null]);
+  await expect(prompt(page)).not.toContainText('Flying to');
+  expect((await shift()).stale).toBe(false);
+  // The same hands, with Shift pressed afresh: boost, as ever.
+  await expect.poll(async () => (await shift()).fresh, FLIGHT).toBe(true);
+  expect((await shift()).stale).toBe(false);
+  await page.evaluate(() => {
+    for (const code of ['KeyW', 'ShiftLeft']) {
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+    }
+  });
+});
+
 test.describe('nothing is offered', () => {
   test('on a hop inside home, which never gets fast enough', async ({ page, isMobile }) => {
     await openUniverse(page, '/');

@@ -131,7 +131,7 @@ export function boot(
   const assets = engine.add(new AssetStore());
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
-  input.add(new KeyboardInput());
+  // (The keyboard joins them further down: it asks the navigator what Shift means.)
   const touch = new TouchControls(engine.canvas, options.mount);
   input.add(touch);
   input.add(new PointerSteer(engine.canvas));
@@ -167,6 +167,15 @@ export function boot(
     syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
   if (start) navigator.restore(start.dock, reducedMotion, start);
+  // The keyboard. On a journey Shift is hyperspace's (ui/HyperOffer.ts), not boost; and the Shift
+  // that took a jump is not boost when the controls take the journey back, at the autopilot's
+  // speed, however long it stays down: only a fresh press is (core/input/keys.ts).
+  input.add(
+    new KeyboardInput(window, () => {
+      const { mode } = navigator.state;
+      return mode === 'autopilot' || mode === 'approach';
+    }),
+  );
   // Boost only multiplies the pilot's own thrust: outside free flight a finger's boost pad would
   // light up and do nothing, so it is put away (the stick stays: it is how the pilot leaves).
   engine.add({

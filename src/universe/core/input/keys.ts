@@ -32,9 +32,21 @@ export class KeyState {
   /** Held keys in the order they went down: the LAST of left/right wins. */
   private readonly held: string[] = [];
 
-  /** Returns true when the key is one of ours (the caller then keeps the page from scrolling). */
-  press(code: string): boolean {
-    if (!isFlightKey(code)) return false;
+  /**
+   * Returns true when the key is one of ours (the caller then keeps the page from scrolling).
+   *
+   * BOOST IS A FRESH PRESS IN THE PILOT'S OWN FLIGHT. On a journey Shift is not the boost key
+   * (`boost` false): there it takes the jump (ui/HyperOffer.ts), and the Shift that took it may
+   * still be down when the pilot takes the controls back, at the autopilot's speed, where the
+   * guard believes a boost it is shown (sim/docking.ts, guardInput). So a Shift that goes down
+   * on a journey is not held, and neither is one that is only repeating (`repeat`: it went down
+   * some time ago): it is boost again once it is pressed afresh. The keyboard's counterpart of
+   * the boost pad being put away (TouchControls.setFlying).
+   */
+  press(code: string, boost = true, repeat = false): boolean {
+    const action = BINDINGS[code];
+    if (action === undefined) return false;
+    if (action === 'boost' && (!boost || repeat)) return true;
     if (!this.held.includes(code)) this.held.push(code);
     return true;
   }
@@ -42,6 +54,13 @@ export class KeyState {
   release(code: string): void {
     const index = this.held.indexOf(code);
     if (index !== -1) this.held.splice(index, 1);
+  }
+
+  /** A journey is being flown: a Shift held into it is let go of (see `press`). */
+  releaseBoost(): void {
+    for (let k = this.held.length - 1; k >= 0; k -= 1) {
+      if (BINDINGS[this.held[k] ?? ''] === 'boost') this.held.splice(k, 1);
+    }
   }
 
   /** The window lost focus: we will never see those keys come up, so let go of all of them. */
