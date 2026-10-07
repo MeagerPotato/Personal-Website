@@ -15,6 +15,7 @@ import { JobQueue } from './core/jobs';
 import { lowerTier, type QualityTier } from './core/quality/tiers';
 import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
+import type { ThemeKey } from './design/tokens';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
 import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
@@ -28,12 +29,14 @@ import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { starCalm } from './sim/hyper';
 import { systemAt } from './sim/instruments';
 import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
+import { Hyperspace } from './world/Hyperspace';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 
@@ -176,7 +179,10 @@ export function boot(
 
   // The cameras are MADE here, because the map needs to know the shape of the view, and the world
   // needs to know about the map; the rig takes its turn in the frame further down.
-  const chase = new ChaseCam(ship, { reducedMotion });
+  // (Hyperspace is built further down, after the galaxy it reads; the chase camera's lens
+  // follows whatever it shows, from here.)
+  let hyperspace: Hyperspace | null = null;
+  const chase = new ChaseCam(ship, { reducedMotion, surge: () => hyperspace?.look.surge ?? 0 });
   const orbit = new OrbitCam({ reducedMotion });
   const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
   // Everything there is to see: what the star map opens on, and the minimap at its widest.
@@ -223,6 +229,39 @@ export function boot(
     frameUpdate: () => ship.setSun(galaxy.lightAt(ship.position, light)),
     dispose: () => undefined,
   });
+
+  // HYPERSPACE (world/Hyperspace.ts): how a journey's fast stretch looks. Nothing of it flies
+  // the ship. After the galaxy, which knows where the destination is this frame, and before the
+  // rig, whose lens follows it. A visitor who asked for less motion has none of it.
+  const headed: { id: string; x: number; z: number; theme: ThemeKey | undefined } = {
+    id: '',
+    x: 0,
+    z: 0,
+    theme: undefined,
+  };
+  if (!reducedMotion) {
+    hyperspace = engine.add(
+      new Hyperspace({
+        dock: surroundings.dock,
+        ship,
+        target: () => {
+          const row = targetRow();
+          const id = surroundings.orbits.ids[row];
+          if (id === undefined) return null;
+          headed.id = id;
+          headed.x = galaxy.positions[row * 2] ?? 0;
+          headed.z = galaxy.positions[row * 2 + 1] ?? 0;
+          headed.theme = families.get(id);
+          return headed;
+        },
+        mapWeight: () => starMap.weight,
+        camera: engine.camera,
+        // The tier is fixed for the life of an engine, as for the galaxy.
+        dashes: tuning.hyper.dashes[quality.tier],
+        ribs: quality.tier !== 'low',
+      }),
+    );
+  }
 
   // The camera comes after everything it looks at, so that it sees this frame's ship and planets.
   // On the map, it looks down on the galaxy; flying, it chases the ship; docked, it frames the
@@ -369,13 +408,20 @@ export function boot(
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
   engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
+  if (hyperspace) engine.scene.add(hyperspace.object);
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
   // sky, no dust, and the ship as a marker big enough to find, lying on top of what it is beside.
+  // A jump (world/Hyperspace.ts) dims the stars too, by its own share: its dashes are the stars
+  // then. And the flame burns longer in the tunnel.
+  const stars = { calm: 0, opacity: 1 };
   engine.add({
     frameUpdate: () => {
       const { weight } = starMap;
       setToonFlatness(weight * tuning.map.flatness);
-      starfield.setCalm(weight, tuning.map.starOpacity);
+      const jump = hyperspace?.look;
+      starCalm(weight, tuning.map.starOpacity, jump?.calm ?? 0, tuning.hyper.starOpacity, stars);
+      starfield.setCalm(stars.calm, stars.opacity);
+      ship.setSurge(jump?.surge ?? 0);
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));

@@ -14,6 +14,7 @@ const LIVE_BLOCKS = [
   'cushion',
   'dock',
   'cruise',
+  'hyper',
   'input',
   'chaseCam',
   'orbitCam',

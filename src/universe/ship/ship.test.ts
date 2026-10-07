@@ -220,6 +220,41 @@ describe('the ship', () => {
     expect(flameOf(ship).visible).toBe(false);
   });
 
+  it('burns as long as under boost in hyperspace, by the share it is told, while it thrusts', () => {
+    const { ship, pilot } = setup(true);
+    const { lengthCruise, lengthBoost, width } = tuning.ship.flame;
+    pilot.current.thrust = 1;
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).scale.z).toBeCloseTo(lengthCruise, 2);
+
+    // The surge steps (the punch); the flame follows at its own rate.
+    ship.setSurge(1);
+    run(ship, [STEP, STEP]);
+    expect(flameOf(ship).scale.z).toBeGreaterThan(lengthCruise + 0.05);
+    expect(flameOf(ship).scale.z).toBeLessThan(lengthBoost - 0.3);
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).scale.z).toBeCloseTo(lengthBoost, 2);
+    // Longer, and no wider: the width is the pilot's own boost.
+    expect(flameOf(ship).scale.x).toBeCloseTo(width, 3);
+
+    // Half of it is half way, and more than all of it is all of it.
+    ship.setSurge(0.5);
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).scale.z).toBeCloseTo((lengthCruise + lengthBoost) / 2, 2);
+    ship.setSurge(3);
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).scale.z).toBeCloseTo(lengthBoost, 2);
+
+    // Back when the tunnel closes; and an engine that does not burn has no flame to lengthen.
+    ship.setSurge(0);
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).scale.z).toBeCloseTo(lengthCruise, 2);
+    ship.setSurge(1);
+    pilot.current.thrust = 0;
+    run(ship, Array<number>(60).fill(STEP));
+    expect(flameOf(ship).visible).toBe(false);
+  });
+
   it('bobs gently, unless the visitor asked for less motion', () => {
     const calm = setup(true);
     run(calm.ship, Array<number>(40).fill(STEP));

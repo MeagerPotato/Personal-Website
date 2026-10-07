@@ -22,6 +22,8 @@ export class TurntableCam implements CameraMode {
   pitch = 0.35;
   /** Radians per second while nobody drags. */
   turnRate = 0.25;
+  /** The lens, degrees (vertical). */
+  fov = FOV_DEGREES;
 
   private radius = 1;
   private distanceRadii = 4;
@@ -68,7 +70,7 @@ export class TurntableCam implements CameraMode {
     out.focus.set(0, 0, 0);
     out.quaternion.setFromEuler(this.euler.set(-this.pitch, this.yaw, 0));
     out.distance = this.distanceRadii * this.radius;
-    out.fov = FOV_DEGREES;
+    out.fov = this.fov;
   }
 
   dispose(): void {
@@ -82,7 +84,7 @@ export class TurntableCam implements CameraMode {
 
   /** Distance, in radii, at which a ball fills FILL of the view's smaller side. */
   private fitRadii(): number {
-    const halfVertical = (FOV_DEGREES * Math.PI) / 360;
+    const halfVertical = (this.fov * Math.PI) / 360;
     const halfSmaller = Math.atan(Math.tan(halfVertical) * Math.min(1, this.aspect));
     return 1 / Math.sin(halfSmaller * FILL);
   }

@@ -11,7 +11,24 @@ import {
   type DockState,
   type Hyper,
 } from './docking';
-import { cancelHyper, engageHyper, fastAhead, resumeHyper, stepHyper, type Ahead } from './hyper';
+import {
+  LOOK_DROPOUT,
+  LOOK_OFF,
+  LOOK_TUNNEL,
+  LOOK_WINDUP,
+  cancelHyper,
+  copyHyperLook,
+  createHyperLook,
+  engageHyper,
+  fastAhead,
+  hyperLook,
+  resumeHyper,
+  starCalm,
+  stepHyper,
+  type Ahead,
+  type HyperLook,
+  type LookStage,
+} from './hyper';
 
 const STEP = 1 / 60;
 const P = tuning.hyper;
@@ -254,5 +271,218 @@ describe('stepHyper: one offer and one jump a journey', () => {
     expect([...cruise.speeds]).toEqual(speeds);
     expect([...cruise.path.s]).toEqual(s);
     expect(cruise).toMatchObject({ index, etaSec, replanIn, elapsedSec, fresh: false });
+  });
+});
+
+describe('hyperLook: what a jump looks like at one moment', () => {
+  const TOP = tuning.cruise.far.cruiseSpeed;
+  const PARTS = ['stretch', 'dots', 'veil', 'calm', 'surge'] as const;
+  const NOTHING = createHyperLook();
+
+  /** The look `seconds` into `stage`, at `speed`; on the way out, from `level`. */
+  const lookAt = (
+    stage: LookStage,
+    seconds: number,
+    speed = TOP,
+    level: Readonly<HyperLook> = NOTHING,
+    fromTunnel = false,
+  ): HyperLook =>
+    hyperLook({ stage, seconds, speed, topSpeed: TOP, level, fromTunnel }, P, createHyperLook());
+
+  it('shows nothing when nothing is on, whatever the ship does', () => {
+    for (const speed of [0, 150, 700]) {
+      expect(lookAt(LOOK_OFF, 3, speed)).toEqual(NOTHING);
+    }
+    // Nor when the way out has had its time, to the step.
+    const full = lookAt(LOOK_TUNNEL, 2);
+    expect(lookAt(LOOK_DROPOUT, P.dropoutSec, TOP, full, true)).toEqual(NOTHING);
+    expect(lookAt(LOOK_DROPOUT, P.dropoutSec + 5, TOP, full, true)).toEqual(NOTHING);
+  });
+
+  it('keeps every part between 0 and 1, and a ring between 0 and 1 or away', () => {
+    const full = lookAt(LOOK_TUNNEL, 2);
+    for (const stage of [LOOK_OFF, LOOK_WINDUP, LOOK_TUNNEL, LOOK_DROPOUT] as const) {
+      for (let k = -2; k <= 400; k += 1) {
+        for (const speed of [0, 60, 199, 200, 350, 700, 3000]) {
+          const look = lookAt(stage, k / 100, speed, full, k % 2 === 0);
+          for (const part of PARTS) {
+            expect(look[part], `${stage} ${k} ${speed} ${part}`).toBeGreaterThanOrEqual(0);
+            expect(look[part], `${stage} ${k} ${speed} ${part}`).toBeLessThanOrEqual(1);
+          }
+          for (const ring of [look.punch, look.drop]) {
+            expect(ring === -1 || (ring >= 0 && ring <= 1), `${stage} ${k} ${speed}`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it('winds up from nothing: dots over the stars, then pulled out, the sky dimmer round one spot', () => {
+    expect(lookAt(LOOK_WINDUP, 0, 100)).toEqual(NOTHING);
+    // The dots come first, as points; no ring, no tunnel to speak of.
+    const early = lookAt(LOOK_WINDUP, 0.1, 100);
+    expect(early.dots).toBeGreaterThan(0);
+    expect(early.stretch).toBeLessThan(0.05);
+    const wound = lookAt(LOOK_WINDUP, P.windupSec, P.punchSpeed);
+    expect(wound).toEqual({
+      stretch: 0.35,
+      dots: 1,
+      veil: 0.15,
+      calm: 0.3,
+      surge: 0.3,
+      punch: -1,
+      drop: -1,
+    });
+    // It holds there until the ship is fast enough to punch (a press from rest)...
+    expect(lookAt(LOOK_WINDUP, 2, P.punchSpeed)).toEqual(wound);
+    // ...with the dashes shorter while it is still slow, and never gone.
+    expect(lookAt(LOOK_WINDUP, 2, 20).stretch).toBeCloseTo(0.35 * 0.25, 12);
+  });
+
+  it('opens the tunnel from what the wind-up built: nothing but the dashes and the lens jumps', () => {
+    const wound = lookAt(LOOK_WINDUP, P.windupSec, P.punchSpeed);
+    const punched = lookAt(LOOK_TUNNEL, 0, P.punchSpeed);
+    for (const part of ['dots', 'veil', 'calm'] as const) {
+      expect(punched[part], part).toBeCloseTo(wound[part], 12);
+    }
+    // The punch's own step: the lens is asked for all of it at once, and eases there.
+    expect(punched.surge).toBe(1);
+    expect(punched.punch).toBe(0);
+    // A tenth of a second on, the dashes are at their length for that speed, and at the top
+    // speed that is all of it; the tube is open after 0.22 s; the ring is gone after 0.35.
+    expect(lookAt(LOOK_TUNNEL, 0.1, TOP).stretch).toBeCloseTo(1, 12);
+    expect(lookAt(LOOK_TUNNEL, 0.1, P.punchSpeed).stretch).toBeCloseTo(
+      0.45 + (0.55 * P.punchSpeed) / TOP,
+      12,
+    );
+    expect(lookAt(LOOK_TUNNEL, 0.22, TOP).veil).toBeCloseTo(1, 12);
+    expect(lookAt(LOOK_TUNNEL, 0.12, TOP).calm).toBeCloseTo(1, 12);
+    expect(lookAt(LOOK_TUNNEL, 0.35, TOP).punch).toBeCloseTo(1, 12);
+    expect(lookAt(LOOK_TUNNEL, 0.36, TOP).punch).toBe(-1);
+  });
+
+  it('takes up a tunnel a second in with no punch: the engine was rebuilt inside it', () => {
+    const dock = journey();
+    resumeHyper(dock);
+    const resumed = lookAt(LOOK_TUNNEL, dock.hyperSec);
+    expect(resumed).toEqual({
+      stretch: 1,
+      dots: 1,
+      veil: 1,
+      calm: 1,
+      surge: 1,
+      punch: -1,
+      drop: -1,
+    });
+  });
+
+  it('thins out in a slow bend and comes back, with no step', () => {
+    expect(lookAt(LOOK_TUNNEL, 1, P.punchSpeed).dots).toBe(1);
+    expect(lookAt(LOOK_TUNNEL, 1, 0.4 * P.punchSpeed)).toMatchObject({
+      stretch: 0,
+      dots: 0,
+      veil: 0,
+      calm: 0,
+      surge: 0,
+    });
+    const half = lookAt(LOOK_TUNNEL, 1, 0.7 * P.punchSpeed);
+    expect(half.dots).toBeCloseTo(0.5, 12);
+    expect(half.veil).toBeCloseTo(0.5, 12);
+  });
+
+  it('never steps, but at the punch: a frame later every part is a little further, no more', () => {
+    // The whole of a jump at the frame rate of a slow phone, the ship speeding up, cruising and
+    // slowing as the autopilot does (700 u/s in a second, 600 u/s² down).
+    const dt = 1 / 30;
+    const speedAt = (t: number): number => Math.max(0, Math.min(700 * t, 700, 700 - 600 * (t - 2)));
+    const level = createHyperLook();
+    let last = createHyperLook();
+    let lastStage: LookStage = LOOK_OFF;
+    let left = 0;
+    let steepest = 0;
+    for (let t = 0; t < 4; t += dt) {
+      const speed = speedAt(t);
+      // Pressed at 0.2 s; the tunnel from 0.55 s until the ship is slow again; then the way out.
+      const stage: LookStage =
+        t < 0.2 ? LOOK_OFF : t < 0.55 ? LOOK_WINDUP : speed >= 300 ? LOOK_TUNNEL : LOOK_DROPOUT;
+      if (stage === LOOK_DROPOUT && lastStage === LOOK_TUNNEL) left = t - dt;
+      const seconds = stage === LOOK_WINDUP ? t - 0.2 : stage === LOOK_TUNNEL ? t - 0.55 : t - left;
+      const look = hyperLook(
+        { stage, seconds, speed, topSpeed: TOP, level, fromTunnel: true },
+        P,
+        createHyperLook(),
+      );
+      if (stage === LOOK_WINDUP || stage === LOOK_TUNNEL) copyHyperLook(look, level);
+      const punch = stage === LOOK_TUNNEL && lastStage === LOOK_WINDUP;
+      for (const part of ['stretch', 'dots', 'veil', 'calm'] as const) {
+        const jump = Math.abs(look[part] - last[part]);
+        // The dashes shoot out in a tenth of a second from the punch: that is the punch.
+        if (!(part === 'stretch' && t >= 0.55 && t < 0.7)) steepest = Math.max(steepest, jump);
+        if (!punch) expect(jump, `${part} at ${t.toFixed(2)} s`).toBeLessThan(0.45);
+      }
+      last = look;
+      lastStage = stage;
+    }
+    // At 30 frames a second, the quickest part (the real stars, down in 0.12 s) moves by a
+    // quarter of its way in a frame, the tube by a third, as it opens in its 0.22 s.
+    expect(steepest).toBeLessThan(0.45);
+    expect(last).toEqual(NOTHING);
+  });
+
+  it('goes the same way out from anywhere: gone by dropoutSec, a ring only after the tunnel', () => {
+    const full = lookAt(LOOK_TUNNEL, 2);
+    const out = (seconds: number, fromTunnel = true, level = full): HyperLook =>
+      lookAt(LOOK_DROPOUT, seconds, 250, level, fromTunnel);
+    // It begins exactly where the tunnel was, the lens let go of at once (it eases back)...
+    expect(out(0)).toEqual({ ...full, surge: 0, punch: -1, drop: 0 });
+    // ...the dashes are points before the dots go, so that what is left is stars...
+    const late = out(P.dropoutSec * 0.72);
+    expect(late.stretch).toBe(0);
+    expect(late.dots).toBeGreaterThan(0.7);
+    // ...and every part only ever falls.
+    let last = out(0);
+    for (let k = 1; k <= 35; k += 1) {
+      const look = out((k / 35) * P.dropoutSec);
+      for (const part of PARTS) expect(look[part], `${part} ${k}`).toBeLessThanOrEqual(last[part]);
+      last = look;
+    }
+    expect(last).toEqual(NOTHING);
+    // The ring closes onto the destination while the tube goes, and only after a tunnel.
+    expect(out(P.dropoutSec * 0.5).drop).toBeCloseTo(0.5 / (6 / 7), 12);
+    expect(out(P.dropoutSec * 0.9).drop).toBe(-1);
+    const wound = lookAt(LOOK_WINDUP, P.windupSec, P.punchSpeed);
+    const taken = out(0.1, false, wound);
+    expect(taken.drop).toBe(-1);
+    expect(taken.stretch).toBeLessThan(wound.stretch);
+    expect(taken.dots).toBe(1);
+  });
+});
+
+describe('starCalm: the stars under the map and a jump at once', () => {
+  const MAP = tuning.map.starOpacity;
+  const JUMP = P.starOpacity;
+  const calm = (map: number, hyper: number): { calm: number; opacity: number } =>
+    starCalm(map, MAP, hyper, JUMP, { calm: -1, opacity: -1 });
+  /** What world/Starfield.ts makes of it: its uOpacity. */
+  const shown = ({ calm: c, opacity }: { calm: number; opacity: number }): number =>
+    1 + (opacity - 1) * c;
+
+  it('is the call the map alone always made while there is no jump', () => {
+    for (const map of [0, 0.25, 0.5, 1]) {
+      expect(calm(map, 0)).toEqual({ calm: map, opacity: MAP });
+    }
+  });
+
+  it('shows the stars at exactly the product of the two dimmers', () => {
+    for (const map of [0, 0.3, 1]) {
+      for (const hyper of [0.1, 0.3, 0.7, 1]) {
+        const expected = (1 + (MAP - 1) * map) * (1 + (JUMP - 1) * hyper);
+        expect(shown(calm(map, hyper)), `${map} ${hyper}`).toBeCloseTo(expected, 12);
+        // The sky's slow drift stops with whichever is calmer.
+        expect(calm(map, hyper).calm).toBe(Math.max(map, hyper));
+      }
+    }
+    // The tunnel alone: down to its own share, 15 % of the stars.
+    expect(shown(calm(0, 1))).toBeCloseTo(JUMP, 12);
   });
 });
