@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseSnapshot } from '../core/snapshot';
 import { tuning } from '../design/tuning';
-import { HYPER_NONE } from '../sim/docking';
+import { HYPER_NONE, HYPER_WINDUP } from '../sim/docking';
 import { NO_INPUT, copyShipState, createShipState } from '../sim/flight';
 import {
   createSurroundings,
@@ -1095,6 +1095,14 @@ describe('Navigator and hyperspace', () => {
     expect(h.navigator.hyper).toBe('off');
     expect(h.navigator.engageHyper()).toBe(false);
     expect(h.navigator.snapshot()).toMatchObject({ docked: false, hyper: false });
+    // Nor is a wind-up theirs to take back, if one could ever be there: every door has its lock.
+    const { dock } = h.surroundings;
+    const was = dock.hyper;
+    dock.hyper = HYPER_WINDUP;
+    expect(h.navigator.hyper).toBe('off');
+    expect(h.navigator.cancelHyper()).toBe(false);
+    expect(dock.hyper).toBe(HYPER_WINDUP);
+    dock.hyper = was;
     until(h, docked(h));
     expect(hyperStory(h)).toEqual([]);
 

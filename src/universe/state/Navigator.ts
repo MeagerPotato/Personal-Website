@@ -149,6 +149,7 @@ export class Navigator implements System {
    * controls or another destination.
    */
   cancelHyper(): boolean {
+    if (this.options.reducedMotion === true) return false;
     return cancelHyper(this.options.surroundings.dock);
   }
 
