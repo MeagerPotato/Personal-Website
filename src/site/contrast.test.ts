@@ -82,15 +82,41 @@ describe('ink on every surface', () => {
       /\/\*[\s\S]*?\*\//g,
       '',
     );
+    // (The flight deck and the minimap's pill and chip are no controls, but they sit on the same
+    // plate: the rule holds for them too. The minimap's ticks are ink.low, as marks: below.)
+    // A block AND EVERY PART OF IT: `.minimap`, `.minimap__range small`, `.mode-link--to-plain`.
+    // (`\b` alone stops at the block: no word ends between `minimap` and `__range`.)
     const HUD_CONTROL =
-      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav)\b/;
-    const offenders: string[] = [];
-    for (const [, selector = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      if (HUD_CONTROL.test(selector) && /(^|;)\s*color:\s*var\(--color-ink-low\)/.test(body)) {
-        offenders.push(selector.trim());
+      /\.(map-toggle|dock-prompt|body-label|touch-boost|mode-link|wordmark|panel-button|site-nav|flight-deck|minimap)(\b|_)/;
+    // Nor by another name: a property of its own that only hands ink.low on (the HUD plate's
+    // edge, the minimap's ticks) is ink.low to this rule, wherever it is the colour of text.
+    const handedOn = [...css.matchAll(/(--[\w-]+):\s*var\(--color-ink-low\)\s*;/g)].map(
+      ([, name = '']) => name,
+    );
+    expect(handedOn).toContain('--minimap-tick');
+    const INK_LOW = new RegExp(
+      `(^|;)\\s*color:\\s*var\\((${['--color-ink-low', ...handedOn].join('|')})\\)`,
+    );
+    const offendersIn = (sheet: string): string[] => {
+      const found: string[] = [];
+      for (const [, selector = '', body = ''] of sheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (HUD_CONTROL.test(selector) && INK_LOW.test(body)) found.push(selector.trim());
       }
-    }
-    expect(offenders).toEqual([]);
+      return found;
+    };
+    expect(offendersIn(css)).toEqual([]);
+    // And the rule bites: on a part of a block, by ink.low's own name and by one it is handed
+    // on under; not on an edge in that colour, which is no text, nor on a class of another block.
+    const tried = [
+      '.minimap__range small { color: var(--color-ink-low); }',
+      '.flight-deck__lamp { font-weight: 700; color: var(--minimap-tick); }',
+      '.dock-prompt__note { border-color: var(--hud-edge); }',
+      '.minimaps { color: var(--color-ink-low); }',
+    ];
+    expect(offendersIn(`${css}\n${tried.join('\n')}`)).toEqual([
+      '.minimap__range small',
+      '.flight-deck__lamp',
+    ]);
   });
 
   it('reads on the cream "on" face of a toggle and on the butter of focus and targets', () => {
@@ -158,6 +184,112 @@ describe('edges and rings', () => {
     // on a pale ground the disc.
     expect(contrast(color.ink.high, color.space[900])).toBeGreaterThanOrEqual(MARK);
     expect(contrast(color.space[900], WHITE)).toBeGreaterThanOrEqual(MARK);
+  });
+});
+
+describe('the flight deck', () => {
+  // The ball is a globe of two solid halves, whatever is behind the plate: the sky half over the
+  // ground half. What the stylesheet paints each with is READ from it, so that whichever two
+  // navies it gives them are the ones measured (the sky is the lighter one, surface.line).
+  const ramps: Record<string, Record<string, string>> = {
+    space: color.space,
+    surface: color.surface,
+  };
+  const face = (half: string): string => {
+    const [, ramp = '', stop = ''] =
+      CSS.match(
+        new RegExp(`\\.flight-deck__${half} \\{\\s*fill: var\\(--color-(space|surface)-(\\w+)\\)`),
+      ) ?? [];
+    const hex = ramps[ramp]?.[stop];
+    if (hex === undefined) throw new Error(`global.css no longer says what the ball's ${half} is`);
+    return hex;
+  };
+  const HALVES = { sky: face('sky'), ground: face('ground') };
+
+  for (const [half, hex] of Object.entries(HALVES)) {
+    it(`draws every mark of the ball plainly on its ${half}`, () => {
+      // N, E, S and W are letters; the nose, prograde and home are drawn in the same ink.
+      expect(contrast(color.ink.high, hex)).toBeGreaterThanOrEqual(TEXT);
+      // Meridians and the rim.
+      expect(contrast(color.ink.low, hex)).toBeGreaterThanOrEqual(MARK);
+      // The target, butter: "here".
+      expect(contrast(color.focus, hex)).toBeGreaterThanOrEqual(MARK);
+      // The horizon wears the family of the system the ship is in, and ink.mid between systems.
+      for (const key of THEME_KEYS) {
+        expect(contrast(color.system[key].base, hex), key).toBeGreaterThanOrEqual(MARK);
+      }
+      expect(contrast(color.ink.mid, hex)).toBeGreaterThanOrEqual(MARK);
+    });
+  }
+
+  it('paints the sky lighter than the ground, and the horizon brighter than the hairlines', () => {
+    expect(luminance(HALVES.sky)).toBeGreaterThan(luminance(HALVES.ground));
+    expect(luminance(color.ink.mid)).toBeGreaterThan(luminance(color.ink.low));
+    // (The stylesheet says which ink the horizon wears between systems.)
+    expect(CSS).toMatch(/\.flight-deck__horizon \{\s*stroke: var\(--color-ink-mid\)/);
+  });
+
+  it('rims every mark in a navy darker than either half', () => {
+    for (const hex of Object.values(HALVES)) {
+      expect(luminance(color.space[950])).toBeLessThan(luminance(hex));
+    }
+    expect(contrast(color.ink.high, color.space[950])).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.focus, color.space[950])).toBeGreaterThanOrEqual(MARK);
+  });
+
+  it('reads its lamps, lit and off, and fills its arcs, on the plate over white', () => {
+    // Off: ink.mid on the plate. Lit: navy on the cream face.
+    expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.space[900], color.ink.high)).toBeGreaterThanOrEqual(TEXT);
+    // The arcs' fill, and the throttle's coral while boosting.
+    expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.system.coral.base, HUD)).toBeGreaterThanOrEqual(MARK);
+  });
+});
+
+describe('the minimap', () => {
+  // The face is a solid ground of its own, whatever is behind the plate. What the stylesheet
+  // paints it with is READ from it, so that another ground would be measured too.
+  const [, stop = ''] =
+    CSS.match(/\.minimap__map \{[^}]*?background: var\(--color-space-(\w+)\)/) ?? [];
+  const ground = (color.space as Record<string, string>)[stop];
+  if (ground === undefined) throw new Error('global.css no longer says what the minimap lies on');
+
+  it('draws every mark plainly on its ground', () => {
+    // A sun, the home planet, a planet, a moon, a pin at the rim: each in its family.
+    for (const key of THEME_KEYS) {
+      expect(contrast(color.system[key].base, ground), key).toBeGreaterThanOrEqual(MARK);
+    }
+    // Planned work's dashed outline and the face's own rim; the ship, and the ring round what a
+    // pointer aims at.
+    expect(contrast(color.ink.low, ground)).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(color.ink.high, ground)).toBeGreaterThanOrEqual(MARK);
+    // "Here": the ring round the body the ship is at or headed for, a journey's line, and its
+    // clock on the rim.
+    expect(contrast(color.focus, ground)).toBeGreaterThanOrEqual(MARK);
+    // The navy rim under a mark is darker than the ground it parts the mark from.
+    expect(luminance(color.space[950])).toBeLessThan(luminance(ground));
+  });
+
+  it('reads its N on the face', () => {
+    // A letter, so held to what text is held to, in the ink the stylesheet gives it.
+    expect(CSS).toMatch(/\.minimap__north \{\s*fill: var\(--color-ink-mid\)/);
+    expect(contrast(color.ink.mid, ground)).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it('reads its pill and its chip on the plate over white', () => {
+    // What the scope shows and the chip's word and unit (ink.mid), the body the pill names and
+    // the chip's figures (ink.high), a journey's seconds (butter).
+    expect(contrast(color.ink.mid, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.ink.high, HUD)).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(color.focus, HUD)).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it('draws its ticks plainly on the plate over white', () => {
+    // ink.low falls a hair short of text on this plate (above), and is never text on it; a tick
+    // is a mark. The stylesheet hands it over as a colour of its own, not as `color`.
+    expect(CSS).toMatch(/--minimap-tick: var\(--color-ink-low\)/);
+    expect(contrast(color.ink.low, HUD)).toBeGreaterThanOrEqual(MARK);
   });
 });
 

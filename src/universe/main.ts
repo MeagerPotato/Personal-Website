@@ -22,12 +22,15 @@ import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest }
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
+import { FlightDeck } from './ui/FlightDeck';
 import { Labels } from './ui/Labels';
 import { Leaders } from './ui/Leaders';
+import { MiniMap } from './ui/MiniMap';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { systemAt } from './sim/instruments';
 import { landmarkOf, type Landmark } from './sim/landmarks';
 import { boundsOf } from './sim/mapView';
 import { angleOf } from './sim/math';
@@ -198,13 +201,16 @@ export function boot(
   const orbit = new OrbitCam({ reducedMotion });
   const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
   // What the web layer last said of the page's cards (`setDeck`, below). Not the engine's state:
-  // it follows from the URL and the page, and api.ts tells a rebuilt engine again.
+  // it follows from the URL and the page, and api.ts tells a rebuilt engine again. (The page's
+  // DECK of cards, that is: the instruments at the bottom of the view are `flightDeck`.)
   let deck: Deck | null = null;
+  // Everything there is to see: what the star map opens on, and the minimap at its widest.
+  const bounds = boundsOf(manifest.systems);
   const starMap = engine.add(
     new StarMap({
       canvas: engine.canvas,
       overlay: options.overlay,
-      bounds: boundsOf(manifest.systems),
+      bounds,
       ship: () => ship.state,
       view: rig.shape,
       params: tuning.map,
@@ -353,7 +359,25 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
-  const themes = familiesOf(manifest);
+  let flightDeck: FlightDeck | null = null;
+  let minimap: MiniMap | null = null;
+  // Every body as the names and the minimap know it, by row of the orbit table.
+  const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+  const families = familiesOf(manifest);
+  const rows = surroundings.orbits.ids.map((id, row) => {
+    const body = byId.get(id);
+    return {
+      id,
+      title: body?.title ?? id,
+      kind: body?.kind ?? 'moon',
+      planned: body?.planned === true,
+      href: body?.docks === false ? body.href : undefined,
+      theme: families.get(id),
+      system: manifest.systems.findIndex((system) => system.id === body?.system),
+      // What it circles, as a row of this table (-1: nothing).
+      parent: surroundings.orbits.parent[row] ?? -1,
+    };
+  });
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
   // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
   // whatever it is beside. Drawn so below; the names keep off it as drawn.
@@ -364,33 +388,27 @@ export function boot(
   if (options.overlay) {
     // A name under every body that has room for one: pressing it is pointing at the body, and
     // for a link (which nothing docks at) following the link.
-    const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
-    const families = familiesOf(manifest);
     labels = engine.add(
       new Labels({
         overlay: options.overlay,
         screen: onScreen.map,
-        bodies: surroundings.orbits.ids.map((id, row) => {
-          const body = byId.get(id);
-          return {
-            title: body?.title ?? id,
-            kind: body?.kind ?? 'moon',
-            planned: body?.planned === true,
-            href: body?.docks === false ? body.href : undefined,
-            theme: families.get(id),
-            // What it circles: close in on the map, such a body goes unnamed (`orbitMinPx`).
-            parent: surroundings.orbits.parent[row] ?? -1,
-          };
-        }),
+        bodies: rows,
         params: tuning.labels,
         view: rig.shape,
         target: targetRow,
         // (On the map every body has its name, the one the ship is at included: "you are here".)
         docked: () => navigator.state.mode === 'docked' && !starMap.isOpen,
         onPick: flyToRow,
-        // What else can be pressed out there. The prompt is only built further down (it is
-        // updated last in a frame); by the time anyone asks, it is there.
-        obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
+        // What else is out there to keep off: what can be pressed, the flight deck and the
+        // minimap. The prompt and those two are only built further down (they are updated last
+        // in a frame); by the time anyone asks, they are there.
+        obstacles: [
+          () => prompt?.box() ?? null,
+          () => touch.padBox(),
+          () => starMap.box(),
+          () => flightDeck?.box() ?? null,
+          () => minimap?.box() ?? null,
+        ],
         // On the map the ship is the marker that says "you are here": no name lies on it.
         ship: () => {
           if (!starMap.isOpen) return null;
@@ -438,7 +456,7 @@ export function boot(
         return galaxy.landmark(body, at, mark) && onScreen.pointAt(mark.x, mark.z, out, mark.y);
       },
       focus: () => orbit.focus,
-      themeOf: (body) => themes.get(body),
+      themeOf: (body) => families.get(body),
       params: tuning.deck,
       reducedMotion,
     }),
@@ -569,6 +587,64 @@ export function boot(
         quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
+
+    // WHICH SYSTEM THE SHIP IS IN, or none (-1): the deck's horizon wears its family, and the
+    // minimap is fitted to it. It follows from where the ship is, so it is asked once a frame and
+    // kept nowhere else: a rebuilt engine finds it again with its first frame.
+    let whereabouts = -1;
+    engine.add({
+      frameUpdate: () => {
+        const { x, z } = ship.position;
+        whereabouts = systemAt(whereabouts, x, z, manifest.systems, tuning.instruments);
+      },
+      dispose: () => undefined,
+    });
+    // The flight deck: it reads all of the above and asks for nothing (ui/FlightDeck.ts). After
+    // the prompt: it and the minimap are the last things in the overlay.
+    const homeBody = manifest.bodies.find((body) => body.kind === 'home');
+    const cluster = (flightDeck = engine.add(
+      new FlightDeck({
+        overlay: options.overlay,
+        ship,
+        navigator,
+        assistWeight: () => surroundings.assist.weight,
+        positions: galaxy.positions,
+        rowOf: (id) => surroundings.orbits.indexOf(id),
+        home: homeBody ? surroundings.orbits.indexOf(homeBody.id) : -1,
+        theme: () => manifest.systems[whereabouts]?.theme ?? null,
+        mapOpen: () => starMap.isOpen,
+        params: tuning.instruments,
+        reducedMotion,
+      }),
+    ));
+    // The minimap (ui/MiniMap.ts): the star map at another size, there wherever the deck has its
+    // full size. A press on a mark is pointing at that body, exactly as on the canvas; a press
+    // where nothing is opens the map it is the preview of. A journey it reads straight from the
+    // autopilot: the path that is left and the seconds it takes, once the first step has planned.
+    const { dock, cruise } = surroundings;
+    minimap = engine.add(
+      new MiniMap({
+        overlay: options.overlay,
+        systems: manifest.systems,
+        bodies: rows,
+        orbits: surroundings.orbits,
+        radii: surroundings.field.radius,
+        docks: surroundings.field.docks,
+        positions: galaxy.positions,
+        bounds,
+        ship,
+        at: () => whereabouts,
+        target: targetRow,
+        journey: () => (dock.phase === 'cruise' && !cruise.fresh ? cruise : null),
+        room: () => cluster.full,
+        mapOpen: () => starMap.isOpen,
+        onPick: pickRow,
+        onMap: () => starMap.setOpen(true),
+        params: tuning.minimap,
+        picking: tuning.picking,
+        reducedMotion,
+      }),
+    );
   }
 
   if (options.debug?.perf) {
@@ -614,6 +690,7 @@ export function boot(
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
+      flightDeck?.setRoom(inset.right ?? 0, inset.bottom ?? 0);
     },
     setDeck(next, cut) {
       deck = next;

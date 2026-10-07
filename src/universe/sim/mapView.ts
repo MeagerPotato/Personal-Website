@@ -208,6 +208,24 @@ export function pointUnder(
   return out;
 }
 
+/**
+ * The other way round: where the world point (x, z) is on the map, written to `out` as [px, py],
+ * CSS px from the MIDDLE of the frame, x to the right and y down (as `pointUnder` takes them).
+ * For whoever draws the plane without a camera (the minimap, ui/MiniMap.ts).
+ */
+export function pointOn(
+  view: Readonly<MapView>,
+  x: number,
+  z: number,
+  frame: MapFrame,
+  out: Float64Array,
+): Float64Array {
+  const perPx = unitsPerPx(view.span, frame);
+  out[0] = (view.x - x) / perPx;
+  out[1] = (view.z - z) / perPx;
+  return out;
+}
+
 export interface MapScaleParams {
   /**
    * A body orbiting another shows once there is room for it: nothing while its disc would touch

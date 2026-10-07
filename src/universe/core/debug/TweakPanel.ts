@@ -20,6 +20,8 @@ const LIVE_BLOCKS = [
   'deck',
   'cameraRig',
   'map',
+  'instruments',
+  'minimap',
   'ship',
   'shading',
 ] as const;

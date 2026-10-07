@@ -6,7 +6,9 @@ import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
 import { FixedClock } from '../core/loop';
 import { tuning } from '../design/tuning';
+import { dockAt, requestDock } from '../sim/docking';
 import { topSpeed } from '../sim/flight';
+import { createSurroundings } from '../sim/surroundings';
 import type { FlightInput } from '../sim/types';
 import { ShipSystem } from './ShipSystem';
 
@@ -96,6 +98,107 @@ describe('the ship', () => {
     pilot.current.turn = -1;
     run(ship, Array<number>(120).fill(STEP));
     expect(tiltOf(ship).rotation.z).toBeGreaterThan(0.2);
+  });
+
+  it('says how far the model leans and nods, for whoever draws the same lean (the flight deck)', () => {
+    const { ship, pilot } = setup(true);
+    ship.placeAt(0, 0, 0);
+    expect(ship.bank).toBeCloseTo(0, 12);
+    expect(ship.pitch).toBeCloseTo(0, 12);
+
+    pilot.current.thrust = 1;
+    pilot.current.turn = 1; // to the pilot's left
+    run(ship, Array<number>(120).fill(STEP));
+    // A left turn at speed: the left wing is down, which is a negative bank, and never past bankRad.
+    expect(ship.bank).toBeLessThan(-0.2);
+    expect(ship.bank).toBeGreaterThanOrEqual(-tuning.ship.bankRad);
+    // Exactly what the model wears.
+    expect(tiltOf(ship).rotation.z).toBe(ship.bank);
+    expect(tiltOf(ship).rotation.x).toBe(ship.pitch);
+
+    // Nose up under boost, down under the brake.
+    pilot.current.turn = 0;
+    pilot.current.boost = true;
+    run(ship, Array<number>(120).fill(STEP));
+    expect(ship.pitch).toBeCloseTo((-tuning.ship.pitchBoostDeg * Math.PI) / 180, 3);
+    pilot.current.thrust = 0;
+    pilot.current.boost = false;
+    pilot.current.brake = 1;
+    run(ship, Array<number>(120).fill(STEP));
+    expect(ship.pitch).toBeCloseTo((tuning.ship.pitchBrakeDeg * Math.PI) / 180, 3);
+    expect(ship.bank).toBeCloseTo(0, 3);
+  });
+
+  it('says what the last step flew: the pilot’s own input, with nothing else in the sky', () => {
+    const { ship, pilot } = setup(true);
+    expect(ship.flown).toEqual({ thrust: 0, turn: 0, brake: 0, boost: false });
+    Object.assign(pilot.current, { thrust: 0.75, turn: -0.5, brake: 0, boost: true });
+    // Asked for, but not flown until a step has flown it.
+    expect(ship.flown.thrust).toBe(0);
+    ship.fixedUpdate(STEP, 0);
+    expect(ship.flown).toEqual({ thrust: 0.75, turn: -0.5, brake: 0, boost: true });
+    expect(ship.flown).not.toBe(pilot.current);
+    Object.assign(pilot.current, { thrust: 0, turn: 0, brake: 1, boost: false });
+    ship.fixedUpdate(STEP, STEP);
+    expect(ship.flown).toEqual({ thrust: 0, turn: 0, brake: 1, boost: false });
+  });
+
+  it('says what the last step flew among bodies: the assist’s share, the autopilot’s, none in orbit', () => {
+    const pilot = { current: { thrust: 0, turn: 0, brake: 0, boost: false } as FlightInput };
+    const surroundings = createSurroundings(
+      {
+        home: [0, 0],
+        systems: [
+          { id: 'home', position: [0, 0], radius: 66 },
+          { id: 'far', position: [0, 1500], radius: 30 },
+        ],
+        bodies: [
+          { id: 'home', system: 'home', parent: null, orbit: null, radius: 14, dockRadius: 26.6 },
+          { id: 'far', system: 'far', parent: null, orbit: null, radius: 5, dockRadius: 11 },
+        ],
+      },
+      tuning.edge.margin,
+    );
+    const ship = new ShipSystem({
+      // On the home planet's ring, nose along it, hands off the controls.
+      spawn: { x: 26.6, z: 0, heading: 0 },
+      pilot,
+      surroundings,
+      assets: new AssetStore(),
+      reducedMotion: true,
+    });
+    let steps = 0;
+    const step = (): void => {
+      steps += 1;
+      ship.fixedUpdate(STEP, steps * STEP);
+    };
+    for (let i = 0; i < 30; i += 1) step();
+    // Nobody touched the controls, and the ship is under way: the orbit assist flew it.
+    expect(surroundings.assist.weight).toBeGreaterThan(0.5);
+    expect(ship.flown.thrust).toBeGreaterThan(0);
+    expect(pilot.current.thrust).toBe(0);
+
+    // A journey: the autopilot's throttle, and a speed no pilot's own drive reaches.
+    requestDock(surroundings.dock, surroundings.orbits.indexOf('far'), pilot.current, true, 0);
+    let throttle = 0;
+    let fastest = 0;
+    for (let i = 0; i < 90; i += 1) {
+      step();
+      expect(surroundings.dock.phase).toBe('cruise');
+      throttle = Math.max(throttle, ship.flown.thrust);
+      fastest = Math.max(fastest, Math.hypot(ship.state.vx, ship.state.vz));
+    }
+    expect(throttle).toBeGreaterThan(0.3);
+    expect(fastest).toBeGreaterThan(topSpeed(tuning.flight, true));
+    expect(pilot.current.thrust).toBe(0);
+
+    // Carried round a dock, the ship is not flown at all.
+    const placed = { ...ship.state };
+    dockAt(surroundings.field, placed, tuning.dock, surroundings.dock, 0, 0, 1);
+    ship.restore(placed);
+    step();
+    expect(surroundings.dock.phase).toBe('docked');
+    expect(ship.flown).toEqual({ thrust: 0, turn: 0, brake: 0, boost: false });
   });
 
   it('shows a flame while the engine burns, longer under boost, and none at rest', () => {
