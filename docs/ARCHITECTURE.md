@@ -17,7 +17,7 @@ two ways:
 The content is written once, the URL is the same, and search engines, link previews, screen
 readers and recruiters in a hurry all get the plain truth. `scripts/verify-dist.mjs` fails the
 build if three.js ever becomes reachable without a dynamic `import()`, or if a page outgrows its
-weight budget (30 KiB for a plain page, 220 KiB for everything lazy, gzip, the close-up chunk
+weight budget (30 KiB for a plain page, 250 KiB for everything lazy, gzip, the close-up chunk
 included, which has its own 4.5 KiB as well).
 
 ```
