@@ -58,7 +58,7 @@ function lowestPoint(aspect: number, lift: number): number {
   const pose = createPose();
   new ChaseCam(ship, { reducedMotion: false }).update(
     { elapsed: 0, dt: 1 / 60, alpha: 1, simTime: 0 },
-    { aspect, freeWidth: 1, freeHeight: 1, freeTop: 0 },
+    { aspect, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 },
     pose,
   );
   const camera = new PerspectiveCamera(pose.fov, aspect, 0.5, 12_000);
@@ -74,6 +74,14 @@ function lowestPoint(aspect: number, lift: number): number {
   }
   // (Projected, the top of the view is 1 and the bottom -1.)
   return (1 - low) / 2;
+}
+
+/** The declarations of the first rule with exactly this selector, or a failure that names it. */
+function rule(selector: string, from = CSS): string {
+  const start = from.indexOf(`\n${selector} {`);
+  if (start < 0) throw new Error(`global.css has no rule "${selector}"`);
+  const open = from.indexOf('{', start);
+  return from.slice(open + 1, from.indexOf('}', open));
 }
 
 const { bobAmplitude } = tuning.ship;
@@ -115,5 +123,85 @@ describe('the room under the ship', () => {
     expect(plate(650)).toBeCloseTo(77.9, 1);
     expect(plate(832)).toBe(112);
     expect(plate(1400)).toBe(112);
+  });
+});
+
+// THE ROOM BETWEEN TWO COLUMNS OF CARDS. On a wide screen a page's content stands on BOTH sides
+// of the body (src/shell/deck.ts, "the deck" in the stylesheet), and the engine's own layer still
+// begins at the window's left edge: only its right edge follows the page (--panel-inset-right).
+// So everything in that layer that is placed from its middle or from its left has to know what
+// stands on the left (--panel-inset-left), as the dock prompt does (src/shell/panel-inset.test.ts
+// holds that one). The flight deck came from a branch that had never met a left column: these
+// are the four places where the two meet, and ui/flightdeck.test.ts holds the fifth, how big the
+// deck may be (`setRoom`).
+describe('the room between two columns of cards', () => {
+  it('stands the cluster in the middle of what the cards leave free', () => {
+    // Half the layer is the middle of what a side panel leaves; a left column moves that middle
+    // half its own width further right.
+    expect(rule('  .flight-deck')).toContain(
+      'left: calc(50% + var(--panel-inset-left, 0px) / 2 - var(--deck-half));',
+    );
+  });
+
+  it('gives the prompt beside it the left half of that, and no more', () => {
+    const seated = rule('  html:has(.flight-deck[data-seated]) .dock-prompt');
+    expect(seated).toContain('--prompt-x: calc(-100% - var(--deck-half) - var(--space-3));');
+    expect(seated.replace(/\s+/g, ' ')).toContain(
+      'max-width: calc( 50% - var(--panel-inset-left, 0px) / 2 - var(--deck-half) - var(--space-3) - var(--space-6) );',
+    );
+  });
+
+  it('begins the strip’s row where the left column’s room ends', () => {
+    // Every rule that ends in the strip (the first-visit card's, which only hides it, among them).
+    const strips = [...CSS.matchAll(/\n +\.flight-deck\[data-layout='strip'\] \{([^}]*)\}/g)].map(
+      (found) => found[1] ?? '',
+    );
+    // ONE of them says where the strip begins: the further in of the column's edge (which holds
+    // that column's air already) and the strip's own inset...
+    const placed = strips.filter((declarations) => /\bleft:/.test(declarations));
+    expect(placed).toHaveLength(1);
+    expect(placed[0]).toContain('left: max(var(--panel-inset-left, 0px), var(--strip-inset));');
+    // ...and that inset is the Map button's from its own edge: a mouse's, then a finger's and a
+    // short, narrow window's, which make it smaller without touching `left`.
+    const insets = strips.flatMap(
+      (declarations) => /--strip-inset: ([^;]+);/.exec(declarations)?.[1] ?? [],
+    );
+    expect(insets).toEqual([
+      'max(var(--space-6), env(safe-area-inset-left))',
+      'max(var(--space-4), env(safe-area-inset-left))',
+      'max(var(--space-4), env(safe-area-inset-left))',
+    ]);
+  });
+
+  it('lets the prompt slide both ways under a deck of cards: to its middle, and beside the cluster', () => {
+    // The cards' block gives the prompt a transition of `left` (a card that opens moves the
+    // middle). A rule that names `left` alone would take away the flight deck's slide of
+    // `translate`, and the press that drops the prompt onto its ledge at once.
+    const cards = "html[data-mode='universe']:has(.panel > main > [data-card])";
+    const slide = rule(`    ${cards} .dock-prompt`).replace(/\s+/g, ' ');
+    expect(slide).toContain(
+      'transition: left var(--motion-slow) var(--motion-ease-out), translate var(--motion-base) var(--motion-ease-out);',
+    );
+    expect(rule(`    ${cards} .dock-prompt:active`)).toContain('transition-duration: 0s;');
+    // The same slide as the prompt has everywhere else.
+    expect(rule('  .dock-prompt')).toContain(
+      'transition: translate var(--motion-base) var(--motion-ease-out);',
+    );
+  });
+
+  it('keeps the two decks’ gaps apart, though they share a name', () => {
+    // `--deck-gap` is the flight deck's on the root (how far its instruments stand from the
+    // bottom of the view) and the cards' inside their panel (the space between two cards). The
+    // instruments are in the engine's layer, never in the panel, so neither reads the other's.
+    const root = rule("  html[data-mode='universe']");
+    expect(root).toContain('--deck-gap: max(var(--space-3), env(safe-area-inset-bottom));');
+    const panel = rule("    html[data-mode='universe'] .panel:has(> main > [data-card])");
+    expect(panel).toContain('--deck-gap: var(--space-3);');
+    // Whoever reads the flight deck's stands in the layer: the cluster, the minimap, and what
+    // keeps above the cluster (--deck-top, worked out on the root from the root's gap).
+    for (const selector of ['  .flight-deck', '  .minimap']) {
+      expect(rule(selector), selector).toContain('bottom: var(--deck-gap);');
+    }
+    expect(root).toContain('--deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);');
   });
 });

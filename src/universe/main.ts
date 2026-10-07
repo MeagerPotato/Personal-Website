@@ -690,7 +690,7 @@ export function boot(
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
-      flightDeck?.setRoom(inset.right ?? 0, inset.bottom ?? 0);
+      flightDeck?.setRoom(inset.right ?? 0, inset.bottom ?? 0, inset.left ?? 0);
     },
     setDeck(next, cut) {
       deck = next;

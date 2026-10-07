@@ -3058,12 +3058,15 @@ main > .resume-intro > .card-title--quiet {
    * this is how it looks. The drawing carries classes and data attributes only: every fill and
    * stroke is here.
    *
-   * It is placed with `left`, never centred by translate: translate is its arrival's.
+   * It is placed with `left`, never centred by translate: translate is its arrival's. Its middle
+   * is the middle of what the page leaves free, as the dock prompt's is: the layer ends where a
+   * side panel begins, and whatever stands on the LEFT (the left column of a page's deck of
+   * cards, --panel-inset-left) moves that middle half as far.
    */
   .flight-deck {
     position: absolute;
     bottom: var(--deck-gap);
-    left: calc(50% - var(--deck-half));
+    left: calc(50% + var(--panel-inset-left, 0px) / 2 - var(--deck-half));
     width: calc(2 * var(--deck-half));
     height: calc(var(--deck-size) + 1.5rem);
     color: var(--color-ink-high);
@@ -3480,16 +3483,19 @@ main > .resume-intro > .card-title--quiet {
    * where they were. The whole pill takes a press, and does nothing with it.
    *
    * It is the Map button's opposite number: as far from the left edge as the button is from the
-   * right one (--space-6 for a mouse, --space-4 for a finger and in a short, narrow window: the
-   * button's own rules, below, move both).
+   * right one (--strip-inset: --space-6 for a mouse, --space-4 for a finger and in a short, narrow
+   * window: the button's own rules, below, move both). Beside a page's deck of cards the row
+   * begins where the left column's room ends (--panel-inset-left, which holds that column's
+   * --space-6 of air already), and the Map button is in the middle of it.
    */
   .flight-deck[data-layout='strip'] {
     --text-xs: var(--text-narrow-xs);
     --text-sm: var(--text-narrow-sm);
+    --strip-inset: max(var(--space-6), env(safe-area-inset-left));
 
     top: calc(var(--panel-inset-top, 4rem) + var(--space-3));
     bottom: auto;
-    left: max(var(--space-6), env(safe-area-inset-left));
+    left: max(var(--panel-inset-left, 0px), var(--strip-inset));
     display: grid;
     grid-template: 1.125rem 1.125rem / 2.25rem minmax(0, 1fr);
     align-content: center;
@@ -3608,12 +3614,15 @@ main > .resume-intro > .card-title--quiet {
    * deck it would lie on the ship in a short window. Its right end keeps 12 px clear of the
    * cluster, and "Flying to" steps aside as it does in a phone's Map button row (heard, not
    * seen): the AUTO lamp and the target on the ball say it. Where the prompt rests (`bottom`) is
-   * whatever each pointer's rule says, as before.
+   * whatever each pointer's rule says, as before. Its room is the left half of what the page
+   * leaves free: half the layer, less half of whatever stands on the left (--panel-inset-left).
    */
   html:has(.flight-deck[data-seated]) .dock-prompt {
     --prompt-x: calc(-100% - var(--deck-half) - var(--space-3));
 
-    max-width: calc(50% - var(--deck-half) - var(--space-3) - var(--space-6));
+    max-width: calc(
+      50% - var(--panel-inset-left, 0px) / 2 - var(--deck-half) - var(--space-3) - var(--space-6)
+    );
   }
 
   html:has(.flight-deck[data-seated]) .dock-prompt__lead {
@@ -4310,7 +4319,7 @@ main > .resume-intro > .card-title--quiet {
 
     /* ...and the deck's strip, at the other end of the row, as far in. */
     .flight-deck[data-layout='strip'] {
-      left: max(var(--space-4), env(safe-area-inset-left));
+      --strip-inset: max(var(--space-4), env(safe-area-inset-left));
     }
   }
 
@@ -4780,7 +4789,7 @@ main > .resume-intro > .card-title--quiet {
     }
 
     .flight-deck[data-layout='strip'] {
-      left: max(var(--space-4), env(safe-area-inset-left));
+      --strip-inset: max(var(--space-4), env(safe-area-inset-left));
     }
   }
 
@@ -4839,6 +4848,8 @@ main > .resume-intro > .card-title--quiet {
       --stub-foot: var(--space-6);
       --stub-keys: calc(1.5 * var(--text-narrow-sm) + 2 * var(--space-3));
       --stub-max: clamp(7.5rem, 20vh, 11rem);
+      /* (The cards' own gap, in here: outside this panel `--deck-gap` is the flight deck's, how
+         far its instruments stand from the bottom of the view. Neither reads the other's.) */
       --deck-gap: var(--space-3);
       --w-left: var(--deck-col);
       --w-right: var(--deck-col);
@@ -5508,9 +5519,20 @@ main > .resume-intro > .card-title--quiet {
 
     /* A card that opens moves that middle: the button and the prompt go there as their layer
        does (its own right edge slides, above), not in one jump. */
-    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle,
-    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt {
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle {
       transition: left var(--motion-slow) var(--motion-ease-out);
+    }
+
+    /* The prompt has a second move, and keeps it here: its step beside the flight deck and back
+       (the deck's own rule, above). A press still drops it onto its ledge at once. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt {
+      transition:
+        left var(--motion-slow) var(--motion-ease-out),
+        translate var(--motion-base) var(--motion-ease-out);
+    }
+
+    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt:active {
+      transition-duration: 0s;
     }
   }
 

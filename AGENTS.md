@@ -320,20 +320,36 @@ never an error. DOM made by the engine that a pointer, a keyboard or a screen re
 prompt, the names, the Map button) goes into `#universe-overlay`, never into `#universe-host`,
 which is hidden from assistive technology. What is only a picture of things real controls already
 offer (the flight deck, `ui/FlightDeck.ts`; the minimap, `ui/MiniMap.ts`) goes there too,
-`aria-hidden`, with nothing focusable inside. The deck reads the simulation and asks the navigator
-for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on the canvas.
+`aria-hidden`, with nothing focusable inside. The flight deck reads the simulation and asks the
+navigator for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on
+the canvas.
 
-**The deck only reads; add an instrument.** A read-out is a pure function in
+**Two things are called a deck.** The page's DECK OF CARDS ("The deck", below) and the FLIGHT
+DECK, the instruments at the bottom of the view. In the code the cards own the bare word
+(`setDeck`, `src/shell/deck.ts`, `tuning.deck`, `deck` in `main.ts`); the instruments are
+`FlightDeck`, `tuning.instruments`, `.flight-deck`, `flightDeck` in `main.ts`, and their browser
+tests are `tests/e2e/deck.spec.ts` (the cards' are `cards.spec.ts`). In the stylesheet
+`--deck-size`, `--deck-half` and `--deck-top` are the flight deck's and `--deck-col`,
+`--deck-open` and `--deck-mates` the cards'; `--deck-gap` is BOTH, the flight deck's on the root
+and the cards' inside their panel, where it shadows the other (`tests/deck-room.test.ts` holds
+the two apart).
+
+**The flight deck only reads; add an instrument.** A read-out is a pure function in
 `sim/instruments.ts` with a test (an instrument never shows a number the simulation does not
 have), an element `ui/FlightDeck.ts` makes, and its look in the stylesheet (the drawing carries
-classes and data attributes only). The deck never asks the navigator for anything and gets no
-button: what acts is the prompt. Whether it shows and how big it is are `deckShows` and
-`deckLayout`, never a media query; the minimap is there wherever the deck has its full size, and
-asks the deck. The minimap (`ui/MiniMap.ts`, maths in `sim/minimap.ts`) never gets a rule the
+classes and data attributes only). The flight deck never asks the navigator for anything and gets
+no button: what acts is the prompt. Whether it shows and how big it is are `deckShows` and
+`deckLayout`, never a media query; the minimap is there wherever the flight deck has its full
+size, and asks it. **Its room is what the page leaves free on BOTH sides**: under a deck of cards
+that is the part between the two columns (`setRoom(right, bottom, left)`; 570 px of a window
+1280 px wide, so the strip and no minimap there, and the whole cluster from about 1570 px), and
+in the stylesheet the cluster stands in the middle of that part and the strip begins at its left
+edge (`--panel-inset-left`, as for the dock prompt: `tests/deck-room.test.ts`). The minimap
+(`ui/MiniMap.ts`, maths in `sim/minimap.ts`) never gets a rule the
 star map lacks: the same view, the same rule for sizes, the same picking, and a press on it is
 `pickRow`. Neither keeps anything a rebuild could lose, so neither has a snapshot field. The
-camera never moves for the deck: its plate (`--deck-size`) has the room a resting ship leaves
-under its fins, and `tests/deck-room.test.ts` holds the stylesheet to the chase camera, the
+camera never moves for the flight deck: its plate (`--deck-size`) has the room a resting ship
+leaves under its fins, and `tests/deck-room.test.ts` holds the stylesheet to the chase camera, the
 rocket and its hover, so a change to any of them (`tuning.chaseCam`, `tuning.camera`,
 `tuning.ship`, `design/models/rocket.ts`) fails there until `--deck-size` has the room there is
 now.
@@ -414,8 +430,9 @@ comment names. Colours only through tokens: a solar system's family arrives as `
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
 either another job. (A lamp of the flight deck that the simulation lights wears the cream face
-too, though nobody pressed it; and butter is also the target on the deck's ball, the ring round
-it on the minimap, and a journey's line, its clock on the rim and its seconds there.) The one
+too, though nobody pressed it; and butter is also the target on the flight deck's ball, the ring
+round it on the minimap, a journey's line, its clock on the rim and its seconds there, and the
+open card of a page's deck: the ring before its title and the station its leader ends on.) The one
 exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).

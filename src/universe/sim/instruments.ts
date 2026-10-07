@@ -31,10 +31,12 @@ export interface DeckRoomParams {
 }
 
 /**
- * How big the deck is, as a function of the FREE view alone: the viewport less what the info
- * panel covers, `freeW` by `freeH` CSS px. Under a bottom sheet (`sheet`) there is no deck: the
- * strip of sky left over is the docked body's, or the ship's. The limits are in rem (`remPx`, the
- * root font size), so a page zoomed to 200 % gets the strip where its cluster would not fit.
+ * How big the deck is, as a function of the FREE view alone: the viewport less what the page's
+ * content covers (a side panel, a sheet, or BOTH columns of a deck of cards: what is free is
+ * then between them), `freeW` by `freeH` CSS px. Under a bottom sheet (`sheet`) there is no
+ * deck: the strip of sky left over is the docked body's, or the ship's. The limits are in rem
+ * (`remPx`, the root font size), so a page zoomed to 200 % gets the strip where its cluster
+ * would not fit.
  */
 export function deckLayout(
   freeW: number,

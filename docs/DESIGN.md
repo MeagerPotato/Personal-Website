@@ -235,7 +235,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a deck of cards round the docked body on a wide screen (1280 by 576 px and up), a side panel on a smaller one (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (216.6 KiB gzipped on 2026-10-06 on the flight deck's branch alone: the engine 206.1, the shell 6.7, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (225.2 KiB gzipped on 2026-10-06 with the look, the cards and the flight deck together: the engine 211.6, the shell 9.8, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -399,6 +399,9 @@ of, is in the table under The 3D world.
   Map button's row at the far end from it, with the ball, the speed and the heading (or the lit
   lamp's name); nothing moves for it. Under 18.5rem by 20rem, or under a phone's sheet, there
   is none. The first-visit card keeps 12 px above the cluster, and the strip waits for the card.
+  Beside a page's deck of cards the free view is what its two columns leave between them (570 px
+  of a window 1280 px wide: the strip, which begins where the left column's room ends; the whole
+  cluster from a window about 1570 px wide), and the cluster's middle is the middle of that.
 - **The minimap** is the ball's sibling, a scope: the star map at another size, bottom right of
   the free view, wherever the deck has its full size: flying or docked (a reader can hop to the
   next planet), not on the star map. It is built as the ball is. A round plate, `--minimap-size`

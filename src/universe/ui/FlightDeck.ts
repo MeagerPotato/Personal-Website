@@ -185,6 +185,7 @@ export class FlightDeck implements System {
   private height = 0;
   private right = 0;
   private bottom = 0;
+  private left = 0;
   /** The plate's size, the ball's radius and the length of each arc, in px; the marks' scale. */
   private size = 0;
   private radius = 0;
@@ -316,10 +317,15 @@ export class FlightDeck implements System {
     this.fit();
   }
 
-  /** How much of the viewport the info panel covers, from the right and from the bottom (CSS px). */
-  setRoom(right: number, bottom: number): void {
+  /**
+   * How much of the viewport the page's content covers, in CSS px: from the right (a side panel,
+   * or the right column of a deck of cards), from the bottom (a sheet), and from the `left` (the
+   * left column of a deck of cards: content that stands on both sides of the view).
+   */
+  setRoom(right: number, bottom: number, left = 0): void {
     this.right = right;
     this.bottom = bottom;
+    this.left = left;
     this.fit();
   }
 
@@ -365,7 +371,7 @@ export class FlightDeck implements System {
   private fit(): void {
     const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const layout = deckLayout(
-      this.width - this.right,
+      this.width - this.right - this.left,
       this.height - this.bottom,
       this.bottom > 0,
       rem,

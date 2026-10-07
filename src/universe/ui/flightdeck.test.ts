@@ -165,6 +165,30 @@ describe('how big the deck is', () => {
     expect(root.dataset.layout).toBe('off');
   });
 
+  it('counts what stands on the LEFT too: between two columns of cards it has what both leave', () => {
+    // A page's deck of cards (src/shell/deck.ts) stands on both sides of the body. In a window
+    // 1280 px wide each column and its air take 355 px: 570 px are free, and the strip fits.
+    // (Counted from the right alone that was 925 px, and the whole cluster lay on the cards.)
+    const { deck, root } = deckOn();
+    deck.setRoom(355, 0, 355);
+    expect(root.dataset.layout).toBe('strip');
+    expect(root.hidden).toBe(false);
+    // With a card open its column is wider, and 397 px are free: the strip still.
+    deck.setRoom(355, 0, 528);
+    expect(root.dataset.layout).toBe('strip');
+    // A wide window (1782 by 862) leaves 982 px between the columns, and 854 beside an open
+    // card: the whole cluster, both times.
+    deck.resize({ width: 1782, height: 862, pixelRatio: 1 });
+    deck.setRoom(400, 0, 400);
+    expect(root.dataset.layout).toBe('full');
+    deck.setRoom(400, 0, 528);
+    expect(root.dataset.layout).toBe('full');
+    // Told nothing of the left (a side panel, a sheet), it is none: the room is what it was.
+    deck.resize(LAPTOP);
+    deck.setRoom(SIDE_PANEL, 0);
+    expect(root.dataset.layout).toBe('full');
+  });
+
   it('is out of the way until the engine knows its viewport', () => {
     const { root, deck, draw } = setup();
     cleanup = () => deck.dispose();
