@@ -165,7 +165,7 @@ describe('breachesOf', () => {
     );
     expect(breaches).toEqual([
       expect.stringMatching(
-        /^1 of 2 journeys stopped at their fastest touched a shell or grazed, the gate allows none: graze: page\/about ->/,
+        /^1 of 2 journeys stopped at their fastest failed \(a shell touched, a graze, a jump that outlived its journey\), the gate allows none: graze: page\/about ->/,
       ),
       expect.stringMatching(
         /^1 of 2 stress flights failed, the gate allows none: tap shell: page\/about -> system\/code @0\.00 s: brake held 4 steps/,
@@ -388,6 +388,31 @@ describe('measure', () => {
       /== the gate: off \("gate": false\), but stress flights and Stop/,
     );
     expect(lines.join('\n')).toMatch(/real \(\d systems\)\s+off: passed/);
+    // Nobody had taken a jump there (hyperspace is "real": the twins only), and the table has
+    // nothing to say of one.
+    expect(off?.stops.map((row) => row.interrupt?.inHyper)).not.toContain(true);
+    expect(lines.join('\n')).not.toMatch(/when Stop was pressed/);
+  });
+
+  it('with a visitor who takes hyperspace, presses Stop at the fastest in the jump itself', () => {
+    const lines: string[] = [];
+    const [report] = measure({
+      galaxies: ['real'],
+      sample: small,
+      hyper: true,
+      stop: { coastSec: 2 },
+      log: (text) => lines.push(text),
+    });
+    // Both journeys are long enough for a jump, and their fastest moment is in it.
+    expect(report?.stops).toHaveLength(2);
+    expect(report?.stops.map((row) => row.interrupt?.inHyper)).toEqual([true, true]);
+    // Stop ended the jump with the journey: nothing of it is left on a ship that brakes.
+    expect(report?.stops.map((row) => row.hyper.strayed)).toEqual([false, false]);
+    expect(report?.stops.map((row) => row.failure)).toEqual([null, null]);
+    expect(report?.breaches).toEqual([]);
+    expect(lines.join('\n')).toMatch(
+      /hyperspace, taken whenever offered: winding up or in it on 2 of them when Stop was pressed; it outlived its journey on 0/,
+    );
   });
 });
 

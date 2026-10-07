@@ -858,7 +858,9 @@ export function fly(
  * STOP MID-JOURNEY: fly `spec` once to find its fastest moment, then fly it again and press Stop
  * right there (fly's `stop`), watching the ship coast for `coastSec`. Journeys are exact
  * repeats, so the second flight is the first one up to that step. Null for a journey that never
- * flew on the autopilot (a body within reach is only approached).
+ * flew on the autopilot (a body within reach is only approached). With a `visitor` who takes
+ * hyperspace, the second flight is theirs: Stop is then pressed in the jump, where the journey
+ * has one (its fastest moment is in it), and at the same moment, since it is the same flight.
  */
 export function stopAtPeak(
   galaxy: Galaxy,
@@ -866,6 +868,7 @@ export function stopAtPeak(
   sim: SimTuning,
   coastSec: number,
   limitSec = 60,
+  visitor: Visitor = {},
 ): JourneyResult | null {
   let atSec = -1;
   let peak = 0;
@@ -877,7 +880,7 @@ export function stopAtPeak(
     }
   });
   if (atSec < 0) return null;
-  return fly(galaxy, spec, sim, limitSec, undefined, { kind: 'stop', atSec, coastSec });
+  return fly(galaxy, spec, sim, limitSec, undefined, { kind: 'stop', atSec, coastSec }, visitor);
 }
 
 const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;

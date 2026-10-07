@@ -83,7 +83,8 @@ export interface MeasureOptions {
    *           jumps were. The default.
    *   true    that for every galaxy, and the stress visitor presses too: every stress flight is
    *           flown with the jump taken whenever it is offered (again after a new destination or
-   *           a rebuild), so every way a journey is handed back is also tried in hyperspace.
+   *           a rebuild), so every way a journey is handed back is also tried in hyperspace; and
+   *           so is every journey stopped at its fastest (`stop`).
    *   false   nobody presses.
    * A twin that flew differently, or a jump that outlived its journey, is a failure (`hyper`),
    * and none is allowed, gate off or on.
@@ -265,7 +266,15 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
             `  ${row.kind.padEnd(7)} ${describeRow(row)}  [${phasesOf(row)}]${row.failure ? ` FAIL ${row.failure}` : ''}`,
           );
         if (options.stop !== null && journey.kind === 'between') {
-          const stopped = stopAtPeak(galaxy, journey, sim, options.stop.coastSec, options.limitSec);
+          const stopped = stopAtPeak(
+            galaxy,
+            journey,
+            sim,
+            options.stop.coastSec,
+            options.limitSec,
+            // Stopped by the visitor the stress has: one who takes hyperspace when it is offered.
+            { hyper: options.hyper === true },
+          );
           if (stopped !== null) report.stops.push(stopped);
         }
       }

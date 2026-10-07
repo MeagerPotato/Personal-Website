@@ -140,7 +140,8 @@ export function breachesOf(
   if (stops.length > 0) {
     breaches.push(
       `${stops.length} of ${report.stops.length} journeys stopped at their fastest ` +
-        `touched a shell or grazed, the gate allows none: ${some(stops, failedJourney)}`,
+        `failed (a shell touched, a graze, a jump that outlived its journey), the gate allows ` +
+        `none: ${some(stops, failedJourney)}`,
     );
   }
   const stressed = report.stress.filter((flight) => flight.result.failure !== null);

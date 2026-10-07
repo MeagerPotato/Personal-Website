@@ -83,7 +83,8 @@ const KINDS: readonly JourneyKind[] = ['between', 'within', 'spawn'];
 
 /**
  * Journeys stopped at their fastest moment (fly.ts, stopAtPeak): how fast they were going, how
- * far they slid, how close they came to anything, and whether anything was touched.
+ * far they slid, how close they came to anything, and whether anything was touched; and, when
+ * the visitor who stopped them had taken hyperspace, how many were in it and whether it ended.
  */
 export function stopTable(rows: readonly JourneyResult[], coastSec: number): string {
   const stops = rows.flatMap((row) => (row.stop ? [{ row, stop: row.stop }] : []));
@@ -111,6 +112,15 @@ export function stopTable(rows: readonly JourneyResult[], coastSec: number): str
       `${nearest ? ` (${nearest.stop.closestBody}, ${nearest.row.from} -> ${nearest.row.to})` : ''}`,
     `  shell touches ${touches}, grazes ${grazes}`,
   ];
+  // A visitor who takes hyperspace whenever it is offered (JOURNEYS "hyper": true) was in it.
+  const inHyper = stops.filter(({ row }) => row.interrupt?.inHyper === true).length;
+  if (inHyper > 0) {
+    const strayed = stops.filter(({ row }) => row.hyper.strayed).length;
+    lines.push(
+      `  hyperspace, taken whenever offered: winding up or in it on ${inHyper} of them when Stop ` +
+        `was pressed; it outlived its journey on ${strayed}`,
+    );
+  }
   if (furthest) {
     lines.push(
       `  slid furthest: ${furthest.row.from} -> ${furthest.row.to}, stopped at ${furthest.stop.atSpeed.toFixed(0)} u/s, ` +
