@@ -289,7 +289,7 @@ export const tuning = {
     dashes: { high: 1400, medium: 900, low: 500 },
     /** rad. The dark eye of the tunnel, where the ship is going: the destination grows out of it. */
     eyeRad: 0.1,
-    /** The tunnel's wash of the destination family's shade: its alpha, on every other band. */
+    /** The tunnel's wash, navy for every destination (materials.ts): its alpha, on every other band. */
     wash: [0.3, 0.46],
     /** The thin line at each band's edge (the family's base; none on the low tier), and the two rings. */
     ribAlpha: 0.35,
