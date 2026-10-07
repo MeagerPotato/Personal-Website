@@ -55,7 +55,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a raised key (one whose face is already `raised`, or one on a raised plate) |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system (a sun of a binary may wear one of its own: Software sky, Hardware coral), worn by its sun, its planets and their moons: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
-| `color.star` | `warm cool white` | starfield tints |
+| `color.star` | `white cool hot warm amber ember` | the stars' six temperatures (`hot`, `amber` and `ember` are engine only: "Deep light", below) |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
 
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
@@ -406,15 +406,18 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 
 | What | Where |
 | --- | --- |
-| The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
+| How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (suns, the flame, rings), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `traffic.ts` (the dots on the orbit lines), `chart.ts` (the star map's ground), `sky.ts` (backdrop and stars), `skyBake.ts` (the Milky Way's haze and the far galaxies, painted once), `dust.ts`, `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
-| The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
-| Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
+| The sky's navy: how quickly it lightens toward the horizon. Nothing else: the sky has no glows of colour and no gas ("Deep light", below) | `tuning.backdrop` |
+| What the sky adds to the navy: the Milky Way's haze (where its great circle lies, its two banks, its twelve clumps, its dark lane, where its bulge is and how far the haze swells there), the fifteen far galaxies, the ceiling on luminance, the calm strip along the horizon, how much of it shows while docked and on the star map, the panorama's size by tier | `tuning.look.sky` (the painting: `shaders/skyBake.ts`; the river's shape, for the haze and for the stars alike: `sim/milkyWay.ts`) |
+| Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`, or a class's own), the five classes (`classes`, `hero`: brightness, core, halos, spikes), how much of each class lies along the Milky Way (`bandShare`), the stars of the Milky Way's bulge (`bulge`: how many more, in which warm tints), where the eight heroes and the six clusters are (three of the clusters are the sky's compass: one at each system's bearing from home) and how a cluster is made (`cluster`: its bright heart), the double stars (`pairs`), twinkle, a hero's breath, drift (0: the sky is painted) | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
@@ -467,12 +470,522 @@ side by side in three tabs. LOW has no bloom and no vignette, so nothing may DEP
 are seasoning. Only things that ask for it bloom (the knobs above), so the pastel world stays crisp
 however strong the bloom is.
 
-Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
-procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8
+Three things learned the hard way. **The sky has no clouds:** on a calm dark sky, procedural
+noise reads as mud and the eye finds its lattice at once; and gas that was baked, lit and cut
+into flat steps read as waves, because the edge of a step that follows noise is a contour line
+(2026-10-03, "Deep light" below: Allen flew it and chose "No clouds, rich stars"). What the sky
+holds is navy, stars, and light with no edge anywhere (the Milky Way's haze, a far galaxy):
+nothing run through noise, nothing cut into levels. **Dark gradients band in 8
 bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that
 line if you rewrite the shader. **A big warm glow on navy reads as brown:** the chase camera looks
 down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part cool, and warm
 colours small and high.
+
+## Deep light _(a preview: branch `claude/deep-space`, not on `main`)_
+
+On 2026-10-01 Allen asked for "higher fidelity art styles across the board, instead of just
+plain, muted glows", "more hifi and in depth", keeping "the feeling of that simplicity but with a
+lot more details", and pointed at space photographs (the Carina cliffs, the Pillars, Jupiter,
+Earthrise, deep fields). The answer that was chosen is **flat worlds, deep light**: matter
+(planets, ships, signs) stays flat-coloured and token-exact, and what is around matter (stars,
+coronas, air) becomes light with structure. (It began as "matter stays faceted"; on
+2026-10-02 Allen asked for everything round and smooth but what should have edges, and the
+facets went: "As built: round and smooth", below. And it began with gas in the sky; on
+2026-10-03 Allen flew that sky and chose "No clouds, rich stars", and the gas went: "As built:
+the sky of stars", below.) It is built in steps on a preview branch that Allen
+flies before any of it reaches `main`.
+
+**DRAFT, NOT SIGNED: what this would change in the principles above.** These are Allen's to
+accept, change or refuse once he has flown the preview; until then the principles stand as
+written, and nothing on `main` follows the drafts.
+
+- Principle 2 would read: **Flat colour, round form; light may be soft.** A surface keeps its
+  flat colours and its two or three bands of light and never gets a gradient, but colour and
+  light follow the FORM, not the mesh: a ball is lit as a ball and a coast is a line, whatever
+  the facets under them, and an edge shows only where the thing has one (a box, a cog's tooth).
+  Light and air (halos, coronas, shells, spikes) may be soft, and round a body they are still
+  cut into a few flat steps; the sky's own light (the Milky Way's haze, a far galaxy) has no
+  steps at all, because on something as large as the sky the edge of a step is a line across
+  the view. (Redrafted on 2026-10-02, after Allen saw step 2: "everything should roughly look
+  round and smooth", "the planets too", "except for just the stuff that should have edges (like
+  the hardware cogs)". It was "Matter is flat, light may be soft", with matter faceted. The
+  sky's clause is of 2026-10-03.)
+- Principle 3 would add: **and the sky, never brighter than luminance 0.19** (where the butter
+  focus ring still reads 3:1 over it), with a strip along the horizon left near today's navy,
+  because that is where planets and orbit lines sit.
+- The lesson "the sky uses glows, not noise clouds" (it stood above, under the 3D world) was
+  drafted here as "noise only baked, limited and lit", and built that way: cliffs of gas at the
+  systems' bearings, their glows in flat steps. **Allen flew it and refused it on 2026-10-03**:
+  "i dont really like the new background with the waves". Asked which way to go on, he chose
+  **"No clouds, rich stars: Remove the gas clouds entirely. Keep the new coloured stars, the
+  six-spiked hero stars, the Milky Way band and the far galaxies on dark navy."** That one is
+  decided, not a draft, and the lesson now reads **the sky has no clouds** (above). Noise still
+  cuts a sun's surface and a world's clouds into round cells: those are small things with an
+  outline of their own, not a sky.
+
+**Eight rules a change to the look is checked against.** (1) Matter is flat in colour and round
+in form (an edge only where the thing has one); light may be smooth.
+(2) Every colour is a token; shaders receive colours as uniforms. (3) Light is added, never
+replaced: the sky is today's navy plus added light, and a strength of 0 skips the pass. (4) Depth
+is layering: flats at different distances, never volumetric noise at run time. (5) One lens for
+every bright point: spikes on the hero stars, a four-point sparkle on a sun's limb. (6) Only what
+already glows may bloom: nothing new joins the bloom guest list, so nothing depends on bloom and
+the low tier loses nothing but seasoning. (7) Calm where the work is: the horizon strip stays
+dark, the sky is halved while docked, and the whole sky has a ceiling. (8) The star map stays
+flat.
+
+**As built so far: the groundwork (step 0). Nothing looks different yet.**
+
+- **25 tokens**, all engine only: three more star temperatures (`color.star.hot`, `amber`,
+  `ember`); the dim tones under `color.nebula`: the Milky Way's haze (`band.deep`, `mid` and
+  `lit`: three tones of the navy's own blue, and no warm one) and, for each of the five
+  families, a `mid` and a `lit`, which paint the star map's districts and nothing in the sky;
+  the air of worlds (`color.air.<biome>`, every biome with a sea); `color.shading.dusk` and
+  `night`; and `color.window`. (There were 36: every family also had a `deep` and a `rim` for
+  its gas, and they went with the gas on 2026-10-03. The haze's own fourth tone, a cream `rim`
+  for its bulge, went that day too, when the bulge was made of stars instead. The group keeps
+  its name.) They are **left out of the CSS mirror** (`ENGINE_ONLY` in
+  `src/site/tokens-css.ts`): no stylesheet reads them, and plain pages do not carry them.
+- **What the palette promises** (`src/site/look-colours.test.ts`): the haze's `deep` and `mid`
+  sit barely above space (under 1.4:1 and 1.8:1 on `space.900`: a haze under stars, never a
+  shape), each tone of its ramp is lighter than the one before, even the brightest stays under
+  3:1 (never a mark), and every one is the navy's own hue (blue over green over red, the blue
+  half again the red or more): the ramp has no warm tone and no grey one; a district's `mid` is
+  a quiet plate (between 1.4:1
+  and 2.5:1) and its `lit` has more than one and a half times that contrast, or the two steps
+  would be one; the families are told apart by their
+  `lit` (the closest pair over 7 CIEDE2000: sky and lilac under deuteranopia, 7.1 when the
+  palette was set), under normal vision and each simulated deficiency
+  (`src/site/colour-vision.ts`), while `mid` carries shape, not identity; every district is in
+  its family's colour, home's too (no plate within 6 of the grey of its own lightness; butter's
+  is the quietest of the five, 8.5, and warm); no star tint within 10 of butter ("here") or of
+  coral, and every one a clear point on space (over 6:1).
+- **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
+  the star classes in `tuning.starfield`, with the shapes of their tables in
+  `design/lookTypes.ts`. Each block of `tuning.look` is switched on by the step that builds its
+  system (every one is by now). `tests/look.test.ts` keeps the tables honest (a cluster of
+  stars sits at the bearing of each system from home, and home has none; a far galaxy wears
+  star tints and keeps off the horizon strip; every view the sky is judged from has a hero
+  star clear of the bars and the panel; air only on bodies that exist).
+- **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
+  lab's `sky` subject looks out from each of them. The first is the first frame at home as the
+  chase camera takes it: pitched 10 degrees down, the horizon a third of the way down the
+  frame (it was 17.4 until 2026-10-03, which showed less sky than a visitor sees).
+
+**As built: the stars (step 1; made the whole sky on 2026-10-03).** The first thing that looked
+different, and since Allen chose "No clouds, rich stars" the thing the sky is made of: the
+numbers here are that day's.
+
+- **Five classes, six temperatures.** 9,311 stars with a mouse on the medium and high tiers
+  (6,400 dust, 1,500 field, 260 bright, 64 mid, 666 more in the Milky Way's bulge, 385 in six
+  clusters, 28 in fourteen double stars, 8 heroes); 4,674 on a phone (half of each class, of
+  the bulge and of each cluster; the heroes and the doubles are the same everywhere), and half
+  again on the low tier, which also has no mid class (4,642 with a mouse, 2,340 on a phone).
+  About 1,900 are in the first frame at home.
+  The ordinary star is still far fainter than the old points were, and **the dust has a wide
+  range of its own**: a dust star peaks anywhere from 0.07 to 0.56 of its tint, most of them
+  faint, the brightest as bright as a field star. (At 0.16 to 0.46 it was dots of one size and
+  one brightness, which read as grain, as a texture laid over the sky, and a river of them as
+  a stripe.) A few stars are much brighter: the sky has a range. Tints by weight:
+  white 30, cool 20, hot 17, warm 15, amber 12, ember 6 percent, and a class may have its own:
+  the dust is whiter and cooler (a faint star looks white), the bright and the mid carry the
+  colour (more of them hot, amber and ember). No star wears a family colour.
+- **The Milky Way is a river of stars.** Seven tenths of the dust, half the field, a third of
+  the bright and a fifth of the mid lie along the great circle the haze is painted on, placed
+  by the very functions that paint it (`sim/milkyWay.ts`): dense where it has a clump, thin
+  between, and four fifths of them missing in its dark lane. So the band is stars first, and
+  its rift is made of missing stars and of no paint at all. Across the river the stars fall
+  away as the haze does: each of its two banks holds stars in proportion to its mass (its
+  weight times its width; by weight alone the narrow bank held half of them, a hard core with
+  banks that stopped short).
+- **The bulge is a crowd of stars.** Where the river is thickest (in the first frame, between
+  the top bar's two groups of chips; `look.sky.band.core` says where) it gains 666 more stars,
+  520 dust, 130 field and 16 bright, in an oval on the river, **in warm tints** (half of them
+  warm, the rest amber, white and ember; no blue one), with the dark lane cut through them as
+  through the rest. Its oval holds more of its own stars than of the river's, and more stars
+  than any other stretch of the river. That is all the warmth the bulge has: the haze under it
+  is the same blue as everywhere (below).
+- **A compass of clusters.** Six small clusters; three of them sit **at the bearing from home
+  of each system** (Projects, Research, Hackathons), 20 degrees under the horizon, where the
+  sky is emptiest, each in the star temperature nearest its family (hot, white, cool: there is
+  no green star and no violet one). The sky is at infinity, so the bearing holds from
+  everywhere. A cluster is separate stars and nothing under them: no light, no halo, and no
+  haze of the river's either (its middle stays 8 degrees and more from every cluster). **A
+  cluster has a heart**: three bright stars close in, seven field stars round them, and the
+  dust across its whole width, brighter toward the middle. (Sixty faint dots of one size read
+  as a patch of grain.) Home has none: home is where the viewer stands.
+- **Double stars.** Fourteen pairs anywhere in the sky, a bright one and a fainter companion
+  seven to ten pixels away, blue-white beside amber or white beside cool. Found by looking,
+  never noise; they do not twinkle.
+- **How a star is drawn.** A Gaussian core; the bright, mid and hero classes add a wider, fainter
+  halo (a hero two); a **mid star is a small hero**, six short spikes (14 to 26 px, each star
+  its own length); a **hero has six diffraction spikes** (three
+  lines 60 degrees apart, one upright) and a short faint line across. Along a spike the light
+  falls as `(1 - t)^2.4 / (1 + 5t)`: a fast fall and a long thin tail, which is what reads as
+  diffraction and not as a plus sign. This is the "one lens" of rule 5: a sun's glint is the
+  same artefact, with arms so short that they fade evenly. Sizes are CSS px written for a view 1080 px high and scale with the view's
+  height (0.6 to 1.2), so a hero's arm is 78 px there, 58 px at 800, and never dominates a phone.
+- **Where the heroes are.** Eight, in all six temperatures, on every tier. Every view the sky
+  is judged from has one, and none sits behind the top bar's chips: three in the first frame
+  at home (upper right, above the home planet, and low on the left, where the frame is
+  emptiest), one beside a docked body clear of its panel, one or two toward each system
+  (`tests/look.test.ts` projects them through each view). And every sixth of the sky's round
+  holds three or more of hero, galaxy and cluster: a slow look round always finds something.
+- **Calm.** About an eighth of the dust, field and bright stars twinkle (some 1,100 of them,
+  about as many as shimmered when the sky held 5,000 stars); a hero breathes by 6
+  percent over 5 to 9 seconds, each at its own pace. Under reduced motion neither happens. On
+  the star map the stars dim to `map.starOpacity` (0.2: a faint star is then under the chart's
+  grid dots) and **lose their spikes** (rule 8). Nothing drifts: the stars lie where the haze
+  is painted.
+- **Not on the bloom guest list** (rule 6): a star's glow is its own halo, drawn, so the low tier
+  shows the same stars. Light is added in linear light; where the picture goes straight to the
+  canvas (the low tier) the shader corrects for the canvas blending after encoding, or every
+  star there would be fatter.
+- **Still to judge in the lab** (the `stars` subject: a sheet of each class at 1:1, one tint or
+  the mix, the heroes as a view of another height draws them, and the stars as the map shows
+  them) and in flight: whether 9,311 is the right number (`starfield.count` scales the dust,
+  the classes their own, `bulge.counts` the bulge), and whether sixty-four small six-pointed
+  stars are too many of one shape.
+
+**As built: round and smooth (steps 2b and 2c, 2026-10-02).** Allen saw step 2's Software sun,
+a ball whose tones fell in sharp triangular facets, and said: "I want some more rounded texture
+instead of sharp triangles. everything should roughly look round and smooth", and then "i meant
+the planets too, make everything round and smooth, except for just the stuff that should have
+edges (like the hardware cogs)". So the faceted look is gone from everything that is round, and
+kept, crisp, on everything that has edges. This replaces the "matter stays faceted" of the look
+as it was first drawn. The rule, as built:
+
+- **What a thing is made with says whether it is round**, once, in the kit
+  (`sim/world/kit.ts`), never body by body and never by guessing from angles:
+  - **Round:** anything turned on a lathe with five sides or more (a tube, a cone, a dome, a
+    wheel, a mast, a cup, a rocket's body and nose, the ship), a bead (a ball; it was an
+    octahedron), the walls of a ring or an arc swept in two steps or more, and a tile of five
+    sides or more (a disc). And every generated ground: a globe, the fish, the rounded cube of
+    Days2Meet, the bus, the clay of planned work.
+  - **Edged:** a box, a prism (a card, a phone, an arrow, a bracket, a glyph plate), a fin, a
+    quad, a trapezoid (a cog's tooth, a clock's tick), pixel art and the pixel digits, a ring
+    of one step (a stand of the stadium, a dash), and a lathe of three or four sides (a house's
+    roof, a square post). The Hardware sun's gears are all of this kind: plates, teeth and
+    walls stay sharp. (Their hubs, axles and paint rings are circles now: a gear's teeth have
+    edges, its hub is turned.)
+  - A round thing keeps the edges it really has: a tube's cap meets its side at an edge, a
+    seam is a seam. Along a lathe's profile a turn of under **50 degrees** (`CREASE_DEG`) is a
+    bend and a sharper one a fold; a profile that ends on its axis within 35 degrees of square
+    (`POLE_DEG`) closes smoothly (a dome's top), a steeper one is a tip.
+  - **A bend is built as a curve.** Where a lathe's profile only bends, light already falls on
+    it as on one surface; its outline now agrees. The corner becomes an arc (`bent`,
+    `sim/world/kit.ts`): from half of the shorter band before it to as far after it, always
+    inside the corner the rows wrote (so no reach grows), in the pieces a circle of its radius
+    would get. A corner already within half the allowed sag of its arc is left alone: the
+    Devpost cup's bowl and Corgi's clay are curves every day, Model Rocketry's nose in the
+    close-up.
+- **Round in light.** A round thing's triangles carry the normals of the true surface, the
+  shader carries the normal across each face and decides the three bands **at every pixel**
+  (`design/shaders/toonFlat.ts`), a pixel soft: anti-aliased, never blurred. So a terminator is
+  a clean curve on a ball, a straight line down a tube, and one flat band on a box's face. A
+  lit place is still exactly its token. An edged thing is lit face by face, as it always was.
+- **Round in outline.** The rows still sketch a wheel with eight sides. It is BUILT with as
+  many as its size wants: the middle of a side may stand no further inside the true circle
+  than `tuning.world.round` says, in radii of the body (0.006 every day, a third of a pixel on
+  a body 55 px in radius; 0.0025 in the close-up, half a pixel at 200 px; twice that on the low
+  tier; never more than 64 sides, never fewer than written). A wheel a third of its world
+  across has 16 sides every day and 24 up close, a mast 7 and 10, a bead is a ball of 10 to
+  15. A polygon of under five sides is never touched. A ring keeps its colours where they were
+  painted (each step becomes a whole number of steps), and a wavy ring is built three times as
+  fine. The ship is 24 sides with a nose of eight bands, and its window lies on the curve of
+  its hull.
+- **Round grounds.** A moon is 1280 facets (`world.detailMoon` 7; it was 320), and so is a
+  planned moon; a planned planet is 1620 (`detailMaquettePlanet` 8, `detailMaquetteMoon` 7;
+  they were 980 and 320, balls of straight sides against the sky). The terrains' relief is
+  about a third of what it was (`terrain.continents` 0.018, `calm` 0.012, `isles` 0.014 of a
+  radius): light no longer shows relief (it falls on the ball), so all the old relief did was
+  put flat-topped lumps on the limb. **Clay keeps its lumps, as round ones**
+  (`terrain.lumpy`: relief 0.045, it was 0.07; two octaves, it was three): planned work still
+  looks unfinished, in soft blotches and a gently uneven outline, not in corners.
+- **Colour is flat, and its outlines are lines.** A face is one colour edge to edge, as before.
+  But a facet of a ground that a coast, a band of height or an edge of paint runs through
+  carries **up to three colours and the lines between them** (`aSide`, `aOver`), found by
+  walking its outline (`sim/planet.ts`), and the shader draws each line through the facet, a
+  pixel soft. **A line is an arc, not a chord** (`aBend`): the generator looks across the
+  line's middle for where the outline really is (the ground's own height, asked again halfway
+  along each edge of the facet; or the paint) and the shader bends the line through that place.
+  So a coast is a curve inside each facet too, an island is a blob and not a polygon, a cape
+  that comes into a facet and leaves by the same edge is drawn, and a painted cap is a circle
+  to a thirtieth of a degree. Where one facet holds more than two lines (four bands of height
+  in seven degrees, or a coast, its shore and a cape) the sliver beyond the second takes its
+  neighbour's colour: a small step in an outline, about one shared edge in forty on the
+  islands of HackGT 13, one in two hundred on home.
+- **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
+  of triangles, which is exactly what was asked away.
+- **A terrain no finer than its facets.** An arc holds one bend a facet, so noise finer than
+  a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` and `lumpy` are two octaves,
+  not three. A terrain's finest octave (`frequency` times two for each further octave) should
+  stay under about 5.
+- **What it cost.** Triangles: the galaxy is about 40,400 every day (it was 32,500), the most
+  in one body 2746 every day and 6176 up close; the budget's ceilings rose once, on purpose,
+  to 2800 and 6600 (`tests/world-bodies.test.ts`). No draw call was added: round and edged
+  parts ride in one buffer and one material. A frame costs what it did (0.2 ms on the desktop
+  it was measured on, on every tier). Nothing reaches further: the reaches of
+  `design/worlds/reach.ts` stand (three beads were trimmed by a hair for it, since a ball
+  reaches its whole radius every way and an octahedron did not).
+- **A blueprint follows.** A ghost's lines are the folds of its mesh, judged by the same
+  normals: a round ghost shows its rims and not a line down every side.
+- **Writing a part, from now on:** pick the op for what the thing IS. If it is round, use a
+  lathe op with any sketch of sides from five up and let the build round it; if it should be
+  a hexagon nut or a pyramid, make it of a prism or of four sides. Do not fit a decal or a
+  part to a FACET of a round thing: there are none to count on (the roll number of Model
+  Rocketry sits on the tube's true radius).
+- **Still Allen's to judge:** whether the relief should go altogether; whether the three tones
+  should stay hard-edged on a tube and a cone (a terminator is a straight line there, which
+  can read as a side of a prism); and a third line a facet (one more attribute), which would take the last steps out
+  of the outlines of small islands and was left out for the weight (the lazy budget).
+
+**As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.
+
+- **A living surface** on the three suns that are balls (Software, Research, Hackathons), and a
+  sun is light, so all of it is round: the surface is DRAWN, pixel by pixel, by the sun's own
+  shader (`toonFlat.ts`, SUN). **Four flat tones** of its family (shade, base, light, and
+  `hot`, the light mixed 55 percent toward white) lie in **round cells** a fifth to a third of
+  the ball across, cut from two layers of smooth noise by three thresholds so that about
+  15 / 45 / 30 / 10 percent of the ball is each: **the middle of the ball is the base**, or the
+  sun washes out to cream. An edge between two tones is soft by a hair (`granulation.soft`) and
+  never thinner than a pixel. Toward the **limb** the tones step one down the ladder, then two:
+  limb darkening in two round bands. **Three spots** sit at fixed places on the ball, a dark
+  core in a ring, round and soft-rimmed. Still no gradient across a tone. Nothing on the
+  surface moves. (Step 2 gave each FACET a tone; that was the ball of triangles.)
+- **The noise** is gradient noise on an integer lattice (`shaders/noise.ts`), which
+  gives the same picture on every driver; its twin on the CPU (`sim/sunGrain.ts`, which
+  nothing shipped imports) is what `sunGrain.test.ts` holds to the shares. Each sun is cut from
+  its own place in the noise: its number rides in the flag its ball's facets carry, so two
+  suns of one family would still differ. Cost: two noise look-ups a pixel of the ball.
+- **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier). They no longer show:
+  the outline's corners are a third of a pixel deep when docked beside it.
+- **The corona** is one draw call for all suns, in two layers. The **light**, behind everything
+  a sun wears, so that its brackets, its stopwatch and its light curve stay crisp: **four halo
+  steps** of the family's base (flat rings, 0.40, 0.20, 0.09 and 0.04, out to 2.1 radii), a
+  **soft glow** through the family's three tones out to 3.4, **ten rays** (thin beams, each
+  its own length, width and lean; a beam is light, so since step 2b it has no edge: brightest
+  along its middle, gone at the width its wedge had, and so with no corner at its tip) and
+  **three prominences** (loops off the limb). The **lens**,
+  in front of the ball: a hot hairline just inside the outline, and a **four-point glint** on
+  the upper left, fixed on the screen. The parts are laid over each other as paint is, over the
+  navy of the sky, and the shader corrects for how each tier blends, so the low tier shows the
+  same corona.
+- **The Hardware sun keeps its gears.** Its ball is its fourteen gears, so it gets the halo
+  steps and the glow and nothing else: no tones, no rays, no loops, no hairline, no glint.
+- **Only the ball blooms** (rule 6), as it always has. The corona is drawn light, never on the
+  guest list: the halo that bloom used to fake is now there on the low tier too.
+- **Calm.** A ray breathes by 12 percent of its length over 9 to 14 seconds, a loop by 10
+  percent over 11 to 17, each at its own pace; nothing else moves, the glint least of all.
+  Under reduced motion they hold the frame of time zero. The low tier keeps six of the rays and
+  has no loops and no glint. On **the star map** a sun is a flat disc of exactly its token
+  (every tone, the limb and the spots go back to the base) inside its halo steps, and nothing
+  else of the corona is drawn (rule 8).
+- **Still to judge in the lab** (the `sun` subject: a living sun of any family, and `as on the
+  star map`; the `world` subject for a real sun with its signs): mint is the palest family, and
+  with bloom on top its hottest tone is nearly white (`look.sun.hotMix` is the knob); whether
+  the rays and the loops stay is decision D8.
+
+**As built: the sky of stars (step 3; rebuilt on 2026-10-03).** Step 3 first made the sky a
+place of gas: four massifs at the systems' bearings, ridge behind ridge, their glows cut into
+flat steps, arcs and knots, and a Milky Way whose lanes were cut by noise. Allen flew it and
+said, on 2026-10-03: "i dont really like the new background with the waves". Asked which way
+to go on, he chose **"No clouds, rich stars: Remove the gas clouds entirely. Keep the new
+coloured stars, the six-spiked hero stars, the Milky Way band and the far galaxies on dark
+navy."** So the gas is gone for good, and the sky is what he kept, made richer: no massifs, no
+ridgelines, no stepped glows, no knots, no arcs, nothing that reads as a wave, a layer or a
+cloud. What carries the sky now is the stars (step 1, above); this is what lies under them.
+
+- **What went.** From the panorama: the massifs (ridges, lit faces, hairlines, ragged ends),
+  their glows and the steam in them, the arcs, the seven knots, and every use of noise and of
+  levels. From the backdrop: the four soft glows of colour the old sky was made of, which had
+  stayed on as the first frame's sky (decision D3, whether to retire them: Allen's sky is "on
+  dark navy", so they are gone, and the first frame is navy and stars). From the tokens: each
+  family's `deep` and `rim`. From the bake: its tier switches. Nothing of it is left behind a
+  flag.
+- **What is in it.** **The Milky Way**: the river of stars, and under it a faint haze along
+  the same great circle, tilted 16 degrees and highest at azimuth -62, so that it **crosses
+  the first frame as a diagonal**: it climbs 76 px across the middle half of that view (five
+  degrees), from the left edge until it leaves through the top behind the nav. (Tilted 14 and
+  highest at -55 it lay nearly level there, and read as a horizontal bar of blue fog.) Across
+  it a narrow bank and a wide one; along it twelve clumps, so it is brighter here and thinner
+  there. The haze is **one family of tones, the navy's own blue**, and it comes in softly: it
+  reaches its full cover only where the river is brightest (`band.gain` 0.5), so it has no
+  lower edge. A **dark lane** runs beside its middle, swinging from side to side: it hides
+  four fifths of the stars in it and **paints nothing** (darkening the haze there, by a third,
+  drew faint streaks along the river, which read as layers). At the **bulge** the haze only
+  swells, in the same blue, an oval 9 degrees by 5.5: the bulge is made of stars (above). A
+  cream haze there, tried first, with no more stars in it than the river beside it, read as a
+  grey smear across the navy. **Fifteen far galaxies**, the same on every tier, each in
+  two star tints (a disc and a nucleus): four showpieces (a spiral seen nearly face on in the
+  first frame at home, and one toward each system) and eleven small ones; spirals with
+  two arms, lenses seen edge on with a dark lane along them, plain ellipses. None is amber or
+  ember (on navy they read brown), and every nucleus is 7 degrees or more off the horizon.
+- **Nothing has an edge.** Every term is a Gaussian or a sine of where the texel is. Nothing
+  is run through noise and nothing is cut into levels, because the edge of a level that
+  follows noise is a contour line, and contour lines are what read as waves. A gate holds it:
+  from one texel of the largest panorama to the next the haze changes by less than 0.006 of
+  linear luminance (measured: 0.0027, about two code values of blue; a level cut into it
+  would be a step of 0.01 or more). Two more hold its colour: wherever the river alone adds
+  light, blue leads green by 1.8 times and green leads red; and with a lane that hides
+  nothing the light is the same to the last bit (the lane is in the stars alone).
+- **Light is added, never replaced** (rule 3). The panorama holds what the sky ADDS to the
+  navy; the backdrop draws the navy gradient it always drew and adds the panorama on top, times
+  an exposure. At exposure 0 the sky is navy and stars.
+- **Calm where the work is** (rule 7), held by `tests/sky-gates.test.ts` on the CPU's twin of
+  the picture and measured again on the GPU's own from the seven views (the lab's `sky` subject
+  prints them): **the horizon strip stays near navy** (under 0.03 of linear luminance within 6
+  degrees of the horizon, where planets and orbit lines sit; measured 0.018: the sky's light
+  only comes in over the first 12 degrees), **no pixel of the sky is brighter than 0.19**
+  (the brightest measured: 0.167, a galaxy's nucleus; the butter focus ring still reads over
+  3:1 there), the brightest twentieth of every view stays under 0.04 and its brightest
+  thousandth under 0.10 (as a wide screen shows the view, and as a phone held upright does:
+  about the middle third of it and no more), **more than four fifths of the sky carry no added
+  light at all** (91 percent), and **no haze lies behind a cluster** (within two sigmas of
+  each, under half a thousandth: less than a code value of the darkest navy). The haze alone
+  never adds more than 0.10, and at its brightest, the bulge, must add 0.05, so that it is
+  there (measured: 0.053, as faint as that gate lets it be; with the cream it was 0.082). As
+  measured: the first frame p95 0.027, p99.9 0.059 (with the gas, and from a view pitched
+  seven degrees lower, 0.075 and 0.153); the loudest wide view, between systems with the river
+  across it, 0.031 and 0.059. The loudest of all is the first frame on a phone, 0.039 and
+  0.059: the bulge sits in the middle of that frame, and a narrow screen shows little else of
+  the sky above the planet. **Docked, the sky is half of itself** (`exposureDocked` 0.5: the
+  view is closer and the panel wants quiet; p95 0.007),
+  and **on the star map 0.28 of itself** (rule 8: the map stays flat, and looks straight down
+  at empty sky anyway). The exposure eases over about a second; a cut under reduced motion.
+- **The stars and the haze are one picture.** The star list lays its river from the functions
+  the haze is painted with (`sim/milkyWay.ts`), and the panorama's alpha says how much of a
+  star shows at each place: less in the dark lane, for every star, whichever class laid it
+  there. (So the lane acts on a river star twice: four fifths of them are left out where it
+  runs, and one that is left there is dimmed, at the lane's middle to a ninth of its light.)
+  **The sky does not drift** (`starfield.driftRadPerSec` is 0): the stars would slide
+  off their own haze. Twinkle and the heroes' breathing are all that moves.
+- **It arrives after the first frame.** The first frame is the navy and all the stars, the
+  river among them. The panorama is then painted on the GPU a band of 64 rows a frame, and
+  when it is whole its light comes in over 0.8 s (`revealSec`); a cut under reduced motion,
+  and a cut when the engine is rebuilt in a tab that has already seen it (a lost context
+  paints the same sky again and does not replay the fade). On the desktop it was measured on,
+  the sky is whole about a quarter of a second after the first frame on every tier (with the
+  gas, whose program was far larger, 0.6 to 1.7 s). Where it cannot be painted at all, the
+  sky stays navy and stars.
+- **By tier.** One program everywhere: a tier is only the panorama's size, 2048 x 1024 on
+  high and medium, 1536 x 768 on low (not 1024 x 512: on a phone one of its texels would be 13
+  pixels wide). What the low tier gives up is in the stars: half of each class, and no mid
+  class.
+- **Not on the bloom guest list** (rule 6). The sky writes "do not bloom" like every opaque
+  thing; nothing in it depends on bloom.
+- **Still to judge** (the lab's `sky` subject: the seven views, the plain numbers of `look.sky`
+  as sliders (its tables of banks, clumps and galaxies are edited in `tuning.ts`), `rebake
+  sky`, `copy look.sky as JSON`; in flight, `?tweak` has the same): how loud
+  the haze is (`band.gain` 0.5), above all at the bulge, where it swells into a soft blue
+  glow behind the crowd of stars (`band.core.glow` 0.9; the stars themselves are
+  `starfield.bulge`): the one place where the haze is more than a faint band, and so the one
+  thing left that could still be taken for a cloud; and how loud the sky is as a whole
+  (`intensity` 0.9). **The gates leave those two knobs little room**, and whoever turns one
+  should know which gate answers: under a gain of 0.445 (or a glow of 0.68) the haze's peak
+  falls below the 0.05 that says it is there, and over a gain of 0.51 (or a glow of 0.95) the
+  first frame on a phone held upright passes 0.04, because the bulge fills it. A louder bulge
+  than that means moving it out of the middle of the first frame, or deciding that the gate
+  should move. **Known, and left as they are:** two far galaxies stand beside the HUD in
+  a first frame of 1280 x 800 (the spiral at azimuth -10 some 45 px from "About this site",
+  the one at -64 just under the Map button). The bars are placed in CSS px from the corners
+  and the sky scales with the view's height, so where a galaxy meets them differs by window;
+  no place near either is free of the heroes, the strip and the frame's edge at once. And the
+  star map's sky is nearly bare by design (`map.starOpacity` 0.2). **Not yet measured on a
+  phone:** the bake's time and its memory. Until two real phones have run it, this stays on
+  the preview.
+
+**As built: worlds with air (step 4).** A world with a sea has air now, and its day ends in a
+dusk. Everything of it is round: the day after it was first drawn, Allen asked for "the planets
+too, make everything round and smooth", so nothing of the air follows a facet.
+
+- **Which worlds.** The five globes with a sea, by name (`look.air.worlds`): home, CyberPatriot,
+  Robotics, HackGT 13 and Cal Hacks 13.0, each in the air of its biome (`color.air.<biome>`).
+  A generated planet of a biome with a sea would get its biome's air too; clay (planned work),
+  suns, the station, the satellite, the bus and the relays have none.
+- **Three bands, warm and cool.** The ground keeps its three bands of light, and on a world with
+  air the middle band is a **warm dusk** and the shade a **cool night** (`color.shading.dusk`
+  and `night`) instead of the plain shadow: the dusk at 0.6 of its full colour (`duskShare`;
+  at 1 the belt was an orange stripe and the ring road went salmon), and the night is never black: the
+  shapes of the land still read in it. A lit place seen straight on is exactly its token, as ever.
+  **What stands above the air** (the top of a tower, a ring road's far side: beyond 1.24 radii)
+  is lit as everything without air is.
+- **The limb takes the air's colour**, in three flat round steps toward the outline, strong
+  where the ball faces its light (0.62) and faint at night (0.07). It follows the ball, not the
+  mesh.
+- **The shell**: four flat rings of the air's colour outside the outline (0.50, 0.26, 0.12,
+  0.05, out to 1.3 radii), bright toward the light and a sixth of that on the night side, and a
+  **hairline** on the outline: near white toward the light, the dusk colour on the terminator,
+  nearly gone at night. One draw call for every world. Painted, like the corona, as paint over
+  the navy, so the low tier (three rings) shows the same air.
+- **Clouds** are drawn on a round skin just above the ground: flat shapes with round outlines,
+  in two levels (a thin edge, a body), stretched along the latitudes, in the world's peak colour
+  mixed a little toward its air, in the same three bands of light. Each world's are cut from its
+  own place in the noise. They turn once in about nine minutes and hold still under reduced
+  motion. One draw call for every world. **High: all five worlds; medium: home alone; low:
+  none.** (First drawn as facets of a second ball; that was a ball of triangles.)
+- **Home's lit windows.** Up close, the night side of home shows 150 small round lamps in
+  `color.window`, gathered into towns on the low land near the coasts; they are there only
+  where the ball has turned well away from its light, and on every tier. They do not bloom: a
+  window is lit, it is not a light (rule 6).
+- **Lamps on what is built** (decision D9, kept): the bus's side windows are lit panes (its
+  windshield is dark glass: a lit windshield read as a second sign), the station's four pods
+  have a lit pane each, and the station's mast, the satellite's dish and the bus's sign carry a
+  small flat **beacon**. Flat colour, no bloom.
+- **The star map stays flat** (rule 8): no shell, no clouds, no lamps, no dusk; a world is its
+  tokens.
+- **Cost**, on the desktop it was measured on (1280 x 800, uncapped): one more draw call on the
+  low tier and two on medium and high; the frame stayed at 0.1 to 0.2 ms.
+- **Still to judge in the lab** (`world` and `planet` subjects, the folder "air": any air on any
+  globe, clouds on or off and how much sky they take, windows, and the light's direction for
+  dusk and night): how strong the limb is (`look.air.limb.lit`), how wide the dusk
+  (`duskShare`), how much cloud each world wears (`worlds.<id>.cloud.share`), and whether a
+  generated planet with relief should keep its hairline (its mountains stand through it).
+  **Not yet measured on a phone.**
+
+**As built: traffic and the chart (step 5).** The orbit lines are routes now, and the star map
+has a ground.
+
+- **Traffic.** Every orbit line a ship can dock on carries **two small round dots, one going
+  each way**, in its family's light (`color.system.<family>.light`), at 7 u/s along the line
+  whatever its size, 3.4 and 2.6 CSS px across at any distance. Today that is 18 lines and 36
+  dots; the relays' ring has none of its own (nothing docks there, so nothing goes there). A
+  dot is flat paint with a rim one pixel soft: it does not bloom (rule 6), it goes behind a
+  planet it passes, and seen edge-on a far system's dots are a few beads on its line. Under
+  reduced motion they rest where they start. On the star map they ride the lines as in flight,
+  and an orbit the map has no room to draw has no dots either.
+- **The chart** is drawn only on the star map, under everything: a **grid of dots** in the
+  quietest ink, about 34 px apart at any zoom (the spacing in world units is 1, 2 or 5 times a
+  power of ten, so a dot stays where it is while the map zooms), and a **district** for each
+  system: two flat steps of its family's dim tones (`color.nebula.<family>.mid` out to 1.18 of
+  the system's reach, `lit` at its reach: paint, with no depth; these tones were first mixed
+  for the sky's gas, and the districts are what they paint now) and a
+  **dashed** ring in the family's base at the reach itself. Dashed, because a solid ring read
+  as one more orbit. It fades in and out with the map, takes no part in pointing, and the map
+  is still flat (rule 8): nothing on it is a gradient. The Projects binary is one district, in
+  its own family (sky), with Hardware's coral lines inside it.
+- **Orbit lines keep their strength** (`world.orbitLineOpacity` 0.20, `sunTrackOpacity` 0.10).
+  The stronger pair the look's verdict asked to have judged (0.26 and 0.13) was judged in the
+  lab's `orbits` subject while the sky still had gas behind the lines: over the brightest of
+  it (sky luminance 0.10 and up) a sky line's contrast against what was behind it went from
+  1.13 to 1.15 (coral 1.07 to 1.09, butter 1.20 to 1.27), which the eye does not see, while
+  over the dark sky, where the lines are in practice, every line got a tenth louder (1.46 to
+  1.60). So the lines stayed calm. Since 2026-10-03 the sky behind them is only calmer: the
+  lines lie in the horizon strip, which stays under 0.03.
+- **Different from the spec**, on purpose: a dot is a crisp disc and not a soft one (matter is
+  flat); each orbit's dots are placed from its own id, so a new project moves no other line's
+  dots; the chart is painted as the corona is, as paint over the navy, so the low tier shows
+  the same colours as the others; and a district's dashes are a whole number round its ring.
+- **Cost**: one more draw call everywhere and one more on the map; on the desktop it was
+  measured on (1280 x 800, uncapped) a frame stayed at 0.1 to 0.3 ms on every tier.
+- **Still to judge** (the lab's `orbits` subject: lines and traffic of any family over any of
+  the sky's views, at any strength; and its `chart` subject: the ground alone from above, every
+  key of `look.chart` as a slider): whether the dot grid wants the moodboard's stronger mark on
+  every fifth dot; and how busy a far system's line of beads reads in flight. (Home's
+  district was a grey plate: butter's `mid` was a blue-violet under an olive `lit`. Since
+  2026-10-03 `color.nebula.butter.mid` is a warm dark, and the plate reads as butter: 8.5
+  CIEDE2000 from the grey of its own lightness, where it was 2.0; still the quietest of the
+  five.) **Not yet looked at on a phone.**
 
 ## Accessibility bar (non-negotiable)
 

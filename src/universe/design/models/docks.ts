@@ -26,7 +26,8 @@ const paint = {
 /** A wheel station: a ring, a hub, four spokes and a mast. The wheel lies flat, axis up. */
 export function buildStation(): ModelData {
   const builder = new MeshBuilder();
-  const SIDES = 12;
+  // Round: the wheel and its hub are lit as the tubes they are, and their outlines are round.
+  const SIDES = 40;
 
   // The ring is a square tube: out along the bottom, up the outer wall, back along the top, and
   // down the inner wall (walking backwards gives the wall that faces the hub).
@@ -51,7 +52,7 @@ export function buildStation(): ModelData {
         { z: 0.28, radius: 0.2 },
         { z: 0.28, radius: 0 },
       ],
-      8,
+      20,
       [paint.dark, paint.hull, paint.accent],
     )
     .box([0.48, 0, 0], [0.58, 0.07, 0.07], paint.dark)
@@ -77,7 +78,7 @@ export function buildSatellite(): ModelData {
         { z: 0.52, radius: 0.33 },
         { z: 0.33, radius: 0 },
       ],
-      10,
+      24,
       [paint.inner, paint.hull, paint.hull],
     )
     .box([0, 0, 0.42], [0.03, 0.03, 0.3], paint.accent) // the feed horn
@@ -121,7 +122,7 @@ export function buildRelay(): ModelData {
         { z: 0.88, radius: 0.13 },
         { z: 0.97, radius: 0 },
       ],
-      10,
+      24,
       [
         paint.dark,
         paint.dark,
@@ -155,7 +156,7 @@ export function buildPlanetRing(innerToOuter: number): () => ModelData {
           { z: 0, radius: innerToOuter },
           { z: 0, radius: 1 },
         ],
-        40,
+        72,
         [white, white],
       )
       .rotateX(-Math.PI / 2)

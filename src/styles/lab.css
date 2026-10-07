@@ -46,3 +46,8 @@ body {
   line-height: 1.5;
   pointer-events: none;
 }
+
+/* `?ui=0`: only the picture (scripts/look/capture.mjs photographs the lab this way). */
+[data-lab-bare] .lab-note {
+  display: none;
+}
