@@ -8,10 +8,14 @@
 // wherever the cluster has room, flying or docked, and built as the ball is: a round plate on the
 // ball's own line, a pill over it that names, a chip under it that measures. A press on a mark is
 // pointing at that body, and a press where nothing is opens the map it is the preview of.
+//
+// Beside a page on a wide screen the view is free only BETWEEN the two columns of the page's cards
+// (cards.spec.ts): the deck's room and its middle are that part's, and a window 1280 px wide has
+// the strip there and no minimap ("beside a page's cards").
 
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
-import { expect, nameOf, openUniverse, pointAt, test, watchText } from './support';
+import { expect, nameOf, openUniverse, pointAt, softNavigate, test, watchText } from './support';
 
 const deck = (page: Page) => page.locator('.flight-deck');
 const minimap = (page: Page) => page.locator('.minimap');
@@ -30,6 +34,15 @@ const pathOf = (page: Page): string => new URL(page.url()).pathname;
 
 /** A flight takes as long as it takes: a CI machine renders on its CPU, and time stretches. */
 const FLIGHT = { timeout: 75_000 };
+
+/**
+ * A window with room for the cluster BESIDE A PAGE. On a wide screen a page's content stands on
+ * both sides of its body (the deck of cards: cards.spec.ts), and the flight deck's room is what
+ * the two columns leave between them. In the projects' own window, 1280 px wide, that is 570 px:
+ * under the 48rem the cluster asks for, so the strip and no minimap ("beside a page's cards",
+ * below). Here it is 800 px.
+ */
+const ROOMY = { width: 1600, height: 900 };
 
 interface Box {
   x: number;
@@ -184,6 +197,84 @@ async function watchJourney(page: Page): Promise<() => Promise<JourneySeen>> {
   return () => page.evaluate(() => (window as unknown as { e2eJourney: JourneySeen }).e2eJourney);
 }
 
+/** What stood where while the ship flew beside a page's cards. */
+interface Beside {
+  /** The deck's `data-layout`, and whether the prompt has stepped beside it (`data-seated`). */
+  layout: string | undefined;
+  seated: boolean;
+  deck: Box;
+  mapButton: Box;
+  prompt: Box;
+  /** The minimap, where it shows. */
+  minimap: Box | null;
+  cards: Box[];
+  /** What the page covers of the view from the left and from the right, and the view's width. */
+  left: number;
+  right: number;
+  width: number;
+}
+
+/**
+ * From now on, where the deck stands while the ship is under way BESIDE A PAGE: noted by the page
+ * itself, in the first frame in which the deck is up with a page's cards round it and nothing of
+ * them is still arriving. (A link opens its page at once and the ship flies behind it; that
+ * journey is over in a few seconds, and a machine drawing on its CPU may not look while it lasts.)
+ */
+async function watchBeside(page: Page): Promise<() => Promise<Beside | null>> {
+  await page.evaluate(() => {
+    const state = window as unknown as { e2eBeside: Beside | null };
+    state.e2eBeside = null;
+    const boxOf = (node: Element): Box => {
+      const { x, y, width, height } = node.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    const shows = (node: HTMLElement): boolean =>
+      !node.hidden && getComputedStyle(node).visibility === 'visible';
+    const look = (): void => {
+      const deck = document.querySelector<HTMLElement>('.flight-deck');
+      const minimap = document.querySelector<HTMLElement>('.minimap');
+      const mapButton = document.querySelector<HTMLElement>('.map-toggle');
+      const prompt = document.querySelector<HTMLElement>('.dock-prompt');
+      const cards = [...document.querySelectorAll('#main > [data-card]')];
+      const moving = document.getAnimations().some((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target;
+        return Boolean(target?.closest('#main, .flight-deck, .dock-prompt, .map-toggle'));
+      });
+      if (
+        deck?.hasAttribute('data-shown') &&
+        shows(deck) &&
+        minimap &&
+        mapButton &&
+        prompt &&
+        cards.length > 0 &&
+        !moving
+      ) {
+        const style = getComputedStyle(document.documentElement);
+        state.e2eBeside = {
+          layout: deck.dataset.layout,
+          seated: deck.hasAttribute('data-seated'),
+          deck: boxOf(deck),
+          mapButton: boxOf(mapButton),
+          prompt: boxOf(prompt),
+          minimap: shows(minimap) ? boxOf(minimap) : null,
+          cards: cards.map(boxOf),
+          left: Number.parseFloat(style.getPropertyValue('--panel-inset-left')),
+          right: Number.parseFloat(style.getPropertyValue('--panel-inset-right')),
+          width: innerWidth,
+        };
+        return;
+      }
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  return () => page.evaluate(() => (window as unknown as { e2eBeside: Beside | null }).e2eBeside);
+}
+
+/** Which of the cards share a pixel with this box: their places in the page's order. */
+const cardsUnder = (box: Box, cards: Box[]): number[] =>
+  cards.flatMap((card, index) => (overlap(box, card) ? [index] : []));
+
 /**
  * A finger comes down on open sky, moves and lifts: steering, not a tap (a tap may point at a
  * planet). The first touch on the sky is what brings the boost pad out. Chromium only.
@@ -287,6 +378,8 @@ test.describe('on a laptop', () => {
   test('the minimap shows the galaxy, names what a pointer aims at, and a press flies there', async ({
     page,
   }) => {
+    // (The journey ends beside a page, where the minimap stays: that takes a roomy window.)
+    await page.setViewportSize(ROOMY);
     await openUniverse(page, '/');
     await arrived(minimap(page));
     // The ship starts in open sky, between the systems: the map is fitted to all of them, the
@@ -427,6 +520,7 @@ test.describe('on a laptop', () => {
   test('docked there is no deck; leaving orbit brings it, and the prompt steps beside it', async ({
     page,
   }) => {
+    await page.setViewportSize(ROOMY);
     await openUniverse(page, '/projects/fishai/');
     await expect(prompt(page)).toContainText('Leave orbit');
     // Somebody is reading the page: no deck, and the prompt in the middle of the free view.
@@ -484,6 +578,7 @@ test.describe('on a laptop', () => {
     // Docked at the home planet, the face shows home's own system, and every other system is a
     // pin on the circle just inside its rim. The N stands on that circle too, at twelve: a pin
     // right beside it would read as one sign with it, so the N goes, and the pin stays.
+    await page.setViewportSize(ROOMY);
     await openUniverse(page, '/about/');
     await expect(prompt(page)).toContainText('Leave orbit');
     await expect(minimap(page)).toBeVisible();
@@ -526,6 +621,97 @@ test.describe('on a laptop', () => {
           .map((box) => `a pin at ${Math.round(box.left)}, ${Math.round(box.top)}`);
       }),
     ).toEqual([]);
+  });
+
+  test.describe('beside a page’s cards', () => {
+    // A page's cards stand in two columns, one on each side of its body, and the engine's layer
+    // still begins at the window's left edge. So the deck's room is what BOTH columns leave, its
+    // middle is the middle of that, and the strip begins where the left column's room ends.
+
+    test('a window 1280 px wide has room for the strip alone, and no minimap', async ({ page }) => {
+      await openUniverse(page, '/projects/fishai/');
+      await expect(prompt(page)).toContainText('Leave orbit');
+      // What the two columns leave is 570 px, under the 48rem the cluster asks for: it is the
+      // strip, which waits while somebody is reading, and there is no minimap.
+      await expect(deck(page)).toHaveAttribute('data-layout', 'strip');
+      await expect(deck(page)).toBeHidden();
+      await expect(minimap(page)).toBeHidden();
+
+      // A link: the next page's cards are up at once, and the ship flies behind them.
+      const seen = await watchBeside(page);
+      await softNavigate(page, '/systems/hackathons/');
+      await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+      const flown = await seen();
+      if (!flown) throw new Error('the deck never stood at rest beside the page');
+      expect(flown.layout).toBe('strip');
+      expect(flown.seated).toBe(false);
+      expect(flown.minimap).toBeNull();
+      // One pill in the Map button's row, which begins where the left column's room ends...
+      expect(Math.round(flown.deck.height)).toBe(44);
+      expect(Math.round(flown.deck.width)).toBe(124);
+      expect(Math.round(flown.deck.y - flown.mapButton.y)).toBe(0);
+      expect(flown.left).toBeGreaterThan(300);
+      expect(Math.abs(flown.deck.x - flown.left)).toBeLessThan(1);
+      // ...12 px or more clear of the button, which is in the middle of what the cards leave.
+      expect(flown.mapButton.x - (flown.deck.x + flown.deck.width)).toBeGreaterThanOrEqual(12);
+      // Nothing of the engine's is on a card.
+      for (const [name, box] of Object.entries({
+        strip: flown.deck,
+        prompt: flown.prompt,
+        'the Map button': flown.mapButton,
+      })) {
+        expect(cardsUnder(box, flown.cards), name).toEqual([]);
+      }
+
+      // Leaving the page gives the whole view back: the cluster, and the minimap with it.
+      await prompt(page).click();
+      await expect(page.locator('html')).toHaveAttribute('data-panel', 'closed');
+      await expect(deck(page)).toHaveAttribute('data-layout', 'full');
+      await expect(deck(page)).toBeVisible();
+      await expect(minimap(page)).toBeVisible();
+    });
+
+    test('a roomy window has the cluster in the middle of what the cards leave, and the minimap', async ({
+      page,
+    }) => {
+      await page.setViewportSize(ROOMY);
+      await openUniverse(page, '/projects/fishai/');
+      await expect(prompt(page)).toContainText('Leave orbit');
+      await expect(deck(page)).toHaveAttribute('data-layout', 'full');
+      await expect(deck(page)).toBeHidden();
+
+      const seen = await watchBeside(page);
+      await softNavigate(page, '/systems/hackathons/');
+      await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+      const flown = await seen();
+      if (!flown) throw new Error('the deck never stood at rest beside the page');
+      expect(flown.layout).toBe('full');
+      expect(flown.seated).toBe(true);
+      // The cluster's middle is the middle of the free view: between the two columns, not in
+      // the middle of the window less the right column alone.
+      expect(flown.left).toBeGreaterThan(300);
+      const middle = (flown.left + flown.width - flown.right) / 2;
+      expect(Math.abs(flown.deck.x + flown.deck.width / 2 - middle)).toBeLessThan(1.5);
+      // The prompt has stepped beside it, 12 px clear, and has not gone under the left column.
+      expect(Math.round(flown.deck.x - (flown.prompt.x + flown.prompt.width))).toBe(12);
+      expect(flown.prompt.x).toBeGreaterThanOrEqual(flown.left);
+      // The minimap is at the right of the free view, and nothing of the engine's is on a card
+      // or on another of its own.
+      if (!flown.minimap) throw new Error('no minimap beside the page');
+      const engines = {
+        cluster: flown.deck,
+        minimap: flown.minimap,
+        prompt: flown.prompt,
+        'the Map button': flown.mapButton,
+      };
+      const boxes = Object.entries(engines);
+      boxes.forEach(([name, box], i) => {
+        expect(cardsUnder(box, flown.cards), name).toEqual([]);
+        for (const [other, otherBox] of boxes.slice(i + 1)) {
+          expect(overlap(box, otherBox), `${name} and ${other}`).toBe(false);
+        }
+      });
+    });
   });
 
   test.describe('in a window too small for the cluster', () => {
