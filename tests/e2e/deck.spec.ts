@@ -785,3 +785,142 @@ test.describe('the first visit, on a phone', () => {
     await inTheMapRow(page);
   });
 });
+
+// THE MINIMAP'S TWO SIZES (the stylesheet's `--minimap-size` and `--minimap-held`): under a mouse
+// its plate is a fifth larger in flight, and while the ship is docked it holds the size it always
+// had, since the carried ship passes right above it. It eases from one to the other, and the
+// drawing on its face follows. (Under a finger it holds the smaller size always: the tablet's
+// test above stands as it was.)
+test.describe('the minimap’s two sizes', () => {
+  test.skip(({ isMobile }) => isMobile, 'the full deck, under a mouse');
+
+  /** How wide the minimap's round plate is right now, in whole px. */
+  const plateWidth = (page: Page): Promise<number> =>
+    page
+      .locator('.minimap__plate')
+      .evaluate((plate) => Math.round(plate.getBoundingClientRect().width));
+
+  /** The changes of size that are under way or waiting on the minimap: none while it rests. */
+  const sizing = (page: Page): Promise<string[]> =>
+    minimap(page).evaluate((node) =>
+      node
+        .getAnimations({ subtree: true })
+        .filter((animation): animation is CSSTransition => animation instanceof CSSTransition)
+        .map((transition) => transition.transitionProperty)
+        .filter((property) => property === 'width' || property === 'height'),
+    );
+
+  /** The face is drawn to its own size: one unit of the drawing is one CSS px. */
+  const faceDrawnAt = (page: Page): Promise<string | null> =>
+    page.locator('.minimap__map').getAttribute('viewBox');
+
+  for (const [width, height, plate] of [
+    [1280, 576, 176],
+    [1280, 800, 212],
+    [1600, 900, 220],
+  ] as const) {
+    test.describe(`in flight, ${width} by ${height}`, () => {
+      test.use({ viewport: { width, height } });
+
+      test(`the plate is ${plate} px across from the first frame, on the ball’s line`, async ({
+        page,
+      }) => {
+        await openUniverse(page, '/');
+        await expect(minimap(page)).toBeVisible();
+        // It does not grow in: it is this size when it first shows, and no change is under way.
+        expect(await plateWidth(page)).toBe(plate);
+        expect(await sizing(page)).toEqual([]);
+        await arrived(deck(page));
+        await arrived(minimap(page));
+        expect(await plateWidth(page)).toBe(plate);
+        expect(await faceDrawnAt(page)).toBe(`0 0 ${plate - 28} ${plate - 28}`);
+        // Still the ball's sibling, and still clear of everything else down there.
+        await onTheDecksLines(page);
+        expect(
+          await overlaps({
+            deck: deck(page),
+            minimap: minimap(page),
+            'the Map button': mapButton(page),
+            'the way to the plain version': plainChip(page),
+          }),
+        ).toEqual([]);
+      });
+    });
+  }
+
+  test.describe('beside a page, 1600 by 900', () => {
+    test.use({ viewport: { width: 1600, height: 900 } });
+
+    test('docked it holds the smaller size; it grows once the ship has left, and shrinks as it docks', async ({
+      page,
+    }) => {
+      await openUniverse(page, '/projects/fishai/');
+      await expect(prompt(page)).toContainText('Leave orbit');
+      await expect(minimap(page)).toBeVisible();
+      expect(await plateWidth(page)).toBe(184);
+      expect(await sizing(page)).toEqual([]);
+      expect(await faceDrawnAt(page)).toBe('0 0 156 156');
+
+      // Leaving: the deck comes, and the plate grows after it (it waits until the ship is on its
+      // way back to the middle of the view: the size is asked for, never a number of seconds).
+      await prompt(page).click();
+      await expect(deck(page)).toBeVisible();
+      await expect.poll(() => plateWidth(page)).toBe(220);
+      await expect.poll(() => sizing(page)).toEqual([]);
+      await expect.poll(() => faceDrawnAt(page)).toBe('0 0 192 192');
+      await arrived(deck(page));
+      await onTheDecksLines(page);
+
+      // And back into orbit: the plate is its smaller self again, with the drawing on it.
+      await expect(prompt(page)).toContainText('Orbit FishAI');
+      await prompt(page).click();
+      await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+      await expect.poll(() => plateWidth(page)).toBe(184);
+      await expect.poll(() => faceDrawnAt(page)).toBe('0 0 156 156');
+      expect(await overlaps({ minimap: minimap(page), prompt: prompt(page) })).toEqual([]);
+    });
+  });
+
+  // The narrowest windows that have the cluster: the larger plate comes closest to the deck there.
+  for (const [height, plate, gap] of [
+    [576, 176, 64],
+    [900, 220, 20],
+  ] as const) {
+    test.describe(`in the narrowest window with the cluster, 768 by ${height}`, () => {
+      test.use({ viewport: { width: 768, height } });
+
+      test(`nothing down there shares a pixel, and the plate keeps ${gap} px from the deck`, async ({
+        page,
+      }) => {
+        // Out of an orbit, so that the prompt is there too: "Orbit FishAI", beside the deck.
+        await openUniverse(page, '/projects/fishai/');
+        await expect(prompt(page)).toContainText('Leave orbit');
+        await prompt(page).click();
+        await expect(deck(page)).toHaveAttribute('data-layout', 'full');
+        await expect(deck(page)).toBeVisible();
+        await expect(prompt(page)).toContainText('Orbit FishAI');
+        await expect.poll(() => plateWidth(page)).toBe(plate);
+        await expect.poll(() => sizing(page)).toEqual([]);
+        // (Once the panel has gone and the prompt has slid across.)
+        await expect
+          .poll(async () => {
+            const [chip, cluster] = [await boxOf(prompt(page)), await boxOf(deck(page))];
+            return Math.round(cluster.x - (chip.x + chip.width));
+          })
+          .toBe(12);
+        expect(
+          await overlaps({
+            deck: deck(page),
+            minimap: minimap(page),
+            prompt: prompt(page),
+            'the Map button': mapButton(page),
+            'the way to the plain version': plainChip(page),
+          }),
+        ).toEqual([]);
+        const [cluster, scope] = [await boxOf(deck(page)), await boxOf(minimap(page))];
+        expect(Math.round(scope.x - (cluster.x + cluster.width))).toBe(gap);
+        await onTheDecksLines(page);
+      });
+    });
+  }
+});

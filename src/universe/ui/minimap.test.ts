@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Frame } from '../core/Engine';
 import { tuning } from '../design/tuning';
 import { boundsOf } from '../sim/mapView';
@@ -198,6 +198,7 @@ let cleanup: (() => void) | null = null;
 afterEach(() => {
   cleanup?.();
   cleanup = null;
+  vi.unstubAllGlobals();
 });
 
 function mapOn(reducedMotion = false) {
@@ -264,6 +265,87 @@ describe('the minimap, as a thing on the page', () => {
     minimap.dispose();
     expect(overlay.querySelector('.minimap')).toBeNull();
     expect(overlay.children).toHaveLength(1);
+  });
+
+  it('follows its face when the stylesheet gives it another size, without cutting the view', () => {
+    // The plate has two sizes (in flight, and docked), and the stylesheet eases between them: the
+    // face says so through a ResizeObserver, a frame at a time.
+    const watchers: { run: () => void; watched: Element[]; stopped: boolean }[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private readonly entry = {
+          run: () => this.callback(),
+          watched: [] as Element[],
+          stopped: false,
+        };
+        constructor(private readonly callback: () => void) {
+          watchers.push(this.entry);
+        }
+        observe(target: Element): void {
+          this.entry.watched.push(target);
+        }
+        disconnect(): void {
+          this.entry.stopped = true;
+        }
+      },
+    );
+    const { minimap, root, enter, settle, draw, at } = mapOn();
+    const map = root.querySelector('.minimap__map') as SVGElement;
+    const [watcher] = watchers;
+    expect(watchers).toHaveLength(1);
+    expect(watcher?.watched).toEqual([map]);
+    expect(map.getAttribute('viewBox')).toBe('0 0 120 120');
+
+    // In flight, in the galaxy's scope, the plate grows: the drawing is the new size at once,
+    // every mark is in place again with the very next frame, and the ship in the middle of it.
+    let size = 184;
+    map.getBoundingClientRect = () => ({ left: 14, top: 27, width: size, height: size }) as DOMRect;
+    root.getBoundingClientRect = () =>
+      ({ left: 1068, top: 576, width: size + 28, height: size + 52 }) as DOMRect;
+    const before = at(SUN);
+    watcher?.run();
+    expect(map.getAttribute('viewBox')).toBe('0 0 184 184');
+    expect(at(SUN)).toEqual(before);
+    draw(STEP);
+    expect(at(SUN)).not.toEqual(before);
+    // The names in the sky are told where it is from the page itself, whatever its size.
+    expect(minimap.box()).toEqual({ left: 1068, top: 576, width: 212, height: 236 });
+    // (Told the same size again, it writes nothing.)
+    const viewBox = map.getAttribute('viewBox');
+    watcher?.run();
+    expect(map.getAttribute('viewBox')).toBe(viewBox);
+
+    // The ship arrives in a system and is docked there while the view still eases to its scope:
+    // the plate shrinks under it, a frame at a time, and the ease carries on. (A cut would have
+    // the sun in the middle of the face, where the ease ends, with the first of those frames.)
+    settle();
+    enter(1);
+    draw(STEP);
+    for (size = 183; size >= 180; size -= 1) {
+      watcher?.run();
+      draw(STEP);
+    }
+    expect(map.getAttribute('viewBox')).toBe('0 0 180 180');
+    const onTheWay = at(SUN);
+    settle();
+    const [restX, restY] = at(SUN);
+    expect(Math.hypot(onTheWay[0] - restX, onTheWay[1] - restY)).toBeGreaterThan(10);
+    expect(restX).toBeCloseTo(90, 0);
+    expect(restY).toBeCloseTo(90, 0);
+
+    cleanup?.();
+    cleanup = null;
+    expect(watcher?.stopped).toBe(true);
+  });
+
+  it('does without a watcher where there is none to be had', () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const { minimap, root, draw } = setup();
+    minimap.resize();
+    draw();
+    expect(root.querySelector('.minimap__map')?.getAttribute('viewBox')).toBe('0 0 120 120');
+    expect(() => minimap.dispose()).not.toThrow();
   });
 });
 

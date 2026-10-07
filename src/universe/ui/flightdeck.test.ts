@@ -240,6 +240,31 @@ describe('when the deck shows', () => {
     expect(root.hasAttribute('data-shown')).toBe(true);
     expect(root.hasAttribute('data-seated')).toBe(false);
   });
+
+  it('says while the ship is docked, map or no map: the minimap beside it holds its size by that', () => {
+    const { root, navigator, world, draw } = deckOn();
+    draw();
+    expect(root.hasAttribute('data-docked')).toBe(false);
+    // On the map the deck is away, and the ship is no more docked for it.
+    world.map = true;
+    draw();
+    expect(root.hasAttribute('data-shown')).toBe(false);
+    expect(root.hasAttribute('data-docked')).toBe(false);
+    for (const mode of ['autopilot', 'approach'] as const) {
+      navigator.state = { mode, target: 'project/fishai' };
+      draw();
+      expect(root.hasAttribute('data-docked'), mode).toBe(false);
+    }
+    navigator.state = { mode: 'docked', target: 'project/fishai' };
+    draw();
+    expect(root.hasAttribute('data-docked')).toBe(true);
+    world.map = false;
+    draw();
+    expect(root.hasAttribute('data-docked')).toBe(true);
+    navigator.state = { mode: 'flight', target: null };
+    draw();
+    expect(root.hasAttribute('data-docked')).toBe(false);
+  });
 });
 
 describe('the lamps', () => {

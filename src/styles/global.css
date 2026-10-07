@@ -1883,10 +1883,14 @@ main > .resume-name + .resume-contact {
     --deck-half: 7.5rem;
     --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
     --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
-    /* The minimap's round plate (universe/ui/MiniMap.ts), by the view's height too: 148 px across
-       in a view up to 672 px tall, 176 at 800, 184 from 837 up. Its face is 28 px less
-       (tests/minimap-galaxy.test.ts reads this line, and fits every galaxy to both ends of it). */
-    --minimap-size: clamp(9.25rem, 22svh, 11.5rem);
+    /* The minimap's round plate (universe/ui/MiniMap.ts), by the view's height too, in two
+       sizes. IN FLIGHT under a mouse: 176 px across in a view up to 664 px tall, 212 at 800, 220
+       from 830 up. HELD (docked, and always under a finger: the minimap's own rules say when):
+       148 px up to 672 px tall, 176 at 800, 184 from 837 up. Its face is 28 px less
+       (tests/minimap-galaxy.test.ts reads both lines, and fits every galaxy to the smallest face
+       and to the largest). */
+    --minimap-size: clamp(11rem, 26.5svh, 13.75rem);
+    --minimap-held: clamp(9.25rem, 22svh, 11.5rem);
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
@@ -3469,7 +3473,11 @@ main > .resume-name + .resume-contact {
     border-radius: 50%;
     background: var(--hud);
     box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
-    transition: border-color var(--motion-fast) var(--motion-ease-out);
+    /* (Its size eases with the instrument's: "its two sizes", at the end of this section.) */
+    transition:
+      border-color var(--motion-fast) var(--motion-ease-out),
+      width var(--motion-slow) var(--motion-ease-out) var(--minimap-wait),
+      height var(--motion-slow) var(--motion-ease-out) var(--minimap-wait);
   }
 
   @media (hover: hover) {
@@ -3875,6 +3883,44 @@ main > .resume-name + .resume-contact {
 
   .minimap__range b + small {
     margin-left: -0.1875rem;
+  }
+
+  /*
+   * ITS TWO SIZES (--minimap-size and --minimap-held, at the top of this section's variables).
+   * In flight, under a mouse, the plate is a fifth larger, so that the marks of a system stand
+   * further apart. It HOLDS the smaller size while the ship is docked (`data-docked` on the deck,
+   * which comes before the minimap in the overlay): the carried ship passes right above this
+   * corner on every turn round its body, at a distance that was measured for that size
+   * (docs/PLAN.md, "the minimap as a scope"). And under a finger it holds it always: there it
+   * stands above the boost pad, in the thumb's reach.
+   *
+   * It eases from one size to the other: at once when it shrinks (the ship is taken into orbit,
+   * and the view turns to its body over the next second), after a wait when it grows (the ship
+   * has left, and the chase view must have it on its way back to the middle first). The wait is
+   * a number of its own, so that the rule that says WHEN names no transition, and the rule that
+   * stills the deck and the minimap for a visitor who asked for less motion outweighs the two
+   * that do. Only while it shows: brought back by the map closing, it simply is the size it is.
+   * The engine draws to the face as it changes size (ui/MiniMap.ts watches it).
+   */
+  .minimap {
+    --minimap-wait: var(--motion-slow);
+  }
+
+  .flight-deck[data-docked] ~ .minimap {
+    --minimap-size: var(--minimap-held);
+    --minimap-wait: 0s;
+  }
+
+  @media (pointer: coarse) {
+    .minimap {
+      --minimap-size: var(--minimap-held);
+    }
+  }
+
+  .minimap[data-shown] {
+    transition:
+      width var(--motion-slow) var(--motion-ease-out) var(--minimap-wait),
+      height var(--motion-slow) var(--motion-ease-out) var(--minimap-wait);
   }
 
   /* Forced colours: the plate and the face are the page's ground, the marks its text, and what

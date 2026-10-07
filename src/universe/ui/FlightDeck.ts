@@ -134,6 +134,8 @@ function rimmed(tag: string, name: string, value: string, parent: Element): void
  *   data-layout   full | strip | off
  *   data-shown    the ship is under way and the sky is in view: it fades in and out by this
  *   data-seated   shown, at full size: the prompt steps beside it, the how-to-fly card above it
+ *   data-docked   the ship is carried round a body, whatever shows: the minimap, which comes
+ *                 after the deck in the overlay, keeps its smaller size by it
  *   data-theme    the family of the system the ship is in (the horizon wears it)
  *   data-warp     0 to 3 chevrons     data-boost, data-peg    the arcs' two lights
  *
@@ -291,9 +293,11 @@ export class FlightDeck implements System {
 
   frameUpdate(frame: Frame): void {
     const { navigator, mapOpen, ship } = this.options;
-    const shown = deckShows(navigator.state.mode === 'docked', mapOpen());
+    const docked = navigator.state.mode === 'docked';
+    const shown = deckShows(docked, mapOpen());
     flag(this.root, 'data-shown', shown);
     flag(this.root, 'data-seated', shown && this.layout === 'full');
+    flag(this.root, 'data-docked', docked);
     this.drawn = shown && !this.root.hidden;
     if (!this.drawn) {
       this.awake = false;
