@@ -3,6 +3,7 @@ import type { Frame, System, Viewport } from '../core/Engine';
 import type { QualityTier } from '../core/quality/tiers';
 import { Scope } from '../core/scope';
 import {
+  HYPER_FAMILY_TINT,
   HYPER_TINT_SHARES,
   createHyperDashMaterial,
   createHyperTubeMaterial,
@@ -50,11 +51,9 @@ export interface HyperViewParams extends HyperLookParams {
   readonly dashWidthPx: number;
 }
 
-/** Where a journey is headed: where that body is this frame, and the family it wears. */
+/** Where a journey is headed: which body, and the family it wears. */
 export interface HyperTarget {
   readonly id: string;
-  readonly x: number;
-  readonly z: number;
   readonly theme: ThemeKey | undefined;
 }
 
@@ -87,6 +86,13 @@ const RATE: readonly [slowest: number, fastest: number] = [0.6, 1.4];
  * squared), so that a few bright dashes are the picture and the rest are its grain.
  */
 const BRIGHTNESS_MIN = 0.2;
+/**
+ * A dash in a family's colour is never that dim, and as often bright as not: a pastel at a fifth
+ * of itself over navy is a grey, and the colours are what a jump is told by.
+ */
+const COLOUR_MIN = 0.5;
+/** rad. How far off the course the ring is at its widest: past the corner of any screen. */
+const RING_REACH = 1.3;
 /** A dash's four corners: which end (-1 the tail, +1 the head) and which side. */
 const CORNERS = [-1, -1, 1, -1, 1, 1, -1, 1] as const;
 /** u/s. Slower than this the ship has no course to speak of: the tunnel is where it points. */
@@ -98,7 +104,7 @@ const FLOW_AT_REST = 0.35;
 
 /**
  * The dashes' buffers, the same for the same count on every visit (seeded): for each dash a ray
- * round the course, a phase along it, a brightness, a pace and one of five tints; four vertices a
+ * round the course, a phase along it, a brightness, a pace and one of the tints; four vertices a
  * dash, two triangles, indices in 16 bits. (design/shaders/hyperspace.ts says what the shader makes of it.)
  */
 export function dashBuffers(count: number): {
@@ -117,7 +123,11 @@ export function dashBuffers(count: number): {
     const phase = rng();
     const rate = RATE[0] + (RATE[1] - RATE[0]) * rng();
     const tint = pickWeighted(rng, tints);
-    const brightness = BRIGHTNESS_MIN + (1 - BRIGHTNESS_MIN) * rng() ** 2;
+    const draw = rng();
+    const brightness =
+      tint < HYPER_FAMILY_TINT
+        ? BRIGHTNESS_MIN + (1 - BRIGHTNESS_MIN) * draw * draw
+        : COLOUR_MIN + (1 - COLOUR_MIN) * draw;
     for (let corner = 0; corner < 4; corner += 1) {
       const v = i * 4 + corner;
       position[v * 3] = angle;
@@ -135,19 +145,22 @@ export function dashBuffers(count: number): {
 
 /**
  * HYPERSPACE, AS IT LOOKS. A journey's fast stretch is shown as a jump: dots over the stars
- * stretch into dashes that point away from where the ship is going, a tunnel ribbed in the
- * destination's colour opens round that spot, and both go again before the ship arrives. The
- * flight is untouched: this only READS the dock's two fields (sim/hyper.ts) and the ship's pose,
- * and what it shows is decided by one pure function, `hyperLook`. `look` is that frame's answer,
- * for whoever else wears it: the stars (main.ts), the lens (camera/ChaseCam.ts), the flame.
+ * stretch into dashes that point away from where the ship is going, half of them in the galaxy's
+ * pastels with the destination's in the lead, a tunnel ribbed in that colour opens round the
+ * spot, and both go again before the ship arrives. The flight is untouched: this only READS the
+ * dock's two fields (sim/hyper.ts) and the ship's pose, and what it shows is decided by one pure
+ * function, `hyperLook`. `look` is that frame's answer, for whoever else wears it: the stars
+ * (main.ts), the lens (camera/ChaseCam.ts), the flame.
  *
  * Two draw calls while it shows and none otherwise, both sky (design/shaders/hyperspace.ts).
- * Not built at all for a visitor who asked for less motion. Add it AFTER the galaxy (it asks
- * where the destination is this frame) and BEFORE the camera rig.
+ * Not built at all for a visitor who asked for less motion. Add it BEFORE the camera rig, whose
+ * lens follows it.
  *
- * It keeps three things of its own, none of which a rebuilt engine misses: how far the picture
- * has streamed, what it last showed, and when: any way out of a wind-up or a tunnel (arriving,
- * Stop, the controls, another destination) the picture goes in the same `dropoutSec`.
+ * What it keeps of its own, a rebuilt engine does not miss: how far the picture has streamed,
+ * what it last showed, and when. Any way out of a wind-up or a tunnel (arriving, Stop, the
+ * controls, another destination) the picture goes in the same `dropoutSec`; and a jump taken
+ * while the last one is still going does not cut that short: it goes on going, under the new one
+ * (`under`).
  */
 export class Hyperspace implements System {
   readonly object = new Group();
@@ -171,6 +184,14 @@ export class Hyperspace implements System {
   };
   /** The simulation time of the last frame a wind-up or a tunnel showed. */
   private lastOn = Number.NEGATIVE_INFINITY;
+  /** The jump before this one, where it was still on its way out when this one was taken. */
+  private readonly under: LookAt & { level: HyperLook } = {
+    ...this.at,
+    stage: LOOK_DROPOUT,
+    level: createHyperLook(),
+  };
+  private underFrom = Number.NEGATIVE_INFINITY;
+  private readonly rest = createHyperLook();
   private flow = 0;
   private readonly course = new Vector3(0, 0, 1);
   private readonly want = new Vector3();
@@ -213,7 +234,7 @@ export class Hyperspace implements System {
 
   frameUpdate(frame: Frame): void {
     const { dock, ship } = this.options;
-    const { at, params, raw, shown } = this;
+    const { at, params, raw, shown, under } = this;
     // The exact time of this frame: between the last two simulation steps.
     const behind = (1 - frame.alpha) / tuning.loop.stepHz;
     const now = frame.simTime - behind;
@@ -223,6 +244,11 @@ export class Hyperspace implements System {
     if (on) {
       // A new jump streams from the start (and a number that only grew would lose its digits).
       if (fresh) this.flow = 0;
+      else if (at.stage === LOOK_DROPOUT) {
+        copyHyperLook(this.level, under.level);
+        under.fromTunnel = at.fromTunnel;
+        this.underFrom = this.lastOn;
+      }
       at.stage = dock.hyper === HYPER_TUNNEL ? LOOK_TUNNEL : LOOK_WINDUP;
       at.seconds = Math.max(0, dock.hyperSec - behind);
       at.fromTunnel = at.stage === LOOK_TUNNEL;
@@ -234,7 +260,21 @@ export class Hyperspace implements System {
     at.speed = ship.speed;
     at.topSpeed = tuning.cruise.far.cruiseSpeed;
     hyperLook(at, params, raw);
-    if (on) copyHyperLook(raw, this.level);
+    if (on) {
+      // The jump before this one, while it is still going. (Never one from the future: the lab
+      // holds a jump at any moment, and puts its clock back to do it.)
+      under.seconds = now - this.underFrom;
+      if (under.seconds >= 0 && under.seconds < params.dropoutSec) {
+        const { rest } = this;
+        hyperLook(under, params, rest);
+        raw.stretch = Math.max(raw.stretch, rest.stretch);
+        raw.dots = Math.max(raw.dots, rest.dots);
+        raw.veil = Math.max(raw.veil, rest.veil);
+        raw.calm = Math.max(raw.calm, rest.calm);
+        raw.drop = rest.drop;
+      }
+      copyHyperLook(raw, this.level);
+    }
 
     const clear = 1 - clamp(this.options.mapWeight(), 0, 1);
     shown.stretch = raw.stretch * clear;
@@ -278,10 +318,6 @@ export class Hyperspace implements System {
       // A field of its own for every destination.
       dashes.uTwist.value = (hashSeed(target.id) % 4096) / 64;
     }
-    if (target && target.id === this.dressed) {
-      want.set(target.x - ship.position.x, 0, target.z - ship.position.z);
-      if (want.lengthSq() > 1e-6) tube.uTarget.value.copy(want.normalize());
-    }
 
     if (at.stage === LOOK_TUNNEL) {
       const pace = FLOW_AT_REST + (1 - FLOW_AT_REST) * Math.min(1, at.speed / at.topSpeed);
@@ -289,13 +325,18 @@ export class Hyperspace implements System {
     }
     tube.uFlow.value = this.flow;
     tube.uOpen.value = shown.veil;
-    tube.uPunch.value = shown.punch;
-    tube.uDrop.value = shown.drop;
-    // The punch ring fades as it races out; the drop ring holds, and goes as it closes.
-    tube.uRingAlpha.value.set(
-      params.ringAlpha * clear * (1 - Math.max(0, shown.punch)),
-      params.ringAlpha * clear * (1 - Math.max(0, shown.drop) ** 2),
-    );
+    // The ring, round the course like the tunnel: out from the eye as the tunnel opens, fading as
+    // it goes; back onto the eye as the tunnel closes, all but unseen while it is wide (the square)
+    // and gone as it gets there. (Never one sweep of cream across the whole view.)
+    const { punch, drop } = shown;
+    const ring = params.ringAlpha * clear;
+    if (punch >= 0) tube.uRing.value.set(punch * RING_REACH, ring * (1 - punch));
+    else if (drop >= 0) {
+      tube.uRing.value.set(
+        (1 - drop) * RING_REACH,
+        ring * drop * drop * Math.min(1, 6 * (1 - drop)),
+      );
+    } else tube.uRing.value.set(0, 0);
     tube.uBands.value = params.bands;
     tube.uEye.value = params.eyeRad;
     tube.uWash.value.set(params.wash[0], params.wash[1]);

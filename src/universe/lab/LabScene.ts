@@ -277,7 +277,7 @@ class Turntable implements System {
     view: Hyperspace;
     dock: { hyper: Hyper; hyperSec: number };
     ship: { position: Vector3; velocity: Vector3; heading: number; speed: number };
-    target: { id: string; x: number; z: number; theme: ThemeKey };
+    target: { id: string; theme: ThemeKey };
     /** The turntable as it was, to give back. */
     was: { fov: number; turnRate: number };
   } | null = null;
@@ -446,7 +446,7 @@ class Turntable implements System {
   private showJump(): void {
     const dock = { hyper: HYPER_SPENT as Hyper, hyperSec: 0 };
     const ship = { position: new Vector3(), velocity: new Vector3(), heading: 0, speed: 0 };
-    const target = { id: '', x: 0, z: 1000, theme: this.state.theme };
+    const target = { id: '', theme: this.state.theme };
     const view = new Hyperspace({
       dock,
       ship,

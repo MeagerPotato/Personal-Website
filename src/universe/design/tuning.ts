@@ -286,7 +286,7 @@ export const tuning = {
     /** The real stars dim to this share of themselves in the tunnel: the dashes are the stars. */
     starOpacity: 0.15,
     /** How many dashes there are, by quality tier: four vertices each, one draw call. */
-    dashes: { high: 1400, medium: 900, low: 500 },
+    dashes: { high: 1400, medium: 900, low: 700 },
     /** rad. The dark eye of the tunnel, where the ship is going: the destination grows out of it. */
     eyeRad: 0.1,
     /** The tunnel's wash, navy for every destination (materials.ts): its alpha, on every other band. */

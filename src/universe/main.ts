@@ -241,14 +241,10 @@ export function boot(
   });
 
   // HYPERSPACE (world/Hyperspace.ts): how a journey's fast stretch looks. Nothing of it flies
-  // the ship. After the galaxy, which knows where the destination is this frame, and before the
-  // rig, whose lens follows it. A visitor who asked for less motion has none of it.
-  const headed: { id: string; x: number; z: number; theme: ThemeKey | undefined } = {
-    id: '',
-    x: 0,
-    z: 0,
-    theme: undefined,
-  };
+  // the ship. Before the rig, whose lens follows it. (It asks which body the ship is headed for,
+  // for its family's colours, and never where that body is: the tunnel is round the course.) A
+  // visitor who asked for less motion has none of it.
+  const headed: { id: string; theme: ThemeKey | undefined } = { id: '', theme: undefined };
   if (!reducedMotion) {
     hyperspace = engine.add(
       new Hyperspace({
@@ -259,8 +255,6 @@ export function boot(
           const id = surroundings.orbits.ids[row];
           if (id === undefined) return null;
           headed.id = id;
-          headed.x = galaxy.positions[row * 2] ?? 0;
-          headed.z = galaxy.positions[row * 2 + 1] ?? 0;
           headed.theme = families.get(id);
           return headed;
         },

@@ -1,11 +1,12 @@
 import { Group, Vector3, type Mesh, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  HYPER_FAMILY_TINT,
   HYPER_TINT_SHARES,
   type HyperDashMaterial,
   type HyperTubeMaterial,
 } from '../design/materials';
-import { tokens, type ThemeKey } from '../design/tokens';
+import { THEME_KEYS, tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { hexToLinear } from '../sim/color';
 import {
@@ -44,7 +45,7 @@ function setup(over: { dashes?: number; ribs?: boolean } = {}) {
     heading: 0,
     speed: 600,
   };
-  const target = { id: 'project/fishai', x: 0, z: 2000, theme: 'coral' as ThemeKey | undefined };
+  const target = { id: 'project/fishai', theme: 'coral' as ThemeKey | undefined };
   const world = { headed: true, map: 0, fov: 55 };
   const camera = {
     get fov() {
@@ -114,7 +115,7 @@ describe('the dashes of hyperspace', () => {
   it('give every dash a ray, a phase, a brightness, a pace and a tint, the same at its four corners', () => {
     const count = 1400;
     const { position, dash } = dashBuffers(count);
-    const tints = [0, 0, 0, 0, 0];
+    const tints = HYPER_TINT_SHARES.map(() => 0);
     const corners = new Set<string>();
     for (let i = 0; i < count; i += 1) {
       const at = (corner: number, k: number): number => position[(i * 4 + corner) * 3 + k] ?? NaN;
@@ -124,7 +125,8 @@ describe('the dashes of hyperspace', () => {
       expect(at(0, 0)).toBeLessThan(2 * Math.PI);
       expect(at(0, 1)).toBeGreaterThanOrEqual(0);
       expect(at(0, 1)).toBeLessThan(1);
-      expect(at(0, 2)).toBeGreaterThanOrEqual(0.2);
+      // A dash in a family's colour is never dim: a pastel at a fifth of itself is a grey.
+      expect(at(0, 2)).toBeGreaterThanOrEqual(of(0, 3) < HYPER_FAMILY_TINT ? 0.2 : 0.5);
       expect(at(0, 2)).toBeLessThanOrEqual(1);
       expect(of(0, 2)).toBeGreaterThanOrEqual(0.6);
       expect(of(0, 2)).toBeLessThanOrEqual(1.4);
@@ -137,7 +139,7 @@ describe('the dashes of hyperspace', () => {
     }
     // The tail and the head, on either side.
     expect([...corners].sort()).toEqual(['-1,-1', '-1,1', '1,-1', '1,1']);
-    // Mostly the stars' own white, the family's two colours the fewest.
+    // Half starlight and half the families' colours, the destination's own in the lead.
     tints.forEach((n, tint) => {
       expect(n / count, `tint ${tint}`).toBeCloseTo(HYPER_TINT_SHARES[tint] ?? NaN, 1);
     });
@@ -151,7 +153,7 @@ describe('hyperspace, drawn', () => {
     expect(drawCalls(h.view.object)).toBe(2);
     expect(h.tube.material.uniforms.uOpen.value).toBe(0);
     expect(h.dashes.material.uniforms.uAlpha.value).toBe(0);
-    expect(h.tube.material.uniforms.uPunch.value).toBe(-1);
+    expect(h.tube.material.uniforms.uRing.value.toArray()).toEqual([0, 0]);
 
     h.frame();
     expect(h.view.object.visible).toBe(false);
@@ -207,10 +209,11 @@ describe('hyperspace, drawn', () => {
 
     h.become(HYPER_TUNNEL);
     h.frame();
-    // The punch: its ring is on its way, strongest at the start.
-    const ring = h.tube.material.uniforms.uRingAlpha.value;
-    expect(h.tube.material.uniforms.uPunch.value).toBeGreaterThan(0);
-    expect(ring.x).toBeGreaterThan(0.8 * P.ringAlpha);
+    // The punch: its ring is on its way out from the eye, strongest at the start.
+    const ring = h.tube.material.uniforms.uRing.value;
+    expect(ring.x).toBeGreaterThan(0);
+    expect(ring.x).toBeLessThan(P.eyeRad);
+    expect(ring.y).toBeGreaterThan(0.8 * P.ringAlpha);
     expect(h.view.look.surge).toBe(1);
     h.run(1);
     expect(h.view.look).toEqual({
@@ -223,7 +226,7 @@ describe('hyperspace, drawn', () => {
       drop: -1,
     });
     expect(h.tube.material.uniforms.uOpen.value).toBe(1);
-    expect(h.tube.material.uniforms.uPunch.value).toBe(-1);
+    expect(ring.toArray()).toEqual([0, 0]);
     // What tuning says of the tunnel reaches it every frame (the dev panel's sliders).
     expect(h.tube.material.uniforms.uBands.value).toBe(P.bands);
     expect(h.tube.material.uniforms.uEye.value).toBe(P.eyeRad);
@@ -329,44 +332,36 @@ describe('hyperspace, drawn', () => {
     const close = (hex: string): number[] =>
       hexToLinear(hex).map((value) => expect.closeTo(value, 6) as number);
     const { coral, mint } = tokens.color.system;
+    const others = (theme: ThemeKey): string[] =>
+      THEME_KEYS.filter((key) => key !== theme).map((key) => tokens.color.system[key].base);
+    const tints = (): number[][] =>
+      h.dashes.material.uniforms.uTint.value.map((tint) => tint.toArray());
+    const { white, cool, warm } = tokens.color.star;
     // The family is in the lines; the walls are deep space's navy whatever the family.
     expect(line()).toEqual(close(coral.base));
     expect(wash()).toEqual(close(tokens.color.space[700]));
-    const tints = h.dashes.material.uniforms.uTint.value.map((tint) => tint.toArray());
-    expect(tints).toEqual(
-      [
-        tokens.color.star.white,
-        tokens.color.star.cool,
-        tokens.color.star.warm,
-        coral.light,
-        coral.base,
-      ].map(close),
-    );
-    // The ring will close onto where the destination is.
-    expect(h.tube.material.uniforms.uTarget.value.toArray()).toEqual([0, 0, 1]);
+    // Among the dashes it leads the colours, and the other families follow.
+    expect(tints()).toEqual([white, cool, warm, coral.base, ...others('coral')].map(close));
     const twist = h.dashes.material.uniforms.uTwist.value;
 
     // Another destination while the jump lasts (the simulation ends the old one, and a visitor
     // who presses again is in the next): dressed again, a field of its own.
     h.target.id = 'system/research';
     h.target.theme = 'mint';
-    h.target.x = 2000;
-    h.target.z = 0;
     h.frame();
     expect(line()).toEqual(close(mint.base));
     expect(wash()).toEqual(close(tokens.color.space[700]));
+    expect(tints()).toEqual([white, cool, warm, mint.base, ...others('mint')].map(close));
     expect(h.dashes.material.uniforms.uTwist.value).not.toBe(twist);
-    expect(h.tube.material.uniforms.uTarget.value.x).toBeCloseTo(1, 9);
 
     // On its way out it keeps what it wore, whatever the ship is told next, or nothing at all.
     h.become(HYPER_NONE);
     h.target.id = 'page/about';
     h.target.theme = 'butter';
-    h.target.z = -500;
     h.frame();
     expect(h.view.object.visible).toBe(true);
     expect(line()).toEqual(close(mint.base));
-    expect(h.tube.material.uniforms.uTarget.value.x).toBeCloseTo(1, 9);
+    expect(tints()[HYPER_FAMILY_TINT]).toEqual(close(mint.base));
     h.world.headed = false;
     h.frame();
     expect(line()).toEqual(close(mint.base));
@@ -416,6 +411,120 @@ describe('hyperspace, drawn', () => {
         });
       }
     }
+  });
+
+  it('closes the tunnel with a ring round the course: faint while it is wide, gone as it gets to the eye', () => {
+    const h = setup();
+    h.idle();
+    h.become(HYPER_TUNNEL);
+    h.run(1);
+    const ring = h.tube.material.uniforms.uRing.value;
+    h.become(HYPER_SPENT);
+    h.frame();
+    // It begins past the corner of any screen, and all but unseen: never a sweep across the view.
+    expect(ring.x).toBeGreaterThan(1);
+    expect(ring.y).toBeLessThan(0.15 * P.ringAlpha);
+    let last = ring.x;
+    let most = 0;
+    let mostAt = Number.NaN;
+    let frames = 1;
+    for (; h.view.look.drop >= 0; frames += 1) {
+      h.frame();
+      if (h.view.look.drop < 0) break;
+      // Inward, every frame.
+      expect(ring.x).toBeLessThan(last);
+      last = ring.x;
+      if (ring.y > most) [most, mostAt] = [ring.y, ring.x];
+    }
+    // At its clearest when it is small, round the eye; and it is gone before the dots are.
+    expect(mostAt).toBeLessThan(0.35);
+    expect(most).toBeGreaterThan(0.5 * P.ringAlpha);
+    expect(most).toBeLessThanOrEqual(P.ringAlpha);
+    expect(last).toBeLessThan(P.eyeRad);
+    expect(frames * STEP).toBeLessThan(P.dropoutSec);
+    expect(h.view.object.visible).toBe(true);
+    expect(ring.toArray()).toEqual([0, 0]);
+  });
+
+  it('does not cut a picture that is still going when the next jump is taken', () => {
+    // Twins: a jump ends (another destination was picked in the tunnel); one of the two takes
+    // the next journey's jump a tenth of a second later, while the picture is still going.
+    const again = setup();
+    const gone = setup();
+    for (const h of [again, gone]) {
+      h.idle();
+      h.become(HYPER_TUNNEL);
+      h.run(1);
+      h.become(HYPER_NONE);
+      h.run(0.1);
+    }
+    expect(gone.view.look.dots).toBe(1);
+    expect(gone.view.look.stretch).toBeGreaterThan(0.5);
+    const flow = again.dashes.material.uniforms.uFlow.value;
+    again.become(HYPER_WINDUP);
+    const parts = ['stretch', 'dots', 'veil', 'calm'] as const;
+    for (let k = 0; gone.view.object.visible; k += 1) {
+      again.frame();
+      gone.frame();
+      const wound = Math.min(1, ((k + 1) * STEP) / P.windupSec);
+      for (const part of parts) {
+        // Never less than what was going.
+        expect(again.view.look[part], `${part} ${k}`).toBeGreaterThanOrEqual(gone.view.look[part]);
+      }
+      // Nor less than the wind-up alone.
+      expect(again.view.look.veil, `veil ${k}`).toBeGreaterThanOrEqual(0.15 * wound - 1e-12);
+      // The ring that was closing goes on closing.
+      expect(again.view.look.drop, `ring ${k}`).toBe(gone.view.look.drop);
+      if (k === 0) {
+        // The first frame of it is the picture that was there: no dash moved, none went out.
+        for (const part of parts) {
+          expect(again.view.look[part], part).toBeCloseTo(gone.view.look[part], 2);
+        }
+        expect(again.dashes.material.uniforms.uFlow.value).toBe(flow);
+        expect(again.view.look.stretch).toBeGreaterThan(0.5);
+      }
+    }
+    // Once the old one has gone it is the wind-up alone, where it would have been anyway.
+    again.frame();
+    const alone = setup();
+    alone.idle();
+    alone.become(HYPER_WINDUP);
+    alone.run(again.dock.hyperSec);
+    for (const part of [...parts, 'surge', 'punch', 'drop'] as const) {
+      expect(again.view.look[part], part).toBeCloseTo(alone.view.look[part], 9);
+    }
+    // And it streams on from where it stood: a second jump is not a new field.
+    again.become(HYPER_TUNNEL);
+    again.frame();
+    expect(again.dashes.material.uniforms.uFlow.value).toBeGreaterThan(flow);
+  });
+
+  it('shows no picture from the future when the clock is put back, as the lab does', () => {
+    // The lab holds a jump at any moment of it: its slider is the simulation time, and goes
+    // back as well as on. Held half way out, then put back into the wind-up.
+    const tunnelEnds = 1.95;
+    const hold = (h: ReturnType<typeof setup>, seconds: number): void => {
+      const wound = seconds >= P.windupSec;
+      h.dock.hyper = !wound ? HYPER_WINDUP : seconds < tunnelEnds ? HYPER_TUNNEL : HYPER_SPENT;
+      h.dock.hyperSec = wound ? seconds - P.windupSec : seconds;
+      h.view.frameUpdate({ elapsed: 0, dt: STEP, alpha: 1, simTime: seconds });
+    };
+    const held = setup();
+    const first = setup();
+    for (const h of [held, first]) h.idle();
+    hold(held, tunnelEnds - STEP);
+    hold(held, tunnelEnds + 0.5 * P.dropoutSec);
+    expect(held.view.look.drop).toBeGreaterThan(0);
+    expect(held.view.look.stretch).toBeGreaterThan(0.1);
+    // The wind-up, as a jump that has only just been taken shows it: nothing of the tunnel.
+    hold(held, 0.3);
+    hold(first, 0.3);
+    expect(held.view.look).toEqual(first.view.look);
+    expect(held.view.look.veil).toBeLessThan(0.2);
+    expect(held.view.look.drop).toBe(-1);
+    // And held there, it stays that.
+    hold(held, 0.3);
+    expect(held.view.look).toEqual(first.view.look);
   });
 
   it('is hidden by the star map, as much as the map is there', () => {

@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import {
   DECAL_ATTRIBUTE,
+  HYPER_FAMILY_TINT,
   HYPER_TINT_SHARES,
   UNLIT_ATTRIBUTE,
   createEdgeMaterial,
@@ -22,7 +23,7 @@ import {
 } from './materials';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
-import { DASH_SPAN, hyperDashes, hyperTube } from './shaders/hyperspace';
+import { DASH_SPAN, DASH_TINTS, hyperDashes, hyperTube } from './shaders/hyperspace';
 import { toonFlat } from './shaders/toonFlat';
 import { hexToLinear } from '../sim/color';
 import { THEME_KEYS, tokens } from './tokens';
@@ -149,9 +150,7 @@ describe('the materials of hyperspace', () => {
     const tube = createHyperTubeMaterial({ ribs: false });
     const dashes = createHyperDashMaterial();
     expect(tube.uniforms.uOpen.value).toBe(0);
-    expect(tube.uniforms.uPunch.value).toBe(-1);
-    expect(tube.uniforms.uDrop.value).toBe(-1);
-    expect(tube.uniforms.uRingAlpha.value.toArray()).toEqual([0, 0]);
+    expect(tube.uniforms.uRing.value.toArray()).toEqual([0, 0]);
     expect(dashes.uniforms.uAlpha.value).toBe(0);
     expect(dashes.uniforms.uStretch.value).toBe(0);
     // What tuning says of them.
@@ -163,12 +162,13 @@ describe('the materials of hyperspace', () => {
     dashes.dispose();
   });
 
-  it('wear the destination family in their lines: its base in the ribs, its light and base among the dashes', () => {
+  it('wear the destination family: its base in the ribs and in the lead among the dashes, the other families after it', () => {
     const tube = createHyperTubeMaterial({ ribs: true });
     const dashes = createHyperDashMaterial();
     const linear = (hex: string): number[] =>
       hexToLinear(hex).map((value) => expect.closeTo(value, 6) as number);
     const { white, cool, warm } = tokens.color.star;
+    const base = (theme: (typeof THEME_KEYS)[number]): string => tokens.color.system[theme].base;
     for (const theme of THEME_KEYS) {
       wearHyperFamily(tube, dashes, theme);
       const family = tokens.color.system[theme];
@@ -178,18 +178,32 @@ describe('the materials of hyperspace', () => {
       expect(
         dashes.uniforms.uTint.value.map((tint) => tint.toArray()),
         theme,
-      ).toEqual([white, cool, warm, family.light, family.base].map(linear));
+      ).toEqual(
+        [
+          white,
+          cool,
+          warm,
+          family.base,
+          ...THEME_KEYS.filter((other) => other !== theme).map(base),
+        ].map(linear),
+      );
     }
-    // No family: the stars' cool white.
+    // No family: the stars' cool white in its place, and four of the families after it.
     wearHyperFamily(tube, dashes, undefined);
     expect(tube.uniforms.uShade.value.toArray()).toEqual(linear(tokens.color.space[700]));
     expect(tube.uniforms.uLine.value.toArray()).toEqual(linear(cool));
     expect(dashes.uniforms.uTint.value.map((tint) => tint.toArray())).toEqual(
-      [white, cool, warm, cool, cool].map(linear),
+      [white, cool, warm, cool, ...THEME_KEYS.slice(0, 4).map(base)].map(linear),
     );
-    // Five tints, and their shares are all of the dashes.
-    expect(HYPER_TINT_SHARES).toHaveLength(dashes.uniforms.uTint.value.length);
+    // As many tints as the shader has room for: the three of the stars, and every family.
+    expect(dashes.uniforms.uTint.value).toHaveLength(DASH_TINTS);
+    expect(HYPER_TINT_SHARES).toHaveLength(DASH_TINTS);
+    expect(DASH_TINTS).toBe(HYPER_FAMILY_TINT + THEME_KEYS.length);
+    expect(hyperDashes.vertexShader).toContain(`uniform vec3 uTint[${DASH_TINTS}];`);
+    // Their shares are all of the dashes; of the colours, the destination's is the largest by far.
     expect(HYPER_TINT_SHARES.reduce((sum, share) => sum + share, 0)).toBeCloseTo(1, 12);
+    const [lead = 0, ...rest] = HYPER_TINT_SHARES.slice(HYPER_FAMILY_TINT);
+    expect(lead).toBeGreaterThanOrEqual(3 * Math.max(...rest));
     tube.dispose();
     dashes.dispose();
   });

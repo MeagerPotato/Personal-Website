@@ -17,26 +17,27 @@
  * middle is the eye: the dark the destination grows out of.
  *
  * All of it sits inside an iris that opens from the eye outward with `uOpen`, and shows at
- * `uOpen` of its alpha. Two thin rings are drawn besides: one racing out from the eye
- * (`uPunch`), one closing onto the destination (`uDrop`).
+ * `uOpen` of its alpha. One thin ring is drawn besides, round the course like everything else
+ * here: it races out from the eye as the tunnel opens and closes back onto it as the tunnel goes
+ * (world/Hyperspace.ts says where it is).
  *
- * Uniforms: uAxis (the course) and uTarget (where the destination is), unit vectors in world
- * space; uOpen (0 to 1: the look's veil); uFlow; uPunch and uDrop (0 to 1 on their way, below 0
- * for none); uBands; uEye (rad); uRibs (0 or 1: the thin line at each band's edge); uWash (the
- * wash's alpha, on every other band); uRibAlpha; uRingAlpha (the rings', already fading);
- * and the linear colours uGround (the eye), uShade (the wash), uLine (the ribs), uInk (the rings).
+ * Uniforms: uAxis (the course, a unit vector in world space); uOpen (0 to 1: the look's veil);
+ * uFlow; uRing (the ring: its angle off the course, rad, and its alpha, 0 for none); uBands; uEye
+ * (rad); uRibs (0 or 1: the thin line at each band's edge); uWash (the wash's alpha, on every
+ * other band); uRibAlpha; and the linear colours uGround (the eye), uShade (the wash), uLine (the
+ * ribs), uInk (the ring).
  *
  * How the fragment goes about it (said here and not in the GLSL, which is shipped as it is
  * written, comments and all):
  * - `stroke(px, width)`: how much of a line `width` px wide a pixel `px` pixels from its middle
- *   is inside. `angle(a, b)`: the angle between two unit vectors, exact near 0 too (the acos of
- *   their dot is not).
+ *   is inside. `rho` is an atan of the cross and the dot, exact near 0 too (the acos of the dot
+ *   is not).
  * - The bands are a triangle wave over two of them, cut at its middle, one pixel soft: `cut` is
  *   how many pixels a fragment is from the nearest edge, so the wash's alpha steps there and the
  *   rib is a stroke along it.
  * - The wall is the wash with the rib over it; the eye covers it; the iris holds all of it. It is
  *   premultiplied while it is put together and divided out at the end.
- * - The rings go over everything: 2 px, round the course and round the destination.
+ * - The ring goes over everything: 2 px, round the course.
  */
 export const hyperTube = {
   vertexShader: /* glsl */ `
@@ -52,17 +53,14 @@ export const hyperTube = {
 
   fragmentShader: /* glsl */ `
     uniform vec3 uAxis;
-    uniform vec3 uTarget;
     uniform float uOpen;
     uniform float uFlow;
-    uniform float uPunch;
-    uniform float uDrop;
+    uniform vec2 uRing;
     uniform float uBands;
     uniform float uEye;
     uniform float uRibs;
     uniform vec2 uWash;
     uniform float uRibAlpha;
-    uniform vec2 uRingAlpha;
     uniform vec3 uGround;
     uniform vec3 uShade;
     uniform vec3 uLine;
@@ -74,13 +72,9 @@ export const hyperTube = {
       return 1.0 - smoothstep(0.5 * width - 0.5, 0.5 * width + 0.5, px);
     }
 
-    float angle(vec3 a, vec3 b) {
-      return atan(length(cross(a, b)), dot(a, b));
-    }
-
     void main() {
       vec3 direction = normalize(vDirection);
-      float rho = angle(direction, uAxis);
+      float rho = atan(length(cross(direction, uAxis)), dot(direction, uAxis));
       float pixel = max(fwidth(rho), 1e-6);
 
       float t = log(max(rho, 0.02)) * uBands - uFlow;
@@ -97,12 +91,7 @@ export const hyperTube = {
       float iris = clamp((uOpen * 3.2 - rho) / pixel + 0.5, 0.0, 1.0);
       wall *= uOpen * iris;
 
-      float punch = uPunch < 0.0 ? 0.0 : uRingAlpha.x * stroke(abs(rho - uPunch * 1.3) / pixel, 2.0);
-      float toTarget = angle(direction, uTarget);
-      float drop = uDrop < 0.0
-        ? 0.0
-        : uRingAlpha.y * stroke(abs(toTarget - (1.0 - uDrop) * 1.05) / max(fwidth(toTarget), 1e-6), 2.0);
-      float ring = max(punch, drop);
+      float ring = uRing.y * stroke(abs(rho - uRing.x) / pixel, 2.0);
       wall = vec4(uInk * ring, ring) + wall * (1.0 - ring);
 
       gl_FragColor = vec4(wall.a > 0.0 ? wall.rgb / wall.a : vec3(0.0), wall.a);
@@ -122,6 +111,8 @@ export const DASH_SPAN: readonly [inner: number, outer: number] = [0.08, 2.6];
  * of the picture would be white.
  */
 export const DASH_EASE = 0.6;
+/** How many tints the dashes are dealt from (materials.ts says which, and how many of each). */
+export const DASH_TINTS = 8;
 
 /** A number as GLSL wants a float written: never without its decimal point. */
 const glsl = (value: number): string =>
@@ -143,14 +134,14 @@ const glsl = (value: number): string =>
  *
  * Geometry: position = (the angle of its ray round the course, rad; its phase, 0 to 1; how bright
  * it is, 0 to 1). aDash = (which end: -1 the tail, +1 the head; which side: -1 or +1; its rate;
- * its tint, 0 to 4).
+ * its tint, a whole number under DASH_TINTS).
  * In the vertex shader the quad reaches half a width past each end of the dash, room for its
  * round caps, and hands the fragment capsule coordinates in half widths: x along the dash from
  * its middle, y across it.
  * Uniforms: uFrame (mat3 of unit columns: right, up, the course), uFlow, uTwist (a number of the
  * destination's own: each has its own field), uStretch (0 to 1), uAlpha (0 to 1: the look's
  * dots), uLength, uWidth (the width, in the plane's units), uPixel (one device pixel in those
- * units: no dash is thinner), uTint (five linear colours).
+ * units: no dash is thinner), uTint (DASH_TINTS linear colours).
  */
 export const hyperDashes = {
   vertexShader: /* glsl */ `
@@ -164,7 +155,7 @@ export const hyperDashes = {
     uniform float uLength;
     uniform float uWidth;
     uniform float uPixel;
-    uniform vec3 uTint[5];
+    uniform vec3 uTint[${DASH_TINTS}];
 
     varying vec2 vCapsule;
     varying float vHalfLength;

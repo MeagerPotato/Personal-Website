@@ -23,7 +23,7 @@ import { hyperDashes, hyperTube } from './shaders/hyperspace';
 import { bloomDown, bloomUp, composite } from './shaders/post';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
-import { tokens, type ThemeKey } from './tokens';
+import { THEME_KEYS, tokens, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
 /**
@@ -309,16 +309,14 @@ export function createDustMaterial(options: { streaks: boolean }): DustMaterial 
 export type HyperTubeMaterial = ShaderMaterial & {
   uniforms: {
     uAxis: IUniform<Vector3>;
-    uTarget: IUniform<Vector3>;
     uOpen: IUniform<number>;
     uFlow: IUniform<number>;
-    uPunch: IUniform<number>;
-    uDrop: IUniform<number>;
+    /** The ring: its angle off the course (rad), and its alpha (0: none). */
+    uRing: IUniform<Vector2>;
     uBands: IUniform<number>;
     uEye: IUniform<number>;
     uWash: IUniform<Vector2>;
     uRibAlpha: IUniform<number>;
-    uRingAlpha: IUniform<Vector2>;
     uShade: IUniform<Color>;
     uLine: IUniform<Color>;
   };
@@ -326,7 +324,7 @@ export type HyperTubeMaterial = ShaderMaterial & {
 
 /**
  * The walls of the tunnel (shaders/hyperspace.ts): paint over the sky that never blooms. The eye
- * is the deepest navy, the wash is deep space's own navy in EVERY family, and the rings are the
+ * is the deepest navy, the wash is deep space's own navy in EVERY family, and the ring is the
  * cream of the ink; the ribs are dressed by `wearHyperFamily`. `ribs`: the thin line at each
  * band's edge, left out on the low tier.
  *
@@ -343,17 +341,14 @@ export function createHyperTubeMaterial(options: { ribs: boolean }): HyperTubeMa
     fragmentShader: hyperTube.fragmentShader,
     uniforms: {
       uAxis: { value: new Vector3(0, 0, 1) },
-      uTarget: { value: new Vector3(0, 0, 1) },
       uOpen: { value: 0 },
       uFlow: { value: 0 },
-      uPunch: { value: -1 },
-      uDrop: { value: -1 },
+      uRing: { value: new Vector2() },
       uBands: { value: look.bands },
       uEye: { value: look.eyeRad },
       uRibs: { value: options.ribs ? 1 : 0 },
       uWash: { value: new Vector2(...look.wash) },
       uRibAlpha: { value: look.ribAlpha },
-      uRingAlpha: { value: new Vector2() },
       uGround: { value: new Color(tokens.color.space[950]) },
       uShade: { value: new Color(tokens.color.space[700]) },
       uLine: { value: new Color(tokens.color.star.cool) },
@@ -367,10 +362,16 @@ export function createHyperTubeMaterial(options: { ribs: boolean }): HyperTubeMa
 }
 
 /**
- * Which of a dash's five tints it wears, as shares of all the dashes, in the order of `uTint`:
- * the stars' own white, cool and warm, then the destination family's light and base.
+ * Which tint a dash wears, as shares of all the dashes, in the order of `uTint`: the stars' own
+ * white, cool and warm; the base of the family the jump is going to; and the bases of the four
+ * other families, a few of each. Half of the dashes are starlight and half are colour, half of
+ * that the destination's own: a jump reads as where it is going at a glance, and as the
+ * galaxy's five pastels at a second one. (Allen's two references, 2026-10-06: white-violet
+ * streaks, and dashes of many colours on a coloured field.)
  */
-export const HYPER_TINT_SHARES = [0.55, 0.2, 0.1, 0.1, 0.05] as const;
+export const HYPER_TINT_SHARES = [0.3, 0.14, 0.08, 0.24, 0.06, 0.06, 0.06, 0.06] as const;
+/** The first tint that is a family's colour: from here on a dash is dealt brighter (world/Hyperspace.ts). */
+export const HYPER_FAMILY_TINT = 3;
 
 export type HyperDashMaterial = ShaderMaterial & {
   uniforms: {
@@ -389,6 +390,10 @@ export type HyperDashMaterial = ShaderMaterial & {
 /** The dashes (shaders/hyperspace.ts): light that adds up, as the stars they stand over are. */
 export function createHyperDashMaterial(): HyperDashMaterial {
   const { white, cool, warm } = tokens.color.star;
+  const tints = HYPER_TINT_SHARES.map(() => new Color(white));
+  tints[1]?.set(cool);
+  tints[2]?.set(warm);
+  dressDashes(tints, undefined);
   const material = new ShaderMaterial({
     name: 'hyperDashes',
     vertexShader: hyperDashes.vertexShader,
@@ -402,7 +407,7 @@ export function createHyperDashMaterial(): HyperDashMaterial {
       uLength: { value: tuning.hyper.dashLength },
       uWidth: { value: 0 },
       uPixel: { value: 0 },
-      uTint: { value: [white, cool, warm, cool, cool].map((hex) => new Color(hex)) },
+      uTint: { value: tints },
     },
     // A dash is a sliver of paper in the sky: whichever way round it lies, it shows.
     side: DoubleSide,
@@ -413,21 +418,37 @@ export function createHyperDashMaterial(): HyperDashMaterial {
 }
 
 /**
+ * The dashes' colours: the base of the family the jump is going to, then the bases of the other
+ * families in the tokens' own order, as many as there are tints left. With no family the
+ * destination's share is the stars' cool white, and the others are the first four families.
+ */
+function dressDashes(tints: readonly Color[], theme: ThemeKey | undefined): void {
+  const families = tokens.color.system;
+  tints[HYPER_FAMILY_TINT]?.set(
+    theme === undefined ? tokens.color.star.cool : families[theme].base,
+  );
+  let slot = HYPER_FAMILY_TINT + 1;
+  for (const key of THEME_KEYS) {
+    if (key === theme) continue;
+    tints[slot]?.set(families[key].base);
+    slot += 1;
+  }
+}
+
+/**
  * Dress a jump in the family of where it is going: the ribs of the tunnel in its base, and the
- * last two tints of the dashes in its light and its base. A body with no family (one of a system
- * the manifest does not list) gets the stars' cool white.
+ * dashes with it in the lead (`dressDashes`). A body with no family (one of a system the manifest
+ * does not list) gets the stars' cool white in both.
  */
 export function wearHyperFamily(
   tube: HyperTubeMaterial,
   dashes: HyperDashMaterial,
   theme: ThemeKey | undefined,
 ): void {
-  const family = theme === undefined ? null : tokens.color.system[theme];
-  const plain = tokens.color.star.cool;
-  tube.uniforms.uLine.value.set(family?.base ?? plain);
-  const tints = dashes.uniforms.uTint.value;
-  tints[3]?.set(family?.light ?? plain);
-  tints[4]?.set(family?.base ?? plain);
+  tube.uniforms.uLine.value.set(
+    theme === undefined ? tokens.color.star.cool : tokens.color.system[theme].base,
+  );
+  dressDashes(dashes.uniforms.uTint.value, theme);
 }
 
 // --- post-processing (fx/PostFX.ts) ------------------------------------------------------------------
