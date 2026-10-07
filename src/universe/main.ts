@@ -450,12 +450,14 @@ export function boot(
     );
     // The offer of hyperspace (ui/HyperOffer.ts): right after the prompt in the overlay, so that
     // Tab goes Stop, then Hyperspace, and the deck and the minimap stay last. It shows only while
-    // the world has the whole screen: no page beside or under it, and the star map closed.
+    // the world has the whole screen: no page beside or under it, and the star map closed. (Asked
+    // of the rig as the page WANTS the view, not as far as it has slid: a link opens its page and
+    // sets the ship out in the same moment, and the offer comes with the journey's first step.)
     offer = engine.add(
       new HyperOffer({
         overlay: options.overlay,
         navigator,
-        room: () => !starMap.isOpen && rig.shape.freeWidth > 0.99 && rig.shape.freeHeight > 0.99,
+        room: () => !starMap.isOpen && rig.whole,
       }),
     );
 

@@ -338,7 +338,11 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   whatever ended the jump. The star map hides all of it (`mapWeight`). **The offer**
   (`ui/HyperOffer.ts`) is one real button right after the prompt in `#universe-overlay`, shown
   while a jump is offered or winding up and the world has the whole screen (no page open, the
-  map closed); `Shift` presses it (a fresh press of the key alone, and not one typed into the
+  map closed). "No page open" is asked of the rig as the page WANTS the view, at once
+  (`CameraRig.whole`), and not as far as the view has slid: a link opens its page and sets the
+  ship out in the same moment, the offer comes with the journey's first step, and the free part
+  of the view EASES, so for two frames at 60 a second nearly all of it still reads as free.
+  `Shift` presses it (a fresh press of the key alone, and not one typed into the
   page), and any other key while Shift is still down takes the wind-up back. The shell mirrors
   the event as `html[data-hyper]` (`shell/universe-shell.ts`), which is all the stylesheet needs
   for the deck's running chevrons, the minimap's running route and the names that step back in
@@ -626,7 +630,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   where one stands beside it, and both back after a lost context; hyperspace (`hyper.spec.ts`):
   Shift on a long journey shows it as a jump, says "Hyperspace." once and docks where it was
   going, with the deck's lamp reading AUTO, HYPER, AUTO on the way; Shift+Tab is no jump; Stop
-  in the tunnel ends both; nothing is offered on a hop, on a link's journey, on the open map or
+  in the tunnel ends both; nothing is offered on a hop, on a link's journey (nor for one frame
+  of it: that test hands the page its frames by hand, a sixtieth of a second apart, since what
+  a view does in its first two frames depends on the machine's pace), on the open map or
   under reduced motion; a context lost in the tunnel comes back in the tunnel; on a phone the
   offer is a round pad exactly where the boost pad stands; and where the chip stands at three
   sizes of window;

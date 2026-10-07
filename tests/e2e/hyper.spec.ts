@@ -219,6 +219,57 @@ async function setOut(page: Page, name: string): Promise<void> {
   await button.dispatchEvent('click');
 }
 
+/** The page's animation frames, handed out by hand (`byTheFrame`). */
+interface Frames {
+  /** Draw one frame, a sixtieth of a second after the last: what `<html data-hyper>` is then. */
+  step(): Promise<string | null>;
+  /** Hand the frames back to the browser. */
+  release(): Promise<void>;
+}
+
+/**
+ * From now on the page's animation frames are handed out by hand, each a sixtieth of a second
+ * after the last by the clock the engine reads (it asks for every frame afresh, and takes its
+ * time from the frame it is given). What happens in the first frames after something is then
+ * the same on every machine, whatever its pace: a view eases by the frame.
+ */
+async function byTheFrame(page: Page): Promise<Frames> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        const request = window.requestAnimationFrame.bind(window);
+        const held: FrameRequestCallback[] = [];
+        let clock = 0;
+        window.requestAnimationFrame = (callback) => {
+          held.push(callback);
+          return 0;
+        };
+        (window as Window & { e2eFrames?: unknown }).e2eFrames = {
+          step(): string | null {
+            clock += 1000 / 60;
+            for (const frame of held.splice(0)) frame(clock);
+            return document.documentElement.dataset.hyper ?? null;
+          },
+          release(): void {
+            window.requestAnimationFrame = request;
+            for (const frame of held.splice(0)) request(frame);
+          },
+        };
+        // The browser still owes one frame to whoever asked before this (the engine): its time
+        // is where the clock goes on from.
+        request((time) => {
+          clock = time;
+          done();
+        });
+      }),
+  );
+  type Held = Window & { e2eFrames: { step(): string | null; release(): void } };
+  return {
+    step: () => page.evaluate(() => (window as unknown as Held).e2eFrames.step()),
+    release: () => page.evaluate(() => (window as unknown as Held).e2eFrames.release()),
+  };
+}
+
 const overlap = (a: Box, b: Box): boolean =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
@@ -373,6 +424,41 @@ test.describe('nothing is offered', () => {
     expect(await hyper()).toEqual([null, 'offered', null]);
     expect((await noted(page)).shown).toBe(false);
     expect(pathOf(page)).toBe('/systems/hackathons/');
+  });
+
+  test('nor for one frame of such a journey: its page opens as the ship sets out', async ({
+    page,
+  }) => {
+    await openUniverse(page, '/');
+    const hyper = await watchAttribute(page, 'data-hyper');
+    await react(page, { offered: 'shift' });
+    // A link opens its page and sets the ship out in the same moment, and the offer comes with
+    // the journey's first step, while the view has only begun to slide over for the panel: at a
+    // display's pace nearly all of it still reads as free for two frames. So, at that pace:
+    const frames = await byTheFrame(page);
+    await page.evaluate((href) => {
+      const link = document.createElement('a');
+      link.href = href;
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }, '/systems/hackathons/');
+    // (The router needs no frame to bring the page: it is open, and the ship has been told.)
+    await expect
+      .poll(() => page.evaluate(() => [location.pathname, document.documentElement.dataset.panel]))
+      .toEqual(['/systems/hackathons/', 'open']);
+
+    const told: (string | null)[] = [];
+    for (let frame = 0; frame < 12; frame += 1) told.push(await frames.step());
+    // The offer was there from the start, and so was the page: no chip, and no Shift for the ship.
+    expect(told.slice(0, 2)).toContain('offered');
+    expect(told).not.toContain('windup');
+    expect((await noted(page)).shown).toBe(false);
+
+    await frames.release();
+    await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+    expect(await hyper()).toEqual([null, 'offered', null]);
+    expect((await noted(page)).shown).toBe(false);
   });
 
   test('while the star map is open: its button goes, and Shift does nothing', async ({ page }) => {
