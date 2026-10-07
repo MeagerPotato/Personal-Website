@@ -32,6 +32,13 @@ export interface Snapshot {
      * reads as 0.
      */
     readonly holdSec: number;
+    /**
+     * On the way, and in hyperspace's TUNNEL (sim/hyper.ts): the journey is taken up in the
+     * tunnel, past its punch. Only the tunnel is kept: an offer is simply made again, and so is
+     * one that had been taken and not yet opened. Never when docked. A snapshot written before
+     * this field existed reads as false.
+     */
+    readonly hyper: boolean;
   } | null;
   /**
    * STOP was pressed a moment ago, and the ship is still braking to rest by itself (sim/docking.ts,
@@ -106,15 +113,17 @@ export function parseSnapshot(data: unknown): Snapshot | null {
     return { steps, ship: state, dock: null, halting, guarding, ...stamp };
   }
   if (typeof dock !== 'object') return null;
-  const { id, docked, angle, spin, holdSec = 0 } = dock as Record<string, unknown>;
+  const { id, docked, angle, spin, holdSec = 0, hyper = false } = dock as Record<string, unknown>;
   if (typeof id !== 'string' || typeof docked !== 'boolean' || !isNumber(angle)) return null;
   if (spin !== 1 && spin !== -1) return null;
   if (!isNumber(holdSec) || holdSec < 0 || holdSec > MAX_HOLD_SEC) return null;
-  // A ship that is headed somewhere, or docked, is not braking to a stop.
+  if (typeof hyper !== 'boolean') return null;
+  // A ship that is headed somewhere, or docked, is not braking to a stop. (And one that is
+  // docked is in no tunnel.)
   return {
     steps,
     ship: state,
-    dock: { id, docked, angle, spin, holdSec },
+    dock: { id, docked, angle, spin, holdSec, hyper: hyper && !docked },
     halting: false,
     guarding: false,
     ...stamp,

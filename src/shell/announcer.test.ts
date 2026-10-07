@@ -115,6 +115,41 @@ describe('the announcer', () => {
     expect(h.said()).toBe('Star map closed.');
   });
 
+  it('says "Hyperspace." once, when the tunnel opens after the press', () => {
+    const h = harness();
+    h.emit('statechange', { mode: 'autopilot', target: 'project/fishai' });
+    // An offer is a button on the screen, with a name of its own: nothing to read out.
+    h.emit('hyper', { state: 'offered' });
+    expect(h.said()).toBe('Flying to FishAI.');
+    // Nor the press: the visitor knows they pressed.
+    h.emit('hyper', { state: 'windup' });
+    expect(h.said()).toBe('Flying to FishAI.');
+    h.emit('hyper', { state: 'tunnel' });
+    expect(h.said()).toBe('Hyperspace.');
+    // Coming out of it is the arrival, which says itself.
+    h.emit('hyper', { state: 'off' });
+    expect(h.said()).toBe('Hyperspace.');
+    h.emit('statechange', { mode: 'docked', target: 'project/fishai' });
+    expect(h.said()).toBe('Docked at FishAI.');
+  });
+
+  it('says nothing of a tunnel nobody just opened: one taken up after a rebuild, an offer let go', () => {
+    const rebuilt = harness();
+    // The engine was rebuilt in the tunnel: `tunnel` with no `windup` before it.
+    rebuilt.emit('statechange', { mode: 'autopilot', target: 'project/fishai' });
+    rebuilt.emit('hyper', { state: 'tunnel' });
+    expect(rebuilt.said()).toBe('Flying to FishAI.');
+
+    const taken = harness();
+    taken.emit('statechange', { mode: 'autopilot', target: 'project/fishai' });
+    taken.emit('hyper', { state: 'offered' });
+    taken.emit('hyper', { state: 'windup' });
+    // Shift was half of a chord: the wind-up is taken back, and the offer runs out.
+    taken.emit('hyper', { state: 'offered' });
+    taken.emit('hyper', { state: 'off' });
+    expect(taken.said()).toBe('Flying to FishAI.');
+  });
+
   it('stops listening, and leaves nothing behind to be read out', () => {
     const h = harness();
     h.emit('map', { open: true });

@@ -2,7 +2,9 @@ import {
   BackSide,
   Color,
   CustomBlending,
+  DoubleSide,
   LineBasicMaterial,
+  Matrix3,
   OneFactor,
   OneMinusSrcAlphaFactor,
   ShaderMaterial,
@@ -17,10 +19,11 @@ import {
 import { dust } from './shaders/dust';
 import { edge } from './shaders/edge';
 import { glow } from './shaders/glow';
+import { hyperDashes, hyperTube } from './shaders/hyperspace';
 import { bloomDown, bloomUp, composite } from './shaders/post';
 import { GLOW_COUNT, backdrop, stars } from './shaders/sky';
 import { toonFlat } from './shaders/toonFlat';
-import { tokens } from './tokens';
+import { THEME_KEYS, tokens, type ThemeKey } from './tokens';
 import { tuning } from './tuning';
 
 /**
@@ -299,6 +302,153 @@ export function createDustMaterial(options: { streaks: boolean }): DustMaterial 
     depthWrite: false,
   });
   return keepBloomMask(material, true) as DustMaterial;
+}
+
+// --- hyperspace (world/Hyperspace.ts) ----------------------------------------------------------------
+
+export type HyperTubeMaterial = ShaderMaterial & {
+  uniforms: {
+    uAxis: IUniform<Vector3>;
+    uOpen: IUniform<number>;
+    uFlow: IUniform<number>;
+    /** The ring: its angle off the course (rad), and its alpha (0: none). */
+    uRing: IUniform<Vector2>;
+    uBands: IUniform<number>;
+    uEye: IUniform<number>;
+    uWash: IUniform<Vector2>;
+    uRibAlpha: IUniform<number>;
+    uShade: IUniform<Color>;
+    uLine: IUniform<Color>;
+  };
+};
+
+/**
+ * The walls of the tunnel (shaders/hyperspace.ts): paint over the sky that never blooms. The eye
+ * is the deepest navy, the wash is deep space's own navy in EVERY family, and the ring is the
+ * cream of the ink; the ribs are dressed by `wearHyperFamily`. `ribs`: the thin line at each
+ * band's edge, left out on the low tier.
+ *
+ * Why the wash wears no family (looked at in the lab, all five, 2026-10-06): a wash in the
+ * family's shade is a clean blue, green and purple for sky, mint and lilac, but over the navy sky
+ * coral's goes brick and butter's goes khaki. One rule, no table per family: the walls are navy,
+ * and the family is in the lines.
+ */
+export function createHyperTubeMaterial(options: { ribs: boolean }): HyperTubeMaterial {
+  const look = tuning.hyper;
+  const material = new ShaderMaterial({
+    name: 'hyperTube',
+    vertexShader: hyperTube.vertexShader,
+    fragmentShader: hyperTube.fragmentShader,
+    uniforms: {
+      uAxis: { value: new Vector3(0, 0, 1) },
+      uOpen: { value: 0 },
+      uFlow: { value: 0 },
+      uRing: { value: new Vector2() },
+      uBands: { value: look.bands },
+      uEye: { value: look.eyeRad },
+      uRibs: { value: options.ribs ? 1 : 0 },
+      uWash: { value: new Vector2(...look.wash) },
+      uRibAlpha: { value: look.ribAlpha },
+      uGround: { value: new Color(tokens.color.space[950]) },
+      uShade: { value: new Color(tokens.color.space[700]) },
+      uLine: { value: new Color(tokens.color.star.cool) },
+      uInk: { value: new Color(tokens.color.ink.high) },
+    },
+    side: BackSide,
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, false) as HyperTubeMaterial;
+}
+
+/**
+ * Which tint a dash wears, as shares of all the dashes, in the order of `uTint`: the stars' own
+ * white, cool and warm; the base of the family the jump is going to; and the bases of the four
+ * other families, a few of each. Half of the dashes are starlight and half are colour, half of
+ * that the destination's own: a jump reads as where it is going at a glance, and as the
+ * galaxy's five pastels at a second one. (Allen's two references, 2026-10-06: white-violet
+ * streaks, and dashes of many colours on a coloured field.)
+ */
+export const HYPER_TINT_SHARES = [0.3, 0.14, 0.08, 0.24, 0.06, 0.06, 0.06, 0.06] as const;
+/** The first tint that is a family's colour: from here on a dash is dealt brighter (world/Hyperspace.ts). */
+export const HYPER_FAMILY_TINT = 3;
+
+export type HyperDashMaterial = ShaderMaterial & {
+  uniforms: {
+    uFrame: IUniform<Matrix3>;
+    uFlow: IUniform<number>;
+    uTwist: IUniform<number>;
+    uStretch: IUniform<number>;
+    uAlpha: IUniform<number>;
+    uLength: IUniform<number>;
+    uWidth: IUniform<number>;
+    uPixel: IUniform<number>;
+    uTint: IUniform<Color[]>;
+  };
+};
+
+/** The dashes (shaders/hyperspace.ts): light that adds up, as the stars they stand over are. */
+export function createHyperDashMaterial(): HyperDashMaterial {
+  const { white, cool, warm } = tokens.color.star;
+  const tints = HYPER_TINT_SHARES.map(() => new Color(white));
+  tints[1]?.set(cool);
+  tints[2]?.set(warm);
+  dressDashes(tints, undefined);
+  const material = new ShaderMaterial({
+    name: 'hyperDashes',
+    vertexShader: hyperDashes.vertexShader,
+    fragmentShader: hyperDashes.fragmentShader,
+    uniforms: {
+      uFrame: { value: new Matrix3() },
+      uFlow: { value: 0 },
+      uTwist: { value: 0 },
+      uStretch: { value: 0 },
+      uAlpha: { value: 0 },
+      uLength: { value: tuning.hyper.dashLength },
+      uWidth: { value: 0 },
+      uPixel: { value: 0 },
+      uTint: { value: tints },
+    },
+    // A dash is a sliver of paper in the sky: whichever way round it lies, it shows.
+    side: DoubleSide,
+    transparent: true,
+    depthWrite: false,
+  });
+  return keepBloomMask(material, true) as HyperDashMaterial;
+}
+
+/**
+ * The dashes' colours: the base of the family the jump is going to, then the bases of the other
+ * families in the tokens' own order, as many as there are tints left. With no family the
+ * destination's share is the stars' cool white, and the others are the first four families.
+ */
+function dressDashes(tints: readonly Color[], theme: ThemeKey | undefined): void {
+  const families = tokens.color.system;
+  tints[HYPER_FAMILY_TINT]?.set(
+    theme === undefined ? tokens.color.star.cool : families[theme].base,
+  );
+  let slot = HYPER_FAMILY_TINT + 1;
+  for (const key of THEME_KEYS) {
+    if (key === theme) continue;
+    tints[slot]?.set(families[key].base);
+    slot += 1;
+  }
+}
+
+/**
+ * Dress a jump in the family of where it is going: the ribs of the tunnel in its base, and the
+ * dashes with it in the lead (`dressDashes`). A body with no family (one of a system the manifest
+ * does not list) gets the stars' cool white in both.
+ */
+export function wearHyperFamily(
+  tube: HyperTubeMaterial,
+  dashes: HyperDashMaterial,
+  theme: ThemeKey | undefined,
+): void {
+  tube.uniforms.uLine.value.set(
+    theme === undefined ? tokens.color.star.cool : tokens.color.system[theme].base,
+  );
+  dressDashes(dashes.uniforms.uTint.value, theme);
 }
 
 // --- post-processing (fx/PostFX.ts) ------------------------------------------------------------------

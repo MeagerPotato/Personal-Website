@@ -63,10 +63,9 @@ export class ShipSystem implements System {
   private readonly flame: EngineFlame;
   private readonly previous: ShipState;
   private readonly current: ShipState;
-  private readonly pitch = createSpring(0);
-  private readonly bank = createSpring(0);
-  /** What was flown in the last step: the pilot's input with the orbit assist mixed in. */
-  private readonly flown: FlightInput = { ...NO_INPUT };
+  private readonly nod = createSpring(0);
+  private readonly lean = createSpring(0);
+  private readonly lastFlown: FlightInput = { ...NO_INPUT };
 
   constructor(private readonly options: ShipOptions) {
     const look = tuning.ship;
@@ -95,6 +94,29 @@ export class ShipSystem implements System {
     return this.current;
   }
 
+  /**
+   * What was flown in the last step: the pilot's input with the orbit assist mixed in, or the
+   * autopilot's on a journey, and nothing at all while the ship is carried round a dock. It is
+   * what the flame burns by, and what the flight deck's throttle reads. Read only.
+   */
+  get flown(): Readonly<FlightInput> {
+    return this.lastFlown;
+  }
+
+  /**
+   * How far the model leans into its turn this frame, radians: negative with the left wing down
+   * (sim/bank.ts), eased. Looks only, like `pitch`: the flight model never hears of either. The
+   * flight deck's ball wears them, so that it leans as the ship on screen does.
+   */
+  get bank(): number {
+    return this.lean.value;
+  }
+
+  /** How far the model nods this frame, radians: nose up (negative) under boost, down under the brake. */
+  get pitch(): number {
+    return this.nod.value;
+  }
+
   /** The light that shades the ship this frame (world/Galaxy.ts knows which sun is near). */
   setSun(position: Readonly<Vector3>): void {
     this.rocket.setSun(position);
@@ -107,6 +129,14 @@ export class ShipSystem implements System {
    */
   setMarker(scale: number, raised: number): void {
     this.rocket.mark(scale, raised);
+  }
+
+  /**
+   * Hyperspace's pull on the flame, 0 to 1 (world/Hyperspace.ts): it burns longer in the tunnel.
+   * Looks only, like the marker.
+   */
+  setSurge(surge: number): void {
+    this.flame.setSurge(surge);
   }
 
   /** Put the ship somewhere at rest, with no in-between frame (spawning, deep links). */
@@ -134,16 +164,16 @@ export class ShipSystem implements System {
         tuning,
         dt,
         simTime,
-        this.flown,
+        this.lastFlown,
       );
     } else {
-      stepFlight(this.current, Object.assign(this.flown, pilot.current), tuning.flight, dt);
+      stepFlight(this.current, Object.assign(this.lastFlown, pilot.current), tuning.flight, dt);
     }
   }
 
   frameUpdate(frame: Frame): void {
     this.present(frame.alpha, frame.dt, frame.elapsed);
-    this.flame.update(this.flown, frame);
+    this.flame.update(this.lastFlown, frame);
   }
 
   dispose(): void {
@@ -163,8 +193,8 @@ export class ShipSystem implements System {
     // never more than bankRad (sim/bank.ts), eased: the autopilot's turn rate changes in a step.
     const look = tuning.ship;
     const bank = bankOf(this.yawRate, this.speed, tuning.flight.yawRateSlow, look);
-    if (frameSec > 0) stepSpring(this.bank, bank, look.bankOmega, frameSec);
-    else snapSpring(this.bank, bank);
+    if (frameSec > 0) stepSpring(this.lean, bank, look.bankOmega, frameSec);
+    else snapSpring(this.lean, bank);
 
     // The nod is the PILOT's doing: the assist's gentle throttle should not rock the ship.
     const input = this.options.pilot.current;
@@ -174,11 +204,11 @@ export class ShipSystem implements System {
         : input.boost && input.thrust > 0
           ? -look.pitchBoostDeg
           : 0;
-    stepSpring(this.pitch, nod * RAD_PER_DEG, look.pitchOmega, frameSec);
+    stepSpring(this.nod, nod * RAD_PER_DEG, look.pitchOmega, frameSec);
 
     const bob = this.options.reducedMotion
       ? 0
       : look.bobAmplitude * Math.sin(TAU * look.bobHz * elapsed);
-    this.rocket.lean(this.bank.value, this.pitch.value, bob);
+    this.rocket.lean(this.lean.value, this.nod.value, bob);
   }
 }

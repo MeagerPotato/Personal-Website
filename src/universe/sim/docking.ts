@@ -33,6 +33,27 @@ import type { FlightInput, FlightParams, ShipState } from './types';
  */
 export type DockPhase = 'free' | 'cruise' | 'approach' | 'docked';
 
+/**
+ * HYPERSPACE on a journey (sim/hyper.ts): the same flight, shown as a jump. The state is the
+ * dock's because every way a journey ends or is handed back goes through the dock's phase, and
+ * each of those ends this too (`endHyper`). Nothing that flies the ship reads it.
+ */
+/** Nothing yet on this journey. */
+export const HYPER_NONE = 0;
+/** The plan pays, and nobody has pressed. */
+export const HYPER_OFFERED = 1;
+/** Pressed; the tunnel has not opened. */
+export const HYPER_WINDUP = 2;
+export const HYPER_TUNNEL = 3;
+/** No (more) offer on this journey. */
+export const HYPER_SPENT = 4;
+export type Hyper =
+  | typeof HYPER_NONE
+  | typeof HYPER_OFFERED
+  | typeof HYPER_WINDUP
+  | typeof HYPER_TUNNEL
+  | typeof HYPER_SPENT;
+
 export interface DockParams {
   /** The approach hands over to the orbit when the ship is this close to the ring (u) ... */
   readonly captureDistance: number;
@@ -95,6 +116,10 @@ export interface DockState {
    * Never with `halting`. Survives a rebuilt engine (core/snapshot.ts).
    */
   guarding: boolean;
+  /** Hyperspace on this journey (sim/hyper.ts). Anything but HYPER_NONE only while `phase` is 'cruise'. */
+  hyper: Hyper;
+  /** Simulation seconds in that state. */
+  hyperSec: number;
   /** Docked: where on the ring the ship is (unwrapped radians) and how fast it goes round (rad/s, signed). */
   angle: number;
   readonly rate: SpringState;
@@ -116,6 +141,8 @@ export function createDockState(): DockState {
     holdSec: 0,
     halting: false,
     guarding: false,
+    hyper: HYPER_NONE,
+    hyperSec: 0,
     angle: 0,
     rate: createSpring(0),
     offset: createSpring(0),
@@ -133,6 +160,16 @@ function isThrusting(input: Readonly<FlightInput>, deadZone: number): boolean {
 }
 
 /**
+ * The journey's hyperspace is over, whatever it was: called wherever `phase` is assigned, so that
+ * a jump never outlives the journey it belongs to (a new destination, Stop, the controls, the web
+ * layer letting go, arriving).
+ */
+export function endHyper(dock: DockState): void {
+  dock.hyper = HYPER_NONE;
+  dock.hyperSec = 0;
+}
+
+/**
  * Ask to dock at body `i`: fly onto its ring from within reach, or (`far`) travel there first,
  * and not be taken into orbit before `holdSec` has passed. The ship keeps flying; flyStep
  * (sim/surroundings.ts) takes it from here.
@@ -144,8 +181,10 @@ export function requestDock(
   far = false,
   holdSec = 0,
 ): void {
+  // (Told what it already knows, it keeps everything: a jump too.)
   if (dock.phase !== 'free' && dock.body === i) return;
   dock.phase = far ? 'cruise' : 'approach';
+  endHyper(dock);
   dock.body = i;
   dock.phaseSec = 0;
   dock.holdSec = holdSec;
@@ -163,6 +202,7 @@ export function releaseDock(dock: DockState, assist: AssistState): void {
   assist.body = dock.body;
   assist.spin = dock.spin;
   dock.phase = 'free';
+  endHyper(dock);
   dock.body = -1;
   dock.phaseSec = 0;
 }
@@ -590,6 +630,7 @@ function capture(
   state: Readonly<ShipState> | null,
 ): void {
   dock.phase = 'docked';
+  endHyper(dock);
   dock.halting = false;
   dock.guarding = false;
   dock.spin = spin;

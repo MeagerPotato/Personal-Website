@@ -135,11 +135,29 @@ Each display frame:
    render resolution, give some back, or (once, early) ask for a lower tier.
 
 Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
-only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
-picker → labels → sky → stars → dust → the map's look → jobs → prompt → debug overlays. The
+only) → star map → galaxy → ship lighting → hyperspace (how a jump looks: before the rig, whose
+lens follows it) → camera
+director → camera rig → bodies on screen → picker → labels → sky → stars → dust → the map's look
+(and a jump's dimming of the stars) → jobs → prompt → the offer of hyperspace → whereabouts
+(which system the ship is in: `systemAt`, once a frame) → flight deck → minimap → debug
+overlays. The
 camera comes after everything it looks at (the ship AND the planets), so that it sees this
 frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
-star map comes BEFORE the galaxy, which draws every body at the size the map asks for.
+star map comes BEFORE the galaxy, which draws every body at the size the map asks for. The
+flight deck (`ui/FlightDeck.ts`) and the minimap (`ui/MiniMap.ts`) come last of all. The deck only
+reads what the others did, samples the g in `fixedUpdate` (after the ship's step) and draws in
+`frameUpdate`. The minimap is there wherever the deck has its full size (it asks the deck:
+`full`), draws the galaxy's own positions through the star map's maths at another size
+(`sim/minimap.ts`), and its one way of acting is `pickRow`, the canvas's own call, or opening the
+star map. What is the minimap's own is in `sim/minimap.ts` too: its face is round, so what it
+fits is a DISC (`miniBounds`: the one that holds every system, or one system's own, grown toward
+the ship where the ship is outside it), a body is a mark only while its middle is on the face,
+and a system that is off it is a pin on a CIRCLE just inside the rim (`projectMini`); the N at
+the top of the face gives way to a pin that stands beside it (`pinNear`). The figure
+on its chip, how far the face reaches from its middle, is `rangeShown` in `sim/instruments.ts`;
+the journey's clock on its rim is one number the engine writes (`--gone`), which the stylesheet
+draws. Nothing reads either but the names, which keep off their boxes (the minimap's `box`
+takes in the two ends of a pill that reaches past its plate, as a long name's does).
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -289,6 +307,66 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   pilot's own turn, which is what an approach or an E press shows them), and the dust slides past
   no faster than `dust.maxFieldSpeed` (its box moves with the ship; `sim/dustField.ts` and the
   `uField` uniform), so the view neither spins, nor lies flat, nor strobes at 700 u/s.
+- **Hyperspace** (`sim/hyper.ts`): a journey's fast stretch, SHOWN as a jump. It is the same
+  flight: nothing of it steers, pushes or hurries the ship, so it takes exactly as long.
+  `stepHyper` runs in `flyStep` right after the autopilot's own step, reads the plan
+  (`fastAhead`: the top planned speed still ahead, and for how long the plan stays fast) and the
+  ship's speed, and writes two fields of the dock that nothing in flight reads, `hyper` and
+  `hyperSec`. A journey is **offered** a jump while its plan still reaches
+  `hyper.minPlannedSpeed` and a wind-up plus `hyper.minTunnelSec` of fast flight lie ahead; a
+  press (`engageHyper`) starts the **wind-up**; the **tunnel** opens once `hyper.windupSec` has
+  passed and the ship is at `hyper.punchSpeed`, and closes when the plan never reaches
+  `hyper.dropSpeed` again: in today's galaxy at least 0.4 s before the ship docks. One offer and one
+  jump a journey (`spent`): an offer that came back would be a chip that flickers. Everything
+  that ends a journey ends this too (`endHyper` in `sim/docking.ts`: arriving, Stop, the
+  controls, another destination, the web layer letting go), and a press that turned out to be
+  half of a chord takes the wind-up back (`cancelHyper`). `state/Navigator.ts` owns it for
+  everyone outside the simulation: `hyper` (`off`, `offered`, `windup`, `tunnel`; always `off`
+  for a visitor who asked for less motion), `engageHyper()`, `cancelHyper()`, and the `hyper`
+  event, told once a simulation step and delivered with the frame, so every change arrives, in
+  order, at any frame rate. **The look** is one pure function of those two fields and the
+  ship's speed, `hyperLook` (how far the dots are pulled out into dashes, how much of the tunnel
+  shows, the ring's two runs, where the lens and the flame are headed), so the lab, the tests and a
+  flight show the same jump. `world/Hyperspace.ts` draws it as two meshes at the far plane, by
+  the sky's rule (directions only, after the stars and before everything else): a tube round the
+  course, ribbed in the base of the destination's family, and a field of dashes, half of them
+  starlight and half the five families' bases with the destination's in the lead
+  (`wearHyperFamily` and `HYPER_TINT_SHARES` in `design/materials.ts`); neither blooms. One
+  thin ring besides, round the course like the tunnel: out from the eye at the punch, back onto
+  it on the way out, faint while it is wide (it asks nothing of where the destination is). With
+  the look's `surge` the chase
+  camera's lens opens further and the ship pulls ahead of the view (`chaseCam.surge*`), the flame
+  grows to its length at boost, and the real
+  stars dim by its `calm` through `Starfield.setCalm` (`starCalm`, which also holds the star
+  map's own dimming). On its way out the picture runs on its own clock, for `hyper.dropoutSec`,
+  whatever ended the jump; and a jump taken while that picture is still going (another
+  destination picked in the tunnel, and Shift again at once) does not cut it: it goes on going
+  under the new wind-up. The star map hides all of it (`mapWeight`). **The offer**
+  (`ui/HyperOffer.ts`) is one real button right after the prompt in `#universe-overlay`, shown
+  while a jump is offered or winding up and the world has the whole screen (no page open, the
+  map closed). "No page open" is asked of the rig as the page WANTS the view, at once
+  (`CameraRig.whole`), and not as far as the view has slid: a link opens its page and sets the
+  ship out in the same moment, the offer comes with the journey's first step, and the free part
+  of the view EASES, so for two frames at 60 a second nearly all of it still reads as free.
+  `Shift` presses it (a fresh press of the key alone, and not one typed into the
+  page), and any other key while Shift is still down takes the wind-up back. **So on a journey
+  Shift is hyperspace's, and boost is a fresh press in the pilot's own flight**
+  (`core/input/keys.ts`): the keyboard asks the navigator, at every key and every step, whether
+  the ship is being flown for the pilot (the autopilot, an approach), takes no Shift that goes
+  down then, lets go of one that was held into it, and takes none that only repeats. The Shift
+  that took a jump is often still down when an arrow takes the journey back, at the autopilot's
+  speed, where the guard that brakes the ship believes a boost it is shown (`guardInput`); a
+  second finger on the world keeps the same rule (`TouchControls`: boost only in free flight,
+  where its pad is out). The shell mirrors
+  the event as `html[data-hyper]` (`shell/universe-shell.ts`), which is all the stylesheet needs
+  for the deck's running chevrons, the minimap's running route and the names that step back in
+  the tunnel; the deck's lamp reads HYPER there by itself (`ui/FlightDeck.ts`). An engine
+  rebuilt in the tunnel takes the journey up in the tunnel, past its punch (`dock.hyper` in the
+  snapshot, `resumeHyper`); `api.ts` tells the page `off` when it takes an engine down in the
+  middle of an offer or a jump (the new engine starts from `off` and reports changes only), and
+  the new engine tells `tunnel` again if it resumed one. That it is the same flight is held by
+  the journeys harness: `flyTwins` flies every journey twice, once by a visitor who takes the
+  jump the moment it is offered, and compares the two step for step, bit for bit.
 - **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
   works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
   camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
@@ -415,12 +493,16 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered
   (`firstinput`), set out for somewhere from the open sky, or pressed "Got it"; a journey that
-  began with a link does not count, because that visitor was reading.
+  began with a link does not count, because that visitor was reading. It lingers a few seconds
+  after they have got it, except when that journey is offered hyperspace: the offer stands where
+  the card does, so the card goes at once.
 - **What the ship does, said aloud** (`shell/announcer.ts`). One polite `role="status"` region,
   in the layout from the start and empty, because a screen reader listens to the regions it found
   when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI.", "Stopped." or,
   when an arrow or the throttle took the journey back and the ship flies on, "Flying by hand."
-  (`undocked`'s `halting`), and that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
+  (`undocked`'s `halting`), and that the star map opened or closed. Between "Flying to" and
+  "Docked at" it says "Hyperspace." once, when a tunnel follows a wind-up: the press was heard.
+  (Not for a tunnel taken up again by a rebuilt engine, which nobody pressed for.) It says nothing about a ship that was PUT somewhere (a deep
   link, a cut under reduced motion), nor about leaving: there a page opens or closes, the focus
   moves, and the heading says it better.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
@@ -475,8 +557,13 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
 | Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
+| Hyperspace on the journey under way: none, offered, winding up, in the tunnel, spent | `DockState.hyper` and `hyperSec` in the simulation (`sim/hyper.ts`), which nothing that flies the ship reads; `Navigator.hyper` for everyone else; mirrored to `html[data-hyper]` for the stylesheet. In the `Snapshot` only that the journey was in the tunnel (`dock.hyper`) | it is a journey's, so it ends with the journey. A rebuilt engine takes a tunnel up past its punch; an offer is simply made again, and so is a wind-up that had not opened yet |
+| How a jump looks this frame | nowhere: `hyperLook` (pure) works it out from the dock's two fields and the ship's speed, and `world/Hyperspace.ts` draws it. The view's own: how far the dashes have streamed, where the lens has got to, and the clock of a picture on its way out (and of the one before it, while that is still going under a new jump) | a picture of state that has its owner. A rebuilt engine starts the stream afresh, which nobody can tell |
+| Which keys are down, and whether a Shift among them is boost | `core/input/keys.ts` (`KeyState`), fed by `KeyboardInput`, which asks the navigator whether the ship is on a journey | boost is a fresh press in the pilot's own flight: a Shift that went down on a journey is hyperspace's, and is not boost when the controls take the ship back |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
+| What the flight deck shows | nowhere: `ui/FlightDeck.ts` reads the ship, the navigator and the galaxy's positions each frame, through `sim/instruments.ts` | a picture of state that has its owners: nothing to keep, nothing a rebuild could lose |
+| Which system the ship is in, and what the minimap looks at | `main.ts` (`systemAt`, once a frame) and `ui/MiniMap.ts` (`miniScope`): derived from where the ship is and where it is headed; not in the snapshot | it follows from the ship, so a rebuilt engine has it again with its first frame. A journey's line and seconds are the autopilot's own (`surroundings.cruise`), read each frame. Two things are the picture's own way of telling a journey and are kept by nobody: that the seconds only count down, and the seconds the journey began with, which is what the clock on the rim is whole at. Whenever the minimap comes back in the middle of a journey (from the star map, or in an engine built again from its snapshot) both begin afresh: the ring is whole again at the seconds that are left. Nothing else reads either, so neither is a snapshot field |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
 | Design values | `design/tokens.ts`, `design/tuning.ts` | one place to look, one place to edit |
@@ -501,9 +588,36 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   at its own body, which meets the shell only from nearer than the brake could stop in; a chase
   camera that never swings faster than its limit, nor under reduced motion than a pilot turns;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
-  and a crowded one only ever fades; a camera blend that stays level however far round it turns.
+  and a crowded one only ever fades; a camera blend that stays level however far round it turns;
+  the flight deck's instruments (a bearing that never reads 360, a g that is 3.47 from rest at
+  full thrust, a countdown that never rises, a system the ship stays "in" across its edge);
+  hyperspace (`sim/hyper.test.ts`: an offer only once the plan pays and never a second one, no
+  stub of a tunnel for a late press, a tunnel that outlasts a slow bend, a step that reads the
+  plan and the speed and writes the dock's two fields and nothing else; a look that never steps
+  but at the punch, and is gone `dropoutSec` after any way out; `world/Hyperspace.test.ts`: a
+  ring that closes round the course, faint while it is wide, a second jump that does not cut
+  the first one's picture, and none from the future when the lab puts its clock back); the keys (`core/input/input.test.ts`: no Shift of a journey is
+  boost, then or once it is handed back, and a second finger keeps the rule,
+  `core/input/touch.test.ts`); and
+  the minimap's maths, in the real galaxy and in grown ones of 6 and 8 systems
+  (`tests/minimap-galaxy.test.ts`): at every scope and size every body a ship can dock at is
+  on the face (which is round) and every other system is one pin on the circle inside its rim,
+  in a galaxy wider than tall and in one taller than wide; the two sizes of face it is held to
+  must be the ones the stylesheet gives (the smallest and the largest of its two sizes:
+  `--minimap-size`, in flight under a mouse, and `--minimap-held`, docked and under a finger,
+  each less the plate's ring and band: the test reads all of it), so a change of size cannot go
+  unmeasured.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
-  history rules, the panel, the swap contract, the hint card, the announcer.
+  history rules, the panel, the swap contract, the hint card, the announcer. So does the DOM the
+  engine makes (`src/universe/ui/*.test.ts`): the names, the prompt, the offer of hyperspace
+  (which Shift it takes and which it leaves to the page, that a chord takes the wind-up back,
+  that a thumb and the click after it are one press), the star map's controls, and
+  the two pictures, the flight deck and the minimap (hidden from assistive technology, nothing
+  to focus, what each writes and that it writes nothing while nothing changes; for the minimap,
+  what its pill and its chip say, how the clock on its rim runs down and is put away, that its
+  N gives way to a pin beside it, that the names are told of the two ends of a long pill, that a
+  pointer is measured from the face wherever the face lies in its box, and what a press on a
+  mark, on nothing and on the body the ship is at does).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
   page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
@@ -511,6 +625,9 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   path, 301, to a page of the build that no page links past (`scripts/lib/redirects.mjs`).
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries
   still bite, the build scripts work, and no phone number or private address is in the repo.
+  And those that hold two parts against each other that know nothing of each other: the flight
+  deck's top, which is the stylesheet's, against the fins of a ship at rest, which are the chase
+  camera's and the model's (`tests/deck-room.test.ts`).
 - **Real browsers, by machine** (`npm run e2e`, Playwright, `tests/e2e`): Chromium, WebKit and a
   phone-sized Chromium drive the real build behind `wrangler dev`, so the headers and the CSP are
   under test too (over HTTPS: the CSP says `upgrade-insecure-requests`, and WebKit honours that
@@ -522,8 +639,26 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   context taken away mid-visit (the engine rebuilds in place: same page, same dock, the map still
   open); pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card;
   the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
-  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
-  in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
+  pipeline), none of which flies the ship or changes the URL; the flight deck and the minimap
+  (`deck.spec.ts`): where they sit and what they keep clear of, the strip on a phone, that Tab
+  never lands in either, that the minimap's plate and chip stand on the ball's and the HDG chip's
+  lines, a press on a mark of the minimap flying there with its line, its clock and its
+  seconds, a press on its empty ground or on its chip opening the star map, the corners of its
+  box being the sky's, its pill resting while the ship is docked (which hangs on the deck
+  standing before it in the overlay: asked too), its N shown where no pin is near and gone
+  where one stands beside it, and both back after a lost context; hyperspace (`hyper.spec.ts`):
+  Shift on a long journey shows it as a jump, says "Hyperspace." once and docks where it was
+  going, with the deck's lamp reading AUTO, HYPER, AUTO on the way; Shift+Tab is no jump; Stop
+  in the tunnel ends both; the Shift that took the jump, still down when an arrow takes the
+  journey back, is not boost until it is pressed afresh (the deck's own boost light says so);
+  nothing is offered on a hop, on a link's journey (nor for one frame
+  of it: that test hands the page its frames by hand, a sixtieth of a second apart, since what
+  a view does in its first two frames depends on the machine's pace), on the open map or
+  under reduced motion; a context lost in the tunnel comes back in the tunnel; on a phone the
+  offer is a round pad exactly where the boost pad stands; and where the chip stands at three
+  sizes of window;
+  axe with no serious issue on any page
+  in either mode, nor on the map, nor with the offer of hyperspace up; nothing scrolls sideways at 360 and 320 px, and every control is
   44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
   they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,

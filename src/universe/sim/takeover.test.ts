@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../design/tuning';
 import { pullOf } from './assist';
-import { dockAt, guardDock, guardInput, haltDock, releaseDock, requestDock } from './docking';
+import {
+  HYPER_NONE,
+  HYPER_OFFERED,
+  HYPER_TUNNEL,
+  HYPER_WINDUP,
+  dockAt,
+  guardDock,
+  guardInput,
+  haltDock,
+  releaseDock,
+  requestDock,
+} from './docking';
 import { NO_INPUT, createShipState, speedOf } from './flight';
+import { engageHyper } from './hyper';
 import { createRng } from './rng';
 import {
   createSurroundings,
@@ -507,5 +519,66 @@ describe('the guard (a ship taken back at speed)', () => {
     expect(guarded.world.dock.guarding).toBe(true);
     step(guarded, { ...THRUST, boost: true });
     expect(guarded.world.dock.guarding).toBe(false);
+  });
+});
+
+describe('taking the controls back in hyperspace', () => {
+  /**
+   * FishAI to About, 600 u: the jump taken the moment it is offered, and flown into its tunnel.
+   * `held` is what the pilot holds from the press on (Shift, for a keyboard: it is the press).
+   */
+  function inTheTunnel(held: Readonly<FlightInput> = NO_INPUT): Run {
+    const run = setOut('project/fishai', 'page/about', 12679, 4.114, 1);
+    const { dock } = run.world;
+    step(run);
+    expect(dock.hyper).toBe(HYPER_OFFERED);
+    expect(engageHyper(dock)).toBe(true);
+    for (let k = 0; k < 240 && dock.hyper === HYPER_WINDUP; k += 1) step(run, held);
+    expect(dock.hyper).toBe(HYPER_TUNNEL);
+    expect(dock.phase).toBe('cruise');
+    expect(speedOf(run.state)).toBeGreaterThanOrEqual(tuning.hyper.punchSpeed);
+    return run;
+  }
+
+  it('ends the jump with a turn, and guards the ship as on any journey handed back', () => {
+    const run = inTheTunnel();
+    tap(run, LEFT, 4);
+    const { dock } = run.world;
+    expect(dock.phase).toBe('free');
+    expect(dock.guarding).toBe(true);
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_NONE, 0]);
+    const seen = watch(run, 8);
+    expect(seen.touches).toBe(0);
+    expect(seen.gap).toBeGreaterThan(tuning.cushion.depth * 0.5);
+    expect(dock.hyper).toBe(HYPER_NONE);
+  });
+
+  it('ends the jump with the brake, which is Stop: the ship brakes to rest', () => {
+    const run = inTheTunnel();
+    tap(run, BRAKE, 4);
+    const { dock } = run.world;
+    expect(dock.phase).toBe('free');
+    expect(dock.halting).toBe(true);
+    expect([dock.hyper, dock.hyperSec]).toEqual([HYPER_NONE, 0]);
+    const seen = watch(run, 6);
+    expect(seen.touches).toBe(0);
+    expect(speedOf(run.state)).toBeLessThan(15);
+  });
+
+  it('takes a Shift that stays held for nothing: the key that jumps hands nothing back', () => {
+    const SHIFT: FlightInput = { thrust: 0, turn: 0, brake: 0, boost: true };
+    // Held through the wind-up and on into the tunnel, as a finger left on the key is.
+    const run = inTheTunnel(SHIFT);
+    const { dock } = run.world;
+    const sec = dock.hyperSec;
+    tap(run, SHIFT, 12);
+    expect(dock.phase).toBe('cruise');
+    expect(dock.leftByPilot).toBe(false);
+    expect(dock.hyper).toBe(HYPER_TUNNEL);
+    expect(dock.hyperSec).toBeCloseTo(sec + 12 * STEP, 9);
+    // And it docks as the journey always did.
+    for (let k = 0; k < 60 * 20 && dock.phase === 'cruise'; k += 1) step(run, SHIFT);
+    expect(dock.phase).toBe('docked');
+    expect(dock.hyper).toBe(HYPER_NONE);
   });
 });

@@ -17,6 +17,12 @@ export interface TouchParams extends StickParams {
  * so that boost can be discovered. The pad is only out in free flight: boost multiplies the
  * pilot's own thrust, and docked or on a journey the stick is what takes the controls back.
  *
+ * BOOST IS A FRESH PRESS IN THE PILOT'S OWN FLIGHT, for a finger as for Shift (keys.ts): a second
+ * finger that goes down while the ship is not the pilot's is not boost, then or once the stick
+ * has taken the ship back, until it is put down afresh. The stick takes a journey back at the
+ * autopilot's speed, and the guard that brakes the ship then believes a boost it is shown
+ * (sim/docking.ts, guardInput).
+ *
  * The engine owns these elements because they follow a finger every frame; how they LOOK is CSS
  * (src/styles, `.touch-stick`, `.touch-boost`), which is the design surface. Nothing shows until
  * the first touch, so a mouse-and-keyboard visitor never sees any of it.
@@ -136,7 +142,7 @@ export class TouchControls implements InputSource {
       this.deflectY = 0;
       this.base.hidden = false;
       this.draw();
-    } else {
+    } else if (this.flying) {
       this.boosting.add(event.pointerId);
       this.pad.dataset.active = '';
     }

@@ -65,6 +65,33 @@ test('the star map is still open after a rebuild', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Map', exact: true })).toBeVisible();
 });
 
+test('the flight deck and the minimap are back after a rebuild, one of each, laid out as before', async ({
+  page,
+  isMobile,
+}) => {
+  await openUniverse(page, '/');
+  const deck = page.locator('.flight-deck');
+  const minimap = page.locator('.minimap');
+  // A laptop has the cluster and the minimap beside it; a phone the strip, and no minimap.
+  const layout = isMobile ? 'strip' : 'full';
+  await expect(deck).toBeVisible();
+  await expect(deck).toHaveAttribute('data-layout', layout);
+  await expect(minimap).toBeVisible({ visible: !isMobile });
+
+  test.skip(!(await loseContext(page)), 'this browser cannot lose a context on request');
+  await expect.poll(() => rebuilt(page)).toBe(true);
+  await engineReady(page);
+
+  // The old engine took its pictures with it, and the new one drew its own: neither keeps
+  // anything a rebuild could lose, so they are simply there again.
+  await expect(deck).toHaveCount(1);
+  await expect(minimap).toHaveCount(1);
+  await expect(deck).toBeVisible();
+  await expect(deck).toHaveAttribute('data-layout', layout);
+  await expect(minimap).toBeVisible({ visible: !isMobile });
+  if (!isMobile) await expect(minimap).toHaveAttribute('data-scope', 'galaxy');
+});
+
 test('a Stop pressed in the frame the context goes still ends the journey and closes its page', async ({
   page,
 }) => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { parseSnapshot } from '../core/snapshot';
 import { tuning } from '../design/tuning';
+import { HYPER_NONE, HYPER_WINDUP } from '../sim/docking';
 import { NO_INPUT, copyShipState, createShipState } from '../sim/flight';
 import {
   createSurroundings,
@@ -66,7 +68,7 @@ const LINKED_GALAXY: SurroundingsInput = {
 type Heard = { [K in keyof NavigatorEvents]: [K, NavigatorEvents[K]] }[keyof NavigatorEvents];
 
 /** A little engine: the ship, the world, the navigator, in the order main.ts steps them. */
-function harness(x: number, z: number, heading = 0, galaxy = GALAXY) {
+function harness(x: number, z: number, heading = 0, galaxy = GALAXY, reducedMotion = false) {
   const surroundings = createSurroundings(galaxy, tuning.edge.margin);
   const state = createShipState(x, z, heading);
   const pilot: { current: FlightInput } = { current: { ...NO_INPUT } };
@@ -82,6 +84,7 @@ function harness(x: number, z: number, heading = 0, galaxy = GALAXY) {
     ship,
     pilot,
     params: tuning,
+    reducedMotion,
     emit: (event, payload) => void heard.push([event, payload] as Heard),
   });
   const step = (): void => {
@@ -156,8 +159,8 @@ describe('Navigator and a body nothing docks at (a link)', () => {
 
   it('takes a snapshot that says the ship is headed for it, or docked at it, as a Stop', () => {
     for (const dock of [
-      { id: 'link/github', docked: true, angle: 1, spin: 1, holdSec: 0 },
-      { id: 'link/github', docked: false, angle: 0, spin: 1, holdSec: 1 },
+      { id: 'link/github', docked: true, angle: 1, spin: 1, holdSec: 0, hyper: false },
+      { id: 'link/github', docked: false, angle: 0, spin: 1, holdSec: 1, hyper: false },
     ]) {
       for (const cut of [false, true]) {
         const h = harness(RELAY.x + 30, RELAY.z, 0, LINKED_GALAXY);
@@ -180,7 +183,14 @@ describe('Navigator and a body nothing docks at (a link)', () => {
     const h = harness(0, -200, 0, LINKED_GALAXY);
     h.state.vz = 14;
     h.run(0.05);
-    h.navigator.restore({ id: 'project/gone', docked: true, angle: 0, spin: 1, holdSec: 0 });
+    h.navigator.restore({
+      id: 'project/gone',
+      docked: true,
+      angle: 0,
+      spin: 1,
+      holdSec: 0,
+      hyper: false,
+    });
     h.run(0.05);
     expect(h.navigator.state).toEqual({ mode: 'flight', target: null });
     expect(h.navigator.halting).toBe(true);
@@ -357,8 +367,9 @@ describe('Navigator', () => {
 });
 
 describe('Navigator, travelling', () => {
+  /** The journey's own news. (What hyperspace says on the way is told further down.) */
   const story = (h: ReturnType<typeof harness>): Heard[] =>
-    h.heard.filter(([name]) => name !== 'soi');
+    h.heard.filter(([name]) => name !== 'soi' && name !== 'hyper');
 
   it('flies to a body that is out of reach: autopilot, then docked, each said once', () => {
     const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
@@ -815,5 +826,304 @@ describe('Navigator, travelling', () => {
     expect(close.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
     // With no hold, as pointing at it would be: theirs is no journey.
     expect(close.surroundings.dock.holdSec).toBe(0);
+  });
+});
+
+describe('Navigator and hyperspace', () => {
+  type Harness = ReturnType<typeof harness>;
+  const hyperStory = (h: Harness): string[] =>
+    h.heard.flatMap((heard) => (heard[0] === 'hyper' ? [heard[1].state] : []));
+  /** Step (a frame after each) until `done`; a journey that never gets there fails the test. */
+  const until = (h: Harness, done: () => boolean, limitSec = 30): void => {
+    for (let k = Math.round(limitSec / STEP); k > 0 && !done(); k -= 1) h.run(STEP);
+    expect(done()).toBe(true);
+  };
+  const docked = (h: Harness) => (): boolean => h.navigator.state.mode === 'docked';
+  /** Off for FishAI, 950 u away: long and fast enough for a jump to be offered. */
+  const setOut = (reducedMotion = false): Harness => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY, reducedMotion);
+    h.run(0.2);
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+    return h;
+  };
+  /** The same, the jump taken, and the tunnel open. */
+  const inTheTunnel = (): Harness => {
+    const h = setOut();
+    until(h, () => h.navigator.hyper === 'offered');
+    expect(h.navigator.engageHyper()).toBe(true);
+    until(h, () => h.navigator.hyper === 'tunnel');
+    return h;
+  };
+
+  it('takes the jump that is offered, and nothing else', () => {
+    const h = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    h.run(0.2);
+    // Free flight is offered nothing...
+    expect(h.navigator.hyper).toBe('off');
+    expect(h.navigator.engageHyper()).toBe(false);
+    h.navigator.travel('project/fishai');
+    // ...and a journey nothing before its first step has planned it.
+    expect(h.navigator.engageHyper()).toBe(false);
+    h.run(STEP);
+    expect(h.navigator.hyper).toBe('offered');
+    expect(h.navigator.engageHyper()).toBe(true);
+    expect(h.navigator.hyper).toBe('windup');
+    // Pressing twice is pressing once.
+    expect(h.navigator.engageHyper()).toBe(false);
+    expect(h.navigator.hyper).toBe('windup');
+
+    // A hop to somewhere within reach is flown by the ring's own pilot: never a jump.
+    const hop = harness(0, -40, Math.PI / 2, WIDE_GALAXY);
+    hop.run(0.2);
+    hop.navigator.travel('page/about');
+    for (let k = 0; k < 120; k += 1) {
+      hop.run(STEP);
+      expect(hop.navigator.hyper).toBe('off');
+      expect(hop.navigator.engageHyper()).toBe(false);
+    }
+    expect(hyperStory(hop)).toEqual([]);
+  });
+
+  it('tells a jump as it goes: offered, wound up, the tunnel, and over, each once', () => {
+    const h = setOut();
+    h.run(STEP);
+    // The journey's own news comes first.
+    expect(h.heard.filter(([name]) => name !== 'soi')).toEqual([
+      ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
+      ['hyper', { state: 'offered' }],
+    ]);
+    h.navigator.engageHyper();
+    until(h, docked(h));
+    expect(hyperStory(h)).toEqual(['offered', 'windup', 'tunnel', 'off']);
+    // The tunnel closes on the way in: the ship is out of it before it is in orbit.
+    const names = h.names();
+    expect(names.lastIndexOf('hyper')).toBeLessThan(names.indexOf('docked'));
+    // And an orbit has none.
+    h.run(1);
+    expect(h.navigator.hyper).toBe('off');
+    expect(h.navigator.engageHyper()).toBe(false);
+    expect(hyperStory(h)).toHaveLength(4);
+  });
+
+  it('tells every change in order however slow the frames are: once a step, not once a frame', () => {
+    const h = setOut();
+    h.step();
+    h.navigator.engageHyper();
+    // A tab that drew nothing for the whole journey.
+    for (let k = 0; k < 60 * 30 && !docked(h)(); k += 1) h.step();
+    expect(docked(h)()).toBe(true);
+    expect(hyperStory(h)).toEqual([]);
+    h.navigator.frameUpdate();
+    expect(hyperStory(h)).toEqual(['offered', 'windup', 'tunnel', 'off']);
+  });
+
+  it('never offers twice on one journey: an offer left alone is simply over', () => {
+    const h = setOut();
+    until(h, docked(h));
+    expect(hyperStory(h)).toEqual(['offered', 'off']);
+  });
+
+  it('takes a wind-up back while it is one (Shift was half of a chord), and never the tunnel', () => {
+    const h = setOut();
+    h.run(STEP);
+    // Nothing to take back yet.
+    expect(h.navigator.cancelHyper()).toBe(false);
+    h.navigator.engageHyper();
+    h.run(0.1);
+    expect(h.navigator.cancelHyper()).toBe(true);
+    expect(h.navigator.hyper).toBe('offered');
+    h.run(STEP);
+    expect(hyperStory(h)).toEqual(['offered', 'windup', 'offered']);
+    // The offer stands: taken again, it opens, and then nothing takes it back.
+    expect(h.navigator.engageHyper()).toBe(true);
+    until(h, () => h.navigator.hyper === 'tunnel');
+    expect(h.navigator.cancelHyper()).toBe(false);
+    expect(h.navigator.hyper).toBe('tunnel');
+
+    // Pressed and taken back between two steps, it never happened.
+    const quick = setOut();
+    quick.run(STEP);
+    quick.navigator.engageHyper();
+    quick.navigator.cancelHyper();
+    quick.run(STEP);
+    expect(hyperStory(quick)).toEqual(['offered']);
+  });
+
+  it('ends the jump with its journey: Stop, the web layer letting go, the controls', () => {
+    const ways: ReadonlyArray<readonly [string, (h: Harness) => void]> = [
+      ['Stop', (h) => h.navigator.stop('pilot')],
+      ['let go', (h) => h.navigator.release('asked')],
+      ['an arrow key', (h) => void (h.pilot.current = { ...NO_INPUT, turn: 1 })],
+      ['the brake', (h) => void (h.pilot.current = { ...NO_INPUT, brake: 1 })],
+    ];
+    for (const [name, end] of ways) {
+      const h = inTheTunnel();
+      h.run(0.2);
+      end(h);
+      h.run(STEP);
+      expect(h.navigator.state, name).toEqual({ mode: 'flight', target: null });
+      expect(h.navigator.hyper, name).toBe('off');
+      expect(h.surroundings.dock.hyper, name).toBe(HYPER_NONE);
+      expect(hyperStory(h), name).toEqual(['offered', 'windup', 'tunnel', 'off']);
+      // Nothing is left to take or to keep.
+      expect(h.navigator.engageHyper(), name).toBe(false);
+      expect(h.navigator.snapshot(), name).toBeNull();
+    }
+  });
+
+  it('ends it for another destination, a new journey with an offer of its own, and keeps it for the same one', () => {
+    const h = inTheTunnel();
+    h.run(0.2);
+    // Asking for where it is going already is not news.
+    expect(h.navigator.travel('project/fishai')).toBe(true);
+    h.run(STEP);
+    expect(h.navigator.hyper).toBe('tunnel');
+    expect(hyperStory(h)).toEqual(['offered', 'windup', 'tunnel']);
+
+    expect(h.navigator.travel('system/code', 'pilot')).toBe(true);
+    // At once, before any step: the tunnel was the old journey's.
+    expect(h.navigator.hyper).toBe('off');
+    h.run(STEP);
+    expect(h.navigator.state).toEqual({ mode: 'autopilot', target: 'system/code' });
+    expect(['off', 'offered']).toContain(h.navigator.hyper);
+    expect(hyperStory(h).at(-1)).toBe(h.navigator.hyper);
+    // Nobody presses on the new journey: it has no wind-up and no tunnel.
+    until(h, docked(h));
+    const after = hyperStory(h).slice(3);
+    expect(after).not.toContain('windup');
+    expect(after).not.toContain('tunnel');
+    expect(after.at(-1)).toBe('off');
+  });
+
+  it('keeps a jump through a rebuild only in the tunnel', () => {
+    const h = setOut();
+    h.run(STEP);
+    expect(h.navigator.snapshot()).toMatchObject({ docked: false, hyper: false });
+    h.navigator.engageHyper();
+    h.run(STEP);
+    expect(h.navigator.hyper).toBe('windup');
+    expect(h.navigator.snapshot()).toMatchObject({ docked: false, hyper: false });
+    until(h, () => h.navigator.hyper === 'tunnel');
+    expect(h.navigator.snapshot()).toMatchObject({
+      id: 'project/fishai',
+      docked: false,
+      hyper: true,
+    });
+    until(h, () => h.navigator.hyper === 'off');
+    expect(h.navigator.snapshot()).toMatchObject({ docked: false, hyper: false });
+    until(h, docked(h));
+    expect(h.navigator.snapshot()).toMatchObject({ docked: true, hyper: false });
+  });
+
+  it('takes a journey up again in the tunnel after a rebuild, and says so without a wind-up', () => {
+    const h = inTheTunnel();
+    h.run(0.2);
+    // Away and back, as the web layer keeps it (sessionStorage) and the engine reads it again.
+    const kept = parseSnapshot(
+      JSON.parse(
+        JSON.stringify({
+          steps: Math.round(h.time() / STEP),
+          ship: h.state,
+          dock: h.navigator.snapshot(),
+          halting: h.navigator.halting,
+          guarding: h.navigator.guarding,
+        }),
+      ),
+    );
+    if (kept === null) throw new Error('not a snapshot');
+    expect(kept.dock).toMatchObject({ id: 'project/fishai', docked: false, hyper: true });
+
+    const again = harness(0, 0, 0, WIDE_GALAXY);
+    copyShipState(kept.ship, again.state);
+    syncSurroundings(again.surroundings, kept.steps * STEP);
+    again.navigator.restore(kept.dock);
+    expect(again.navigator.hyper).toBe('tunnel');
+    again.run(STEP);
+    // The new journey's own plan still has its fast stretch ahead: the tunnel holds.
+    expect(again.navigator.hyper).toBe('tunnel');
+    expect(again.heard.filter(([name]) => name !== 'soi')).toEqual([
+      ['statechange', { mode: 'autopilot', target: 'project/fishai' }],
+      ['hyper', { state: 'tunnel' }],
+    ]);
+    until(again, docked(again));
+    expect(hyperStory(again)).toEqual(['tunnel', 'off']);
+    expect(again.navigator.state).toEqual({ mode: 'docked', target: 'project/fishai' });
+  });
+
+  it('does not take up a tunnel on a journey the autopilot does not fly, or one with nothing fast left', () => {
+    // Within reach, the journey is taken up as an approach: no tunnel there.
+    const near = harness(0, -44, 0, WIDE_GALAXY);
+    near.run(0.2);
+    near.navigator.restore({
+      id: 'page/about',
+      docked: false,
+      angle: 0,
+      spin: 1,
+      holdSec: 1,
+      hyper: true,
+    });
+    expect(near.navigator.state).toEqual({ mode: 'approach', target: 'page/about' });
+    expect(near.navigator.hyper).toBe('off');
+    near.run(0.5);
+    expect(hyperStory(near)).toEqual([]);
+
+    // A short journey from rest: the autopilot flies it, but its plan has nothing fast, and the
+    // first step closes a tunnel the snapshot claimed. Nobody is told of either.
+    const slow = harness(0, -200, 0, WIDE_GALAXY);
+    slow.run(0.2);
+    expect(slow.navigator.withinReach('page/about')).toBe(false);
+    slow.navigator.restore({
+      id: 'page/about',
+      docked: false,
+      angle: 0,
+      spin: 1,
+      holdSec: 0,
+      hyper: true,
+    });
+    expect(slow.surroundings.dock.phase).toBe('cruise');
+    expect(slow.navigator.hyper).toBe('tunnel');
+    slow.run(STEP);
+    expect(slow.navigator.hyper).toBe('off');
+    expect(hyperStory(slow)).toEqual([]);
+    until(slow, docked(slow));
+    expect(hyperStory(slow)).toEqual([]);
+  });
+
+  it('has no hyperspace at all for a visitor who asked for less motion', () => {
+    const h = setOut(true);
+    h.run(1);
+    expect(h.navigator.hyper).toBe('off');
+    expect(h.navigator.engageHyper()).toBe(false);
+    expect(h.navigator.snapshot()).toMatchObject({ docked: false, hyper: false });
+    // Nor is a wind-up theirs to take back, if one could ever be there: every door has its lock.
+    const { dock } = h.surroundings;
+    const was = dock.hyper;
+    dock.hyper = HYPER_WINDUP;
+    expect(h.navigator.hyper).toBe('off');
+    expect(h.navigator.cancelHyper()).toBe(false);
+    expect(dock.hyper).toBe(HYPER_WINDUP);
+    dock.hyper = was;
+    until(h, docked(h));
+    expect(hyperStory(h)).toEqual([]);
+
+    // A tunnel kept by a visitor who has asked for less motion since is not taken up: their
+    // journey is a cut (main.ts restores with `cut`), and even flown, it has no tunnel.
+    const kept = {
+      id: 'project/fishai',
+      docked: false,
+      angle: 0,
+      spin: 1,
+      holdSec: 0,
+      hyper: true,
+    };
+    for (const cut of [true, false]) {
+      const again = harness(0, -40, Math.PI / 2, WIDE_GALAXY, true);
+      again.run(0.2);
+      again.navigator.restore(kept, cut);
+      expect(again.surroundings.dock.hyper, String(cut)).toBe(HYPER_NONE);
+      expect(again.navigator.hyper, String(cut)).toBe('off');
+      until(again, docked(again));
+      expect(hyperStory(again), String(cut)).toEqual([]);
+    }
   });
 });

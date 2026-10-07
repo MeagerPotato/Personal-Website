@@ -304,3 +304,137 @@ describe('applyPose', () => {
     expect(toFocus.normalize().dot(forward)).toBeCloseTo(1, 9);
   });
 });
+
+describe('the chase camera in hyperspace: the surge', () => {
+  const SPEED = tuning.cruise.far.cruiseSpeed;
+
+  /** A ship at the autopilot's top speed, a camera that has settled on it, and its surge. */
+  function cruising(reducedMotion = false, withSurge = true) {
+    const target = ship(0, 0, 0, SPEED);
+    const pull = { surge: 0 };
+    const cam = new ChaseCam(target, {
+      reducedMotion,
+      ...(withSurge ? { surge: () => pull.surge } : {}),
+    });
+    const pose = createPose();
+    /** Fly on for `seconds` at `hz` frames a second. */
+    const fly = (seconds: number, hz = 60): void => {
+      for (let i = Math.round(seconds * hz); i > 0; i -= 1) {
+        target.position.z += SPEED / hz;
+        cam.update(frame(1 / hz), WIDE, pose);
+      }
+    };
+    /** How far the ship is ahead of the point the view trails behind it. */
+    const trail = (): number => target.position.z - (pose.focus.z - params.lookAheadMax);
+    fly(4);
+    return { target, pull, cam, pose, fly, trail };
+  }
+  const cruiseFov = tuning.camera.fovDegrees + params.fovBoostDegrees;
+
+  it('opens the lens 14 degrees further and lets the ship pull 3.5 u further ahead', () => {
+    const c = cruising();
+    expect(c.pose.fov).toBeCloseTo(cruiseFov, 6);
+    expect(c.trail()).toBeCloseTo(params.maxTrail, 3);
+
+    c.pull.surge = 1;
+    c.fly(3);
+    expect(c.pose.fov).toBeCloseTo(cruiseFov + params.surgeFovDegrees, 6);
+    expect(c.pose.fov).toBeCloseTo(82, 6);
+    expect(c.trail()).toBeCloseTo(params.maxTrail + params.surgeTrail, 3);
+
+    // And back, when the tunnel closes.
+    c.pull.surge = 0;
+    c.fly(3);
+    expect(c.pose.fov).toBeCloseTo(cruiseFov, 6);
+    expect(c.trail()).toBeCloseTo(params.maxTrail, 3);
+  });
+
+  it('eases after a surge that steps: quicker in than out, and never a lurch', () => {
+    const c = cruising();
+    c.pull.surge = 1;
+    let last = c.pose.fov;
+    let most = 0;
+    const halfWay = { in: 0, out: 0 };
+    for (let i = 1; i <= 120; i += 1) {
+      c.fly(1 / 60);
+      most = Math.max(most, c.pose.fov - last);
+      last = c.pose.fov;
+      if (halfWay.in === 0 && c.pose.fov >= cruiseFov + params.surgeFovDegrees / 2) halfWay.in = i;
+    }
+    // 14 degrees in about a third of a second, at most 0.8 of them in a frame.
+    expect(most).toBeLessThan(0.8);
+    c.pull.surge = 0;
+    for (let i = 1; i <= 120; i += 1) {
+      c.fly(1 / 60);
+      expect(c.pose.fov).toBeLessThanOrEqual(last + 1e-9);
+      last = c.pose.fov;
+      if (halfWay.out === 0 && c.pose.fov <= cruiseFov + params.surgeFovDegrees / 2)
+        halfWay.out = i;
+    }
+    expect(halfWay.in).toBeGreaterThan(5);
+    expect(halfWay.out).toBeGreaterThan(halfWay.in);
+  });
+
+  it('never opens the lens past its limit, however little of the screen is free', () => {
+    const c = cruising();
+    c.pull.surge = 1;
+    c.fly(3);
+    const pose = createPose();
+    // A phone held upright, and the same with the sheet up: the lens is already wide there.
+    for (const shape of [
+      { aspect: 360 / 740, freeWidth: 1, freeHeight: 1, freeTop: 0 },
+      { aspect: 360 / 740, freeWidth: 1, freeHeight: 407 / 740, freeTop: 157 / 740 },
+    ]) {
+      c.cam.update(frame(1 / 60), shape, pose);
+      expect(pose.fov).toBeLessThanOrEqual(params.maxFovDegrees);
+    }
+    // More surge than there is, is all of it.
+    c.pull.surge = 7;
+    c.fly(3);
+    expect(c.pose.fov).toBeCloseTo(cruiseFov + params.surgeFovDegrees, 6);
+    expect(cruiseFov + params.surgeFovDegrees).toBeLessThan(params.maxFovDegrees);
+  });
+
+  it('does nothing when nobody pulls, and nothing for a visitor who asked for less motion', () => {
+    const plain = cruising(false, false);
+    plain.fly(1);
+    expect(plain.pose.fov).toBeCloseTo(cruiseFov, 6);
+    expect(plain.trail()).toBeCloseTo(params.maxTrail, 3);
+
+    const calm = cruising(true);
+    const before = { fov: calm.pose.fov, trail: calm.trail() };
+    expect(before.fov).toBe(tuning.camera.fovDegrees);
+    calm.pull.surge = 1;
+    calm.fly(2);
+    expect(calm.pose.fov).toBe(before.fov);
+    expect(calm.trail()).toBeCloseTo(before.trail, 9);
+  });
+
+  it('is the same view at 30, 60 and 144 frames a second', () => {
+    const at = (hz: number): { fov: number; trail: number; distance: number } => {
+      const c = cruising();
+      c.pull.surge = 1;
+      // A third of a second in (a whole number of frames at each rate): mid-ease, where a
+      // frame-rate dependence would show.
+      c.fly(1 / 3, hz);
+      return { fov: c.pose.fov, trail: c.trail(), distance: c.pose.distance };
+    };
+    const sixty = at(60);
+    expect(sixty.fov).toBeGreaterThan(cruiseFov + 2);
+    expect(sixty.fov).toBeLessThan(cruiseFov + params.surgeFovDegrees - 1);
+    for (const hz of [30, 144]) {
+      const other = at(hz);
+      expect(other.fov, `${hz} Hz`).toBeCloseTo(sixty.fov, 6);
+      expect(other.trail, `${hz} Hz`).toBeCloseTo(sixty.trail, 6);
+      expect(other.distance, `${hz} Hz`).toBeCloseTo(sixty.distance, 6);
+    }
+  });
+
+  it('cuts with the camera: a view that snaps to the ship has the surge of that moment', () => {
+    const c = cruising();
+    c.pull.surge = 1;
+    c.cam.snap();
+    c.fly(1 / 60);
+    expect(c.pose.fov).toBeCloseTo(cruiseFov + params.surgeFovDegrees, 6);
+  });
+});

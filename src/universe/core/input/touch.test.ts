@@ -211,8 +211,22 @@ describe('TouchControls', () => {
     expect(read().thrust).toBeGreaterThan(0);
     expect(stick().hidden).toBe(false);
 
+    // A second finger on the world is the pad's twin: put down out there it is not boost, and it
+    // is not boost once the pilot has the ship back either, until it is put down afresh. (The
+    // stick takes a journey back at the autopilot's speed, and the guard that brakes the ship
+    // then believes a boost it is shown: sim/docking.ts.)
+    fire(canvas, 'pointerdown', 3, 300, 300);
+    expect(read().boost).toBe(false);
+    expect(pad().dataset.active).toBeUndefined();
+
     touch.setFlying(true);
     expect(pad().hidden).toBe(false);
+    expect(read().boost).toBe(false);
+    expect(pad().dataset.active).toBeUndefined();
+    fire(canvas, 'pointerup', 3, 300, 300);
+    fire(canvas, 'pointerdown', 3, 300, 300);
+    expect(read().boost).toBe(true);
+    expect(pad().dataset.active).toBe('');
   });
 
   it('lets go of everything when the window loses focus, and cleans up after itself', () => {

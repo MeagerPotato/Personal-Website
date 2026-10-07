@@ -39,7 +39,19 @@ the URL and the panel know nothing about. **The systems sit close together** (th
 "cluster"), the autopilot docks every journey in today's galaxy of four systems (median 2.9 s,
 p90 4.0 s, the slowest 5.8 s, since Research moved up beside the others on 2026-10-03), and every way a journey is handed back at speed (Stop, a key, the web layer
 letting go, a reload) brakes or guards the ship: docs/PLAN.md §5.5, "the cluster"; `npm run
-journeys` is its gate. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
+journeys` is its gate. **The flight deck and the minimap** are built: KSP's cluster at the bottom
+centre (ball, speed, heading, throttle and g, two lamps), which only reads the simulation
+(`sim/instruments.ts`) and shows whenever the ship is not docked; and a round minimap at the bottom
+right, the ball's twin: the star map's maths at another size (`sim/minimap.ts`), whose marks fly the ship there,
+with the way and the seconds of a journey drawn on it. A phone has a strip in the Map button's
+row, and no minimap. **Hyperspace** is built: on a journey that is fast for long enough a chip
+beside the prompt offers it (`Shift`, or press it; on a phone a round pad where the boost pad
+stands), and the journey's fast stretch is then SHOWN as a jump: the stars pulled out into
+dashes, half of them in the galaxy's five pastels with the destination's in the lead, a tunnel
+in the destination's lines, a wider lens. It is the same flight, bit for bit
+(`sim/hyper.ts` steers nothing, and `npm run journeys` flies every journey twice to hold it to
+that), so a jump takes exactly as long as its journey; there is none under reduced motion, on
+the star map or with a page open. **The visual identity pass (A1) is done**: Claude did the packet at Allen's
 request, in the "roadmap" direction (one face, Outfit; route lines and stations; docs/DESIGN.md holds every decision). Visits
 are counted since 2026-09-29 (Cloudflare Web Analytics, `src/shell/analytics.ts`). What Phase 2
 still lacks before launch: Allen's copy edit (docs/runbooks/copy-edit.md). Phase 1's exit gate, the playtest: Allen did
@@ -103,7 +115,7 @@ same rule for the same file. Options never merge. Edit the shared constants, not
 | `npm run preview` | `wrangler dev` serving `dist/` the way Cloudflare will (headers, 404, slashes). Build first; **restart it after every rebuild**, its manifest goes stale. |
 | `npm run verify` | format check → lint → `astro check` → Vitest → build → `verify-dist`. **Run before every commit.** CI runs exactly this. |
 | `npm run e2e` | build → Playwright (`tests/e2e`): Chromium, WebKit and a phone-sized Chromium against `wrangler dev` on its own port, over HTTPS. Needs `npx playwright install chromium webkit` once. On Windows, Chromium draws on the GPU (without it, headless Chromium draws the universe on the CPU: about 7 cores a page) and a quarter of the cores run tests; CI has no GPU and keeps the software renderer, which `E2E_SOFTWARE_GL=1` also gives locally. The machine is Allen's computer too: while iterating, run the specs a change touches, and the whole suite once at the end, never two whole suites at once. **Not** part of `verify`: CI runs it as a second, non-required job. |
-| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy (four systems) and in grown ones of 6 and 8, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. It **fails on a breach of the gate** (`scripts/journeys/gate.ts`, each breach printed in words): the real galaxy no failures, p90 ≤ 4.2 s, the slowest ≤ 6.5 s, at most 1.5% over 5 s; the grown ones no failures; stress and Stop, when run, no failures. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 5 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard or the snapshot: every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout; CI runs it as a non-required job on pull requests that touch the content (or `src/site`, which reads it), the site config, the engine or the harness. |
+| `npm run journeys` | The journey-time harness (`scripts/journeys`): flies every pair of bodies headless through the real simulation, in the real galaxy (four systems) and in grown ones of 6 and 8, and prints how long each takes to dock (median, p90, max), how close it came to anything, and the failures. It **fails on a breach of the gate** (`scripts/journeys/gate.ts`, each breach printed in words): the real galaxy no failures, p90 ≤ 4.2 s, the slowest ≤ 6.5 s, at most 1.5% over 5 s; the grown ones no failures; stress and Stop, when run, no failures. Every journey of the real galaxy is also flown a second time by a visitor who takes **hyperspace** the moment it is offered (the block "hyperspace" says how many were offered a jump and how long each lasted): hyperspace is the same flight shown as a jump (`sim/hyper.ts`), so a twin that differs from its journey by one bit, or a jump that outlives its journey, is a failure whatever the gate says. That is `"hyper": "real"`, the default; `true` flies the twins of the grown galaxies too, has the stress visitor press whenever a jump is offered, and has `"stop": true` press Stop at each journey's fastest IN the jump (the table then says on how many); `false` flies none. `JOURNEYS` (JSON or a file, e.g. `scripts/journeys/example.json`) compares variants of layout and tuning; `JOURNEYS_OUT` writes every journey. About 30 s (a minute with `"stop": true`). `"stress": true` also changes the visitor's mind at every moment of a sample of journeys (a new destination, Stop, a body within reach at speed, Stop then E, a tap of the controls instead of Stop, a double tap, the web layer letting go (`undock`, a page with no body), a body raced past and then back, a chain of names, the engine rebuilt from its snapshot, a page load; taps and letting go also in the first second of an orbit; `kinds` adds journeys within a system and from the spawn point): with every kind and Stop, 5 to 11 minutes a galaxy (run one per process), and 0 failures is the gate for a change to the autopilot, the approach, Stop, the guard, the snapshot or hyperspace (that one with `"hyper": true`): every way a journey is handed back (Stop, a tap, a double tap, the web layer, a page load) is in it. **Not** part of `verify`: run it after touching the autopilot, docking or the layout; CI runs it as a non-required job on pull requests that touch the content (or `src/site`, which reads it), the site config, the engine or the harness. |
 | `npm run map-names` | The star map's names over whole turns (`tests/map-names/sweep.measure.ts`): every look (two phones and a laptop; at rest at the first view and zoomed in, opened with the blend, beside a page, dragged, under the fingers, and in grown galaxies of 6 and 8) watched frame by frame through the real map, camera, `Labels` and declutter. It prints what the names did and **fails on a breach** of each look's rules: no planet's or moon's name on a sun or the home planet, every system named where it must be, no name changing back and forth. About two minutes. `npm test` runs samples of the same looks (`tests/map-names/checks.ts`). **Not** part of `verify`: run it after touching the names, the map or the layout; CI runs it as a non-required job on pull requests that touch the content, `src/site`, the site config, the engine or the harness. |
 | `npm run resume-pdf` | build → prints `/resume/` through the print stylesheet into `public/allen-hsieh-resume.pdf` (Playwright's Chromium) and records what it printed from in `config/resume-pdf.json`. `verify-dist` fails a build whose resume page or print stylesheet changed since, so run it after any resume change and commit both files. |
 | `npm run format` | Prettier. Markdown and `src/content/**` are deliberately not formatted. |
@@ -112,8 +124,9 @@ Node 24 (`.node-version`), npm 11. npm scripts run in `cmd.exe` on Windows: Node
 `VAR=x` prefixes, no shell globs.
 
 **Debug flags** (universe mode, read once at boot, combine with `&`): `?perf` shows frame rate,
-frame time, simulation steps per frame, draw calls, buffer size, the ship's speed and what the
-orbit assist is doing, in **every** build, so it works on a phone against a preview URL.
+frame time, simulation steps per frame, draw calls, buffer size, the ship's speed, what the
+orbit assist is doing and where a journey's hyperspace is (offered, windup, tunnel), in **every**
+build, so it works on a phone against a preview URL.
 `?q=low`, `?q=medium` or `?q=high` forces a quality tier (and switches the probe off). `?tweak`
 opens the live tuning panel (sliders for the blocks of `design/tuning.ts` that are read every
 frame, "copy tuning as JSON" to paste back into that file, and a flight recorder; its replays are
@@ -123,9 +136,11 @@ exact in open space and approximate near planets, which have moved on by then). 
 **The lab** (`http://localhost:4321/lab/`, dev server only) shows ONE thing on a turntable: any
 body's emblem world by its id (far, close-up, moving, or its star map variant), a
 planet of any biome (or planned work's maquette), a moon, a sun, the rocket with its flame, the
-station, the satellite, a profile's relay, in front of the real sky and lit and post-processed as
-in the universe, with sliders for the `shading`, `planet`, `world`, `post` and `ship` blocks, the
-light's direction, and the tier.
+station, the satellite, a profile's relay, or a jump of hyperspace seen from behind the rocket
+(held at any moment from the press on or played in a loop, at any speed, in any family's lines),
+in front of the real sky and lit and post-processed as in the universe, with sliders for the
+`shading`, `planet`, `world`, `post`, `ship` and `hyper` blocks, the light's direction, and the
+tier.
 Judge a model, a biome or a shading change here first, then in flight. Its page is
 `src/pages/_lab.astro` (the underscore keeps it out of every build; `astro.config.ts` injects the
 route for the dev server alone) and its scene is `src/universe/lab/LabScene.ts`. A new kind of
@@ -244,6 +259,26 @@ whatever got through. Far from everything, and at any speed the pilot's own driv
 is `stepFlight`, bit for bit. Anything new that steers or pushes the ship (docking, the autopilot,
 Stop's brake) joins it there, where it can be tested headless.
 
+**Hyperspace is the same flight** (`sim/hyper.ts`): a journey's fast stretch SHOWN as a jump.
+Nothing of it steers, pushes or hurries the ship. `stepHyper` (in `flyStep`, right after the
+autopilot's own step) only reads the autopilot's plan and the ship's speed, and writes two fields
+of the dock that nothing in flight reads: `hyper` (none, offered, wind-up, tunnel, spent) and
+`hyperSec`. How a jump LOOKS at any moment is one pure function of those, `hyperLook`, of which
+the picture (`world/Hyperspace.ts`: two draws at the far plane, by the sky's rule), the lens
+(`chaseCam.surge*`), the flame and the dimming of the stars each read their part. Outside the
+simulation the navigator owns it (`hyper`, `engageHyper`, `cancelHyper`, the `hyper` event, which
+the shell mirrors as `html[data-hyper]`), and the one control is `ui/HyperOffer.ts`. So: anything
+that should change how a journey FLIES is the autopilot's, never hyperspace's (the journeys
+harness flies every journey twice, and a twin that differs by one bit fails it); a change to the
+look is judged in the lab's hyperspace subject first, in every family (the tunnel's walls are
+navy for all five: a wash in coral's or butter's own shade reads as brown over the sky); and it
+dims the real stars through `Starfield.setCalm` alone. **On a journey Shift is hyperspace's, and
+boost is a fresh press in the pilot's own flight:** a Shift that went down on a journey (the one
+that took the jump, above all) or was held into one is not boost when the controls take the ship
+back, until it is pressed afresh (`core/input/keys.ts`; a second finger keeps the same rule,
+`TouchControls`). The ship is then at the autopilot's speed, and the guard that brakes it believes
+a boost it is shown (`sim/docking.ts`, `guardInput`). A new way of giving boost keeps that rule.
+
 **Add a tuning constant.** Add it to `design/tuning.ts` under the system that reads it, with a
 unit in the name or comment (`driftRadPerSec`). Logic reads tuning; tuning never imports logic.
 
@@ -259,7 +294,9 @@ texture in a `Scope` (`core/scope.ts`) and dispose the scope in `dispose()`. Pur
 the browser takes the WebGL context (a phone tab in the background), `api.ts` takes a `Snapshot`
 (`core/snapshot.ts`), disposes the engine, canvas and all, and boots a new one from it. So state
 lives in exactly one of two places: it follows from the simulation step count (where every planet
-is), or it is a field of the snapshot (the ship, and the dock it is headed for or carried by).
+is), or it is a field of the snapshot (the ship, and the dock it is headed for or carried by; of
+hyperspace only that the journey was in its tunnel, `dock.hyper`, which a new engine takes up past
+its punch: an offer is simply made again).
 Anything new that a visitor would miss after a rebuild becomes a snapshot field. A snapshot is
 only believed in the galaxy it was taken in (`galaxyKey` in `manifest.ts`), so a new manifest
 field that moves or sizes a body goes into that key too.
@@ -270,8 +307,27 @@ machine (`state/appMachine.ts`: flight, autopilot, approach, docked) in step wit
 simulation then does, and reports it as events, delivered with the frame. Both directions are
 **idempotent** on purpose: the visitor may dock from inside the world and the web layer follows,
 or the route may change and the ship follows, and telling either side what it already knows is
-never an error. Interactive DOM made by the engine (the prompt, later the labels) goes into
-`#universe-overlay`, never into `#universe-host`, which is hidden from assistive technology.
+never an error. DOM made by the engine that a pointer, a keyboard or a screen reader uses (the
+prompt, the names, the Map button) goes into `#universe-overlay`, never into `#universe-host`,
+which is hidden from assistive technology. What is only a picture of things real controls already
+offer (the flight deck, `ui/FlightDeck.ts`; the minimap, `ui/MiniMap.ts`) goes there too,
+`aria-hidden`, with nothing focusable inside. The deck reads the simulation and asks the navigator
+for nothing; a press on the minimap goes through `pickRow` (`main.ts`), like a press on the canvas.
+
+**The deck only reads; add an instrument.** A read-out is a pure function in
+`sim/instruments.ts` with a test (an instrument never shows a number the simulation does not
+have), an element `ui/FlightDeck.ts` makes, and its look in the stylesheet (the drawing carries
+classes and data attributes only). The deck never asks the navigator for anything and gets no
+button: what acts is the prompt. Whether it shows and how big it is are `deckShows` and
+`deckLayout`, never a media query; the minimap is there wherever the deck has its full size, and
+asks the deck. The minimap (`ui/MiniMap.ts`, maths in `sim/minimap.ts`) never gets a rule the
+star map lacks: the same view, the same rule for sizes, the same picking, and a press on it is
+`pickRow`. Neither keeps anything a rebuild could lose, so neither has a snapshot field. The
+camera never moves for the deck: its plate (`--deck-size`) has the room a resting ship leaves
+under its fins, and `tests/deck-room.test.ts` holds the stylesheet to the chase camera, the
+rocket and its hover, so a change to any of them (`tuning.chaseCam`, `tuning.camera`,
+`tuning.ship`, `design/models/rocket.ts`) fails there until `--deck-size` has the room there is
+now.
 
 **Add an end-to-end test.** `tests/e2e/<area>.spec.ts`, importing `test` and `expect` from
 `./support` (never from `@playwright/test`: the fixtures live there). Read state from the data
@@ -308,7 +364,10 @@ link or to an ancestor.
 comment names. Colours only through tokens: a solar system's family arrives as `--theme-*` under
 `[data-theme]` (its glyph too, `--theme-glyph`), a planet's palette as `--planet-*` under
 `[data-biome]`. Butter means "here" and the cream face means "on" (docs/DESIGN.md): never give
-either another job. The one exception: the home system's family is butter, which is why a
+either another job. (A lamp of the flight deck that the simulation lights wears the cream face
+too, though nobody pressed it; and butter is also the target on the deck's ball, the ring round
+it on the minimap, and a journey's line, its clock on the rim and its seconds there.) The one
+exception: the home system's family is butter, which is why a
 focused butter key keeps a navy rim. A hover that lights a key or a chip goes inside
 `@media (hover: hover)`, and anything that moves on hover or press uses `translate`, never `transform` (the engine owns that).
 Check 360 px wide, and check print if the resume could be affected.

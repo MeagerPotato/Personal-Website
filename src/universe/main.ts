@@ -15,22 +15,29 @@ import { JobQueue } from './core/jobs';
 import { lowerTier, type QualityTier } from './core/quality/tiers';
 import type { Snapshot, StampedSnapshot } from './core/snapshot';
 import { setBloomMask, setToonFlatness } from './design/materials';
+import type { ThemeKey } from './design/tokens';
 import { tuning } from './design/tuning';
 import { PostFX } from './fx/PostFX';
 import { familiesOf, galaxyKey, homeSystemOf, nearestNeighbourOf, readManifest } from './manifest';
 import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
+import { FlightDeck } from './ui/FlightDeck';
+import { HyperOffer } from './ui/HyperOffer';
 import { Labels } from './ui/Labels';
+import { MiniMap } from './ui/MiniMap';
 import { Picker } from './ui/Picker';
 import { Prompt } from './ui/Prompt';
 import { StarMap } from './ui/StarMap';
 import { copyShipState, createShipState } from './sim/flight';
+import { starCalm } from './sim/hyper';
+import { systemAt } from './sim/instruments';
 import { boundsOf } from './sim/mapView';
 import { spawnPoint } from './sim/spawn';
 import { createSurroundings, syncSurroundings } from './sim/surroundings';
 import { Backdrop } from './world/Backdrop';
 import { Galaxy } from './world/Galaxy';
+import { Hyperspace } from './world/Hyperspace';
 import { SpaceDust } from './world/SpaceDust';
 import { Starfield } from './world/Starfield';
 
@@ -124,7 +131,7 @@ export function boot(
   const assets = engine.add(new AssetStore());
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
-  input.add(new KeyboardInput());
+  // (The keyboard joins them further down: it asks the navigator what Shift means.)
   const touch = new TouchControls(engine.canvas, options.mount);
   input.add(touch);
   input.add(new PointerSteer(engine.canvas));
@@ -151,6 +158,7 @@ export function boot(
       ship,
       pilot: input,
       params: tuning,
+      reducedMotion,
       emit: hooks.onNavigation,
     }),
   );
@@ -159,6 +167,15 @@ export function boot(
     syncSurroundings(surroundings, (start?.steps ?? 0) / tuning.loop.stepHz);
   }
   if (start) navigator.restore(start.dock, reducedMotion, start);
+  // The keyboard. On a journey Shift is hyperspace's (ui/HyperOffer.ts), not boost; and the Shift
+  // that took a jump is not boost when the controls take the journey back, at the autopilot's
+  // speed, however long it stays down: only a fresh press is (core/input/keys.ts).
+  input.add(
+    new KeyboardInput(window, () => {
+      const { mode } = navigator.state;
+      return mode === 'autopilot' || mode === 'approach';
+    }),
+  );
   // Boost only multiplies the pilot's own thrust: outside free flight a finger's boost pad would
   // light up and do nothing, so it is put away (the stick stays: it is how the pilot leaves).
   engine.add({
@@ -172,14 +189,19 @@ export function boot(
 
   // The cameras are MADE here, because the map needs to know the shape of the view, and the world
   // needs to know about the map; the rig takes its turn in the frame further down.
-  const chase = new ChaseCam(ship, { reducedMotion });
+  // (Hyperspace is built further down, after the galaxy it reads; the chase camera's lens
+  // follows whatever it shows, from here.)
+  let hyperspace: Hyperspace | null = null;
+  const chase = new ChaseCam(ship, { reducedMotion, surge: () => hyperspace?.look.surge ?? 0 });
   const orbit = new OrbitCam({ reducedMotion });
   const rig = new CameraRig(engine.camera, chase, tuning.cameraRig);
+  // Everything there is to see: what the star map opens on, and the minimap at its widest.
+  const bounds = boundsOf(manifest.systems);
   const starMap = engine.add(
     new StarMap({
       canvas: engine.canvas,
       overlay: options.overlay,
-      bounds: boundsOf(manifest.systems),
+      bounds,
       ship: () => ship.state,
       view: rig.shape,
       params: tuning.map,
@@ -217,6 +239,33 @@ export function boot(
     frameUpdate: () => ship.setSun(galaxy.lightAt(ship.position, light)),
     dispose: () => undefined,
   });
+
+  // HYPERSPACE (world/Hyperspace.ts): how a journey's fast stretch looks. Nothing of it flies
+  // the ship. Before the rig, whose lens follows it. (It asks which body the ship is headed for,
+  // for its family's colours, and never where that body is: the tunnel is round the course.) A
+  // visitor who asked for less motion has none of it.
+  const headed: { id: string; theme: ThemeKey | undefined } = { id: '', theme: undefined };
+  if (!reducedMotion) {
+    hyperspace = engine.add(
+      new Hyperspace({
+        dock: surroundings.dock,
+        ship,
+        target: () => {
+          const row = targetRow();
+          const id = surroundings.orbits.ids[row];
+          if (id === undefined) return null;
+          headed.id = id;
+          headed.theme = families.get(id);
+          return headed;
+        },
+        mapWeight: () => starMap.weight,
+        camera: engine.camera,
+        // The tier is fixed for the life of an engine, as for the galaxy.
+        dashes: tuning.hyper.dashes[quality.tier],
+        ribs: quality.tier !== 'low',
+      }),
+    );
+  }
 
   // The camera comes after everything it looks at, so that it sees this frame's ship and planets.
   // On the map, it looks down on the galaxy; flying, it chases the ship; docked, it frames the
@@ -288,6 +337,26 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  let offer: HyperOffer | null = null;
+  let deck: FlightDeck | null = null;
+  let minimap: MiniMap | null = null;
+  // Every body as the names and the minimap know it, by row of the orbit table.
+  const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
+  const families = familiesOf(manifest);
+  const rows = surroundings.orbits.ids.map((id, row) => {
+    const body = byId.get(id);
+    return {
+      id,
+      title: body?.title ?? id,
+      kind: body?.kind ?? 'moon',
+      planned: body?.planned === true,
+      href: body?.docks === false ? body.href : undefined,
+      theme: families.get(id),
+      system: manifest.systems.findIndex((system) => system.id === body?.system),
+      // What it circles, as a row of this table (-1: nothing).
+      parent: surroundings.orbits.parent[row] ?? -1,
+    };
+  });
   // On the map the ship is a marker big enough to find: at least shipRadiusPx, in units (the
   // ship is about two units long, so one unit is its "radius"), raised so that it lies on top of
   // whatever it is beside. Drawn so below; the names keep off it as drawn.
@@ -298,33 +367,28 @@ export function boot(
   if (options.overlay) {
     // A name under every body that has room for one: pressing it is pointing at the body, and
     // for a link (which nothing docks at) following the link.
-    const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
-    const families = familiesOf(manifest);
     labels = engine.add(
       new Labels({
         overlay: options.overlay,
         screen: onScreen.map,
-        bodies: surroundings.orbits.ids.map((id, row) => {
-          const body = byId.get(id);
-          return {
-            title: body?.title ?? id,
-            kind: body?.kind ?? 'moon',
-            planned: body?.planned === true,
-            href: body?.docks === false ? body.href : undefined,
-            theme: families.get(id),
-            // What it circles: close in on the map, such a body goes unnamed (`orbitMinPx`).
-            parent: surroundings.orbits.parent[row] ?? -1,
-          };
-        }),
+        bodies: rows,
         params: tuning.labels,
         view: rig.shape,
         target: targetRow,
         // (On the map every body has its name, the one the ship is at included: "you are here".)
         docked: () => navigator.state.mode === 'docked' && !starMap.isOpen,
         onPick: flyToRow,
-        // What else can be pressed out there. The prompt is only built further down (it is
-        // updated last in a frame); by the time anyone asks, it is there.
-        obstacles: [() => prompt?.box() ?? null, () => touch.padBox(), () => starMap.box()],
+        // What else is out there to keep off: what can be pressed, the flight deck and the
+        // minimap. The prompt, the offer of hyperspace and those two are only built further down
+        // (they are updated last in a frame); by the time anyone asks, they are there.
+        obstacles: [
+          () => prompt?.box() ?? null,
+          () => offer?.box() ?? null,
+          () => touch.padBox(),
+          () => starMap.box(),
+          () => deck?.box() ?? null,
+          () => minimap?.box() ?? null,
+        ],
         // On the map the ship is the marker that says "you are here": no name lies on it.
         ship: () => {
           if (!starMap.isOpen) return null;
@@ -350,13 +414,20 @@ export function boot(
   const starfield = engine.add(new Starfield({ coarsePointer, reducedMotion }));
   const dust = engine.add(new SpaceDust({ viewer: ship, coarsePointer, reducedMotion }));
   engine.scene.add(backdrop.object, starfield.object, dust.object, galaxy.object, ship.object);
+  if (hyperspace) engine.scene.add(hyperspace.object);
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
   // sky, no dust, and the ship as a marker big enough to find, lying on top of what it is beside.
+  // A jump (world/Hyperspace.ts) dims the stars too, by its own share: its dashes are the stars
+  // then. And the flame burns longer in the tunnel.
+  const stars = { calm: 0, opacity: 1 };
   engine.add({
     frameUpdate: () => {
       const { weight } = starMap;
       setToonFlatness(weight * tuning.map.flatness);
-      starfield.setCalm(weight, tuning.map.starOpacity);
+      const jump = hyperspace?.look;
+      starCalm(weight, tuning.map.starOpacity, jump?.calm ?? 0, tuning.hyper.starOpacity, stars);
+      starfield.setCalm(stars.calm, stars.opacity);
+      ship.setSurge(jump?.surge ?? 0);
       dust.setPresence(1 - weight);
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));
@@ -380,6 +451,76 @@ export function boot(
         quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
       }),
     );
+    // The offer of hyperspace (ui/HyperOffer.ts): right after the prompt in the overlay, so that
+    // Tab goes Stop, then Hyperspace, and the deck and the minimap stay last. It shows only while
+    // the world has the whole screen: no page beside or under it, and the star map closed. (Asked
+    // of the rig as the page WANTS the view, not as far as it has slid: a link opens its page and
+    // sets the ship out in the same moment, and the offer comes with the journey's first step.)
+    offer = engine.add(
+      new HyperOffer({
+        overlay: options.overlay,
+        navigator,
+        room: () => !starMap.isOpen && rig.whole,
+      }),
+    );
+
+    // WHICH SYSTEM THE SHIP IS IN, or none (-1): the deck's horizon wears its family, and the
+    // minimap is fitted to it. It follows from where the ship is, so it is asked once a frame and
+    // kept nowhere else: a rebuilt engine finds it again with its first frame.
+    let whereabouts = -1;
+    engine.add({
+      frameUpdate: () => {
+        const { x, z } = ship.position;
+        whereabouts = systemAt(whereabouts, x, z, manifest.systems, tuning.instruments);
+      },
+      dispose: () => undefined,
+    });
+    // The flight deck: it reads all of the above and asks for nothing (ui/FlightDeck.ts). After
+    // the prompt: it and the minimap are the last things in the overlay.
+    const homeBody = manifest.bodies.find((body) => body.kind === 'home');
+    const cluster = (deck = engine.add(
+      new FlightDeck({
+        overlay: options.overlay,
+        ship,
+        navigator,
+        assistWeight: () => surroundings.assist.weight,
+        positions: galaxy.positions,
+        rowOf: (id) => surroundings.orbits.indexOf(id),
+        home: homeBody ? surroundings.orbits.indexOf(homeBody.id) : -1,
+        theme: () => manifest.systems[whereabouts]?.theme ?? null,
+        mapOpen: () => starMap.isOpen,
+        params: tuning.instruments,
+        reducedMotion,
+      }),
+    ));
+    // The minimap (ui/MiniMap.ts): the star map at another size, there wherever the deck has its
+    // full size. A press on a mark is pointing at that body, exactly as on the canvas; a press
+    // where nothing is opens the map it is the preview of. A journey it reads straight from the
+    // autopilot: the path that is left and the seconds it takes, once the first step has planned.
+    const { dock, cruise } = surroundings;
+    minimap = engine.add(
+      new MiniMap({
+        overlay: options.overlay,
+        systems: manifest.systems,
+        bodies: rows,
+        orbits: surroundings.orbits,
+        radii: surroundings.field.radius,
+        docks: surroundings.field.docks,
+        positions: galaxy.positions,
+        bounds,
+        ship,
+        at: () => whereabouts,
+        target: targetRow,
+        journey: () => (dock.phase === 'cruise' && !cruise.fresh ? cruise : null),
+        room: () => cluster.full,
+        mapOpen: () => starMap.isOpen,
+        onPick: pickRow,
+        onMap: () => starMap.setOpen(true),
+        params: tuning.minimap,
+        picking: tuning.picking,
+        reducedMotion,
+      }),
+    );
   }
 
   if (options.debug?.perf) {
@@ -392,7 +533,9 @@ export function boot(
     };
     const doing = (): string => {
       const { mode, target } = navigator.state;
-      const state = target === null ? mode : `${mode} ${target}`;
+      const going = target === null ? mode : `${mode} ${target}`;
+      // Hyperspace too, so that a phone on a preview can show where a jump is.
+      const state = navigator.hyper === 'off' ? going : `${going} hyper ${navigator.hyper}`;
       return starMap.isOpen ? `${state} (map)` : state;
     };
     engine.add(
@@ -422,6 +565,7 @@ export function boot(
       labels?.setTop(inset.top ?? 0);
       labels?.setFoot(inset.foot ?? null);
       starMap.setTop(inset.top ?? 0);
+      deck?.setRoom(inset.right ?? 0, inset.bottom ?? 0);
     },
     setMapOpen: (open, cut) => starMap.setOpen(open, cut),
     snapshot: () => ({

@@ -70,6 +70,45 @@ describe('KeyState', () => {
     expect(keys.anyHeld).toBe(false);
     expect(read(keys)).toEqual(blank());
   });
+
+  it('takes no Shift on a journey, and none that only repeats: boost is a fresh press', () => {
+    const keys = new KeyState();
+    // The Shift that takes a jump (ui/HyperOffer.ts): ours, and not boost.
+    expect(keys.press('ShiftLeft', false)).toBe(true);
+    expect(read(keys).boost).toBe(false);
+    // The journey is handed back with that Shift still down: it repeats, and is still not boost,
+    // whatever else the pilot presses.
+    expect(keys.press('ShiftLeft', true, true)).toBe(true);
+    keys.press('KeyW');
+    keys.press('ShiftLeft', true, true);
+    expect(read(keys)).toEqual({ thrust: 1, turn: 0, brake: 0, boost: false });
+    // Let go of and pressed again, it is.
+    keys.release('ShiftLeft');
+    keys.press('ShiftLeft');
+    expect(read(keys).boost).toBe(true);
+    // (And a boost that is held is not undone by its own repeats.)
+    keys.press('ShiftLeft', true, true);
+    expect(read(keys).boost).toBe(true);
+  });
+
+  it('lets go of a Shift that was held into a journey, and of nothing else', () => {
+    const keys = new KeyState();
+    keys.press('ShiftRight');
+    keys.press('KeyW');
+    keys.press('ShiftLeft');
+    keys.releaseBoost();
+    expect(read(keys)).toEqual({ thrust: 1, turn: 0, brake: 0, boost: false });
+    // Still down and repeating once the journey is over: not boost until it is pressed afresh.
+    keys.press('ShiftRight', true, true);
+    expect(read(keys).boost).toBe(false);
+    keys.release('ShiftRight');
+    keys.press('ShiftRight');
+    expect(read(keys).boost).toBe(true);
+    // The other keys repeat as they always did (a W still down when the window is back).
+    keys.releaseAll();
+    expect(keys.press('KeyW', true, true)).toBe(true);
+    expect(read(keys).thrust).toBe(1);
+  });
 });
 
 describe('KeyboardInput', () => {
@@ -142,6 +181,50 @@ describe('KeyboardInput', () => {
       .getElementById('text')
       ?.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
     expect(read().thrust).toBe(0);
+  });
+
+  it('does not take the Shift of a journey for boost, then or once it is handed back', () => {
+    let journey = false;
+    keyboard = new KeyboardInput(window, () => journey);
+    const release = (code: string): void => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    };
+    // Boosting in free flight when a journey begins: the Shift held into it is let go of.
+    press('ShiftLeft');
+    press('KeyW');
+    expect(read()).toEqual({ thrust: 1, turn: 0, brake: 0, boost: true });
+    journey = true;
+    expect(read()).toEqual({ thrust: 1, turn: 0, brake: 0, boost: false });
+    release('ShiftLeft');
+    release('KeyW');
+
+    // The Shift that takes the jump goes down on the journey: ours (the page does nothing with
+    // it), and not boost.
+    expect(press('ShiftRight').defaultPrevented).toBe(true);
+    expect(read()).toEqual(blank());
+    // An arrow takes the journey back with that Shift still down, repeating as held keys do,
+    // and the throttle follows: the pilot's own drive, unboosted.
+    press('ArrowLeft');
+    journey = false;
+    press('ShiftRight', document.body, { repeat: true });
+    release('ArrowLeft');
+    press('KeyW');
+    press('ShiftRight', document.body, { repeat: true });
+    expect(read()).toEqual({ thrust: 1, turn: 0, brake: 0, boost: false });
+    // Only a fresh press is boost.
+    release('ShiftRight');
+    press('ShiftRight');
+    expect(read()).toEqual({ thrust: 1, turn: 0, brake: 0, boost: true });
+  });
+
+  it('asks about the journey as of now: a Shift that goes down before the next step counts', () => {
+    let journey = true;
+    keyboard = new KeyboardInput(window, () => journey);
+    // Docked a moment ago, with no step in between: Shift and the throttle leave the orbit boosted.
+    journey = false;
+    press('ShiftLeft');
+    press('KeyW');
+    expect(read()).toEqual({ thrust: 1, turn: 0, brake: 0, boost: true });
   });
 
   it('stops listening once disposed', () => {
