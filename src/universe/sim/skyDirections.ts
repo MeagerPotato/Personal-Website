@@ -122,7 +122,7 @@ export const SKY_POSES = {
     what: 'looking straight toward Hackathons',
   },
   res: {
-    yawDeg: 195,
+    yawDeg: 15,
     pitchDeg: -12,
     fovDeg: 50,
     exposure: 1,

@@ -818,7 +818,10 @@ cloud. What carries the sky now is the stars (step 1, above); this is what lies 
   cream haze there, tried first, with no more stars in it than the river beside it, read as a
   grey smear across the navy. **Fifteen far galaxies**, the same on every tier, each in
   two star tints (a disc and a nucleus): four showpieces (a spiral seen nearly face on in the
-  first frame at home, and one toward each system) and eleven small ones; spirals with
+  first frame at home, one toward Projects, one toward Hackathons, and an ellipse at azimuth
+  186, which was Research's until Research moved beside the other systems on 2026-10-03 and
+  stands in the sky behind home since: whether a showpiece follows Research is still to be
+  decided) and eleven small ones; spirals with
   two arms, lenses seen edge on with a dark lane along them, plain ellipses. None is amber or
   ember (on navy they read brown), and every nucleus is 7 degrees or more off the horizon.
 - **Nothing has an edge.** Every term is a Gaussian or a sine of where the texel is. Nothing

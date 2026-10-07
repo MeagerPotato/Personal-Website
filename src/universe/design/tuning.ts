@@ -1057,7 +1057,9 @@ export const tuning = {
      * Every view the sky is judged from (sim/skyDirections.ts) has one, and none sits behind the
      * top bar's chips: three in the first frame at home (upper right, above the home planet,
      * and low on the left, where the frame is emptiest), one beside a docked body clear of its
-     * panel, one or two toward each system. All six temperatures.
+     * panel, one or two toward each system. (Toward Research those are the two that flank
+     * azimuth 15, where it lies since 2026-10-03; the hero at 195 was placed for where it lay
+     * before.) All six temperatures.
      */
     heroes: [
       { azDeg: -55, elDeg: 8, size: 1, tint: 'hot' },
@@ -1088,7 +1090,7 @@ export const tuning = {
       { azDeg: 146, elDeg: 20, sigmaDeg: 0.9, count: 55, tint: 'amber' },
       { azDeg: 30, elDeg: 9, sigmaDeg: 1.3, count: 80, tint: 'white' },
       { azDeg: -45, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'hot', system: 'projects' },
-      { azDeg: 195, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'white', system: 'research' },
+      { azDeg: 15, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'white', system: 'research' },
       { azDeg: 75, elDeg: -20, sigmaDeg: 1.2, count: 60, tint: 'cool', system: 'hackathons' },
     ] satisfies readonly StarCluster[],
     /**
@@ -1259,7 +1261,10 @@ export const tuning = {
        * Fifteen far galaxies, the same on every tier: where, how large (`radiusDeg`: the
        * semi-major axis; `axisRatio`: minor over major; `angleDeg`: turned from level), which
        * kind, the star tints of its disc and of its nucleus, and how loud. The first four are
-       * showpieces, one toward the first frame and one toward each system; the rest are small.
+       * showpieces: one toward the first frame, one toward Hackathons, one toward Projects, and
+       * the ellipse at azimuth 186, which was Research's until Research moved beside the other
+       * systems (2026-10-03: it lies at azimuth 15 now) and has stood in the sky behind home
+       * since. Whether a showpiece follows Research is the look's to decide; the rest are small.
        * No galaxy is amber or ember (on navy they read brown), every nucleus is 7 degrees or
        * more off the horizon (the strip is kept calm), and every sixth of the sky's round
        * holds three or more of galaxy, hero star and cluster: a slow look round always finds
