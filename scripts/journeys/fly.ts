@@ -36,7 +36,10 @@ const SETTLE_WATCH_SEC = 5;
 export const VALLEY_U_S = 40;
 
 /** The tuning blocks the simulation reads, as the engine passes them to flyStep and the Navigator. */
-type SimBlocks = Pick<typeof tuning, 'flight' | 'cruise' | 'assist' | 'cushion' | 'edge' | 'dock'>;
+type SimBlocks = Pick<
+  typeof tuning,
+  'flight' | 'cruise' | 'assist' | 'cushion' | 'edge' | 'dock' | 'hyper'
+>;
 
 export type SimTuning = SimBlocks & {
   /** tuning.ship.spawn: where a new visitor starts (sim/spawn.ts). */
@@ -55,6 +58,7 @@ export function simTuning(overrides: TuningOverrides = {}): SimTuning {
     cushion: tuning.cushion,
     edge: tuning.edge,
     dock: tuning.dock,
+    hyper: tuning.hyper,
     spawn: tuning.ship.spawn,
   });
   mergeInto(blocks, overrides);

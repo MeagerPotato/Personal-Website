@@ -13,6 +13,7 @@ import type { ShipLookParams } from '../ship/ShipSystem';
 import type { AssistParams } from '../sim/assist';
 import type { CushionParams, EdgeParams } from '../sim/collide';
 import type { DockParams } from '../sim/docking';
+import type { HyperParams } from '../sim/hyper';
 import type { InstrumentParams } from '../sim/instruments';
 import type { MiniMapParams } from '../sim/minimap';
 import type { PlanetLook } from '../sim/planet';
@@ -258,6 +259,25 @@ export const tuning = {
     /** Steering beyond this leaves an approach or a dock (once the controls were let go of). */
     leaveDeadZone: 0.25,
   } satisfies DockParams,
+
+  /**
+   * HYPERSPACE (sim/hyper.ts, world/Hyperspace.ts): a journey's fast stretch, shown as a jump.
+   * The flight is the same flight: these decide when the jump is offered, when its tunnel opens
+   * and when it closes. Measured on every journey of the real galaxy (scripts/journeys prints
+   * the block "hyperspace"): do not move one without running it.
+   */
+  hyper: {
+    /** u/s. No offer unless the plan ahead still reaches this (a hop inside home never does). */
+    minPlannedSpeed: 400,
+    /** u/s. The tunnel closes when the plan ahead never reaches this again. */
+    dropSpeed: 300,
+    /** u/s. The tunnel opens at this speed... */
+    punchSpeed: 200,
+    /** s. ...and never sooner than this after the press: the wind-up. */
+    windupSec: 0.35,
+    /** s. No offer unless a wind-up and this much fast flight are still ahead. */
+    minTunnelSec: 0.5,
+  } satisfies HyperParams,
 
   /** How fingers and the mouse become flight (core/input/). The keyboard has nothing to tune. */
   input: {
