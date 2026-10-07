@@ -149,7 +149,7 @@ Order in `main.ts` today: assets → input → ship → navigator → the boost 
 only) → star map → galaxy → ship lighting → hyperspace (how a jump looks: before the rig, whose
 lens follows it) → camera
 director → camera rig → bodies on screen → picker → labels → leaders → sky → stars → dust → the
-map's look (and a jump's dimming of the stars) → the sky's bake → jobs → prompt → the offer of
+map's look (and a jump's dimming of the stars and of the sky's light) → the sky's bake → jobs → prompt → the offer of
 hyperspace → whereabouts (which system the ship is in: `systemAt`, once a frame) → flight deck →
 minimap → debug overlays. The
 camera comes after everything it looks at (the ship AND the planets), so that it sees this
@@ -398,14 +398,17 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   camera's lens opens further and the ship pulls ahead of the view (`chaseCam.surge*`), the flame
   grows to its length at boost, and the real
   stars dim by its `calm` through `Starfield.setCalm` (`starCalm`, which also holds the star
-  map's own dimming). On its way out the picture runs on its own clock, for `hyper.dropoutSec`,
+  map's own dimming), and the baked sky's light by the same share through `SkyBake.setJump`
+  (its walls are see-through: undimmed, the haze and the far galaxies stood still under them
+  at more than half their strength while every star beside them was down to a seventh). On its way out the picture runs on its own clock, for `hyper.dropoutSec`,
   whatever ended the jump; and a jump taken while that picture is still going (another
   destination picked in the tunnel, and Shift again at once) does not cut it: it goes on going
   under the new wind-up. The star map hides all of it (`mapWeight`). **The offer**
   (`ui/HyperOffer.ts`) is one real button right after the prompt in `#universe-overlay`, shown
   while a jump is offered or winding up and the world has the whole screen (no page open, the
   map closed). "No page open" is asked of the rig as the page WANTS the view, at once
-  (`CameraRig.whole`), and not as far as the view has slid: a link opens its page and sets the
+  (`CameraRig.whole`: nothing wanted from the right, the bottom or the LEFT, where a deck of
+  cards whose only card is its head stands alone), and not as far as the view has slid: a link opens its page and sets the
   ship out in the same moment, the offer comes with the journey's first step, and the free part
   of the view EASES, so for two frames at 60 a second nearly all of it still reads as free.
   `Shift` presses it (a fresh press of the key alone, and not one typed into the

@@ -298,7 +298,10 @@ export const tuning = {
     // below reaches the flight.
     /** s. Any way out (arriving, Stop, the controls), the picture has gone this long after. */
     dropoutSec: 0.35,
-    /** The real stars dim to this share of themselves in the tunnel: the dashes are the stars. */
+    /**
+     * The real stars dim to this share of themselves in the tunnel: the dashes are the stars.
+     * So does the baked sky's own light (the Milky Way's haze, the far galaxies).
+     */
     starOpacity: 0.15,
     /** How many dashes there are, by quality tier: four vertices each, one draw call. */
     dashes: { high: 1400, medium: 900, low: 700 },

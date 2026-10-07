@@ -31,7 +31,10 @@ import { createRng, hashSeed, pickWeighted } from '../sim/rng';
 
 /** How a jump looks (design/tuning.ts, `hyper`): what the simulation reads of that block is HyperParams. */
 export interface HyperViewParams extends HyperLookParams {
-  /** The real stars dim to this share of themselves in the tunnel (main.ts, `starCalm`). */
+  /**
+   * The real stars dim to this share of themselves in the tunnel (main.ts, `starCalm`), and the
+   * baked sky's light with them (world/SkyBake.ts, `setJump`).
+   */
   readonly starOpacity: number;
   /** How many dashes, by quality tier. */
   readonly dashes: Readonly<Record<QualityTier, number>>;
@@ -150,7 +153,7 @@ export function dashBuffers(count: number): {
  * spot, and both go again before the ship arrives. The flight is untouched: this only READS the
  * dock's two fields (sim/hyper.ts) and the ship's pose, and what it shows is decided by one pure
  * function, `hyperLook`. `look` is that frame's answer, for whoever else wears it: the stars
- * (main.ts), the lens (camera/ChaseCam.ts), the flame.
+ * and the baked sky's light (main.ts), the lens (camera/ChaseCam.ts), the flame.
  *
  * Two draw calls while it shows and none otherwise, both sky (design/shaders/hyperspace.ts).
  * Not built at all for a visitor who asked for less motion. Add it BEFORE the camera rig, whose

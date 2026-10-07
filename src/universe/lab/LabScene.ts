@@ -35,6 +35,7 @@ import { PostFX } from '../fx/PostFX';
 import { EngineFlame } from '../ship/EngineFlame';
 import { Rocket } from '../ship/Rocket';
 import { HYPER_SPENT, HYPER_TUNNEL, HYPER_WINDUP, type Hyper } from '../sim/docking';
+import { starCalm } from '../sim/hyper';
 import { TAU } from '../sim/math';
 import { bodyPositions, createOrbitTable } from '../sim/orbits';
 import { planetTriangleCount } from '../sim/planet';
@@ -300,7 +301,11 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   // It is quieter while docked and on the star map: the lab says which with two of its controls.
   const page = mount.ownerDocument.documentElement;
   engine.add({
-    frameUpdate: () => sky.setView(table.state.docked, table.mapWeight),
+    frameUpdate: () => {
+      sky.setView(table.state.docked, table.mapWeight);
+      // And dimmer under a jump, with the stars (the `hyperspace` subject).
+      sky.setJump(table.jumpCalm, tuning.hyper.starOpacity);
+    },
     dispose: () => undefined,
   });
   const sky = engine.add(
@@ -658,6 +663,8 @@ class Turntable implements System {
     /** The turntable as it was, to give back. */
     was: { fov: number; turnRate: number };
   } | null = null;
+  /** The real stars under a jump, as main.ts dims them. */
+  private readonly starLight = { calm: 0, opacity: 1 };
   private lit: Array<{ uniforms: { uSunPosition: { value: Vector3 } } }> = [];
   private triangles = 0;
   private readonly light = new Vector3();
@@ -690,6 +697,11 @@ class Turntable implements System {
   /** How much of the star map the sky and the stars are drawn as: all of it under the chart. */
   get mapWeight(): number {
     return this.state.subject === 'chart' ? 1 : this.state.starMap;
+  }
+
+  /** How much of a jump's dimming of the sky is on (the `hyperspace` subject; else none). */
+  get jumpCalm(): number {
+    return this.jump?.view.look.calm ?? 0;
   }
 
   resize(viewport: Viewport): void {
@@ -1031,6 +1043,16 @@ class Turntable implements System {
     if (!state.jumpPlay && seconds >= JUMP_TUNNEL_END) at(JUMP_TUNNEL_END - 1e-3, 0);
     at(seconds, frame.dt);
     this.flame?.setSurge(jump.view.look.surge);
+    // The real stars dim under a jump as they do in flight (main.ts), and the baked sky with
+    // them (bootLab), so that a jump is judged here over the sky it is flown over.
+    const { calm, opacity } = starCalm(
+      this.mapWeight,
+      tuning.map.starOpacity,
+      jump.view.look.calm,
+      tuning.hyper.starOpacity,
+      this.starLight,
+    );
+    this.stars.setCalm(calm, opacity);
   }
 
   private bodyOf(id: string): WorldBody {

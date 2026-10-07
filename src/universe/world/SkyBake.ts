@@ -66,6 +66,8 @@ export class SkyBake implements System {
   /** How much of the sky's light the view wants (docked, the star map), and how much it has. */
   private want = 1;
   private exposure = 1;
+  /** How much of that light a jump leaves (`setJump`): all of it, but in hyperspace. */
+  private left = 1;
 
   constructor(private readonly options: SkyBakeOptions) {
     const { panoWidth, panoHeight } = options.tier;
@@ -157,6 +159,18 @@ export class SkyBake implements System {
     this.want = (docked ? exposureDocked : 1) * (1 + (exposureMap - 1) * calm);
   }
 
+  /**
+   * A jump (world/Hyperspace.ts) dims the sky's own light as it dims the stars, by the same
+   * share: the dashes are the stars then, and the haze and the far galaxies would otherwise
+   * stand still under the tunnel's walls at more than half their strength, a fog in a tunnel
+   * that is navy. `calm` is how much of that dimming is on, 0 to 1 (the jump's look,
+   * sim/hyper.ts), and `opacity` what is left of the light at 1. Not eased here: the jump eases
+   * its own way in and out, in a third of a second, and the stars go with it frame for frame.
+   */
+  setJump(calm: number, opacity: number): void {
+    this.left = 1 + (opacity - 1) * Math.min(1, Math.max(0, calm));
+  }
+
   frameUpdate(frame: Frame): void {
     const { renderer, tier, reducedMotion, seen } = this.options;
     const look = tuning.look.sky;
@@ -188,7 +202,7 @@ export class SkyBake implements System {
       const ease = reducedMotion ? 1 : 1 - Math.exp(-look.exposureOmega * frame.dt);
       this.exposure += (this.want - this.exposure) * ease;
       const shown = this.reveal * this.reveal * (3 - 2 * this.reveal);
-      setSky(this.target.texture, shown, shown * this.exposure);
+      setSky(this.target.texture, shown, shown * this.exposure * this.left);
     }
     if (this.told !== this.state) this.options.onState((this.told = this.state));
   }

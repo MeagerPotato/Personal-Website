@@ -1,6 +1,7 @@
 import type { WebGLRenderer } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Frame } from '../core/Engine';
+import { createBackdropMaterial } from '../design/materials';
 import { tuning } from '../design/tuning';
 import { bandCount } from '../sim/skySchedule';
 import { SkyBake, type SkyState } from './SkyBake';
@@ -122,5 +123,47 @@ describe('the baked sky', () => {
     gpu.compiles[0]?.resolve();
     await settled();
     expect([said, gpu.draws]).toEqual([[], 0]);
+  });
+
+  it('dims its light under a jump with the stars, frame for frame, and gives it all back', async () => {
+    // (Seen, and with less motion: its light is all there at once, and the view's share is a cut.)
+    const { gpu, sky } = bake({ seen: true, reducedMotion: true });
+    gpu.compiles[0]?.resolve();
+    await settled();
+    for (let i = 0; i < bands; i += 1) sky.frameUpdate(frame);
+    expect(sky.seen).toBe(true);
+    const backdrop = createBackdropMaterial();
+    /** How much of the panorama's light the backdrop adds: what the sky last handed it. */
+    const light = (): number => {
+      sky.frameUpdate(frame);
+      return backdrop.uniforms.uExposure?.value as number;
+    };
+    expect(light()).toBe(1);
+
+    // In the tunnel the stars are at their share (tuning.hyper.starOpacity), and so is the sky:
+    // in the very next frame, not eased after it.
+    const { starOpacity } = tuning.hyper;
+    sky.setJump(1, starOpacity);
+    expect(light()).toBeCloseTo(starOpacity, 12);
+    // Part of the way in or out, that part of the way; and never past either end.
+    sky.setJump(0.3, starOpacity);
+    expect(light()).toBeCloseTo(1 - 0.3 * (1 - starOpacity), 12);
+    sky.setJump(7, starOpacity);
+    expect(light()).toBeCloseTo(starOpacity, 12);
+    sky.setJump(-1, starOpacity);
+    expect(light()).toBe(1);
+
+    // It is a share of what the view shows of the sky, whatever that is: a jump taken out of an
+    // orbit has the wind-up's part of the half a docked view has.
+    sky.setView(true, 0);
+    sky.setJump(0.3, starOpacity);
+    const { exposureDocked } = tuning.look.sky;
+    expect(light()).toBeCloseTo(exposureDocked * (1 - 0.3 * (1 - starOpacity)), 12);
+    sky.setView(false, 0);
+    sky.setJump(0, starOpacity);
+    expect(light()).toBe(1);
+
+    backdrop.dispose();
+    sky.dispose();
   });
 });

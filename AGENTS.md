@@ -292,14 +292,18 @@ autopilot's own step) only reads the autopilot's plan and the ship's speed, and 
 of the dock that nothing in flight reads: `hyper` (none, offered, wind-up, tunnel, spent) and
 `hyperSec`. How a jump LOOKS at any moment is one pure function of those, `hyperLook`, of which
 the picture (`world/Hyperspace.ts`: two draws at the far plane, by the sky's rule), the lens
-(`chaseCam.surge*`), the flame and the dimming of the stars each read their part. Outside the
+(`chaseCam.surge*`), the flame and the dimming of the stars and of the baked sky's light each read
+their part. Outside the
 simulation the navigator owns it (`hyper`, `engageHyper`, `cancelHyper`, the `hyper` event, which
 the shell mirrors as `html[data-hyper]`), and the one control is `ui/HyperOffer.ts`. So: anything
 that should change how a journey FLIES is the autopilot's, never hyperspace's (the journeys
 harness flies every journey twice, and a twin that differs by one bit fails it); a change to the
 look is judged in the lab's hyperspace subject first, in every family (the tunnel's walls are
-navy for all five: a wash in coral's or butter's own shade reads as brown over the sky); and it
-dims the real stars through `Starfield.setCalm` alone. **On a journey Shift is hyperspace's, and
+navy for all five: a wash in coral's or butter's own shade reads as brown over the sky); and of
+the sky it only DIMS, by one share (`hyper.starOpacity`): the real stars through
+`Starfield.setCalm`, and the baked sky's light (the haze, the far galaxies) through
+`SkyBake.setJump`, which would otherwise stand still under the tunnel's walls as a fog. Whatever
+the sky gains next dims with them. **On a journey Shift is hyperspace's, and
 boost is a fresh press in the pilot's own flight:** a Shift that went down on a journey (the one
 that took the jump, above all) or was held into one is not boost when the controls take the ship
 back, until it is pressed afresh (`core/input/keys.ts`; a second finger keeps the same rule,

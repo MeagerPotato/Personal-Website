@@ -589,8 +589,8 @@ export function boot(
   if (hyperspace) engine.scene.add(hyperspace.object);
   // How the world LOOKS on the map, eased in as the camera pulls out to it: flat colour, a calm
   // sky, no dust, and the ship as a marker big enough to find, lying on top of what it is beside.
-  // A jump (world/Hyperspace.ts) dims the stars too, by its own share: its dashes are the stars
-  // then. And the flame burns longer in the tunnel.
+  // A jump (world/Hyperspace.ts) dims the stars too, by its own share, and the baked sky's light
+  // with them: its dashes are the stars then. And the flame burns longer in the tunnel.
   const stars = { calm: 0, opacity: 1 };
   engine.add({
     frameUpdate: () => {
@@ -606,6 +606,7 @@ export function boot(
       const marker = markerUnits();
       ship.setMarker(Math.pow(marker, weight), markerLift(marker));
       sky.setView(navigator.state.mode === 'docked', weight);
+      sky.setJump(jump?.calm ?? 0, tuning.hyper.starOpacity);
     },
     dispose: () => setToonFlatness(0),
   });
