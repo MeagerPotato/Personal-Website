@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { JourneyResult } from '../scripts/journeys/fly';
+import {
+  flyTwins,
+  planJourneys,
+  simTuning,
+  type HyperOutcome,
+  type JourneyResult,
+} from '../scripts/journeys/fly';
 import { buildGalaxy, grow, readRealInput } from '../scripts/journeys/galaxies';
 import {
   DEFAULT_GATE,
@@ -12,10 +18,21 @@ import {
 import { measure, optionsFromEnv, type GalaxyReport } from '../scripts/journeys/measure';
 import type { StressFlight } from '../scripts/journeys/stress';
 import type { ProjectInput, UniverseInput } from '../src/universe/data/types';
+import type { ShipState } from '../src/universe/sim/types';
 
 // The journey harness's own rules (scripts/journeys): the gate `npm run journeys` holds every
 // galaxy to, and the grown galaxies it measures. The journeys themselves are flown by the harness,
 // not here (thousands of them: minutes); one small real run below proves the wiring.
+
+/** A journey nobody was offered a jump on (and so never in one). */
+const NO_JUMP: HyperOutcome = {
+  offeredSec: NaN,
+  inAtSec: NaN,
+  inSec: 0,
+  outBeforeDockSec: NaN,
+  strayed: false,
+  differs: false,
+};
 
 /** A journey that docked after `seconds`, with nothing wrong on the way unless `over` says so. */
 function journey(seconds: number, over: Partial<JourneyResult> = {}): JourneyResult {
@@ -51,6 +68,7 @@ function journey(seconds: number, over: Partial<JourneyResult> = {}): JourneyRes
     failure: null,
     stop: null,
     interrupt: null,
+    hyper: NO_JUMP,
     ...over,
   };
 }
@@ -155,6 +173,30 @@ describe('breachesOf', () => {
     ]);
   });
 
+  it('holds the twins of hyperspace to 0 failures too, whatever the gate says', () => {
+    // A journey flown again with the jump taken is the same flight, or it is a bug.
+    const differs = journey(3, { failure: 'hyper', hyper: { ...NO_JUMP, differs: true } });
+    const strayed = journey(4, {
+      to: 'project/fishai',
+      failure: 'hyper',
+      hyper: { ...NO_JUMP, strayed: true },
+    });
+    const twins = [journey(1), differs, journey(2), strayed];
+    expect(breachesOf({ ...measured(), twins }, {})).toEqual([
+      '2 of 4 journeys flown again with hyperspace taken failed, the gate allows none: ' +
+        'hyperspace changed the flight: page/about to system/code; ' +
+        'hyperspace outlived its journey: page/about to project/fishai',
+    ]);
+    // They are no journeys of the galaxy's own: its limits do not count them.
+    expect(
+      breachesOf({ ...measured(), twins }, { failures: 0, p90Sec: 9, maxSec: 10 }),
+    ).toHaveLength(1);
+    // Twins that flew as their journeys did, and a run where nobody pressed, say nothing.
+    expect(breachesOf({ ...measured(), twins: [journey(1), journey(2)] }, {})).toEqual([]);
+    expect(breachesOf({ ...measured(), twins: [] }, {})).toEqual([]);
+    expect(breachesOf(measured(), {})).toEqual([]);
+  });
+
   it('breaches a galaxy that could not be built, when it is held to any limit', () => {
     const error = 'system "code" reaches 402 u, past the 380 u limit';
     expect(breachesOf(measured({ error, rows: [] }), { failures: 0 })).toEqual([
@@ -193,6 +235,78 @@ describe('the gate from JOURNEYS', () => {
   });
 });
 
+describe('hyperspace from JOURNEYS', () => {
+  const hyperOf = (hyper: unknown) =>
+    optionsFromEnv({ JOURNEYS: JSON.stringify({ hyper }) }).options.hyper;
+
+  it('is "real" unless said otherwise: the real galaxy is flown twice, the grown ones once', () => {
+    expect(optionsFromEnv({}).options.hyper).toBeUndefined(); // so measure() uses "real"
+    expect(hyperOf('real')).toBe('real');
+    expect(hyperOf(true)).toBe(true);
+    expect(hyperOf(false)).toBe(false);
+  });
+
+  it('refuses anything else instead of pressing nothing', () => {
+    for (const typo of ['yes', 1, null, {}, 'all']) {
+      expect(() => hyperOf(typo)).toThrow(/"hyper" is true, false or "real"/);
+    }
+  });
+});
+
+describe('the twins of hyperspace', () => {
+  const galaxy = { name: 'real', manifest: buildGalaxy(readRealInput()) };
+  const sim = simTuning();
+  // The first journey between two systems of the real galaxy: long enough for a jump.
+  const [spec] = planJourneys(
+    galaxy,
+    { between: 1, within: 0, spawn: false, starts: 1 },
+    'the twins of hyperspace',
+  );
+  if (spec === undefined) throw new Error('the real galaxy has no journey between systems');
+
+  it('fly the same flight with the jump taken: offered, in it, out before docking, bit for bit', () => {
+    const { plain, twin } = flyTwins(galaxy, spec, sim);
+    expect(plain.failure).toBeNull();
+    expect(twin.failure).toBeNull();
+    expect(twin.hyper.differs).toBe(false);
+    expect(twin.hyper.strayed).toBe(false);
+    expect(twin.seconds).toBe(plain.seconds);
+    // Both were offered the jump at the same moment; only the twin pressed.
+    expect(plain.hyper.offeredSec).toBeGreaterThanOrEqual(0);
+    expect(twin.hyper.offeredSec).toBe(plain.hyper.offeredSec);
+    expect(plain.hyper.inSec).toBe(0);
+    expect(Number.isNaN(plain.hyper.inAtSec)).toBe(true);
+    // Never sooner than the wind-up, for at least the shortest jump, and out before the ring.
+    expect(twin.hyper.inAtSec).toBeGreaterThanOrEqual(
+      twin.hyper.offeredSec + sim.hyper.windupSec - 1e-9,
+    );
+    expect(twin.hyper.inSec).toBeGreaterThanOrEqual(sim.hyper.minTunnelSec);
+    expect(twin.hyper.outBeforeDockSec).toBeGreaterThan(0);
+    expect(twin.hyper.inAtSec + twin.hyper.inSec + twin.hyper.outBeforeDockSec).toBeCloseTo(
+      twin.seconds,
+      6,
+    );
+  });
+
+  it('catch a twin that flew differently: a planted difference of a billionth of a unit', () => {
+    let step = 0;
+    const { plain, twin } = flyTwins(galaxy, spec, sim, 60, undefined, (view) => {
+      step += 1;
+      // What a jump that pushed the ship, however little, would do.
+      if (step === 40) (view.state as ShipState).x += 1e-9;
+    });
+    expect(step).toBeGreaterThan(40);
+    expect(plain.failure).toBeNull();
+    expect(twin.hyper.differs).toBe(true);
+    expect(twin.failure).toBe('hyper');
+    // And the gate says so in words.
+    expect(breachesOf({ ...measured({ rows: [plain] }), twins: [twin] }, {})).toEqual([
+      `1 of 1 journeys flown again with hyperspace taken failed, the gate allows none: ` +
+        `hyperspace changed the flight: ${spec.from} to ${spec.to}`,
+    ]);
+  });
+});
+
 describe('measure', () => {
   // Two journeys of the real galaxy: a real run in a fraction of a second.
   const small = { between: 2, within: 0, spawn: false, starts: 1 } as const;
@@ -223,6 +337,37 @@ describe('measure', () => {
     expect(report?.breaches).toEqual([
       'no journey was flown (the sample is empty), so no limit is known to be met',
     ]);
+  });
+
+  it('flies the real galaxy a second time with hyperspace taken, and says how the jumps went', () => {
+    const lines: string[] = [];
+    const [report] = measure({
+      galaxies: ['real'],
+      sample: small,
+      log: (text) => lines.push(text),
+    });
+    expect(report?.rows).toHaveLength(2);
+    expect(report?.twins).toHaveLength(2);
+    expect(report?.twins.map((twin) => twin.failure)).toEqual([null, null]);
+    expect(report?.twins.map((twin) => twin.seconds)).toEqual(
+      report?.rows.map((row) => row.seconds),
+    );
+    expect(report?.breaches).toEqual([]);
+    expect(lines.join('\n')).toMatch(
+      /hyperspace \(every journey again, the jump taken the moment it is offered: 2 twins, 0 flew differently\)/,
+    );
+
+    // Told not to, nobody presses: no twins, and no table of them.
+    const quietly: string[] = [];
+    const [once] = measure({
+      galaxies: ['real'],
+      sample: small,
+      hyper: false,
+      log: (text) => quietly.push(text),
+    });
+    expect(once?.twins).toEqual([]);
+    expect(once?.rows.map((row) => row.seconds)).toEqual(report?.rows.map((row) => row.seconds));
+    expect(quietly.join('\n')).not.toMatch(/hyperspace \(every journey again/);
   });
 
   it('with the gate off, holds no limits but still says how Stop did', () => {

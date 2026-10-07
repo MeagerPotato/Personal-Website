@@ -3,6 +3,9 @@ import type { Snapshot } from '../core/snapshot';
 import { pullOf, type AssistParams } from '../sim/assist';
 import type { CruiseParams } from '../sim/autopilot';
 import {
+  HYPER_OFFERED,
+  HYPER_TUNNEL,
+  HYPER_WINDUP,
   dockAt,
   guardDock,
   haltDock,
@@ -11,6 +14,7 @@ import {
   requestDock,
   type DockParams,
 } from '../sim/docking';
+import { cancelHyper, engageHyper, resumeHyper } from '../sim/hyper';
 import type { Surroundings } from '../sim/surroundings';
 import type { FlightInput, ShipState } from '../sim/types';
 import { FLIGHT, transition, type AppEvent, type AppState } from './appMachine';
@@ -31,7 +35,22 @@ export type NavigatorEvents = {
    * flying on under its pilot or to somewhere else.
    */
   undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
+  /**
+   * Hyperspace on the journey under way changed (`Navigator.hyper`). Told once a simulation step,
+   * so every change is told, in order, at any frame rate; a journey's own `statechange` comes
+   * before its first.
+   */
+  hyper: { state: HyperState };
 };
+
+/**
+ * Hyperspace as the world outside the simulation knows it (sim/hyper.ts): a jump is `offered` on
+ * a journey that is long and fast enough, `windup` from the press until the tunnel opens, and
+ * `tunnel` until the journey's fast stretch is over. `off` is everything else: no journey, one
+ * too short, one whose offer or jump is over, and every journey of a visitor who asked for less
+ * motion.
+ */
+export type HyperState = 'off' | 'offered' | 'windup' | 'tunnel';
 
 export interface NavigatorParams {
   readonly assist: AssistParams;
@@ -48,6 +67,12 @@ export interface NavigatorOptions {
   };
   pilot: { readonly current: Readonly<FlightInput> };
   params: NavigatorParams;
+  /**
+   * The visitor asked for less motion: no hyperspace, ever (nothing is offered, a press does
+   * nothing, a kept tunnel is not taken up). Their journeys are not flown by the autopilot
+   * anyway (`restore`), so this is the second lock on that door.
+   */
+  reducedMotion?: boolean;
   emit<K extends keyof NavigatorEvents>(event: K, payload: NavigatorEvents[K]): void;
 }
 
@@ -69,6 +94,8 @@ export class Navigator implements System {
   private current: AppState = FLIGHT;
   private near: string | null = null;
   private arrival: 'flown' | 'cut' = 'flown';
+  /** The hyperspace state the world was last told (`hyper`). */
+  private told: HyperState = 'off';
   /** What to tell the world with the next frame; `left`: the news that the ship left that body. */
   private readonly queue: Array<{ readonly left?: string; readonly deliver: () => void }> = [];
 
@@ -86,6 +113,43 @@ export class Navigator implements System {
   /** Id of the body the ship could dock at right now, or null. */
   get candidate(): string | null {
     return this.near;
+  }
+
+  /**
+   * Hyperspace on the journey under way, as of now (the simulation's own state: sim/hyper.ts).
+   * Whether a control for it has room to show is that control's business (ui/HyperOffer.ts).
+   */
+  get hyper(): HyperState {
+    if (this.options.reducedMotion === true) return 'off';
+    switch (this.options.surroundings.dock.hyper) {
+      case HYPER_OFFERED:
+        return 'offered';
+      case HYPER_WINDUP:
+        return 'windup';
+      case HYPER_TUNNEL:
+        return 'tunnel';
+      default:
+        return 'off';
+    }
+  }
+
+  /**
+   * THE PRESS: take the jump that is offered. The flight is the same flight: the tunnel opens
+   * once the ship is fast, and closes by itself. False when nothing is offered (and always for a
+   * visitor who asked for less motion). Pressing twice is pressing once.
+   */
+  engageHyper(): boolean {
+    if (this.options.reducedMotion === true) return false;
+    return engageHyper(this.options.surroundings.dock);
+  }
+
+  /**
+   * The press turned out to be half of a chord (Shift+Tab): take the wind-up back, and the offer
+   * stands again. False once the tunnel has opened: nothing takes that back but Stop, the
+   * controls or another destination.
+   */
+  cancelHyper(): boolean {
+    return cancelHyper(this.options.surroundings.dock);
   }
 
   /** Is body `id` close enough to be approached directly? */
@@ -174,7 +238,10 @@ export class Navigator implements System {
     // On the way, the journey must still last what is left of its hold: a rebuild in the middle
     // of a hop neither starts the shortest journey over nor lets the ship arrive early.
     const holdSec = docked ? 0 : Math.max(0, dock.holdSec - dock.phaseSec);
-    return { id, docked, angle: dock.angle, spin: dock.spin, holdSec };
+    // Only the tunnel is kept: an offer is made again by the rebuilt journey's first plan, and a
+    // wind-up that was lost is an offer again.
+    const hyper = !docked && dock.hyper === HYPER_TUNNEL;
+    return { id, docked, angle: dock.angle, spin: dock.spin, holdSec, hyper };
   }
 
   /**
@@ -187,7 +254,9 @@ export class Navigator implements System {
    * reflex. A journey to a body this world does not have (a snapshot from another deploy) cannot
    * be taken up: it is a STOP, as a journey let go of anywhere else is (`release`). So is an orbit
    * round such a body: the ship was carried round it, and let go of there it would drift on at
-   * whatever speed the ring gave it.
+   * whatever speed the ring gave it. A journey that was in hyperspace's tunnel is taken up IN the
+   * tunnel, past its punch (sim/hyper.ts, resumeHyper), and the journey's first step holds that
+   * to its new plan; the world is then told `tunnel` with no `windup` before it.
    */
   restore(from: Snapshot['dock'], cut = false, after: HandBack = NOT_HANDED_BACK): void {
     if (!from) {
@@ -207,6 +276,10 @@ export class Navigator implements System {
       ? this.approach(from.id) || this.place(from.id)
       : this.setOut(from.id, 'asked', from.holdSec);
     if (!going) this.stop();
+    else if (!cut && from.hyper && this.options.reducedMotion !== true) {
+      // (It refuses unless the autopilot flies the journey: within reach, it is an approach.)
+      resumeHyper(this.options.surroundings.dock);
+    }
   }
 
   /**
@@ -282,6 +355,13 @@ export class Navigator implements System {
     if (near !== this.near) {
       this.near = near;
       this.queue.push({ deliver: () => this.options.emit('soi', { id: near }) });
+    }
+
+    // Hyperspace: whatever this step, or a request since the last one, made of it.
+    const state = this.hyper;
+    if (state !== this.told) {
+      this.told = state;
+      this.queue.push({ deliver: () => this.options.emit('hyper', { state }) });
     }
   }
 

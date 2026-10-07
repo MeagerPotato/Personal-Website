@@ -42,6 +42,7 @@ function fallBackToPlain(reason: string): void {
   delete root.dataset.engine;
   delete root.dataset.quality;
   delete root.dataset.map;
+  delete root.dataset.hyper;
   // With no canvas to protect there is nothing to gain from soft navigation: links are links.
   router?.dispose();
   router = undefined;
@@ -178,6 +179,13 @@ export async function start(): Promise<void> {
     universe.on('quality', ({ tier, demoted }) => {
       root.dataset.quality = tier;
       if (demoted) rememberTier(() => localStorage, tier, Date.now());
+    });
+    // Hyperspace on the journey under way, as the simulation has it (offered, windup, tunnel):
+    // the stylesheet keys on it (the deck's chevrons, the scope's route, the other names), and it
+    // is what the end-to-end tests read. Whether its button has room to show is the engine's own.
+    universe.on('hyper', ({ state }) => {
+      if (state === 'off') delete root.dataset.hyper;
+      else root.dataset.hyper = state;
     });
     // `fatal` can arrive long after `ready` (a lost WebGL context), so it bypasses `settled`.
     universe.on('fatal', ({ reason }) => {

@@ -154,6 +154,7 @@ export function boot(
       ship,
       pilot: input,
       params: tuning,
+      reducedMotion,
       emit: hooks.onNavigation,
     }),
   );

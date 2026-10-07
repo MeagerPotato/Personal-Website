@@ -15,11 +15,12 @@ import { RebuildBudget, startingFrom, type Snapshot, type StartOptions } from '.
 import { boot, type Booted, type ViewInset } from './main';
 import { galaxyKey, readManifest } from './manifest';
 import { FLIGHT, type AppState } from './state/appMachine';
-import type { NavigatorEvents } from './state/Navigator';
+import type { HyperState, NavigatorEvents } from './state/Navigator';
 
 export type { QualityTier } from './core/quality/tiers';
 export type { StartOptions } from './core/snapshot';
 export type { AppMode, AppState } from './state/appMachine';
+export type { HyperState } from './state/Navigator';
 
 /**
  * DEV ONLY: the lab, one asset on a turntable (lab/LabScene.ts). The condition is a build-time
@@ -105,6 +106,13 @@ export type UniverseEvents = {
    * to somewhere else.
    */
   undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
+  /**
+   * Hyperspace on the journey under way: `offered` (a long journey may be shown as a jump),
+   * `windup` (the visitor took it: Shift, or its button), `tunnel`, and `off` for everything
+   * else. It is the same flight either way, and it is the simulation's state: whether the button
+   * has room to show is the engine's own business. Never anything but `off` with reduced motion.
+   */
+  hyper: { state: HyperState };
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
   /** The engine cannot continue; the web layer should fall back to plain mode. */

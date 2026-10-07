@@ -2,6 +2,12 @@ import { parseSnapshot, startingFrom } from '../../src/universe/core/snapshot';
 import type { UniverseManifest } from '../../src/universe/data/types';
 import { tuning } from '../../src/universe/design/tuning';
 import { galaxyKey, homeSystemOf, nearestNeighbourOf } from '../../src/universe/manifest';
+import {
+  HYPER_NONE,
+  HYPER_SPENT,
+  HYPER_TUNNEL,
+  HYPER_WINDUP,
+} from '../../src/universe/sim/docking';
 import { NO_INPUT, copyShipState, createShipState, speedOf } from '../../src/universe/sim/flight';
 import { createRng } from '../../src/universe/sim/rng';
 import { spawnPoint } from '../../src/universe/sim/spawn';
@@ -81,7 +87,42 @@ export interface JourneySpec {
   dwellSec: number;
 }
 
-export type Failure = 'timeout' | 'shell' | 'tunnel' | 'graze';
+export type Failure = 'timeout' | 'shell' | 'tunnel' | 'graze' | 'hyper';
+
+/**
+ * HYPERSPACE on a flight (sim/hyper.ts): the journey shown as a jump. "In it" is what the
+ * simulation calls its tunnel; in this harness a `tunnel` is a failure, a ship gone through a
+ * body, so the word is kept for that.
+ */
+export interface HyperOutcome {
+  /** When a jump was first offered, s since the request. NaN: never (a short hop, an approach). */
+  offeredSec: number;
+  /**
+   * With a visitor who presses (fly's `visitor.hyper`): when the ship went into hyperspace, s
+   * since the request (NaN: it never did), how long it was in it, s, and how long before
+   * docking it came out, s (NaN: it never was in it, or never docked).
+   */
+  inAtSec: number;
+  inSec: number;
+  outBeforeDockSec: number;
+  /**
+   * It outlived its journey: the dock said anything but "none" after a step the autopilot was
+   * not flying (sim/docking.ts, endHyper). A failure (`hyper`).
+   */
+  strayed: boolean;
+  /** Flown as a twin (`flyTwins`), it was not the flight it is the twin of. A failure (`hyper`). */
+  differs: boolean;
+}
+
+/** Who is watching the journey, besides nobody (fly's last argument). */
+export interface Visitor {
+  /**
+   * They press hyperspace (Navigator.engageHyper, as ui/HyperOffer.ts does for Shift and for its
+   * button) after every step: as soon as it is offered, and again after a new destination or a
+   * rebuilt engine. It is the same flight: `flyTwins` holds a journey to that.
+   */
+  hyper?: boolean;
+}
 
 export interface JourneyResult {
   kind: JourneyKind;
@@ -158,11 +199,15 @@ export interface JourneyResult {
    * (world frame: a bend flown at speed counts, and so does a cushion's push).
    */
   peakAccel: number;
+  /** Hyperspace on this flight: when it was offered, and what a visitor who presses got of it. */
+  hyper: HyperOutcome;
   /**
    * timeout: not docked within the limit. shell: touched a shell. tunnel: a step passed through a
    * shell (shellClearU < 0). graze: came closer than half a cushion to a body it was only passing
    * (the bound the autopilot's own test pins), anywhere along a step. A journey that was STOPPED
    * (`interrupt`) and not sent anywhere after fails only by a shell or a graze while it coasts.
+   * hyper: hyperspace outlived its journey (the dock said anything but "none" on a step the
+   * autopilot was not flying: sim/docking.ts, endHyper), or changed the flight (`flyTwins`).
    */
   failure: Failure | null;
   /** What happened after Stop, when the journey was stopped on purpose (fly's `interrupt`). */
@@ -260,6 +305,8 @@ export interface InterruptOutcome {
   dockSec: number;
   /** The hardest the ship's velocity changed in one step after the interrupt, u/s². */
   peakAccel: number;
+  /** Was the ship in hyperspace, or winding up for it, when it was done? (Only with a visitor who presses.) */
+  inHyper: boolean;
 }
 
 export interface StopOutcome {
@@ -301,6 +348,7 @@ export function fly(
   limitSec = 60,
   watch?: (view: StepView) => void,
   interrupt?: Interrupt,
+  visitor: Visitor = {},
 ): JourneyResult {
   const { manifest } = galaxy;
   const dt = 1 / sim.stepHz;
@@ -336,11 +384,29 @@ export function fly(
   let navigator = navigatorOf(state, world);
 
   let steps = Math.round(spec.startSec * sim.stepHz);
+  // Hyperspace, watched after every step: the step it was first offered at, the first and the
+  // last step in it and how many, and whether it ever outlived the autopilot's flying.
+  let offeredAt = -1;
+  let inAt = -1;
+  let outAt = -1;
+  let inSteps = 0;
+  let hyperStrayed = false;
   const step = (): void => {
     steps += 1;
     flyStep(world, state, pilot.current, sim.flight, sim, dt, steps * dt, flown);
     navigator.fixedUpdate();
     navigator.frameUpdate();
+    // The visitor's press, between two steps as every press is (ui/HyperOffer.ts).
+    if (visitor.hyper === true) navigator.engageHyper();
+    const { dock } = world;
+    if (dock.hyper === HYPER_NONE) return;
+    if (dock.phase !== 'cruise') hyperStrayed = true;
+    if (dock.hyper !== HYPER_SPENT && offeredAt < 0) offeredAt = steps;
+    if (dock.hyper === HYPER_TUNNEL) {
+      if (inAt < 0) inAt = steps;
+      outAt = steps;
+      inSteps += 1;
+    }
   };
 
   /**
@@ -521,6 +587,7 @@ export function fly(
         how: null,
         dockSec: NaN,
         peakAccel: 0,
+        inHyper: world.dock.hyper === HYPER_WINDUP || world.dock.hyper === HYPER_TUNNEL,
       };
       if (interrupt.kind === 'redirect') {
         sendTo(done, interrupt.to, t);
@@ -709,7 +776,7 @@ export function fly(
   // Stopped and then sent somewhere (Stop, then E): what it did while it coasted counts too.
   const touches = shellTouches + (stopped?.shellTouches ?? 0);
   const passedAt = Math.min(closestGapU, stopped?.closestGapU ?? Infinity);
-  const failure: Failure | null =
+  const flew: Failure | null =
     stopped !== null && done?.to === null
       ? stopped.shellTouches > 0
         ? 'shell'
@@ -725,6 +792,8 @@ export function fly(
             : passedAt < grazeBelow
               ? 'graze'
               : null;
+  // Whatever else went right: hyperspace is a journey's, and must have ended with it.
+  const failure: Failure | null = flew ?? (hyperStrayed ? 'hyper' : null);
 
   const systemOf = (id: string | null): string =>
     id === null ? 'spawn' : (manifest.bodies.find((body) => body.id === id)?.system ?? '?');
@@ -758,6 +827,14 @@ export function fly(
     valleys,
     deepestValley,
     peakAccel,
+    hyper: {
+      offeredSec: offeredAt < 0 ? NaN : (offeredAt - began) * dt,
+      inAtSec: inAt < 0 ? NaN : (inAt - began) * dt,
+      inSec: inSteps * dt,
+      outBeforeDockSec: inAt < 0 || !docked ? NaN : seconds - (outAt + 1 - began) * dt,
+      strayed: hyperStrayed,
+      differs: false,
+    },
     failure,
     interrupt: done,
     stop:
@@ -801,6 +878,60 @@ export function stopAtPeak(
   });
   if (atSec < 0) return null;
   return fly(galaxy, spec, sim, limitSec, undefined, { kind: 'stop', atSec, coastSec });
+}
+
+const SHIP_FIELDS = ['x', 'z', 'vx', 'vz', 'heading', 'yawRate'] as const;
+
+/**
+ * HYPERSPACE IS THE SAME FLIGHT (sim/hyper.ts), and this is where that is held: `spec` flown as
+ * it is, and flown again by a visitor who takes the jump the moment it is offered. The second
+ * flight must be the first one, bit for bit: every field of the ship after every step (so the
+ * step it docks on too), and the closest it came to anything. If it is not, the twin fails
+ * (`hyper`). `watch` sees the first flight; `watchTwin` the second, after each step was compared.
+ */
+export function flyTwins(
+  galaxy: Galaxy,
+  spec: JourneySpec,
+  sim: SimTuning,
+  limitSec = 60,
+  watch?: (view: StepView) => void,
+  watchTwin?: (view: StepView) => void,
+): { plain: JourneyResult; twin: JourneyResult } {
+  const trail: number[] = [];
+  const plain = fly(galaxy, spec, sim, limitSec, (view) => {
+    for (const field of SHIP_FIELDS) trail.push(view.state[field]);
+    watch?.(view);
+  });
+  let at = 0;
+  let same = true;
+  const twin = fly(
+    galaxy,
+    spec,
+    sim,
+    limitSec,
+    (view) => {
+      for (const field of SHIP_FIELDS) {
+        if (!Object.is(view.state[field], trail[at])) same = false;
+        at += 1;
+      }
+      watchTwin?.(view);
+    },
+    undefined,
+    { hyper: true },
+  );
+  same &&=
+    at === trail.length &&
+    twin.docked === plain.docked &&
+    Object.is(twin.seconds, plain.seconds) &&
+    Object.is(twin.closestGapU, plain.closestGapU) &&
+    Object.is(twin.shellClearU, plain.shellClearU) &&
+    Object.is(twin.peakAccel, plain.peakAccel) &&
+    twin.shellTouches === plain.shellTouches;
+  if (!same) {
+    twin.hyper.differs = true;
+    twin.failure = 'hyper';
+  }
+  return { plain, twin };
 }
 
 // --- which journeys ----------------------------------------------------------------------------

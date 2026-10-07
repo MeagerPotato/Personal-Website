@@ -60,6 +60,13 @@ export function startHints(options: HintsOptions): () => void {
     universe.on('statechange', ({ mode }) => {
       if ((mode === 'autopilot' || mode === 'approach') && options.panelClosed()) gotIt();
     }),
+    // A journey's offer of hyperspace stands where the card does (beside the flight deck), and
+    // comes with the journey that has just shown the visitor knows how to set out: the card's
+    // lingering ends there, for good. A card that is not lingering (a link's journey, with its
+    // page open over it) is left alone: that visitor has learned nothing about flying yet.
+    universe.on('hyper', ({ state }) => {
+      if (state !== 'off' && timer !== undefined) finish();
+    }),
   ];
   dismiss?.addEventListener('click', finish);
   element.hidden = false;
