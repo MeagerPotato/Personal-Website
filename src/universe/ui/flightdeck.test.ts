@@ -5,6 +5,7 @@ import type { ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { createShipState } from '../sim/flight';
 import type { DeckMode } from '../sim/instruments';
+import type { HyperState } from '../state/Navigator';
 import { FlightDeck } from './FlightDeck';
 
 const P = tuning.instruments;
@@ -38,6 +39,7 @@ function setup(reducedMotion = false) {
     candidate: null as string | null,
     halting: false,
     guarding: false,
+    hyper: 'off' as HyperState,
   };
   const world = { assist: 0, map: false, theme: null as ThemeKey | null };
   const deck = new FlightDeck({
@@ -297,6 +299,40 @@ describe('the lamps', () => {
     expect(lit()).toBe('assist');
     expect(lamp('assist').textContent).toBe('Assist');
     expect(lamp('auto').textContent).toBe('Auto');
+  });
+
+  it('reads HYPER on the autopilot’s lamp in hyperspace’s tunnel, and only there', () => {
+    const { navigator, draw, lamp } = deckOn();
+    navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    const read = (): [word: string | null, on: boolean] => [
+      lamp('auto').textContent,
+      lamp('auto').hasAttribute('data-on'),
+    ];
+    // An offer and a wind-up are not the tunnel: the ship flies itself, as on any journey.
+    for (const state of ['off', 'offered', 'windup'] as const) {
+      navigator.hyper = state;
+      draw();
+      expect(read(), state).toEqual(['Auto', true]);
+    }
+    navigator.hyper = 'tunnel';
+    draw();
+    expect(read()).toEqual(['Hyper', true]);
+    // The other lamp is the other lamp.
+    expect(lamp('assist').textContent).toBe('Assist');
+    // Out of the tunnel, still on its way: Auto again.
+    navigator.hyper = 'off';
+    draw();
+    expect(read()).toEqual(['Auto', true]);
+    // A jump that ended while the deck was away (docked, it draws nothing): the next time the
+    // deck is drawn the lamp is dark, and reads Auto.
+    navigator.hyper = 'tunnel';
+    draw();
+    navigator.hyper = 'off';
+    navigator.state = { mode: 'docked', target: 'project/fishai' };
+    draw();
+    navigator.state = { mode: 'flight', target: null };
+    draw();
+    expect(read()).toEqual(['Auto', false]);
   });
 });
 
@@ -749,6 +785,16 @@ describe('the strip', () => {
     draw();
     expect(lit?.textContent).toBe('Assist');
     navigator.state = { mode: 'autopilot', target: 'project/fishai' };
+    draw();
+    expect(lit?.textContent).toBe('Auto');
+    // In hyperspace’s tunnel that one lamp reads HYPER, and Auto again after.
+    navigator.hyper = 'windup';
+    draw();
+    expect(lit?.textContent).toBe('Auto');
+    navigator.hyper = 'tunnel';
+    draw();
+    expect(lit?.textContent).toBe('Hyper');
+    navigator.hyper = 'off';
     draw();
     expect(lit?.textContent).toBe('Auto');
     navigator.state = { mode: 'flight', target: null };

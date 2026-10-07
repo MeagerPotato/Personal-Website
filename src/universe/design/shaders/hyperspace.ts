@@ -25,6 +25,18 @@
  * for none); uBands; uEye (rad); uRibs (0 or 1: the thin line at each band's edge); uWash (the
  * wash's alpha, on every other band); uRibAlpha; uRingAlpha (the rings', already fading);
  * and the linear colours uGround (the eye), uShade (the wash), uLine (the ribs), uInk (the rings).
+ *
+ * How the fragment goes about it (said here and not in the GLSL, which is shipped as it is
+ * written, comments and all):
+ * - `stroke(px, width)`: how much of a line `width` px wide a pixel `px` pixels from its middle
+ *   is inside. `angle(a, b)`: the angle between two unit vectors, exact near 0 too (the acos of
+ *   their dot is not).
+ * - The bands are a triangle wave over two of them, cut at its middle, one pixel soft: `cut` is
+ *   how many pixels a fragment is from the nearest edge, so the wash's alpha steps there and the
+ *   rib is a stroke along it.
+ * - The wall is the wash with the rib over it; the eye covers it; the iris holds all of it. It is
+ *   premultiplied while it is put together and divided out at the end.
+ * - The rings go over everything: 2 px, round the course and round the destination.
  */
 export const hyperTube = {
   vertexShader: /* glsl */ `
@@ -58,12 +70,10 @@ export const hyperTube = {
 
     varying vec3 vDirection;
 
-    // How much of a line 'width' px wide a pixel 'px' pixels from its middle is inside.
     float stroke(float px, float width) {
       return 1.0 - smoothstep(0.5 * width - 0.5, 0.5 * width + 0.5, px);
     }
 
-    // The angle between two unit vectors, exact near 0 too (acos of their dot is not).
     float angle(vec3 a, vec3 b) {
       return atan(length(cross(a, b)), dot(a, b));
     }
@@ -73,7 +83,6 @@ export const hyperTube = {
       float rho = angle(direction, uAxis);
       float pixel = max(fwidth(rho), 1e-6);
 
-      // Bands: a triangle wave over two of them, cut at its middle, one pixel soft.
       float t = log(max(rho, 0.02)) * uBands - uFlow;
       float wave = abs(fract(0.5 * t) - 0.5) * 2.0;
       float soft = max(fwidth(t), 1e-6);
@@ -81,16 +90,13 @@ export const hyperTube = {
       float wash = mix(uWash.x, uWash.y, clamp(cut + 0.5, 0.0, 1.0));
       float rib = uRibs * uRibAlpha * stroke(abs(cut), 1.5);
 
-      // The wall: the wash, and the rib over it. (Premultiplied while it is put together.)
       vec4 wall = vec4(uShade * wash, wash);
       wall = vec4(uLine * rib, rib) + wall * (1.0 - rib);
-      // The eye covers it, and the iris holds all of it.
       float eye = clamp((uEye - rho) / pixel + 0.5, 0.0, 1.0);
       wall = mix(wall, vec4(uGround, 1.0), eye);
       float iris = clamp((uOpen * 3.2 - rho) / pixel + 0.5, 0.0, 1.0);
       wall *= uOpen * iris;
 
-      // The rings, over everything: 2 px, round the course and round the destination.
       float punch = uPunch < 0.0 ? 0.0 : uRingAlpha.x * stroke(abs(rho - uPunch * 1.3) / pixel, 2.0);
       float toTarget = angle(direction, uTarget);
       float drop = uDrop < 0.0
@@ -138,6 +144,9 @@ const glsl = (value: number): string =>
  * Geometry: position = (the angle of its ray round the course, rad; its phase, 0 to 1; how bright
  * it is, 0 to 1). aDash = (which end: -1 the tail, +1 the head; which side: -1 or +1; its rate;
  * its tint, 0 to 4).
+ * In the vertex shader the quad reaches half a width past each end of the dash, room for its
+ * round caps, and hands the fragment capsule coordinates in half widths: x along the dash from
+ * its middle, y across it.
  * Uniforms: uFrame (mat3 of unit columns: right, up, the course), uFlow, uTwist (a number of the
  * destination's own: each has its own field), uStretch (0 to 1), uAlpha (0 to 1: the look's
  * dots), uLength, uWidth (the width, in the plane's units), uPixel (one device pixel in those
@@ -169,8 +178,6 @@ export const hyperDashes = {
       float head = ${glsl(DASH_SPAN[0])} * pow(${glsl(DASH_SPAN[1] / DASH_SPAN[0])}, pow(p, ${glsl(DASH_EASE)}));
       float tail = head * (1.0 - uStretch * uLength);
       float halfWidth = 0.5 * max(uWidth, uPixel);
-
-      // Half a width past each end: room for the round caps.
       float along = aDash.x > 0.0 ? head + halfWidth : tail - halfWidth;
       vec2 at = ray * along + side * (aDash.y * halfWidth);
       vec3 direction = uFrame * normalize(vec3(at, 1.0));
@@ -178,7 +185,6 @@ export const hyperDashes = {
       clip.z = clip.w;
       gl_Position = clip;
 
-      // Capsule coordinates in half widths: x runs along the dash from its middle, y across it.
       vHalfLength = 0.5 * (head - tail) / halfWidth;
       vCapsule = vec2(aDash.x * (vHalfLength + 1.0), aDash.y);
       vAlpha = uAlpha * position.z * smoothstep(0.0, 0.2, p) * (1.0 - smoothstep(0.85, 1.0, p));

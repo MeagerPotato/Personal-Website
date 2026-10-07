@@ -24,6 +24,7 @@ import {
 import { clamp } from '../sim/math';
 import { createSpring, snapSpring, stepSpring } from '../sim/spring';
 import type { FlightInput, ShipState } from '../sim/types';
+import type { HyperState } from '../state/Navigator';
 
 /** What the deck reads of the ship (ship/ShipSystem.ts): this frame's pose, and the last step. */
 export interface DeckShip {
@@ -43,6 +44,8 @@ export interface DeckNavigator {
   readonly candidate: string | null;
   readonly halting: boolean;
   readonly guarding: boolean;
+  /** Hyperspace on the journey under way: in its tunnel the autopilot's lamp says so. */
+  readonly hyper: HyperState;
 }
 
 export interface FlightDeckOptions {
@@ -122,7 +125,8 @@ function rimmed(tag: string, name: string, value: string, parent: Element): void
  * THE FLIGHT DECK (sim/instruments.ts has the maths): Kerbal Space Program's cluster at the
  * bottom of the view, drawn flat. A ball that turns with the heading and leans with the ship,
  * the speed above it, the heading below, the throttle up its left side and the g up its right,
- * and a lamp on each shoulder.
+ * and a lamp on each shoulder. (In hyperspace's tunnel the autopilot's lamp, lit as it is, reads
+ * HYPER, and the chevrons run: the stylesheet's doing, on `html[data-hyper]`.)
  *
  * IT ONLY READS. No button, no shortcut, nothing to focus, nothing said aloud: the prompt is the
  * one thing out there that acts, and everything the deck shows is already said by a real control
@@ -208,6 +212,8 @@ export class FlightDeck implements System {
   private digitsAt = -Infinity;
   private theme: ThemeKey | null = null;
   private litName = '';
+  /** What the autopilot's lamp reads: Auto, or Hyper in hyperspace's tunnel. */
+  private autoName = 'Auto';
 
   constructor(private readonly options: FlightDeckOptions) {
     const root = (this.root = document.createElement('div'));
@@ -223,7 +229,7 @@ export class FlightDeck implements System {
     for (const x of [1, 7, 13]) svg('path', '', warp).setAttribute('d', `M${x} 1l4 4-4 4`);
     html('b', '', speed).append(this.speedText);
     html('small', '', speed).textContent = 'm/s';
-    this.auto = this.lamp('auto', 'Auto');
+    this.auto = this.lamp('auto', this.autoName);
 
     this.plate = html('span', 'flight-deck__plate', root);
     const dial = (this.dial = svg('svg', 'flight-deck__dial', this.plate));
@@ -529,8 +535,14 @@ export class FlightDeck implements System {
     );
     flag(this.auto, 'data-on', lamps.auto);
     flag(this.assist, 'data-on', lamps.assist);
+    // In the tunnel the autopilot flies as it always does: its lamp says what the sky shows.
+    const auto = navigator.hyper === 'tunnel' ? 'Hyper' : 'Auto';
+    if (auto !== this.autoName) {
+      this.autoName = auto;
+      this.auto.textContent = auto;
+    }
     // The strip has room for one lamp: the name of whichever is lit, where the heading was.
-    const lit = lamps.auto ? 'Auto' : lamps.assist ? 'Assist' : '';
+    const lit = lamps.auto ? auto : lamps.assist ? 'Assist' : '';
     if (lit !== this.litName) {
       this.litName = lit;
       this.lit.textContent = lit;

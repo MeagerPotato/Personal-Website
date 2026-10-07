@@ -528,7 +528,9 @@ export function boot(
     };
     const doing = (): string => {
       const { mode, target } = navigator.state;
-      const state = target === null ? mode : `${mode} ${target}`;
+      const going = target === null ? mode : `${mode} ${target}`;
+      // Hyperspace too, so that a phone on a preview can show where a jump is.
+      const state = navigator.hyper === 'off' ? going : `${going} hyper ${navigator.hyper}`;
       return starMap.isOpen ? `${state} (map)` : state;
     };
     engine.add(

@@ -224,11 +224,17 @@ const overlap = (a: Box, b: Box): boolean =>
 
 test('Shift on a long journey shows it as a jump, and it docks where it was going', async ({
   page,
+  isMobile,
 }) => {
   const errors = collectErrors(page);
   await openUniverse(page, '/');
   const hyper = await watchAttribute(page, 'data-hyper');
   const told = await watchText(page, '[data-announcer]');
+  // The autopilot's lamp on the deck: on its shoulder, or the strip's one lamp on a phone.
+  const lamp = await watchText(
+    page,
+    isMobile ? '.flight-deck__lit' : '.flight-deck [data-lamp="auto"]',
+  );
   await react(page, { offered: 'shift' });
   await setOut(page, 'Hackathons');
 
@@ -245,8 +251,62 @@ test('Shift on a long journey shows it as a jump, and it docks where it was goin
   expect(said.filter((text) => text.includes('yperspace'))).toEqual(['Hyperspace.']);
   expect(said.indexOf('Flying to Hackathons.')).toBeLessThan(said.indexOf('Hyperspace.'));
   expect(said.indexOf('Hyperspace.')).toBeLessThan(said.indexOf('Docked at Hackathons.'));
+  // The lamp read AUTO, then HYPER while the tunnel lasted, then AUTO again.
+  const read = (await lamp()).map(({ text }) => text).filter((text) => text !== '');
+  expect(read).toEqual(['Auto', 'Hyper', 'Auto']);
   // Both of its shaders compiled, in this browser too (they are drawn once at boot).
   expect(errors).toEqual([]);
+});
+
+test('in the tunnel the chevrons and the route run, and the other names step back', async ({
+  page,
+}) => {
+  await openUniverse(page, '/');
+  await expect(page.locator('.body-label[data-shown]').first()).toBeVisible();
+  // All of it is the stylesheet's, keyed on what the shell writes on <html> in a tunnel: so it
+  // is written here by hand, in open sky, where names stand and hold still.
+  const look = () =>
+    page.evaluate(async () => {
+      const names = [...document.querySelectorAll('.body-label[data-shown]')];
+      // Each name has finished stepping back, or coming forward again.
+      await Promise.all(
+        names.flatMap((name) =>
+          name.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+        ),
+      );
+      const moves = (selector: string): string | null => {
+        const found = document.querySelector(selector);
+        return found ? getComputedStyle(found).animationName : null;
+      };
+      return {
+        names: [...new Set(names.map((name) => getComputedStyle(name).opacity))],
+        chevrons: moves('.flight-deck__warp path'),
+        route: moves('.minimap__route'),
+      };
+    });
+  const set = (name: 'hyper' | 'map', value: string | null) =>
+    page.evaluate(
+      ([key, to]) => {
+        if (to === null) document.documentElement.removeAttribute(`data-${key}`);
+        else document.documentElement.setAttribute(`data-${key}`, to);
+      },
+      [name, value] as const,
+    );
+  const still = { names: ['1'], chevrons: 'none', route: 'none' };
+  expect(await look()).toEqual(still);
+
+  // An offer and a wind-up change nothing here.
+  await set('hyper', 'windup');
+  expect(await look()).toEqual(still);
+  await set('hyper', 'tunnel');
+  expect(await look()).toEqual({ names: ['0.4'], chevrons: 'hyper-chase', route: 'hyper-route' });
+  // On the star map, which hides the jump, names are for choosing: they stand as ever.
+  await set('map', 'open');
+  expect((await look()).names).toEqual(['1']);
+  await set('map', null);
+  expect((await look()).names).toEqual(['0.4']);
+  await set('hyper', null);
+  expect(await look()).toEqual(still);
 });
 
 test('Shift+Tab is no jump: the wind-up is taken back, and the offer stands again', async ({

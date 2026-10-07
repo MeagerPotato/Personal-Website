@@ -2966,6 +2966,54 @@ main > .resume-name + .resume-contact {
   }
 
   /*
+   * IN THE TUNNEL (`html[data-hyper='tunnel']`, written by the shell from the simulation's own
+   * state): what is on the screen besides the sky says so too, by the stylesheet alone. The
+   * deck's three chevrons run, one after the other, the way the ship is going; the minimap's
+   * butter route becomes dashes that run toward the destination; and every name but the
+   * destination's steps back (still a real button: pressing one is a new destination). Not on
+   * the star map, which hides the jump and is where names are chosen. The lamp's word, HYPER, is
+   * the engine's (ui/FlightDeck.ts). A visitor who asked for less motion has no hyperspace.
+   */
+  html[data-hyper='tunnel'] .flight-deck__warp path {
+    animation: hyper-chase 0.6s linear infinite;
+  }
+
+  html[data-hyper='tunnel'] .flight-deck__warp path:nth-child(2) {
+    animation-delay: -0.4s;
+  }
+
+  html[data-hyper='tunnel'] .flight-deck__warp path:nth-child(3) {
+    animation-delay: -0.2s;
+  }
+
+  @keyframes hyper-chase {
+    from,
+    to {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  html[data-hyper='tunnel'] .minimap__route {
+    stroke-dasharray: 3 5;
+    animation: hyper-route 0.4s linear infinite;
+  }
+
+  @keyframes hyper-route {
+    to {
+      stroke-dashoffset: -8;
+    }
+  }
+
+  html[data-hyper='tunnel']:not([data-map])
+    .body-label[data-shown]:not([data-state='target'], :focus-visible) {
+    opacity: 0.4;
+  }
+
+  /*
    * THE FLIGHT DECK (universe/ui/FlightDeck.ts): Kerbal Space Program's cluster of instruments at
    * the bottom centre of the view, drawn flat. A round plate with a ball in it (a globe that turns
    * with the heading and leans with the ship), the throttle up its left side and the g up its
