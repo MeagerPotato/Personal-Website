@@ -2795,6 +2795,10 @@ main > .resume-name + .resume-contact {
    *
    * Through the wind-up it is "on" (`data-on`): the cream face, or the pad's coral under a
    * finger. It leaves with the punch. Moved by translate, like every move (2).
+   *
+   * It is there for a second or two, so it says so as it arrives: one butter ring goes out from
+   * it and fades (`::after`), as the cream one does from the eye when the tunnel opens. Once: an
+   * offer does not nag. (Nobody who asked for less motion is ever offered a jump.)
    */
   .hyper-offer {
     --offer-x: 0px;
@@ -2824,6 +2828,17 @@ main > .resume-name + .resume-contact {
 
   .hyper-offer[hidden] {
     display: none;
+  }
+
+  .hyper-offer::after {
+    position: absolute;
+    inset: -1rem;
+    border: 0.125rem solid var(--color-focus);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    content: '';
+    animation: hyper-offer-ping var(--motion-slow) var(--motion-ease-out) var(--motion-base);
   }
 
   @media (hover: hover) {
@@ -2892,7 +2907,11 @@ main > .resume-name + .resume-contact {
     }
   }
 
-  /* A finger: the boost pad's box, its ring and its type; coral while pressed and while armed. */
+  /*
+   * A finger: the boost pad's box, its ring and its type; coral while pressed and while armed.
+   * Its word is butter, as the chip's Shift cap and the prompt's "Stop" are: what acts on the
+   * journey. (It is also what tells it from the boost pad it stands in for, at a glance.)
+   */
   @media (pointer: coarse) {
     .hyper-offer,
     html:has(.flight-deck[data-seated]) .hyper-offer {
@@ -2908,6 +2927,7 @@ main > .resume-name + .resume-contact {
       padding: 0;
       border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
       border-radius: 50%;
+      color: var(--color-focus);
       box-shadow: none;
       font-size: var(--text-xs);
       font-weight: 700;
@@ -2923,17 +2943,19 @@ main > .resume-name + .resume-contact {
       box-shadow: var(--rim);
     }
 
-    /* A finger has no Shift key, and a round pad has room for "Hyper". (Heard whole.) */
+    /*
+     * A finger has no Shift key, and a round pad has room for "Hyper". The rest of the word is
+     * set aside where it stands, in its line: taken out of the line (position: absolute) it is
+     * heard as a word of its own, "Hyper space". (Letters of no size still keep their spacing,
+     * which would push "Hyper" off the middle.)
+     */
     .hyper-offer kbd {
       display: none;
     }
 
     .hyper-offer__rest {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
+      font-size: 0;
+      letter-spacing: 0;
     }
 
     .hyper-offer:active,
@@ -2965,6 +2987,13 @@ main > .resume-name + .resume-contact {
     }
   }
 
+  @keyframes hyper-offer-ping {
+    from {
+      inset: -0.1875rem;
+      opacity: 1;
+    }
+  }
+
   /*
    * IN THE TUNNEL (`html[data-hyper='tunnel']`, written by the shell from the simulation's own
    * state): what is on the screen besides the sky says so too, by the stylesheet alone. The
@@ -2973,7 +3002,14 @@ main > .resume-name + .resume-contact {
    * destination's steps back (still a real button: pressing one is a new destination). Not on
    * the star map, which hides the jump and is where names are chosen. The lamp's word, HYPER, is
    * the engine's (ui/FlightDeck.ts). A visitor who asked for less motion has no hyperspace.
+   *
+   * And no plate over the world lets the streaks through: they are bright and many, and the words
+   * on a plate must not swim in them (the nav and the prompt on a phone, most of all).
    */
+  html[data-mode='universe'][data-hyper='tunnel'] {
+    --hud: var(--color-surface-panel);
+  }
+
   html[data-hyper='tunnel'] .flight-deck__warp path {
     animation: hyper-chase 0.6s linear infinite;
   }

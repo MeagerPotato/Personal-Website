@@ -120,12 +120,13 @@ test.describe('the offer of hyperspace', () => {
 
     const offer = page.locator('.hyper-offer');
     await expect(offer).toBeVisible();
+    // (Its arrival, and the ring that goes out from it once.)
     await offer.evaluate((button) =>
-      Promise.all(button.getAnimations().map((animation) => animation.finished)),
+      Promise.all(button.getAnimations({ subtree: true }).map((animation) => animation.finished)),
     );
     // A key cap and a word under a mouse; under a finger a round pad that reads HYPER, with no
-    // key a phone has not got, and the whole word for whoever hears it.
-    await expect(offer).toHaveAccessibleName(isMobile ? /^Hyper ?space$/ : 'Shift Hyperspace');
+    // key a phone has not got, and the whole word, as ONE word, for whoever hears it.
+    await expect(offer).toHaveAccessibleName(isMobile ? 'Hyperspace' : 'Shift Hyperspace');
     expect(await seriousIssues(page)).toEqual([]);
     // It was judged with the offer standing.
     await expect(page.locator('html')).toHaveAttribute('data-hyper', 'offered');
