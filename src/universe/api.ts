@@ -210,6 +210,8 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let inset: ViewInset = {};
   /** Likewise the map: a rebuilt engine opens on what the visitor was looking at. */
   let mapOpen = false;
+  /** What the web layer was last told of hyperspace (`hyper`). */
+  let hyperTold: HyperState = 'off';
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
   let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
 
@@ -253,6 +255,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
+      forgetJump();
       tier = lower;
       events.emit('quality', { tier, demoted: true });
       rebuild(snapshot);
@@ -268,6 +271,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
         if (event === 'docked') settleJourney('arrived');
         else if (event === 'undocked') settleJourney('cancelled');
       }
+      if (event === 'hyper') hyperTold = (payload as NavigatorEvents['hyper']).state;
       // The navigator's events are a subset of the universe's, name for name and shape for shape.
       events.emit(event, payload as UniverseEvents[K]);
     },
@@ -281,6 +285,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
+      forgetJump();
       if (!budget.spend(performance.now())) {
         events.emit('fatal', { reason: 'WebGL context lost repeatedly' });
         return;
@@ -298,6 +303,19 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   function deliverPending(): boolean {
     current?.navigator.frameUpdate();
     return !disposed && current !== null;
+  }
+
+  /**
+   * An engine was taken down in the middle of a jump, or of its offer. The next one starts from
+   * `off` and only reports what it does itself: a tunnel it takes up again it tells again, with
+   * its first frame, but an offer or a wind-up is not kept (core/snapshot.ts), and a tunnel whose
+   * fast stretch is over by then is not resumed. So the web layer hears `off` now, or what it
+   * heard last could stand for ever: the deck's chevrons running and the names dimmed, docked.
+   */
+  function forgetJump(): void {
+    if (hyperTold === 'off') return;
+    hyperTold = 'off';
+    events.emit('hyper', { state: 'off' });
   }
 
   function rebuild(snapshot: Snapshot): void {

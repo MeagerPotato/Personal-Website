@@ -23,6 +23,7 @@ import { ShipSystem } from './ship/ShipSystem';
 import { Navigator, type NavigatorEvents } from './state/Navigator';
 import { BodiesOnScreen } from './ui/BodiesOnScreen';
 import { FlightDeck } from './ui/FlightDeck';
+import { HyperOffer } from './ui/HyperOffer';
 import { Labels } from './ui/Labels';
 import { MiniMap } from './ui/MiniMap';
 import { Picker } from './ui/Picker';
@@ -333,6 +334,7 @@ export function boot(
   );
   let labels: Labels | null = null;
   let prompt: Prompt | null = null;
+  let offer: HyperOffer | null = null;
   let deck: FlightDeck | null = null;
   let minimap: MiniMap | null = null;
   // Every body as the names and the minimap know it, by row of the orbit table.
@@ -374,10 +376,11 @@ export function boot(
         docked: () => navigator.state.mode === 'docked' && !starMap.isOpen,
         onPick: flyToRow,
         // What else is out there to keep off: what can be pressed, the flight deck and the
-        // minimap. The prompt and those two are only built further down (they are updated last
-        // in a frame); by the time anyone asks, they are there.
+        // minimap. The prompt, the offer of hyperspace and those two are only built further down
+        // (they are updated last in a frame); by the time anyone asks, they are there.
         obstacles: [
           () => prompt?.box() ?? null,
+          () => offer?.box() ?? null,
           () => touch.padBox(),
           () => starMap.box(),
           () => deck?.box() ?? null,
@@ -443,6 +446,16 @@ export function boot(
         // offers would sit on the galaxy. They are back when the map closes; a journey's Stop
         // shows all along.
         quiet: () => starMap.isOpen && rig.shape.freeHeight < 0.99,
+      }),
+    );
+    // The offer of hyperspace (ui/HyperOffer.ts): right after the prompt in the overlay, so that
+    // Tab goes Stop, then Hyperspace, and the deck and the minimap stay last. It shows only while
+    // the world has the whole screen: no page beside or under it, and the star map closed.
+    offer = engine.add(
+      new HyperOffer({
+        overlay: options.overlay,
+        navigator,
+        room: () => !starMap.isOpen && rig.shape.freeWidth > 0.99 && rig.shape.freeHeight > 0.99,
       }),
     );
 

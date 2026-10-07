@@ -2778,6 +2778,194 @@ main > .resume-name + .resume-contact {
   }
 
   /*
+   * THE OFFER OF HYPERSPACE (universe/ui/HyperOffer.ts): on a journey long enough to be shown as
+   * a jump, while the world has the whole screen (no page open, the star map closed). The dock
+   * prompt's chip to the letter (plate, edge, ledge, 44 px, the butter key cap), with rules of its
+   * own for where it stands:
+   *
+   *   a mouse, no seated deck   the bottom right corner: there is no minimap without the full
+   *                             cluster, a mouse has no boost pad, the prompt is a row higher and
+   *                             the corner chip is in the other corner
+   *   a mouse, the deck seated  above the prompt, against the deck's left: its right end 12 px
+   *                             left of the cluster, the ship in the middle
+   *   a finger                  THE BOOST PAD'S OWN BOX, as a round pad that reads HYPER: on a
+   *                             journey, boost is hyperspace. The pad is hidden for the whole of
+   *                             every journey, the prompt already steps over that box and the
+   *                             minimap already stands 12 px above it
+   *
+   * Through the wind-up it is "on" (`data-on`): the cream face, or the pad's coral under a
+   * finger. It leaves with the punch. Moved by translate, like every move (2).
+   */
+  .hyper-offer {
+    --offer-x: 0px;
+
+    position: absolute;
+    right: max(var(--space-6), env(safe-area-inset-right));
+    bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 2.75rem;
+    min-height: 2.75rem; /* 44 px touch target */
+    padding: 0 var(--space-6) 0 var(--space-4);
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink-high);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    translate: var(--offer-x) 0;
+    animation: hyper-offer-in var(--motion-base) var(--motion-ease-out);
+  }
+
+  .hyper-offer[hidden] {
+    display: none;
+  }
+
+  @media (hover: hover) {
+    .hyper-offer:hover {
+      border-color: var(--color-ink-low);
+      background: var(--color-surface-raised);
+    }
+  }
+
+  .hyper-offer:focus-visible {
+    box-shadow:
+      var(--rim),
+      0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+  }
+
+  .hyper-offer:active {
+    translate: var(--offer-x) var(--ledge);
+    box-shadow: none;
+  }
+
+  /* On (the cream face): the press was heard, the jump is winding up. */
+  .hyper-offer[data-on],
+  .hyper-offer[data-on]:hover {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+  }
+
+  .hyper-offer kbd {
+    display: inline-grid;
+    place-items: center;
+    height: 1.625rem;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-space-900);
+    background: var(--color-focus);
+    box-shadow: 0 0.125rem 0 var(--color-system-butter-shade);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Beside the seated deck, a row above the prompt (whose own rule, further down, this is not). */
+  html:has(.flight-deck[data-seated]) .hyper-offer {
+    --offer-x: calc(-100% - var(--deck-half) - var(--space-3));
+
+    right: auto;
+    bottom: calc(var(--prompt-bottom) + 2.75rem + var(--space-2));
+    left: 50%;
+    max-width: calc(50% - var(--deck-half) - var(--space-3) - var(--space-6));
+  }
+
+  /* A window too narrow for the word beside the corner chip: the key cap says it. (Heard whole.) */
+  @media (max-width: 25.99rem) and (pointer: fine), (max-width: 25.99rem) and (pointer: none) {
+    .hyper-offer {
+      padding: 0 var(--space-3);
+    }
+
+    .hyper-offer > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+
+  /* A finger: the boost pad's box, its ring and its type; coral while pressed and while armed. */
+  @media (pointer: coarse) {
+    .hyper-offer,
+    html:has(.flight-deck[data-seated]) .hyper-offer {
+      --offer-x: 0px;
+
+      right: max(var(--space-6), env(safe-area-inset-right));
+      bottom: var(--boost-pad-bottom);
+      left: auto;
+      justify-content: center;
+      width: var(--boost-pad-size);
+      max-width: none;
+      height: var(--boost-pad-size);
+      padding: 0;
+      border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+      border-radius: 50%;
+      box-shadow: none;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .hyper-offer:focus-visible {
+      box-shadow: var(--rim);
+    }
+
+    /* A finger has no Shift key, and a round pad has room for "Hyper". (Heard whole.) */
+    .hyper-offer kbd {
+      display: none;
+    }
+
+    .hyper-offer__rest {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .hyper-offer:active,
+    .hyper-offer[data-on],
+    .hyper-offer[data-on]:hover {
+      border-color: var(--color-system-coral-light);
+      color: var(--color-space-900);
+      background: var(--color-system-coral-base);
+      translate: none;
+      scale: 0.94;
+    }
+  }
+
+  /* Forced colours drop the cream and the coral: on is then the system's own highlight. */
+  @media (forced-colors: active) {
+    .hyper-offer[data-on],
+    .hyper-offer[data-on]:hover {
+      forced-color-adjust: none;
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+  }
+
+  @keyframes hyper-offer-in {
+    from {
+      opacity: 0;
+      translate: var(--offer-x) 0.5rem;
+    }
+  }
+
+  /*
    * THE FLIGHT DECK (universe/ui/FlightDeck.ts): Kerbal Space Program's cluster of instruments at
    * the bottom centre of the view, drawn flat. A round plate with a ball in it (a globe that turns
    * with the heading and leans with the ship), the throttle up its left side and the g up its
