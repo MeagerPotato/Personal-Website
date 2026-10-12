@@ -129,7 +129,7 @@ cron drains and retries.
 | **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Done |
 | **B2** | Comments, held for approval | Done |
 | **B3** | Email subscriptions, double opt-in, and a new post by email | Built and switched off: Allen's choice on 2026-10-05, "for now" (§7) |
-| **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | Waiting on Allen |
+| **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | The blog is live since 2026-10-06; the Log station's link waits for the first post |
 | **D** | The details: Allen's pass over both sites, and the list below | Ongoing |
 
 **Known details for D** (noticed while building; none blocks a launch):
@@ -175,7 +175,6 @@ cron drains and retries.
 
 ## 7. Open items for Allen
 
-- **B4:** the blog's Cloudflare setup ([runbook](runbooks/blog-setup.md)).
 - **The blog's email** (B3): **off for now** (Allen, 2026-10-05). While the Worker has no
   `send_email` binding and no `MAIL_FROM`, nothing of it shows: no Subscribe link or page for
   readers (`/subscribe/` answers 404), no Subscribers screen or Email section in the studio. The
