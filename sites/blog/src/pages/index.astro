@@ -12,7 +12,6 @@ const page = await homePage(blogEnv());
 <Base path="/" current="posts">
   <header class="page-header">
     <h1 class="page-title">{site.title}</h1>
-    <p class="page-lede">{site.description}</p>
   </header>
   {page.posts.length > 0 ? (
     <PostList posts={page.posts} />

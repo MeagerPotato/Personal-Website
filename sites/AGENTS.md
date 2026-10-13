@@ -20,9 +20,10 @@ engine, the router and "thin Astro" do not.
 | `blog/` | blog.allenkh.com: Astro 7 on a Cloudflare Worker. Reader pages (`src/pages`), the studio where posts are written (`src/studio`, React), the API and everything else on the server (`src/server`, Hono) |
 | `docs/` | the plan, the journal's crypto design, runbooks |
 
-Status: both sites are built. The journal is live at journal.allenkh.com since 2026-10-01 (set up
-with its [runbook](docs/runbooks/cloudflare-setup.md)); the blog waits for its Cloudflare setup,
-the blog's [runbook](docs/runbooks/blog-setup.md).
+Status: both sites are built and live. The journal is at journal.allenkh.com since 2026-10-01
+(set up with its [runbook](docs/runbooks/cloudflare-setup.md)), the blog at blog.allenkh.com
+since 2026-10-06 (the blog's [runbook](docs/runbooks/blog-setup.md)), with its email list off
+and no post yet.
 
 ## Invariants
 

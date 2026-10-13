@@ -129,7 +129,7 @@ cron drains and retries.
 | **B1** | The blog: reading pages, the studio, tags and series, math and code, images, feeds | Done |
 | **B2** | Comments, held for approval | Done |
 | **B3** | Email subscriptions, double opt-in, and a new post by email | Built and switched off: Allen's choice on 2026-10-05, "for now" (§7) |
-| **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | Waiting on Allen |
+| **B4** | Launch: Allen follows [the blog's runbook](runbooks/blog-setup.md); then the main site's Log station links there (docs/PLAN.md Phase 5) | The blog is live since 2026-10-06; the Log station's link waits for the first post |
 | **D** | The details: Allen's pass over both sites, and the list below | Ongoing |
 
 **Known details for D** (noticed while building; none blocks a launch):
@@ -138,8 +138,8 @@ cron drains and retries.
   locally on 2026-09-30 with `npx wrangler check startup` in each app (a dry-run build and a
   local profile: nothing is deployed): the journal's Worker is 864 KiB and starts in about 15 ms
   of CPU, the blog's is 3.0 MB and starts in about 46 ms. Cloudflare's limit is 1 s.
-- The blog's one-line description is a placeholder for Allen's words (asked 2026-10-05:
-  "decide later"; ask again before the first post). Its name is decided: "Allen Hsieh".
+- The blog's name is "Allen Hsieh" (Allen, 2026-10-05) and it has no description (2026-10-07):
+  the front page shows the name alone; the feed and link previews say "Allen Hsieh's blog."
 - Android has no math font of its own: if readers there matter, ship one (a subset of STIX Two
   Math) with the blog.
 - The studio could tell Allen about a new comment by email, once email is set up.
@@ -175,7 +175,6 @@ cron drains and retries.
 
 ## 7. Open items for Allen
 
-- **B4:** the blog's Cloudflare setup ([runbook](runbooks/blog-setup.md)).
 - **The blog's email** (B3): **off for now** (Allen, 2026-10-05). While the Worker has no
   `send_email` binding and no `MAIL_FROM`, nothing of it shows: no Subscribe link or page for
   readers (`/subscribe/` answers 404), no Subscribers screen or Email section in the studio. The
@@ -188,5 +187,4 @@ cron drains and retries.
 - **Turnstile** for the comment form: **not now** (Allen, 2026-10-05). Comments rely on the
   honeypot, a minimum time to fill the form, rate limits and approval; the runbook's §8 adds the
   widget (free) if spam gets through anyway.
-- **The blog's description** (its name is "Allen Hsieh", decided 2026-10-05), and **the first
-  post,** once the blog is up.
+- **The first post,** written in the studio.
