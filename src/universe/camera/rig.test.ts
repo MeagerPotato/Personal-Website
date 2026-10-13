@@ -252,6 +252,26 @@ describe('the camera rig, changing modes', () => {
     expect(a.updates).toBe(asked);
   });
 
+  it('says when no change of view is under way: the picture is the mode in charge’s own', () => {
+    const a = new Looking(0, 0, 10, 50);
+    const b = new Looking(100, 1, 30, 40);
+    const { rig } = rigWith(a);
+    expect(rig.settled).toBe(true);
+    rig.use(b, 1);
+    expect(rig.settled).toBe(false);
+    for (let i = 0; i < 59; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.settled).toBe(false);
+    for (let i = 0; i < 2; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.settled).toBe(true);
+    // Turned back halfway, it is under way again; a cut is settled at once.
+    rig.use(a, 1);
+    for (let i = 0; i < 30; i += 1) rig.frameUpdate(frame(1 / 60));
+    rig.use(b, 1);
+    expect(rig.settled).toBe(false);
+    rig.use(a, 0);
+    expect(rig.settled).toBe(true);
+  });
+
   it('blends LIVE: both views keep following their subjects while it runs', () => {
     const chase = new Looking(0, 0, 10, 50, 60); // its subject flies along +Z at 60 u/s
     const orbit = new Looking(0, 0, 10, 50);
@@ -392,7 +412,39 @@ describe('the camera rig, making room for the panel', () => {
       freeWidth: 1 - 496 / 1280,
       freeHeight: 1,
       freeTop: 0,
+      freeLeft: 0,
     });
+  });
+
+  it('and of what is left between two sides, which need not be the middle of the window', () => {
+    const subject = new Looking(0, 0.4, 60, 40);
+    const { camera, rig } = rigWith(subject, 1280, 800);
+    rig.setInset({ left: 400, right: 340 }, true);
+    rig.frameUpdate(frame(1 / 60));
+
+    const spot = onScreen(camera, subject.focus, 1280, 800);
+    expect(spot.x).toBeCloseTo((400 + 1280 - 340) / 2, 6);
+    expect(spot.y).toBeCloseTo(400, 6);
+    expect(subject.seen).toEqual({
+      aspect: 1.6,
+      freeWidth: 1 - 340 / 1280,
+      freeHeight: 1,
+      freeTop: 0,
+      freeLeft: 400 / 1280,
+    });
+
+    // The left alone: the view slides the other way, to the right of the middle.
+    rig.setInset({ left: 300 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    expect(onScreen(camera, subject.focus, 1280, 800).x).toBeCloseTo((300 + 1280) / 2, 6);
+    expect(subject.seen?.freeLeft).toBeCloseTo(300 / 1280, 12);
+    expect(subject.seen?.freeWidth).toBe(1);
+
+    // Both the same: the middle of the window again, and no window to slide.
+    rig.setInset({ left: 372, right: 372 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    expect(onScreen(camera, subject.focus, 1280, 800).x).toBeCloseTo(640, 6);
+    expect(camera.view?.enabled ?? false).toBe(false);
   });
 
   it('and of what a bottom sheet leaves free, on a phone', () => {
@@ -506,6 +558,79 @@ describe('the camera rig, making room for the panel', () => {
     for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
     expect(onScreen(camera, subject.focus, 1280, 800).x).toBeCloseTo(640, 6);
     expect(camera.view?.enabled ?? false).toBe(false);
+
+    // The left side the same, the other way.
+    rig.setInset({ left: 400 });
+    rig.frameUpdate(frame(1 / 60));
+    const leftEarly = onScreen(camera, subject.focus, 1280, 800).x;
+    expect(leftEarly).toBeGreaterThan(640);
+    expect(leftEarly).toBeLessThan(680);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(onScreen(camera, subject.focus, 1280, 800).x).toBeCloseTo(840, 6);
+    expect(subject.seen?.freeLeft).toBeCloseTo(400 / 1280, 6);
+  });
+
+  it('knows at once that the page wants some of the view, and that it is whole only when it is', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    const { rig } = rigWith(subject, 1280, 800);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // A panel opens, and the view eases over: two frames on nearly all of it still reads as free
+    // (which is how a link's journey, begun in the same moment, once had its hyperspace offered).
+    rig.setInset({ right: 504 });
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.shape.freeWidth).toBeGreaterThan(0.99);
+    expect(rig.whole).toBe(false);
+
+    // It closes: nothing is wanted any more, but the view has not slid back yet.
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    rig.setInset({});
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // A phone's sheet covers from the bottom. A band at the top alone is the bar, not a page.
+    rig.setInset({ bottom: 300 }, true);
+    expect(rig.whole).toBe(false);
+    rig.setInset({ top: 160 }, true);
+    expect(rig.whole).toBe(true);
+  });
+
+  it('is not whole while a page stands on the left alone: a deck that is one head card', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    const { rig } = rigWith(subject, 1600, 900);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // The head card of a page with no section cards: the left column, and nothing on the right.
+    rig.setInset({ left: 436 });
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    rig.frameUpdate(frame(1 / 60));
+    // The view has hardly slid yet, and nothing at all is covered from the right.
+    expect(rig.shape.freeLeft).toBeLessThan(0.01);
+    expect(rig.shape.freeWidth).toBe(1);
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.shape.freeLeft).toBeCloseTo(436 / 1600, 6);
+    expect(rig.whole).toBe(false);
+
+    // The page closes: whole again only once the view has slid all the way back.
+    rig.setInset({});
+    expect(rig.whole).toBe(false);
+    rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(false);
+    for (let i = 0; i < 180; i += 1) rig.frameUpdate(frame(1 / 60));
+    expect(rig.whole).toBe(true);
+
+    // Both columns of a deck, cut to (a page opened by its address).
+    rig.setInset({ left: 436, right: 436 }, true);
+    expect(rig.whole).toBe(false);
   });
 
   it('measures again when the viewport changes', () => {
@@ -527,6 +652,40 @@ describe('the camera rig, making room for the panel', () => {
     rig.frameUpdate(frame(1 / 60));
     expect(subject.seen?.freeWidth).toBeCloseTo(0.2, 12);
     expect(subject.seen?.freeHeight).toBe(1);
+    expect(subject.seen?.freeLeft).toBe(0);
+
+    // The left side alone, the same.
+    rig.setInset({ left: 5000 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    expect(subject.seen?.freeLeft).toBeCloseTo(0.8, 12);
+    expect(subject.seen?.freeWidth).toBe(1);
+    rig.setInset({ left: -40 }, true);
+    rig.frameUpdate(frame(1 / 60));
+    expect(subject.seen?.freeLeft).toBe(0);
+  });
+
+  it('holds the two sides TOGETHER to most of the view, each giving way in proportion', () => {
+    const subject = new Looking(0, 0, 60, 40);
+    const { camera, rig } = rigWith(subject, 1000, 500);
+    /** The free part, from where to where across, as shares of the width. */
+    const free = (left: number, right: number): [number, number] => {
+      rig.setInset({ left, right }, true);
+      rig.frameUpdate(frame(1 / 60));
+      return [subject.seen?.freeLeft ?? Number.NaN, subject.seen?.freeWidth ?? Number.NaN];
+    };
+    const close = (got: [number, number], from: number, to: number): void => {
+      expect(got[0]).toBeCloseTo(from, 12);
+      expect(got[1]).toBeCloseTo(to, 12);
+    };
+
+    // Within it: as asked.
+    close(free(300, 400), 0.3, 0.6);
+    // Past it: a fifth of the width stays free, where the two sides would have met.
+    close(free(600, 600), 0.4, 0.6);
+    expect(onScreen(camera, subject.focus, 1000, 500).x).toBeCloseTo(500, 6);
+    close(free(300, 700), 0.24, 0.44);
+    expect(onScreen(camera, subject.focus, 1000, 500).x).toBeCloseTo(340, 6);
+    close(free(5000, 5000), 0.4, 0.6);
   });
 
   it('leaves the camera as it found it', () => {

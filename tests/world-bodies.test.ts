@@ -9,6 +9,7 @@ import { NEAR } from '../src/universe/design/worlds/near';
 import {
   assemble,
   callsOf,
+  fineOf,
   groundDetail,
   type Assembly,
   type Mover,
@@ -50,6 +51,36 @@ import {
 // stop (a rose bookmark) waits for the Blog; there is no rose family yet. Since the judges' pass,
 // Devpost's cup is open (12 more), the bus's windows and belt are skins of small quads that
 // follow its curve (84 more), and Cal Hacks' scoreboard has its digits on both faces (38 more).
+// Since the look pass ("Deep light", step 2, 2026-10-01) the three living suns' balls are 2000
+// facets and not 500 (1500 more each: granulation needs facets), each facet in one of six tones
+// with its tone in its lighting flag, so their prints moved with their counts. That is as fine
+// as the everyday ceiling allows (the design drew 2880); the Hardware sun's frame ball, hidden
+// under its gears, keeps its 500.
+// Since the worlds were made round ("Deep light", step 2b, 2026-10-02) the print also covers
+// every vertex's normal and a facet's other colours with their lines (sim/world/glue.ts,
+// `Packed.normals` and `sides`), so every print moved; the colour nudge is gone
+// (`planet.colorJitter` 0), a sun's ball is one colour (its tones are the shader's), the
+// terrains' relief is lower, and a moon's ball is 1280 facets and not 320 (960 more on the two
+// moons that are balls: FishAI and Fish Onboarding). No other count moved: nothing was added to
+// any mesh to make it round. And how those lines bend (`Packed.bends`: an outline is an arc
+// inside a facet, the same day): the prints of the grounds with a coast or paint moved again.
+// Since round things are BUILT round (step 2c, the same day; Allen: "make everything round and
+// smooth, except for just the stuff that should have edges (like the hardware cogs)"), every
+// count but the Software sun's moved, and every print: a round thing (sim/world/kit.ts says which)
+// is measured here as the galaxy builds it, with the sides its size wants (`tuning.world.round`:
+// a wheel sketched with 8 sides has 16 every day and 24 up close), a bead is a ball and not an
+// octahedron, a planned world's clay is as fine as a built world's (1620 and 1280 facets; it was
+// 980 and 320), and the hubs and paint rings of the Hardware sun's gears are circles. The galaxy
+// is 40,434 triangles every day (it was 32,538). The ceilings rose with it, on purpose and once:
+// 2400 to 2800 every day, 5600 to 6600 up close (the most any body has: 2746 and 6176). What
+// they protect is a frame's cost, which did not move (the commit has the frame times).
+//
+// Then on purpose again ("Deep light" step 4, worlds with air): the station's pods got a lit pane
+// each and the station, the satellite and the bus's sign a beacon; the bus's windows became lit
+// side panes and a dark windshield. The galaxy is 40,566 triangles every day. Home's lit windows
+// (600 triangles of lamps, sim/windows.ts) are added to its close-up by the galaxy, after these
+// rows are built, so they are not in these counts: home is 5,982 up close with them, under the
+// same ceiling.
 
 interface Budget {
   readonly everyday: number;
@@ -67,42 +98,42 @@ interface Budget {
 
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
-  'page/about':                     { everyday: 1896, closeup: 4982, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '533c53d7' },
-  'page/resume':                    { everyday: 540,  closeup: 540,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '8b35877c' },
-  'page/contact':                   { everyday: 218,  closeup: 218,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '56cc4cf2' },
-  'link/github':                    { everyday: 160,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0adc41b2' },
-  'link/linkedin':                  { everyday: 140,  closeup: 140,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4c9b505e' },
-  'link/devpost':                   { everyday: 280,  closeup: 280,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4da94c42' },
-  'system/hardware':                { everyday: 2084, closeup: 2156, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: 'c63e8f97' },
-  'system/software':                { everyday: 552,  closeup: 552,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '5f3841ab' },
-  'system/research':                { everyday: 790,  closeup: 814,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b9de84be' },
-  'system/hackathons':              { everyday: 814,  closeup: 834,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'f5048eb4' },
-  'project/robotics':               { everyday: 2004, closeup: 5116, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c4a93309' },
-  'project/canadian-fish-demo':     { everyday: 1844, closeup: 4902, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '17985b9c' },
-  'project/fishai':                 { everyday: 558,  closeup: 718,  groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'e060fe48' },
-  'project/days2meet':              { everyday: 1706, closeup: 4674, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'de4f98f2' },
-  'project/hackgt-13':              { everyday: 1764, closeup: 5184, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: 'ffbc301c' },
-  'project/hackathons-at-berkeley': { everyday: 2090, closeup: 5144, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '10588279' },
-  'project/cal-hacks-13':           { everyday: 1916, closeup: 4908, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: '2f3a0ec3' },
-  'project/fish-online':            { everyday: 820,  closeup: 820,  groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '88fd9df7' },
-  'project/sports-analysis':        { everyday: 1392, closeup: 1464, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '0384991d' },
-  'project/kalshi':                 { everyday: 428,  closeup: 572,  groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '73711e6b' },
-  'project/corgi':                  { everyday: 1336, closeup: 1406, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '596eb13a' },
-  'project/model-rocketry':         { everyday: 432,  closeup: 558,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '03d5ef85' },
-  'project/cyberpatriot':           { everyday: 1892, closeup: 4784, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f574d453' },
-  'project/fish-onboarding':        { everyday: 462,  closeup: 600,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3602a756' },
+  'page/about':                     { everyday: 2136, closeup: 5382, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '26d94d60' },
+  'page/resume':                    { everyday: 856,  closeup: 1226, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7f1d4ef4' },
+  'page/contact':                   { everyday: 316,  closeup: 476,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'a8dbc6eb' },
+  'link/github':                    { everyday: 420,  closeup: 908,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '944ba5be' },
+  'link/linkedin':                  { everyday: 148,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92009a0f' },
+  'link/devpost':                   { everyday: 598,  closeup: 912,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3146ad73' },
+  'system/hardware':                { everyday: 2612, closeup: 2684, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '0a97d327' },
+  'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
+  'system/research':                { everyday: 2578, closeup: 2890, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3e6c91fb' },
+  'system/hackathons':              { everyday: 2562, closeup: 2850, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c7f289f7' },
+  'project/robotics':               { everyday: 2292, closeup: 6176, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b5bcdd37' },
+  'project/canadian-fish-demo':     { everyday: 1892, closeup: 5188, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '8b21b2eb' },
+  'project/fishai':                 { everyday: 1722, closeup: 2030, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '44eadb4c' },
+  'project/days2meet':              { everyday: 1706, closeup: 4762, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '13445590' },
+  'project/hackgt-13':              { everyday: 1908, closeup: 6156, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '50d29a94' },
+  'project/hackathons-at-berkeley': { everyday: 2498, closeup: 6088, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c94123a3' },
+  'project/cal-hacks-13':           { everyday: 1950, closeup: 4980, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: 'f71727c0' },
+  'project/fish-online':            { everyday: 2084, closeup: 2676, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'ff1e7ca6' },
+  'project/sports-analysis':        { everyday: 2340, closeup: 3016, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '2eb57b5b' },
+  'project/kalshi':                 { everyday: 676,  closeup: 1260, groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '569d8408' },
+  'project/corgi':                  { everyday: 2746, closeup: 3630, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '7a8df6ff' },
+  'project/model-rocketry':         { everyday: 556,  closeup: 1332, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'ac353ff1' },
+  'project/cyberpatriot':           { everyday: 1968, closeup: 4972, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'edf52fc8' },
+  'project/fish-onboarding':        { everyday: 1950, closeup: 2852, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f937f226' },
 };
 
 /** The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. */
 const CEILING = {
-  everyday: 2400,
-  closeup: 5600,
+  everyday: 2800,
+  closeup: 6600,
   galaxyCalls: 40,
   galaxyLowCalls: 30,
 } as const;
 
 const real = buildUniverse(readRealInput(true));
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 
 /** A body's kind and state from the real galaxy; Devpost's relay waits for its URL (site.socials). */
 function bodyOf(id: string): { kind: BodyKind; planned: boolean; seed: string } {
@@ -118,8 +149,15 @@ function built(id: string, recipe: BodyRecipe) {
   const motion = MOTION[id] ?? [];
   const still = recipe.still ?? false;
   const detail = (near: boolean): number => groundDetail(kind, planned, near, tuning.world);
-  const far = make(id, recipe, { detail: detail(false), seed, looks: LOOKS });
-  const near = make(id, recipe, { detail: detail(true), seed, looks: LOOKS, near: NEAR[id] ?? [] });
+  const fine = (near: boolean) => fineOf(near, false, tuning.world.round);
+  const far = make(id, recipe, { detail: detail(false), seed, looks: LOOKS, fine: fine(false) });
+  const near = make(id, recipe, {
+    detail: detail(true),
+    seed,
+    looks: LOOKS,
+    near: NEAR[id] ?? [],
+    fine: fine(true),
+  });
   return { far, near, kind, still, motion };
 }
 
@@ -134,7 +172,9 @@ function fnv(text: string): string {
 const rounded = (values: ArrayLike<number>): string =>
   Array.from(values, (v) => Math.round(v * 1e5)).join();
 const packedText = ({ turn, hold, edges }: Assembly): string[] => [
-  ...[turn, hold].flatMap((p) => [p.positions, p.colors, p.unlit, p.decal].map(rounded)),
+  ...[turn, hold].flatMap((p) =>
+    [p.positions, p.normals, p.colors, p.sides, p.bends, p.unlit, p.decal].map(rounded),
+  ),
   rounded(edges.turn),
   rounded(edges.hold),
   edges.color ? rounded(edges.color) : 'none',

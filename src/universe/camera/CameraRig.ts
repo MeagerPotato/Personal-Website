@@ -27,9 +27,10 @@ export interface ViewShape {
   readonly aspect: number;
   /**
    * The part of the viewport that the page's chrome leaves FREE, as shares of its width and height
-   * (1 = all of it), from the top left corner: across to `freeWidth`, and down from `freeTop` to
-   * `freeHeight` (where a bottom sheet begins). The rig already puts the middle of the view in the
-   * middle of that part; a mode that frames something uses these to decide how far to stand back.
+   * (1 = all of it), measured from the top left corner: across from `freeLeft` to `freeWidth`
+   * (where a side panel begins), and down from `freeTop` to `freeHeight` (where a bottom sheet
+   * begins). The rig already puts the middle of the view in the middle of that part; a mode that
+   * frames something uses these to decide how far to stand back.
    */
   readonly freeWidth: number;
   readonly freeHeight: number;
@@ -38,6 +39,11 @@ export interface ViewShape {
    * up, where the top bar and the row of controls under it are solid (shell/panel-inset.ts).
    */
   readonly freeTop: number;
+  /**
+   * How much of the LEFT is covered, as a share of the width: where the free part begins, as
+   * `freeWidth` is where it ends. 0 wherever the page's content keeps to the right or the bottom.
+   */
+  readonly freeLeft: number;
 }
 
 /** One way of looking at the world: chase, orbit, map; cinematic later. */
@@ -174,6 +180,9 @@ export function mixPose(from: Pose, to: Pose, k: number, out: Pose, turn?: Turn)
  *
  * Add it AFTER whatever the modes follow, so that it sees this frame's ship and planets.
  */
+/** A view that has slid back to within this share of all of it is whole (`CameraRig.whole`). */
+const WHOLE = 0.99;
+
 export class CameraRig implements System {
   private readonly pose = createPose();
   private readonly other = createPose();
@@ -190,12 +199,14 @@ export class CameraRig implements System {
   private readonly insetTop = createSpring(0);
   private readonly insetRight = createSpring(0);
   private readonly insetBottom = createSpring(0);
+  private readonly insetLeft = createSpring(0);
   private wantTop = 0;
   private wantRight = 0;
   private wantBottom = 0;
+  private wantLeft = 0;
   private offsetX = 0;
   private offsetY = 0;
-  private readonly view = { aspect: 1, freeWidth: 1, freeHeight: 1, freeTop: 0 };
+  private readonly view = { aspect: 1, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 };
   private readonly depth: DepthRange;
 
   constructor(
@@ -222,9 +233,36 @@ export class CameraRig implements System {
     return this.mode;
   }
 
+  /** No change of camera is under way: the picture is the mode in charge's own. */
+  get settled(): boolean {
+    return this.progress >= 1;
+  }
+
   /** The shape of the view right now, the free part of it included. A LIVE object: do not keep copies. */
   get shape(): ViewShape {
     return this.view;
+  }
+
+  /**
+   * Is the whole viewport the world's? Nothing of the page covers any of it AS ASKED (the last
+   * `setInset`: at once, not eased), and the view has slid all the way back from what did.
+   * Whatever belongs on a whole screen only asks this and not `shape`: the free part of the
+   * view EASES, so for the first frames a panel is open nearly all of the view still reads as
+   * free (two frames at 60 a second, for a side panel 500 px wide).
+   *
+   * From ANY side the page stands on: the right (a side panel, a deck's right column), the
+   * bottom (a sheet) and the left. A page whose deck is its head card alone covers the left and
+   * nothing else (shell/deck.ts, `deckInset`).
+   */
+  get whole(): boolean {
+    return (
+      this.wantRight === 0 &&
+      this.wantBottom === 0 &&
+      this.wantLeft === 0 &&
+      this.view.freeLeft < 1 - WHOLE &&
+      this.view.freeWidth > WHOLE &&
+      this.view.freeHeight > WHOLE
+    );
   }
 
   /** Hand over to `mode` over `blendSec` seconds. 0 is a cut. */
@@ -263,18 +301,23 @@ export class CameraRig implements System {
 
   /**
    * How much of the viewport the page's chrome covers, in CSS pixels from the right and from the
-   * bottom (the info panel), and from the top (a phone's solid top bar, over the sheet: only a
-   * mode that `avoidsTop` leaves that out). The view eases over; `cut` jumps (the first layout
-   * of a page).
+   * bottom (the info panel), from the left (content that stands on both sides of what matters),
+   * and from the top (a phone's solid top bar, over the sheet: only a mode that `avoidsTop`
+   * leaves that out). The view eases over; `cut` jumps (the first layout of a page).
    */
-  setInset(inset: { top?: number; right?: number; bottom?: number }, cut = false): void {
+  setInset(
+    inset: { top?: number; right?: number; bottom?: number; left?: number },
+    cut = false,
+  ): void {
     this.wantTop = Math.max(0, inset.top ?? 0);
     this.wantRight = Math.max(0, inset.right ?? 0);
     this.wantBottom = Math.max(0, inset.bottom ?? 0);
+    this.wantLeft = Math.max(0, inset.left ?? 0);
     if (cut) {
       snapSpring(this.insetTop, this.topWanted());
       snapSpring(this.insetRight, this.wantRight);
       snapSpring(this.insetBottom, this.wantBottom);
+      snapSpring(this.insetLeft, this.wantLeft);
       // Whoever asks for the shape of the view before the next frame (the star map, fitting the
       // galaxy into it) must hear of a cut at once.
       this.slide(0);
@@ -325,17 +368,27 @@ export class CameraRig implements System {
     stepSpring(this.insetTop, this.topWanted(), params.insetOmega, dt);
     stepSpring(this.insetRight, this.wantRight, params.insetOmega, dt);
     stepSpring(this.insetBottom, this.wantBottom, params.insetOmega, dt);
+    stepSpring(this.insetLeft, this.wantLeft, params.insetOmega, dt);
     // Never more than most of the view: something of the world must stay in sight. The top
-    // band comes out of what the sheet leaves.
-    const right = clamp(this.insetRight.value, 0, width * 0.8);
+    // band comes out of what the sheet leaves; the two sides, together past that, each give way
+    // in proportion (so one side alone is held to it exactly as before there was another).
+    const most = width * 0.8;
+    let right = clamp(this.insetRight.value, 0, most);
+    let left = clamp(this.insetLeft.value, 0, most);
+    if (left + right > most) {
+      left *= most / (left + right);
+      right = most - left;
+    }
     const bottom = clamp(this.insetBottom.value, 0, height * 0.8);
     const top = clamp(this.insetTop.value, 0, height * 0.8 - bottom);
+    this.view.freeLeft = left / width;
     this.view.freeWidth = 1 - right / width;
     this.view.freeHeight = 1 - bottom / height;
     this.view.freeTop = top / height;
 
-    // The middle of the free part is (bottom - top) / 2 above the middle of the viewport.
-    const x = Math.round(right) / 2;
+    // The middle of the free part is (right - left) / 2 to the left of the middle of the
+    // viewport, and (bottom - top) / 2 above it.
+    const x = (Math.round(right) - Math.round(left)) / 2;
     const y = (Math.round(bottom) - Math.round(top)) / 2;
     if (x === this.offsetX && y === this.offsetY) return;
     this.offsetX = x;

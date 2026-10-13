@@ -18,8 +18,9 @@
  * Three words of the vocabulary never change meaning (section 2 says it in full):
  *   butter      = HERE: the current page, the keyboard's focus, the body the ship is headed for,
  *                 and what acts on the body at hand (the E key cap of "Orbit FishAI", "Stop")
- *   cream face  = ON: a toggle that is switched on (no other control's face is ink.high; the
- *                 small key caps that name a key, W or M, are keys, not faces)
+ *   cream face  = ON: a toggle that is switched on, or a lamp of the flight deck that the
+ *                 simulation lit (no other control's face is ink.high; the small key caps that
+ *                 name a key, W or M, are keys, not faces)
  *   translate   = how anything moves on hover or press, never transform (the engine owns that)
  *
  * Structure:  0. the typeface (Outfit) and its measured fallback
@@ -328,6 +329,128 @@ main > * + * {
   margin-top: var(--space-6);
 }
 
+/*
+ * Every page but the home page is a list of CARDS (src/components/Card.astro): a head with the
+ * route sign and the <h1>, then sections, each opening with its title. Where a page is one
+ * column (plain mode, the panel, the sheet, paper) a card is simply a block of that column, and
+ * what is inside it keeps the page's own pace. (:where(): no more specific than `main > *`, so
+ * that every component's own margins still win. A card that opens with a heading of running
+ * text takes that heading's margin as its own: the two collapse, `.prose > h2` in 1e.)
+ */
+main > [data-card] {
+  /* What a quiet title is placed against (below): its own card, so that it scrolls with it. */
+  position: relative;
+}
+
+main > :where([data-card]) > * {
+  margin-block: 0;
+}
+
+main > :where([data-card]) > * + * {
+  margin-top: var(--space-6);
+}
+
+/*
+ * A card's title is a link to the card itself (its fragment, `/about/#rockets`), so that a
+ * section can be pointed at. It reads as the heading it is, in the heading's own ink, and says
+ * that it is a link when asked (a hover, the focus ring). 44 px to press, whatever size the
+ * heading is set in: the target reaches past the words above and below, and moves nothing.
+ */
+main > [data-card] > h2 > a {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+}
+
+main > [data-card] > h2 > a::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-3) * -1) 0;
+}
+
+/* A mouse only: this link stays on its page, so after a tap on a phone the title would stay
+   lit. */
+@media (hover: hover) {
+  main > [data-card] > h2 > a:hover {
+    color: var(--theme-light);
+    text-decoration: underline;
+  }
+}
+
+/* A little room between large words and their ring. (The ring's offset, not padding: a title
+   that fills its line would reach past the column by any padding it had.) */
+main > [data-card] > h2 > a:focus-visible {
+  outline-offset: 0.3125rem;
+}
+
+/* Where a link to a card lands (a fragment, in the window or in the panel): its title a step
+   below the top of what scrolls, as a page's first line is, not against the edge. A quiet title
+   stands that far above its card already. */
+main > [data-card] > h2:not(.card-title--quiet) {
+  scroll-margin-top: var(--space-6);
+}
+
+/*
+ * A QUIET title names a card the page never gave a heading (the facts at the top of a project,
+ * the opening lines of the About page). In one column it would only say what the eye already
+ * sees, so it is heard and not seen: a screen reader gets the heading, the keyboard its link.
+ * While that link has focus the title shows, in the gap above its card, so that the keyboard
+ * never rests on something invisible and nothing moves to make room. Paper leaves it out
+ * (section 4).
+ */
+main > [data-card] > .card-title--quiet {
+  position: absolute;
+  top: calc(var(--space-6) * -1);
+  left: 0;
+  display: block;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  color: var(--color-ink-high);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--space-6);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+main > [data-card] > .card-title--quiet:focus-within {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
+/* Running text draws a station ring before a heading: not before a title that is not shown. */
+main > [data-card] > .card-title--quiet::before {
+  content: none;
+}
+
+/* One line of the gap's height, the words with a little room in the ring, on a plate of the
+   ground so that it reads over whatever the ring reaches. No taller target: it can be pressed
+   only while it shows, and it shows only to the keyboard. */
+main > [data-card] > .card-title--quiet > a {
+  display: inline-block;
+  margin-inline: calc(var(--space-2) * -1);
+  padding-inline: var(--space-2);
+  background: var(--ground);
+}
+
+main > [data-card] > .card-title--quiet > a::after {
+  content: none;
+}
+
+main > [data-card] > .card-title--quiet > a:focus-visible {
+  outline-offset: 0.125rem;
+}
+
+/* What follows a quiet title opens its card: the card's own margin is the gap before it. */
+main > [data-card] > .card-title--quiet + * {
+  margin-top: 0;
+}
+
 h1,
 h2,
 h3,
@@ -577,7 +700,7 @@ main > .resume-section {
   --theme-glyph-scale: 1;
 }
 
-.panel:has(> main > .page-header[data-theme='coral']) {
+.panel:has(.page-header[data-theme='coral']) {
   --theme-base: var(--color-system-coral-base);
   --theme-light: var(--color-system-coral-light);
   --theme-shade: var(--color-system-coral-shade);
@@ -593,7 +716,7 @@ main > .resume-section {
   --theme-glyph-scale: 1;
 }
 
-.panel:has(> main > .page-header[data-theme='butter']) {
+.panel:has(.page-header[data-theme='butter']) {
   --theme-base: var(--color-system-butter-base);
   --theme-light: var(--color-system-butter-light);
   --theme-shade: var(--color-system-butter-shade);
@@ -609,7 +732,7 @@ main > .resume-section {
   --theme-glyph-scale: 1.06;
 }
 
-.panel:has(> main > .page-header[data-theme='mint']) {
+.panel:has(.page-header[data-theme='mint']) {
   --theme-base: var(--color-system-mint-base);
   --theme-light: var(--color-system-mint-light);
   --theme-shade: var(--color-system-mint-shade);
@@ -625,7 +748,7 @@ main > .resume-section {
   --theme-glyph-scale: 1;
 }
 
-.panel:has(> main > .page-header[data-theme='sky']) {
+.panel:has(.page-header[data-theme='sky']) {
   --theme-base: var(--color-system-sky-base);
   --theme-light: var(--color-system-sky-light);
   --theme-shade: var(--color-system-sky-shade);
@@ -641,7 +764,7 @@ main > .resume-section {
   --theme-glyph-scale: 1.12;
 }
 
-.panel:has(> main > .page-header[data-theme='lilac']) {
+.panel:has(.page-header[data-theme='lilac']) {
   --theme-base: var(--color-system-lilac-base);
   --theme-light: var(--color-system-lilac-light);
   --theme-shade: var(--color-system-lilac-shade);
@@ -1128,28 +1251,36 @@ main > .resume-section {
  * is a second line of the sun's caption, so it keeps the tagline's indent and sits as close under
  * it as the tagline sits under the name (`.system > p`: the grid's space-4 less space-2), and the
  * first planet keeps the air it has after a tagline alone. On the sun's page it follows the prose
- * at the page's own pace (`main > * + *`), within the measure like any paragraph.
+ * at the page's own pace (a block of its card, 1a), within the measure like any paragraph.
  */
 .twin {
   font-size: var(--text-sm);
 }
 
+/*
+ * The way to the sun's own page: a line of the sun's caption, after the tagline. (The sun's
+ * name above it is the card's title, which links to this section as every card's does, 1a.)
+ * The words are the link: 44 px to press, in a target that does not loosen the caption.
+ */
+.system__page {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.system__page a {
+  display: inline-block;
+  margin: calc(var(--space-3) * -1) -0.625rem;
+  padding: var(--space-3) 0.625rem;
+}
+
+/* The ring round the words, not round the target, which reaches into the lines above and below. */
+.system__page a:focus-visible {
+  outline-offset: -0.5rem;
+  box-shadow: none;
+}
+
 .system > .cards {
   margin-top: var(--space-4);
-}
-
-/* 44 px to press, whatever size the heading is set in. */
-.system > h2 a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  color: var(--color-ink-high);
-  text-decoration: none;
-}
-
-.system > h2 a:hover {
-  color: var(--theme-light);
-  text-decoration: underline;
 }
 
 .sun-dot {
@@ -1364,8 +1495,10 @@ picture {
   margin-top: var(--space-8);
 }
 
-/* On pages without a one-sentence summary up top, the first paragraph plays that part. */
-.prose--lede > p:first-child {
+/* On pages without a one-sentence summary up top, the first paragraph plays that part (in a card
+   of the page, the first one after the card's quiet title). */
+.prose--lede > p:first-child,
+.prose--lede > .card-title--quiet + p {
   color: var(--color-ink-high);
   font-size: var(--text-lg);
   line-height: 1.45;
@@ -1457,15 +1590,25 @@ picture {
 /* 1f. The resume -------------------------------------------------------------------------------- */
 
 /* The name that heads the resume, the one place the site gives it in full (site.ts, fullName).
-   On screen it opens the document under the page's title; on paper it IS the heading (section 4). */
-main > .resume-name {
+   On screen it opens the document under the page's title, at the top of the resume's first card
+   (which sits a little closer under the title than a card does); on paper it IS the heading
+   (section 4). */
+main > .resume-intro {
   margin-top: var(--space-4);
+}
+
+/* Its quiet title (1a) is centred on that smaller gap. */
+main > .resume-intro > .card-title--quiet {
+  top: calc(var(--space-4) * -1 - var(--space-1));
+}
+
+.resume-name {
   color: var(--color-ink-high);
   font-size: var(--text-lg);
   font-weight: 600;
 }
 
-main > .resume-name + .resume-contact {
+.resume-name + .resume-contact {
   margin-top: var(--space-3);
 }
 
@@ -1826,14 +1969,16 @@ main > .resume-name + .resume-contact {
 
    Three rules hold every piece of it together:
    - BUTTER MEANS "HERE": the current page (a bar under its name), the keyboard's focus (the
-     ring), the body the ship is headed for (the one filled name tag), and what acts on the
-     body at hand: the E key cap of "Orbit FishAI" (the one key cap that is not white, because
-     it is the prompt's action, not a key being named) and "Stop".
+     ring), the body the ship is headed for (the one filled name tag, and its mark on the flight
+     deck's ball), and what acts on the body at hand: the E key cap of "Orbit FishAI" (the one
+     key cap that is not white, because it is the prompt's action, not a key being named) and
+     "Stop".
    - THE CREAM FACE MEANS "ON": a control whose face is filled in ink.high is a toggle that is
      switched on, and no other control's face ever is: the Map button while the map is open,
      the sheet's Shrink while the sheet is up (data-panel-size), the welcome button while its text
-     shows (aria-expanded). The one exception is not a control: the small key caps that name a
-     key (W, Shift, M) are drawn as the white keys they are.
+     shows (aria-expanded). Two things that are not controls wear it too: a lamp of the flight
+     deck (ASSIST, AUTO) that the simulation has lit, which is on though nobody pressed it; and
+     the small key caps that name a key (W, Shift, M), drawn as the white keys they are.
    - MOVEMENT USES THE translate PROPERTY, NEVER transform. The engine writes transform on the
      names and the touch controls every frame, and the prompt is centred with translate: a
      hover lift or a press written as transform would throw them across the screen. Any lift
@@ -1863,6 +2008,31 @@ main > .resume-name + .resume-contact {
     );
     /* The Map button's width, or more: what sits beside it in its row keeps clear by this much. */
     --map-chip: 6rem;
+    /*
+     * The flight deck (universe/ui/FlightDeck.ts). Its round plate is sized by the view's HEIGHT:
+     * 64 px in a view 576 px tall, 78 at 650, 91 at 720, 112 from 832 up. That is what keeps its
+     * top under the ship in a short window, with the camera left exactly where it is. A ship at
+     * rest hovers, and at the bottom of each bob its fins reach 81.3 % of the way down a view
+     * (tests/deck-room.test.ts works it out from the chase camera and the model, and a browser's
+     * pixels agree): the plate has the 18.75svh under that, less the cluster's own 2.25rem (the
+     * chips above and below it, and the gap at the bottom) and 0.5rem of air. (Only the flame of
+     * a boost from rest reaches lower than the fins, by about 1.5 % of the view for a fifth of a
+     * second: begun at the very bottom of a bob, its tip is behind the speed pill that long.)
+     * --deck-half is half of the cluster's width; --deck-top is how far its top is from the
+     * bottom of the view (100 to 148 px), for whatever has to keep above it.
+     */
+    --deck-size: clamp(4rem, calc(18.75svh - 2.75rem), 7rem);
+    --deck-half: 7.5rem;
+    --deck-gap: max(var(--space-3), env(safe-area-inset-bottom));
+    --deck-top: calc(var(--deck-gap) + var(--deck-size) + 1.5rem);
+    /* The minimap's round plate (universe/ui/MiniMap.ts), by the view's height too, in two
+       sizes. IN FLIGHT under a mouse: 176 px across in a view up to 664 px tall, 212 at 800, 220
+       from 830 up. HELD (docked, and always under a finger: the minimap's own rules say when):
+       148 px up to 672 px tall, 176 at 800, 184 from 837 up. Its face is 28 px less
+       (tests/minimap-galaxy.test.ts reads both lines, and fits every galaxy to the smallest face
+       and to the largest). */
+    --minimap-size: clamp(11rem, 26.5svh, 13.75rem);
+    --minimap-held: clamp(9.25rem, 22svh, 11.5rem);
     /*
      * The plate under every chip over the world. Over white (the worst case) it composites to a
      * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
@@ -2020,6 +2190,134 @@ main > .resume-name + .resume-contact {
   .touch-stick[hidden],
   .touch-boost[hidden] {
     display: none;
+  }
+
+  /*
+   * THE LEADERS (universe/ui/Leaders.ts): a line from each card of the deck to the body the
+   * cards stand round, drawn as a route line that ends in a station. The engine makes them and
+   * says where each one runs; this is how they look. One SVG over the canvas and under the page,
+   * so a line seems to come out from under its card. `data-shown`: the body is framed.
+   * `data-aside`: the cards are on their way somewhere, and the lines wait until they are there.
+   * `data-on`: this card has its line now. `data-open`: its card is the open one, the line ends
+   * on what the card points at, and its station is butter: "here".
+   *
+   * They leave by opacity, in --motion-fast: when the ship leaves, when the map comes up, when
+   * the cards set out. And they are back in --motion-base. `visibility` goes with it, so that
+   * what is away is not there at all.
+   */
+  .leaders {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-fast) linear,
+      visibility 0s linear var(--motion-fast);
+    pointer-events: none;
+  }
+
+  .leaders[data-shown]:not([data-aside]) {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--motion-base) var(--motion-ease-out);
+  }
+
+  .leader:not([data-on]) {
+    visibility: hidden;
+  }
+
+  .leader__casing,
+  .leader__line {
+    fill: none;
+    stroke-linecap: round;
+  }
+
+  /*
+   * When they appear, each line is drawn from its card to the body, one a moment after the
+   * other (`--i`: its place among them), and its station lands as the line arrives. Every line
+   * is one unit long to its dashes (`pathLength`), so a dash of 1 is all of it, however long it
+   * is on screen; the dash starts a little way back, where its round end does not show. Not for
+   * a visitor who asked for less motion: there they are simply there.
+   */
+  html[data-motion='full'] .leaders[data-shown] .leader__casing,
+  html[data-motion='full'] .leaders[data-shown] .leader__line {
+    animation: leader-draw var(--motion-slow) var(--motion-ease-out) calc(var(--i) * 40ms) backwards;
+  }
+
+  html[data-motion='full'] .leaders[data-shown] .leader__stop {
+    animation: leader-land var(--motion-slow) linear calc(var(--i) * 40ms) backwards;
+  }
+
+  @keyframes leader-draw {
+    from {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 1.05;
+    }
+
+    to {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes leader-land {
+    from,
+    40% {
+      opacity: 0;
+    }
+  }
+
+  /* A rim of the dark round the line, so that it reads on a white peak as on the night sky. */
+  .leader__casing {
+    stroke: var(--color-space-950);
+    stroke-width: calc(var(--line) + 0.25rem);
+  }
+
+  .leader__line {
+    stroke: var(--theme-base);
+    stroke-width: var(--line);
+  }
+
+  /* A station on the limb: a navy disc in a white ring, which reads on the sky and on the ground. */
+  .leader__stop {
+    fill: var(--color-space-900);
+    stroke: var(--color-ink-high);
+    stroke-width: 2px;
+  }
+
+  /*
+   * The open card's: the butter dot that stands before its title, now on the body. Butter meets
+   * navy and never the world (a white peak, a pale pad): a rim of the dark, as wide as the
+   * line's, painted under the dot.
+   */
+  .leader[data-open] .leader__stop {
+    fill: var(--color-focus);
+    stroke: var(--color-space-950);
+    stroke-width: 0.25rem;
+    paint-order: stroke;
+  }
+
+  @media (forced-colors: active) {
+    .leader__casing {
+      stroke: Canvas;
+    }
+
+    .leader__line {
+      stroke: CanvasText;
+    }
+
+    .leader__stop {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+
+    .leader[data-open] .leader__stop {
+      fill: Highlight;
+      stroke: Canvas;
+    }
   }
 
   /*
@@ -2594,13 +2892,15 @@ main > .resume-name + .resume-contact {
     --prompt-x: -50%;
 
     position: absolute;
-    left: 50%;
+    /* The middle of what the page leaves free. The layer already ends where a side panel begins;
+       whatever stands on the LEFT (src/shell/panel-inset.ts) moves that middle half as far. */
+    left: calc(50% + var(--panel-inset-left, 0px) / 2);
     bottom: var(--prompt-bottom);
     display: inline-flex;
     align-items: center;
     gap: var(--space-3);
     min-height: 2.75rem; /* 44 px touch target */
-    max-width: calc(100% - 2 * var(--space-6));
+    max-width: calc(100% - var(--panel-inset-left, 0px) - 2 * var(--space-6));
     padding: 0 var(--space-6) 0 var(--space-4);
     border: 1px solid var(--hud-edge);
     border-radius: var(--radius-pill);
@@ -2613,6 +2913,8 @@ main > .resume-name + .resume-contact {
     white-space: nowrap;
     cursor: pointer;
     translate: var(--prompt-x) 0;
+    /* It steps beside the flight deck and back (below): a slide, not a jump. */
+    transition: translate var(--motion-base) var(--motion-ease-out);
     animation: dock-prompt-in var(--motion-base) var(--motion-ease-out);
   }
 
@@ -2634,10 +2936,11 @@ main > .resume-name + .resume-contact {
       0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
   }
 
-  /* Pressed: the chip drops onto its ledge. */
+  /* Pressed: the chip drops onto its ledge, at once. */
   .dock-prompt:active {
     translate: var(--prompt-x) var(--ledge);
     box-shadow: none;
+    transition-duration: 0s;
   }
 
   .dock-prompt span {
@@ -2742,7 +3045,1497 @@ main > .resume-name + .resume-contact {
   }
 
   html[data-motion='reduced'] .dock-prompt {
+    transition: none;
     animation: none;
+  }
+
+  /*
+   * THE OFFER OF HYPERSPACE (universe/ui/HyperOffer.ts): on a journey long enough to be shown as
+   * a jump, while the world has the whole screen (no page open, the star map closed). The dock
+   * prompt's chip to the letter (plate, edge, ledge, 44 px, the butter key cap), with rules of its
+   * own for where it stands:
+   *
+   *   a mouse, no seated deck   the bottom right corner: there is no minimap without the full
+   *                             cluster, a mouse has no boost pad, the prompt is a row higher and
+   *                             the corner chip is in the other corner
+   *   a mouse, the deck seated  above the prompt, against the deck's left: its right end 12 px
+   *                             left of the cluster, the ship in the middle
+   *   a finger                  THE BOOST PAD'S OWN BOX, as a round pad that reads HYPER: on a
+   *                             journey, boost is hyperspace. The pad is hidden for the whole of
+   *                             every journey, the prompt already steps over that box and the
+   *                             minimap already stands 12 px above it
+   *
+   * Through the wind-up it is "on" (`data-on`): the cream face, or the pad's coral under a
+   * finger. It leaves with the punch. Moved by translate, like every move (2).
+   *
+   * It is there for a second or two, so it says so as it arrives: one butter ring goes out from
+   * it and fades (`::after`), as the cream one does from the eye when the tunnel opens. Once: an
+   * offer does not nag. (Nobody who asked for less motion is ever offered a jump.)
+   */
+  .hyper-offer {
+    --offer-x: 0px;
+
+    position: absolute;
+    right: max(var(--space-6), env(safe-area-inset-right));
+    bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 2.75rem;
+    min-height: 2.75rem; /* 44 px touch target */
+    padding: 0 var(--space-6) 0 var(--space-4);
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink-high);
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    translate: var(--offer-x) 0;
+    animation: hyper-offer-in var(--motion-base) var(--motion-ease-out);
+  }
+
+  .hyper-offer[hidden] {
+    display: none;
+  }
+
+  .hyper-offer::after {
+    position: absolute;
+    inset: -1rem;
+    border: 0.125rem solid var(--color-focus);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    content: '';
+    animation: hyper-offer-ping var(--motion-slow) var(--motion-ease-out) var(--motion-base);
+  }
+
+  @media (hover: hover) {
+    .hyper-offer:hover {
+      border-color: var(--color-ink-low);
+      background: var(--color-surface-raised);
+    }
+  }
+
+  .hyper-offer:focus-visible {
+    box-shadow:
+      var(--rim),
+      0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+  }
+
+  .hyper-offer:active {
+    translate: var(--offer-x) var(--ledge);
+    box-shadow: none;
+  }
+
+  /* On (the cream face): the press was heard, the jump is winding up. */
+  .hyper-offer[data-on],
+  .hyper-offer[data-on]:hover {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+  }
+
+  .hyper-offer kbd {
+    display: inline-grid;
+    place-items: center;
+    height: 1.625rem;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-space-900);
+    background: var(--color-focus);
+    box-shadow: 0 0.125rem 0 var(--color-system-butter-shade);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Beside the seated deck, a row above the prompt (whose own rule, further down, this is not). */
+  html:has(.flight-deck[data-seated]) .hyper-offer {
+    --offer-x: calc(-100% - var(--deck-half) - var(--space-3));
+
+    right: auto;
+    bottom: calc(var(--prompt-bottom) + 2.75rem + var(--space-2));
+    left: 50%;
+    max-width: calc(50% - var(--deck-half) - var(--space-3) - var(--space-6));
+  }
+
+  /* A window too narrow for the word beside the corner chip: the key cap says it. (Heard whole.) */
+  @media (max-width: 25.99rem) and (pointer: fine), (max-width: 25.99rem) and (pointer: none) {
+    .hyper-offer {
+      padding: 0 var(--space-3);
+    }
+
+    .hyper-offer > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+
+  /*
+   * A finger: the boost pad's box, its ring and its type; coral while pressed and while armed.
+   * Its word is butter, as the chip's Shift cap and the prompt's "Stop" are: what acts on the
+   * journey. (It is also what tells it from the boost pad it stands in for, at a glance.)
+   */
+  @media (pointer: coarse) {
+    .hyper-offer,
+    html:has(.flight-deck[data-seated]) .hyper-offer {
+      --offer-x: 0px;
+
+      right: max(var(--space-6), env(safe-area-inset-right));
+      bottom: var(--boost-pad-bottom);
+      left: auto;
+      justify-content: center;
+      width: var(--boost-pad-size);
+      max-width: none;
+      height: var(--boost-pad-size);
+      padding: 0;
+      border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+      border-radius: 50%;
+      color: var(--color-focus);
+      box-shadow: none;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .hyper-offer:focus-visible {
+      box-shadow: var(--rim);
+    }
+
+    /*
+     * A finger has no Shift key, and a round pad has room for "Hyper". The rest of the word is
+     * set aside where it stands, in its line: taken out of the line (position: absolute) it is
+     * heard as a word of its own, "Hyper space". (Letters of no size still keep their spacing,
+     * which would push "Hyper" off the middle.)
+     */
+    .hyper-offer kbd {
+      display: none;
+    }
+
+    .hyper-offer__rest {
+      font-size: 0;
+      letter-spacing: 0;
+    }
+
+    .hyper-offer:active,
+    .hyper-offer[data-on],
+    .hyper-offer[data-on]:hover {
+      border-color: var(--color-system-coral-light);
+      color: var(--color-space-900);
+      background: var(--color-system-coral-base);
+      translate: none;
+      scale: 0.94;
+    }
+  }
+
+  /* Forced colours drop the cream and the coral: on is then the system's own highlight. */
+  @media (forced-colors: active) {
+    .hyper-offer[data-on],
+    .hyper-offer[data-on]:hover {
+      forced-color-adjust: none;
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+  }
+
+  @keyframes hyper-offer-in {
+    from {
+      opacity: 0;
+      translate: var(--offer-x) 0.5rem;
+    }
+  }
+
+  @keyframes hyper-offer-ping {
+    from {
+      inset: -0.1875rem;
+      opacity: 1;
+    }
+  }
+
+  /*
+   * IN THE TUNNEL (`html[data-hyper='tunnel']`, written by the shell from the simulation's own
+   * state): what is on the screen besides the sky says so too, by the stylesheet alone. The
+   * deck's three chevrons run, one after the other, the way the ship is going; the minimap's
+   * butter route becomes dashes that run toward the destination; and every name but the
+   * destination's steps back (still a real button: pressing one is a new destination). Not on
+   * the star map, which hides the jump and is where names are chosen. The lamp's word, HYPER, is
+   * the engine's (ui/FlightDeck.ts). A visitor who asked for less motion has no hyperspace.
+   *
+   * And no plate over the world lets the streaks through: they are bright and many, and the words
+   * on a plate must not swim in them (the nav and the prompt on a phone, most of all).
+   */
+  html[data-mode='universe'][data-hyper='tunnel'] {
+    --hud: var(--color-surface-panel);
+  }
+
+  html[data-hyper='tunnel'] .flight-deck__warp path {
+    animation: hyper-chase 0.6s linear infinite;
+  }
+
+  html[data-hyper='tunnel'] .flight-deck__warp path:nth-child(2) {
+    animation-delay: -0.4s;
+  }
+
+  html[data-hyper='tunnel'] .flight-deck__warp path:nth-child(3) {
+    animation-delay: -0.2s;
+  }
+
+  @keyframes hyper-chase {
+    from,
+    to {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  html[data-hyper='tunnel'] .minimap__route {
+    stroke-dasharray: 3 5;
+    animation: hyper-route 0.4s linear infinite;
+  }
+
+  @keyframes hyper-route {
+    to {
+      stroke-dashoffset: -8;
+    }
+  }
+
+  html[data-hyper='tunnel']:not([data-map])
+    .body-label[data-shown]:not([data-state='target'], :focus-visible) {
+    opacity: 0.4;
+  }
+
+  /*
+   * THE FLIGHT DECK (universe/ui/FlightDeck.ts): Kerbal Space Program's cluster of instruments at
+   * the bottom centre of the view, drawn flat. A round plate with a ball in it (a globe that turns
+   * with the heading and leans with the ship), the throttle up its left side and the g up its
+   * right, the speed on a pill above it, the heading on a chip below, and a lamp on each shoulder.
+   *
+   * It only READS the simulation. Nothing in it is a control, so nothing in it has a ledge, a
+   * hover or a focus ring, and the whole of it is hidden from assistive technology: what it shows
+   * is said by real controls already. The engine decides whether it shows (`data-shown`) and how
+   * big it is (`data-layout`, from the view the panel leaves free: no media query decides it);
+   * this is how it looks. The drawing carries classes and data attributes only: every fill and
+   * stroke is here.
+   *
+   * It is placed with `left`, never centred by translate: translate is its arrival's. Its middle
+   * is the middle of what the page leaves free, as the dock prompt's is: the layer ends where a
+   * side panel begins, and whatever stands on the LEFT (the left column of a page's deck of
+   * cards, --panel-inset-left) moves that middle half as far.
+   */
+  .flight-deck {
+    position: absolute;
+    bottom: var(--deck-gap);
+    left: calc(50% + var(--panel-inset-left, 0px) / 2 - var(--deck-half));
+    width: calc(2 * var(--deck-half));
+    height: calc(var(--deck-size) + 1.5rem);
+    color: var(--color-ink-high);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Leaving, it fades, and is then gone for a pointer too. */
+    transition:
+      opacity var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  /* Only the instruments take a press, and do nothing with it, so that nothing behind a plate is
+     picked unseen: the gaps between them are the world's. (The overlay hands the pointer to each
+     of its children by its id, so this names the id too.) */
+  #universe-overlay > .flight-deck:not([data-layout='strip']) {
+    pointer-events: none;
+  }
+
+  /* (The minimap comes and goes the same way: its own rules are further down.) */
+  :is(.flight-deck, .minimap)[hidden] {
+    display: none;
+  }
+
+  :is(.flight-deck, .minimap):not([data-shown]) {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* While it fades nothing of it takes a press: what it covered is the world's again at once. */
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]),
+  #universe-overlay > :is(.flight-deck, .minimap):not([data-shown]) * {
+    pointer-events: none;
+  }
+
+  /* Arriving is an animation, like the prompt's and the card's: no transition on the way in. */
+  :is(.flight-deck, .minimap)[data-shown] {
+    transition: none;
+    animation: flight-deck-in var(--motion-slow) var(--motion-ease-out);
+  }
+
+  @keyframes flight-deck-in {
+    from {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+  }
+
+  .flight-deck > * {
+    position: absolute;
+    pointer-events: auto;
+    /* A finger on an instrument steers nothing, and must not scroll or zoom the page either. */
+    touch-action: none;
+  }
+
+  /* The speed, the heading and the lamps: chips on the plate, above the round plate's rim. */
+  .flight-deck__speed,
+  .flight-deck__hdg,
+  .flight-deck__lamp {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+  }
+
+  .flight-deck__speed {
+    top: 0;
+    left: calc(50% - 3.5rem);
+    gap: var(--space-1);
+    width: 7rem;
+    height: 1.625rem;
+  }
+
+  .flight-deck__hdg {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    gap: 0.375rem;
+    width: fit-content;
+    min-width: 4.5rem;
+    height: 1.375rem;
+    margin-inline: auto;
+    padding-inline: var(--space-2);
+  }
+
+  /* Whole numbers in a box of three digits, set to the right: the unit beside them never moves. */
+  .flight-deck b {
+    font-weight: inherit;
+  }
+
+  .flight-deck__speed b {
+    min-width: 3ch;
+    text-align: right;
+  }
+
+  .flight-deck small {
+    color: var(--color-ink-mid);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  /* Chevrons before the speed, one for each of the autopilot's speeds it has reached (82, 300,
+     600 u/s: the pilot's own drive never gets to the first). At the pill's left end, out of the
+     flow, so that the number does not move when they come. */
+  .flight-deck__warp {
+    position: absolute;
+    top: calc(50% - 0.3125rem);
+    left: var(--space-2);
+    width: 1.125rem;
+    height: 0.625rem;
+    fill: none;
+    stroke: var(--color-ink-high);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .flight-deck__warp path {
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-warp='1'] .flight-deck__warp path:first-child,
+  .flight-deck[data-warp='2'] .flight-deck__warp path:not(:last-child),
+  .flight-deck[data-warp='3'] .flight-deck__warp path {
+    opacity: 1;
+  }
+
+  /* The lamps, ASSIST and AUTO, one on each shoulder. Off: a quiet chip. */
+  .flight-deck__lamp {
+    top: 0.1875rem;
+    width: 3.75rem;
+    height: 1.25rem;
+    color: var(--color-ink-mid);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition:
+      color var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck__lamp[data-lamp='assist'] {
+    left: 0;
+  }
+
+  .flight-deck__lamp[data-lamp='auto'] {
+    right: 0;
+  }
+
+  /* Lit: the cream face, "on". The simulation switched it, nobody pressed it (2, the vocabulary). */
+  .flight-deck__lamp[data-on] {
+    border-color: transparent;
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+  }
+
+  /* The round plate, with the boost pad's ring: the two round things of the HUD are one family. */
+  .flight-deck__plate {
+    top: 0.8125rem;
+    left: calc(50% - var(--deck-size) / 2);
+    width: var(--deck-size);
+    height: var(--deck-size);
+    border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+    border-radius: 50%;
+    background: var(--hud);
+  }
+
+  /* The drawing covers the plate, ring and all, and one unit of it is one CSS px: the engine
+     sets its viewBox to the plate's own size (FlightDeck.ts, shape). */
+  .flight-deck__dial {
+    position: absolute;
+    top: -0.1875rem;
+    left: -0.1875rem;
+    display: block;
+    width: calc(100% + 0.375rem);
+    height: calc(100% + 0.375rem);
+  }
+
+  /*
+   * The ball: a globe seen from the pilot's seat, in two tones as KSP's is. The sky half is the
+   * LIGHTER one (surface.line), as a sky is, over a ground half as dark as the space behind the
+   * plate (space.900): 1.75:1 apart, the most these navies have to give (on surface.raised the
+   * two read as one in the browser). The horizon carries the division all the same: 3 px, in the
+   * family of the system the ship is in (`data-theme`; lilac, the deepest, is 3.6:1 on the sky)
+   * and in ink.mid between systems, brighter than the hairlines so that it is the horizon there
+   * too. Meridians and the rim are ink.low hairlines (3.8:1 on the sky, 6.7 on the ground).
+   * src/site/contrast.test.ts reads both faces from here and holds every mark to them.
+   */
+  .flight-deck__sky {
+    fill: var(--color-surface-line);
+  }
+
+  .flight-deck__ground {
+    fill: var(--color-space-900);
+  }
+
+  .flight-deck__line,
+  .flight-deck__rim {
+    fill: none;
+    stroke: var(--color-ink-low);
+    stroke-width: 1;
+  }
+
+  .flight-deck__horizon {
+    stroke: var(--color-ink-mid);
+    stroke-width: 3;
+  }
+
+  .flight-deck[data-theme] .flight-deck__horizon {
+    stroke: var(--theme-base);
+  }
+
+  /* N, E, S and W, on the sky: never under 12 px, upright, each on a navy rim (the stroke,
+     painted first: half of it shows) that parts it from the meridian it rides. The engine fades
+     a letter as it turns away from the nose, and out where the target is (its `opacity`). */
+  .flight-deck__letter {
+    fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    font-size: 0.75rem;
+    text-anchor: middle;
+  }
+
+  .flight-deck__letter[data-off],
+  .flight-deck__mark[data-off] {
+    display: none;
+  }
+
+  /*
+   * The marks on the ball, each a shape of its own with a navy rim under it (the same shape,
+   * wider), so that it reads on either half and across the horizon: the nose (fixed), prograde
+   * (a ring with a dot, where the ship is really going), home (a house) and the target. THE
+   * TARGET IS BUTTER, "here": the body the ship is headed for, as its name tag is. Its ring is
+   * whole while a journey or an approach is locked on, and dashed for a body that is only within
+   * reach. A mark behind the ship is pinned at the rim on its side, and loses its dot.
+   */
+  .flight-deck__mark,
+  .flight-deck__nose {
+    color: var(--color-ink-high);
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .flight-deck__mark[data-mark='target'] {
+    color: var(--color-focus);
+  }
+
+  .flight-deck__under {
+    stroke: var(--color-space-950);
+    stroke-width: 4.5;
+  }
+
+  .flight-deck__over {
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .flight-deck__nose .flight-deck__under {
+    stroke-width: 5.5;
+  }
+
+  .flight-deck__nose .flight-deck__over {
+    stroke-width: 2.5;
+  }
+
+  .flight-deck__dot {
+    fill: currentColor;
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    paint-order: stroke;
+  }
+
+  .flight-deck__mark[data-behind] .flight-deck__dot {
+    display: none;
+  }
+
+  .flight-deck__mark[data-mark='target']:not([data-lock]) .flight-deck__over {
+    stroke-dasharray: 3.4;
+    stroke-linecap: butt;
+  }
+
+  /*
+   * The arcs: the throttle up the left, the g up the right. A faint track, and a fill in ink.high
+   * that the engine lengthens (stroke-dasharray). The throttle turns coral, the flame's colour,
+   * while boosting (5.7:1 on the plate over white); past a full g arc a peg lights at its top.
+   * Wider than it looks for a mouse, which gets each arc's name as a tooltip.
+   */
+  .flight-deck__arc path {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  .flight-deck__arc .flight-deck__hit {
+    stroke: transparent;
+    stroke-width: 12;
+    pointer-events: stroke;
+  }
+
+  .flight-deck__track {
+    stroke: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
+  }
+
+  .flight-deck__fill {
+    stroke: var(--color-ink-high);
+    transition: stroke var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-boost] [data-arc='throttle'] .flight-deck__fill {
+    stroke: var(--color-system-coral-base);
+  }
+
+  .flight-deck__peg {
+    fill: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
+    transition: fill var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .flight-deck[data-peg] .flight-deck__peg {
+    fill: var(--color-ink-high);
+  }
+
+  html[data-motion='reduced'] :is(.flight-deck, .minimap),
+  html[data-motion='reduced'] :is(.flight-deck, .minimap) * {
+    transition: none;
+    animation: none;
+  }
+
+  /* Forced colours: the plates are the page's ground, the marks its text, and what is lit (a
+     lamp, the target, the boost) the system's highlight. An <svg> keeps its own colours unless
+     told, so it is told. */
+  @media (forced-colors: active) {
+    .flight-deck__warp,
+    .flight-deck__dial {
+      forced-color-adjust: none;
+    }
+
+    .flight-deck__sky,
+    .flight-deck__ground {
+      fill: Canvas;
+    }
+
+    .flight-deck__warp,
+    .flight-deck__line,
+    .flight-deck__rim,
+    .flight-deck__horizon,
+    .flight-deck[data-theme] .flight-deck__horizon,
+    .flight-deck__fill {
+      stroke: CanvasText;
+    }
+
+    .flight-deck__letter {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .flight-deck__mark,
+    .flight-deck__nose {
+      color: CanvasText;
+    }
+
+    .flight-deck__under,
+    .flight-deck__dot {
+      stroke: Canvas;
+    }
+
+    .flight-deck__track {
+      stroke: GrayText;
+    }
+
+    .flight-deck__peg {
+      fill: GrayText;
+    }
+
+    .flight-deck[data-peg] .flight-deck__peg {
+      fill: CanvasText;
+    }
+
+    .flight-deck__mark[data-mark='target'] {
+      color: Highlight;
+    }
+
+    .flight-deck[data-boost] [data-arc='throttle'] .flight-deck__fill {
+      stroke: Highlight;
+    }
+
+    .flight-deck__lamp[data-on],
+    .flight-deck .flight-deck__lit {
+      forced-color-adjust: none;
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+  }
+
+  /*
+   * THE STRIP (`data-layout='strip'`): a view too small for the cluster (a phone, either way up;
+   * a window under 48rem by 36rem) has the same deck with less on it, as one pill in the Map
+   * button's row, top left, where no thumb flies. The ball, with its horizon, north, the nose
+   * and the target; beside it the speed, over the heading or, while a lamp is lit, that lamp's
+   * name on the cream face. One size in every state and at every width (the narrow end of the
+   * type scale), so nothing jumps; the prompt, the boost pad, the corner chip and the camera are
+   * where they were. The whole pill takes a press, and does nothing with it.
+   *
+   * It is the Map button's opposite number: as far from the left edge as the button is from the
+   * right one (--strip-inset: --space-6 for a mouse, --space-4 for a finger and in a short, narrow
+   * window: the button's own rules, below, move both). Beside a page's deck of cards the row
+   * begins where the left column's room ends (--panel-inset-left, which holds that column's
+   * --space-6 of air already), and the Map button is in the middle of it.
+   */
+  .flight-deck[data-layout='strip'] {
+    --text-xs: var(--text-narrow-xs);
+    --text-sm: var(--text-narrow-sm);
+    --strip-inset: max(var(--space-6), env(safe-area-inset-left));
+
+    top: calc(var(--panel-inset-top, 4rem) + var(--space-3));
+    bottom: auto;
+    left: max(var(--panel-inset-left, 0px), var(--strip-inset));
+    display: grid;
+    grid-template: 1.125rem 1.125rem / 2.25rem minmax(0, 1fr);
+    align-content: center;
+    align-items: center;
+    justify-items: end;
+    gap: 0.125rem var(--space-2);
+    width: 7.75rem;
+    height: 2.75rem;
+    padding: 0 0.625rem 0 0.1875rem;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .flight-deck[data-layout='strip'] > * {
+    position: static;
+  }
+
+  /* The ball fills its plate, which needs no ring of its own inside the pill's round end. */
+  .flight-deck[data-layout='strip'] .flight-deck__plate {
+    position: relative;
+    top: 0;
+    left: 0;
+    grid-row: 1 / -1;
+    grid-column: 1;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 0;
+    background: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__dial {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Not on a ball this small: the letters, eleven of the meridians (north stays, at 2 px), home
+     and prograde, and the target's ring (its dot is the mark; behind the ship, its ring alone).
+     Not in the pill: the arcs, the chevrons, and the two lamps (the lit one is named below). */
+  .flight-deck[data-layout='strip']
+    :is(
+      .flight-deck__letter,
+      .flight-deck__line:not([data-north]),
+      .flight-deck__mark:not([data-mark='target']),
+      .flight-deck__arc,
+      .flight-deck__peg,
+      .flight-deck__warp,
+      .flight-deck__lamp
+    ),
+  .flight-deck[data-layout='strip']
+    .flight-deck__mark:not([data-behind])
+    :is(.flight-deck__under, .flight-deck__over) {
+    display: none;
+  }
+
+  .flight-deck[data-layout='strip'] :is(.flight-deck__line, .flight-deck__horizon) {
+    stroke-width: 2;
+  }
+
+  /* The speed, and under it the heading: words on the pill, no plates of their own. */
+  .flight-deck[data-layout='strip'] :is(.flight-deck__speed, .flight-deck__hdg) {
+    grid-column: 2;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__hdg {
+    grid-row: 2;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  /* The strip's one lamp (`.flight-deck__lit`): the name of whichever is lit, on the cream face,
+     where the heading was. With none lit it is empty, and not there. */
+  .flight-deck__lit {
+    display: none;
+  }
+
+  .flight-deck[data-layout='strip'] .flight-deck__lit:not(:empty) {
+    grid-row: 2;
+    grid-column: 2;
+    display: block;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-space-900);
+    background: var(--color-ink-high);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .flight-deck[data-layout='strip']:has(.flight-deck__lit:not(:empty)) .flight-deck__hdg {
+    display: none;
+  }
+
+  /* A first visit: the how-to-fly card speaks first (held sideways, a finger's card has this very
+     corner), and the strip arrives when it has gone. */
+  html[data-engine='ready'][data-panel='closed']:has(.flight-hint:not([hidden]))
+    .flight-deck[data-layout='strip'] {
+    visibility: hidden;
+    animation: none;
+  }
+
+  /*
+   * ROOM FOR THE DECK, without moving the camera. While it is SEATED (shown, at full size:
+   * `data-seated`) the prompt steps beside it, to its left, where KSP has its buttons: above the
+   * deck it would lie on the ship in a short window. Its right end keeps 12 px clear of the
+   * cluster, and "Flying to" steps aside as it does in a phone's Map button row (heard, not
+   * seen): the AUTO lamp and the target on the ball say it. Where the prompt rests (`bottom`) is
+   * whatever each pointer's rule says, as before. Its room is the left half of what the page
+   * leaves free: half the layer, less half of whatever stands on the left (--panel-inset-left).
+   */
+  html:has(.flight-deck[data-seated]) .dock-prompt {
+    --prompt-x: calc(-100% - var(--deck-half) - var(--space-3));
+
+    max-width: calc(
+      50% - var(--panel-inset-left, 0px) / 2 - var(--deck-half) - var(--space-3) - var(--space-6)
+    );
+  }
+
+  html:has(.flight-deck[data-seated]) .dock-prompt__lead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ...and a mouse's how-to-fly card, which a narrow window brings over the deck's left end,
+     keeps 12 px above it: lifted by up to 36 px, as the deck grows with the view. (A finger's
+     card is under the top bar, or waits below the ship where there is no deck at full size.) */
+  @media (pointer: fine) {
+    html[data-mode='universe'][data-engine='ready'][data-panel='closed']:has(
+        .flight-deck[data-seated]
+      )
+      .flight-hint:not([hidden]) {
+      bottom: max(
+        calc(var(--prompt-bottom) + 2.75rem + var(--space-3)),
+        calc(var(--deck-top) + var(--space-3))
+      );
+    }
+  }
+
+  /*
+   * THE MINIMAP (universe/ui/MiniMap.ts): the star map at another size, at the bottom right of
+   * the view, as a SCOPE: the ball's sibling. The same round plate with the boost pad's ring,
+   * the same 14 px of plate round a face with an ink.low hairline for a rim, a pill fastened over
+   * its top (the speed pill's twin) and a chip under its bottom (the HDG chip's twin). Its plate
+   * stands on the ball's plate's line and its chip on the HDG chip's, at every size. What the ball
+   * has no use for, and this has: a ledge under the plate (it can be pressed), and a face of the
+   * map's own ground. It is there wherever the deck has its full size, flying or docked, and goes
+   * while the star map is open.
+   *
+   * What the engine writes:
+   *
+   *   .minimap                the box of all of it; hidden, data-shown, data-scope, data-pick
+   *     .minimap__name        the pill: <i> glyph, <b> name, the "Planned" note; data-theme,
+   *                           data-lit (it names a body)
+   *     .minimap__plate       the round plate; its ticks are a gradient on its ::before
+   *       svg.minimap__map    THE FACE: one unit of the drawing is one CSS px. Under the marks,
+   *                           two rings of dots and the N, which never move (the N gives way
+   *                           to a pin beside it: data-off); over them, a journey's clock
+   *                           (.minimap__left)
+   *     .minimap__range       the chip: <small> RANGE or ETA, <b> the figures, <small> their
+   *                           unit; data-eta on a journey
+   *
+   * ON THE FACE a sun and the home planet are their family's GLYPH, filled, with a navy rim;
+   * planets, docks and moons are discs in their family; planned work is hollow and dashed; the
+   * circles they travel on are hairlines in the family; a system that is off the face is its
+   * glyph in outline, pinned just inside the rim in its direction; the ship is a cream chevron.
+   * A pointer AIMS at a mark (a cream ring round it, its name on the pill) and flies there on
+   * release; a press where nothing is opens the star map. It is hidden from assistive technology:
+   * the names in the sky and the Map button are the real controls for all of it.
+   *
+   * BUTTER IS "HERE", as everywhere: a ring round the body the ship is at or headed for, and on a
+   * journey the way that is left (a line from the ship to that ring), its clock on the rim, and
+   * the seconds it still takes, on the chip.
+   *
+   * The drawing carries classes and data attributes only, and one number (--gone, for the
+   * clock): every fill and stroke is here, and src/site/contrast.test.ts reads the face's ground
+   * from here and holds every mark to it. Every circle that does not move has its geometry in
+   * percent of its own drawing, so no script measures or places it.
+   */
+  .minimap {
+    position: absolute;
+    right: max(var(--space-6), env(safe-area-inset-right));
+    bottom: var(--deck-gap);
+    width: var(--minimap-size);
+    /* The plate, with half a pill above it and half a chip below: the deck's own 1.5rem. So its
+       chip stands on the HDG chip's line, whatever the two plates measure. */
+    height: calc(var(--minimap-size) + 1.5rem);
+    color: var(--color-ink-high);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+    /* A finger on the scope aims: it never scrolls or zooms the page, nor selects a name. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Leaving, it fades, and is then gone for a pointer too. */
+    transition:
+      opacity var(--motion-base) var(--motion-ease-in-out),
+      visibility 0s linear var(--motion-base);
+  }
+
+  /* Under a finger it sits above the boost pad, 12 px clear of it, pad or no pad: it does not
+     jump when the first touch brings the pad out. */
+  @media (pointer: coarse) {
+    .minimap {
+      bottom: calc(var(--boost-pad-bottom) + var(--boost-pad-size) + var(--space-3));
+    }
+  }
+
+  /* Only the plate and its two chips take a press: the corners of its box are the world's. (The
+     drawing on the plate is square, and so is the box its ticks are painted in: they take none,
+     and the round plate under them does.) */
+  #universe-overlay > .minimap,
+  .minimap__plate::before,
+  .minimap__map {
+    pointer-events: none;
+  }
+
+  .minimap > * {
+    position: absolute;
+    pointer-events: auto;
+  }
+
+  /*
+   * The plate: the deck's round plate (`.flight-deck__plate`: the same ring, the same ground,
+   * the same 0.8125rem under the top of its box), and under it the ledge of whatever can be
+   * pressed. Change the ring there, change it here: the round things of the HUD are one family.
+   */
+  .minimap__plate {
+    top: 0.8125rem;
+    left: 0;
+    width: var(--minimap-size);
+    height: var(--minimap-size);
+    border: 0.1875rem solid color-mix(in srgb, var(--color-ink-high) 55%, transparent);
+    border-radius: 50%;
+    background: var(--hud);
+    box-shadow: 0 var(--ledge) 0 color-mix(in srgb, var(--color-space-950) 60%, transparent);
+    /* (Its size eases with the instrument's: "its two sizes", at the end of this section.) */
+    transition:
+      border-color var(--motion-fast) var(--motion-ease-out),
+      width var(--motion-slow) var(--motion-ease-out) var(--minimap-wait),
+      height var(--motion-slow) var(--motion-ease-out) var(--minimap-wait);
+  }
+
+  @media (hover: hover) {
+    .minimap:hover .minimap__plate {
+      border-color: color-mix(in srgb, var(--color-ink-high) 80%, transparent);
+    }
+  }
+
+  /* Pressed: the whole instrument drops onto the plate's ledge. (The engine measures a pointer
+     against where it rests, so what was aimed at stays aimed at.) */
+  .minimap:active {
+    translate: 0 var(--ledge);
+  }
+
+  .minimap:active .minimap__plate {
+    box-shadow: none;
+  }
+
+  .minimap[data-pick] {
+    cursor: pointer;
+  }
+
+  /*
+   * THE TICKS, on the plate: ten, one every 30 degrees where the ball has a meridian (north is up
+   * here, always, so they never move), and none at twelve and at six, where the pill and the chip
+   * are fastened over the plate. No element and no drawing: a gradient that goes round, on the
+   * plate's ::before, cut down to a band 4 px deep, from 6.5 to 10.5 px inside the plate's edge:
+   * half way between the ring and the face. A tick is a degree wide (1.1 to 1.5 px here), with
+   * half a degree of slope on either side: that slope is all the smoothing a gradient's edge
+   * gets, and the band's two ends slope over half a px for the same reason. The gradient repeats
+   * after half a turn and begins just before one o'clock. (The mask may be any opaque colour:
+   * only how opaque it is counts. A token, as every colour here is.)
+   *
+   * Tried first, and measured: one dashed circle with a `pathLength` of 360. On a dense screen
+   * its ticks stood up to half a px before their hours by the end of the circle in Chromium, and
+   * up to a third of a px after them in WebKit (the length a browser scales such dashes by is,
+   * it seems, not quite the length of the path it lays them on). A gradient has no length to
+   * measure.
+   */
+  .minimap__plate::before {
+    --minimap-tick: var(--color-ink-low);
+
+    content: '';
+    position: absolute;
+    inset: 0.21875rem;
+    background: repeating-conic-gradient(
+      from 29.25deg,
+      transparent 0deg,
+      var(--minimap-tick) 0.5deg 1deg,
+      transparent 1.5deg 30deg,
+      var(--minimap-tick) 30.5deg 31deg,
+      transparent 31.5deg 60deg,
+      var(--minimap-tick) 60.5deg 61deg,
+      transparent 61.5deg 90deg,
+      var(--minimap-tick) 90.5deg 91deg,
+      transparent 91.5deg 120deg,
+      var(--minimap-tick) 120.5deg 121deg,
+      transparent 121.5deg 180deg
+    );
+    mask: radial-gradient(
+      closest-side,
+      transparent calc(100% - 4.5px),
+      var(--color-ink-low) calc(100% - 4px) calc(100% - 0.5px),
+      transparent
+    );
+  }
+
+  /*
+   * THE FACE: the map, 14 px inside the plate's edge, as the ball is. Its ground is the map's
+   * own (space.900: the star map's navy, and the ground half of the ball), which
+   * src/site/contrast.test.ts reads from here and holds every mark to. Its rim is the ball's
+   * rim, a hairline in ink.low, drawn under the drawing. One unit of the drawing is one CSS px
+   * (the engine sets its viewBox to this size).
+   */
+  .minimap__map {
+    position: absolute;
+    top: 0.6875rem;
+    left: 0.6875rem;
+    overflow: hidden;
+    width: calc(100% - 1.375rem);
+    height: calc(100% - 1.375rem);
+    border-radius: 50%;
+    background: var(--color-space-900);
+    box-shadow: inset 0 0 0 1px var(--color-ink-low);
+  }
+
+  /*
+   * THE RANGE RINGS, in the house's own hand: the page's dot grid, drawn for a round face. A dot
+   * every 30 degrees a third of the way out and every 15 degrees at two thirds, so the dots lie
+   * 10 to 14 px apart on both (the page's grid: 12) and in line with the ticks; they stand at a
+   * third and at two thirds of what the chip says the face reaches. Dots, not lines: a line that
+   * goes round on this face is the path of a body, in its family's colour. (`pathLength` is the
+   * number of dots on the ring: a hair of a dash with a round cap is a dot. Not a dash of
+   * NOTHING: an engine may skip one.)
+   */
+  .minimap__dots {
+    fill: none;
+    stroke: var(--color-surface-line);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 0.01 0.99;
+  }
+
+  /* North: the ball's own letter, at the top of the face, under whatever is drawn there. It
+     stands on the circle the pins stand on, nearly: where a system lies due north of the one the
+     face shows, its pin would be one sign with the letter, an outlined glyph and an N side by
+     side. So the letter gives way to a pin beside it (`data-off`: the engine's doing), and fades
+     as a mark does (below). */
+  .minimap__north {
+    fill: var(--color-ink-mid);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    font-size: 0.75rem;
+    text-anchor: middle;
+  }
+
+  /* A mark: its family's fill, and a navy rim (the stroke, painted first: half of it shows). */
+  .minimap__mark {
+    fill: var(--theme-base);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* Planned work, not built yet: hollow and dashed, as its name tag is. */
+  .minimap__mark[data-planned] {
+    fill: var(--color-space-900);
+    stroke: var(--color-ink-low);
+    stroke-width: 1;
+    stroke-dasharray: 2 1.5;
+    paint-order: normal;
+  }
+
+  /* A system that is off the scope: its glyph in outline, just inside the rim in its direction. */
+  .minimap__mark[data-pin] {
+    fill: var(--color-space-900);
+    stroke: var(--theme-base);
+    stroke-width: 1.5;
+    paint-order: normal;
+  }
+
+  .minimap__orbit {
+    fill: none;
+    stroke: var(--theme-base);
+    stroke-width: 1;
+    stroke-opacity: 0.35;
+  }
+
+  /* The mark a pointer aims at: a cream ring round it. */
+  .minimap__aim {
+    fill: none;
+    stroke: var(--color-ink-high);
+    stroke-width: 1.5;
+  }
+
+  /*
+   * BUTTER IS "HERE": a ring round the body the ship is at or headed for, and on a journey the
+   * way that is left, a line from the ship to that ring. And THE RIM IS THE JOURNEY'S CLOCK: a
+   * butter ring lies on it, whole when the journey starts; a gap opens at twelve and grows
+   * clockwise as the seconds run out, until nothing is left. 2 px, the weight of everything
+   * butter on this face. Its `pathLength` is 1 and the engine writes one number, `--gone`, how
+   * much of the way round is gone (0 to 1), each time the seconds on the chip change; between
+   * two of them it glides, and under reduced motion (no transitions on the deck or here) it
+   * steps. (Turned a quarter back, so that the circle begins at twelve: nothing here moves by
+   * `transform`, and the engine writes none on it.)
+   */
+  .minimap__here,
+  .minimap__route,
+  .minimap__left {
+    fill: none;
+    stroke: var(--color-focus);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .minimap__left {
+    /* Nothing, then a gap as long as what is gone, then the rest of the way round. */
+    stroke-dasharray: 0 var(--gone, 0) 1;
+    stroke-linecap: butt;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition:
+      stroke-dasharray 1s linear,
+      opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  /*
+   * Locked on: the ring closes in on its mark, once, here and on the deck's ball (whose ring is
+   * whole from the moment a journey or an approach is locked on). The stylesheet's doing alone:
+   * it plays when a ring appears, and a journey sent on to another body while it flies keeps the
+   * ring it has. (These three rules are the ball's mark's too: they live here, with the ring
+   * they were written for.)
+   */
+  .minimap__here:not([data-off]),
+  .flight-deck__mark[data-lock] :is(.flight-deck__under, .flight-deck__over) {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: lock-on var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes lock-on {
+    from {
+      scale: 1.6;
+    }
+  }
+
+  /* (The minimap's ring is stilled by the rule for all of the deck and the minimap, above; the
+     ball's ring is named more exactly than that rule reaches.) */
+  html[data-motion='reduced'] .flight-deck__mark[data-lock] * {
+    animation: none;
+  }
+
+  .minimap__ship {
+    fill: var(--color-ink-high);
+    stroke: var(--color-space-950);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  /* What is no longer drawn (a moon the scale has no room for, a ring, the N beside a pin) fades
+     where it was, and is then gone; what comes back is there at once, and fades in. */
+  :is(.minimap__mark, .minimap__orbit, .minimap__aim, .minimap__here, .minimap__north) {
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  :is(
+    .minimap__mark,
+    .minimap__orbit,
+    .minimap__aim,
+    .minimap__here,
+    .minimap__left,
+    .minimap__north
+  )[data-off] {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility 0s linear var(--motion-fast);
+  }
+
+  /* Put away (the journey is over, or was stopped), the clock fades as it stands and winds
+     itself up again once it is out of sight: the next journey finds it whole. */
+  .minimap__left[data-off] {
+    stroke-dasharray: 0 0 1;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility 0s linear var(--motion-fast),
+      stroke-dasharray 0s linear var(--motion-fast);
+  }
+
+  /*
+   * The two chips, fastened to the plate as the deck's are, half on it, half off, and made as
+   * the deck's are (`.flight-deck__speed`, `.flight-deck__hdg`): the plate under every chip, its
+   * edge, a pill's ends.
+   */
+  .minimap__name,
+  .minimap__range {
+    right: 0;
+    left: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    margin-inline: auto;
+    border: 1px solid var(--hud-edge);
+    border-radius: var(--radius-pill);
+    background: var(--hud);
+  }
+
+  /*
+   * Above: what the scope shows (the galaxy, a system), in quiet ink behind its family's glyph;
+   * or, in bright ink, a body: the one a pointer aims at, else the one a journey is headed for.
+   * 13 px, like a name in the sky. A long name may reach a rem past the plate on either side, as
+   * the deck's top row reaches past its ball; a longer one gives way. It must stay CENTRED on
+   * the plate: the engine tells the names in the sky to keep off its two ends by its width
+   * alone (ui/MiniMap.ts, `box`). (It fades when it rests, below: seen for as long as anything
+   * of it is, which is what a transition makes of `visibility`, both ways.)
+   */
+  .minimap__name {
+    top: 0;
+    right: -1rem;
+    left: -1rem;
+    gap: 0.375rem;
+    min-width: 4.5rem;
+    max-width: calc(100% + 2rem);
+    height: 1.625rem;
+    padding-inline: 0.625rem;
+    color: var(--color-ink-mid);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      visibility var(--motion-fast);
+  }
+
+  /*
+   * Docked, the deck is away, somebody is reading, and the page beside the scope says where the
+   * ship is: the pill rests, and is back to name what a pointer aims at, or where a journey goes.
+   * That keeps the sky above the plate clear, where the carried ship passes on every turn round
+   * its planet (measured: docs/PLAN.md, "the minimap as a scope"). No script decides it: the deck
+   * comes before the minimap in the overlay, and is not shown exactly while the ship is docked.
+   * (No transition of its own here: this rule outweighs the one that stills the deck and the
+   * minimap for a visitor who asked for less motion, and the pill's own does not.)
+   */
+  .flight-deck:not([data-shown]) ~ .minimap .minimap__name:not([data-lit]) {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .minimap__name i {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--theme-base);
+    clip-path: var(--theme-glyph);
+    scale: var(--theme-glyph-scale);
+  }
+
+  /* The galaxy has no family: it wears the wordmark's little line of three stations. (A body
+     without a family, should there ever be one, has no glyph.) */
+  .minimap__name:not([data-theme]) i {
+    width: 1.375rem;
+    height: 0.375rem;
+    background:
+      radial-gradient(circle closest-side, var(--color-system-coral-base) 92%, transparent) 0 50% /
+        0.375rem 0.375rem no-repeat,
+      radial-gradient(circle closest-side, var(--color-system-butter-base) 92%, transparent) 50%
+        50% / 0.375rem 0.375rem no-repeat,
+      radial-gradient(circle closest-side, var(--color-system-mint-base) 92%, transparent) 100%
+        50% / 0.375rem 0.375rem no-repeat,
+      linear-gradient(var(--color-ink-low), var(--color-ink-low)) 50% 50% / 90% 0.125rem no-repeat;
+    clip-path: none;
+    scale: none;
+  }
+
+  .minimap__name[data-lit]:not([data-theme]) i {
+    display: none;
+  }
+
+  .minimap__name b {
+    overflow: hidden;
+    min-width: 0;
+    font-weight: inherit;
+    text-overflow: ellipsis;
+  }
+
+  /* What the scope shows is a district on a map, set as the sky sets a system's name; a body is
+     named as it is written, in bright ink. */
+  .minimap__name:not([data-lit]) b {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .minimap__name[data-lit] b {
+    color: var(--color-ink-high);
+  }
+
+  .minimap__note {
+    flex: none;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .minimap__sep {
+    display: none;
+  }
+
+  /*
+   * Below: the HDG chip's twin. How far the face reaches from its middle ("RANGE 1.1 km": a unit
+   * is a metre, as for the speed), and on a journey the seconds it still takes, in butter, which
+   * only count down.
+   */
+  .minimap__range {
+    bottom: 0;
+    gap: 0.375rem;
+    min-width: 4.5rem;
+    height: 1.375rem;
+    padding-inline: var(--space-2);
+  }
+
+  .minimap__range b {
+    font-weight: inherit;
+  }
+
+  .minimap__range small {
+    color: var(--color-ink-mid);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  .minimap__range[data-eta] :is(b, b + small) {
+    color: var(--color-focus);
+  }
+
+  .minimap__range b + small {
+    margin-left: -0.1875rem;
+  }
+
+  /*
+   * ITS TWO SIZES (--minimap-size and --minimap-held, at the top of this section's variables).
+   * In flight, under a mouse, the plate is a fifth larger, so that the marks of a system stand
+   * further apart. It HOLDS the smaller size while the ship is docked (`data-docked` on the deck,
+   * which comes before the minimap in the overlay): the carried ship passes right above this
+   * corner on every turn round its body, at a distance that was measured for that size
+   * (docs/PLAN.md, "the minimap as a scope"). And under a finger it holds it always: there it
+   * stands above the boost pad, in the thumb's reach.
+   *
+   * It eases from one size to the other: at once when it shrinks (the ship is taken into orbit,
+   * and the view turns to its body over the next second), after a wait when it grows (the ship
+   * has left, and the chase view must have it on its way back to the middle first). The wait is
+   * a number of its own, so that the rule that says WHEN names no transition, and the rule that
+   * stills the deck and the minimap for a visitor who asked for less motion outweighs the two
+   * that do. Only while it shows: brought back by the map closing, it simply is the size it is.
+   * The engine draws to the face as it changes size (ui/MiniMap.ts watches it).
+   */
+  .minimap {
+    --minimap-wait: var(--motion-slow);
+  }
+
+  .flight-deck[data-docked] ~ .minimap {
+    --minimap-size: var(--minimap-held);
+    --minimap-wait: 0s;
+  }
+
+  @media (pointer: coarse) {
+    .minimap {
+      --minimap-size: var(--minimap-held);
+    }
+  }
+
+  .minimap[data-shown] {
+    transition:
+      width var(--motion-slow) var(--motion-ease-out) var(--minimap-wait),
+      height var(--motion-slow) var(--motion-ease-out) var(--minimap-wait);
+  }
+
+  /* Forced colours: the plate and the face are the page's ground, the marks its text, and what
+     is butter the system's highlight. */
+  @media (forced-colors: active) {
+    .minimap__plate::before,
+    .minimap__map {
+      forced-color-adjust: none;
+    }
+
+    .minimap__plate::before {
+      --minimap-tick: GrayText;
+    }
+
+    .minimap__map {
+      background: Canvas;
+      box-shadow: inset 0 0 0 1px GrayText;
+    }
+
+    .minimap__dots {
+      stroke: GrayText;
+    }
+
+    .minimap__north {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .minimap__mark,
+    .minimap__ship {
+      fill: CanvasText;
+      stroke: Canvas;
+    }
+
+    .minimap__mark:is([data-planned], [data-pin]) {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+
+    .minimap__orbit {
+      stroke: GrayText;
+      stroke-opacity: 1;
+    }
+
+    .minimap__aim {
+      stroke: CanvasText;
+    }
+
+    .minimap__here,
+    .minimap__route,
+    .minimap__left {
+      stroke: Highlight;
+    }
+
+    .minimap__name i {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+
+    .minimap__name:not([data-theme]) i {
+      display: none;
+    }
   }
 
   /*
@@ -2840,6 +4633,11 @@ main > .resume-name + .resume-contact {
       justify-content: center;
       min-width: var(--map-chip);
       padding-left: var(--space-4);
+    }
+
+    /* ...and the deck's strip, at the other end of the row, as far in. */
+    .flight-deck[data-layout='strip'] {
+      --strip-inset: max(var(--space-4), env(safe-area-inset-left));
     }
   }
 
@@ -3040,7 +4838,7 @@ main > .resume-name + .resume-contact {
     padding: var(--space-6) var(--space-6) var(--space-8);
   }
 
-  html[data-mode='universe'] main > .crumbs:first-child {
+  html[data-mode='universe'] main > [data-card] > .crumbs:first-child {
     margin-top: calc(-1 * var(--space-4));
   }
 
@@ -3307,6 +5105,10 @@ main > .resume-name + .resume-contact {
     .map-toggle {
       right: max(var(--space-4), env(safe-area-inset-right));
     }
+
+    .flight-deck[data-layout='strip'] {
+      --strip-inset: max(var(--space-4), env(safe-area-inset-left));
+    }
   }
 
   /*
@@ -3324,6 +5126,731 @@ main > .resume-name + .resume-contact {
 
     html[data-mode='universe'][data-panel='open'] #universe-overlay {
       visibility: hidden;
+    }
+  }
+
+  /*
+   * THE DECK. On a wide screen a destination's content is not a panel beside the world: its
+   * cards (1a) stand in two columns round the body the page belongs to, the head and the first
+   * sections down the left, the rest down the right, and the body is framed between them. With
+   * none open every section is a STUB: its title row and the start of its text.
+   * `html[data-card-open='k']` (src/shell/cards.ts, from the URL's fragment) OPENS card k in
+   * full, in a wider column, and every other card, the head included, is then a CHIP: its title
+   * row alone. Nothing is ever taken out of the page: what a stub or a chip does not show is
+   * clipped, so a screen reader and find-in-page read what they read in the panel.
+   *
+   * The same query as DECK in src/shell/deck.ts, which measures what the cards leave free and
+   * tells the camera: change both together. The home page has no cards and keeps its panel.
+   *
+   * One flex container that wraps into columns: the left column's cards first (order 0), then a
+   * break as tall as the column (::before, order 1), then the right column's (order 2). Which
+   * card stands where is `sideOf` in deck.ts (box i of M is on the left if it is the head or
+   * 2i <= M), and `--deck-mates` is how many cards share the open one's column. THREE
+   * DECLARATIONS ARE LOAD-BEARING, and each says so where it stands: `min-height` on every card,
+   * the `- 1px` in both caps, and `overflow: clip` on a stub. Check 1280 x 576 and 1920 x 1080
+   * after touching any of it. No card here moves by width, height or position (those change at
+   * once, so that the shell can measure where everything has ended up in the same task); the
+   * Map button and the dock prompt, which nothing measures, do slide to their new middle.
+   */
+  @media (min-width: 80rem) and (min-height: 36rem) {
+    html[data-mode='universe'] .panel:has(> main > [data-card]) {
+      /* Sizes, not tokens. A column of stubs and chips; the open card's column (the panel's own
+         width, so whatever fits the panel fits the card); the stage's margin (the stage is at
+         most 120rem wide); a title row, a 44 px target; the space under a stub's text, which is
+         how much of a cut stub fades; a row of keys at a stub's foot; and the most a stub takes
+         where an engine cannot size it by what it holds (the guard under the stub's rule). */
+      --deck-col: clamp(18rem, 24vw, 22rem);
+      --deck-open: min(30rem, 40vw);
+      --deck-inline: max(var(--space-6), calc((100vw - 120rem) / 2));
+      --chip-h: 2.75rem;
+      --stub-foot: var(--space-6);
+      --stub-keys: calc(1.5 * var(--text-narrow-sm) + 2 * var(--space-3));
+      --stub-max: clamp(7.5rem, 20vh, 11rem);
+      /* (The cards' own gap, in here: outside this panel `--deck-gap` is the flight deck's, how
+         far its instruments stand from the bottom of the view. Neither reads the other's.) */
+      --deck-gap: var(--space-3);
+      --w-left: var(--deck-col);
+      --w-right: var(--deck-col);
+      /* How many sections stand under the head in the left column. */
+      --nl: 0;
+
+      /* The stage: from under the bar to above the corner chip, with no plate of its own. The
+         sky between the cards takes the pointer. */
+      right: max(var(--deck-inline), env(safe-area-inset-right));
+      bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + 2.75rem + var(--space-3));
+      left: max(var(--deck-inline), env(safe-area-inset-left));
+      width: auto;
+      border: 0;
+      background: none;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      /* Nothing slides in: the cards arrive by themselves (card-in, below). */
+      transition: none;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(4)) {
+      --nl: 1;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(6)) {
+      --nl: 2;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > :nth-child(8)) {
+      --nl: 3;
+    }
+
+    html[data-mode='universe'][data-card-side='left'] .panel:has(> main > [data-card]) {
+      --w-left: var(--deck-open);
+    }
+
+    html[data-mode='universe'][data-card-side='right'] .panel:has(> main > [data-card]) {
+      --w-right: var(--deck-open);
+    }
+
+    /* Close, at the right end of the head's first row (and of the head's chip): a key small
+       enough for that row, 44 px to press. */
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      width: var(--w-left);
+      padding: calc(0.3125rem + var(--space-2)) var(--space-2) 0 0;
+      border: 0;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'][data-card-open] .panel:has(> main > [data-card]) > .panel-bar {
+      padding-top: 0.5rem;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar .panel-button {
+      position: relative;
+      min-height: 2rem;
+      padding: 0 var(--space-3);
+      pointer-events: auto;
+    }
+
+    html[data-mode='universe'] .panel:has(> main > [data-card]) > .panel-bar .panel-button::after {
+      content: '';
+      position: absolute;
+      inset: -0.375rem 0;
+    }
+
+    html[data-mode='universe'] main:has(> [data-card]) {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-flow: column wrap;
+      /* With none open each column spreads its cards from top to bottom (with one open it packs
+         them: the next rule); the two columns go to the two sides. */
+      justify-content: space-between;
+      align-content: space-between;
+      gap: var(--deck-gap) 0;
+      padding: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    /*
+     * One card is open: BOTH columns pack their cards toward the top, the deck's gap between
+     * them, in the page's order: the chips over the open card, the open card, and the chips
+     * under it directly under it. The titles a reader goes on to are then together, and beside
+     * the one being read. (Spread over the column, as the stubs are, five title rows stood 80 px
+     * and more apart with nothing between them.) What a column has left is sky under its last
+     * card. The open card's cap is what it was (its rule, below): the column less a title row
+     * and a gap for each card that shares it, so it can never push one of them off the stage.
+     */
+    html[data-mode='universe'][data-card-open] main:has(> [data-card]) {
+      justify-content: flex-start;
+    }
+
+    /* The break between the columns: as tall as a column, and no width. */
+    html[data-mode='universe'] main:has(> [data-card])::before {
+      content: '';
+      order: 1;
+      flex: 0 0 100%;
+      width: 0;
+    }
+
+    /*
+     * A card: a stub in the right column, until a rule below says otherwise. A stub is a preview,
+     * so its text is set a size down, all of it at one size. --edge is its hairline (a mouse over
+     * it sets that; the open card holds its own, --edge-held); --title-* and --ring-* are what its
+     * title row reads (below), which the open card sets otherwise.
+     *
+     * HOW TALL A STUB IS: as tall as what it holds, while its column has the room. Every stub of
+     * a column grows from a title row at the same pace, and stops at its own height
+     * (max-content); so a stub is cut only in a column that is full, and there the ones still
+     * growing share what is left equally. A page with one section shows all of it (Contact); a
+     * column of five shows the start of each.
+     */
+    html[data-mode='universe'] main > [data-card] {
+      --text-base: var(--text-narrow-sm);
+      --text-lg: var(--text-narrow-sm);
+      --text-xl: var(--text-narrow-base);
+      --title-h: calc(var(--chip-h) - 2px);
+
+      order: 2;
+      display: block;
+      width: var(--w-right);
+      /* LOAD-BEARING: the min-height. A flex item's automatic minimum is its content, and one
+         card taller than the column would wrap into a third column. (So does the basis: what a
+         column wraps by is each card's basis, a title row, never what the card holds.) */
+      flex: 1 1 var(--chip-h);
+      min-height: var(--chip-h);
+      max-height: max-content;
+      margin: 0;
+      padding: 0 var(--space-4) var(--stub-foot);
+      /* LOAD-BEARING: clip, not hidden. Nothing may scroll a stub, not even the focus. */
+      overflow: clip;
+      border: 1px solid var(--edge-held, var(--edge, var(--hud-edge)));
+      /* The family's band, on the edge that faces the body. */
+      border-left: var(--line) solid var(--theme-base);
+      border-radius: var(--radius-md);
+      color: var(--color-ink-mid);
+      background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+      font-size: var(--text-base);
+      cursor: pointer;
+      pointer-events: auto;
+      /* The right column a moment after the left. */
+      animation: card-in var(--motion-base) var(--motion-ease-out) 80ms backwards;
+    }
+
+    /*
+     * The guard. A box sized by what it holds in the block axis (max-content as a max-height)
+     * is what Chromium and WebKit do, and both were run. Gecko has read such a keyword there as
+     * "none": a stub would be stretched over its whole share of the column, a plate far taller
+     * than its text. Where the engine is Gecko a stub keeps a fixed cap instead, as it had
+     * before stubs grew: it may be cut with room to spare, and never fills a column. NOT RUN:
+     * there was no Firefox on the machine this was built on. Take the guard out once Firefox is
+     * seen to stop a stub at its text.
+     */
+    @supports (-moz-appearance: none) {
+      html[data-mode='universe'] main > [data-card] {
+        max-height: var(--stub-max);
+      }
+    }
+
+    /* The left column: the head, and the sections that `sideOf` puts under it. */
+    html[data-mode='universe'] main > [data-card]:nth-child(1),
+    html[data-mode='universe'] main > [data-card]:nth-child(2):nth-last-child(n + 3),
+    html[data-mode='universe'] main > [data-card]:nth-child(3):nth-last-child(n + 4),
+    html[data-mode='universe'] main > [data-card]:nth-child(4):nth-last-child(n + 5) {
+      order: 0;
+      width: var(--w-left);
+      border-right: var(--line) solid var(--theme-base);
+      border-left: 1px solid var(--edge-held, var(--edge, var(--hud-edge)));
+      animation-delay: 0s;
+    }
+
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        translate: 0 0.5rem;
+      }
+    }
+
+    html[data-mode='universe'][data-motion='reduced'] main > [data-card] {
+      animation: none;
+    }
+
+    /*
+     * The head: the panel's own plate, with the family's band across the top. It keeps its
+     * height, up to what leaves each section under it a title row; past that it scrolls (a
+     * window under 600 px tall, and a head with crumbs, a two-line title and a full lede).
+     */
+    html[data-mode='universe'] main > [data-card]:first-child {
+      flex: 0 0 auto;
+      /* LOAD-BEARING: the 1px. Rounded to whole pixels, a column exactly full can come out a
+         fraction over, and wrap. */
+      max-height: calc(100% - var(--nl) * (var(--chip-h) + var(--deck-gap)) - 1px);
+      padding: var(--space-3) var(--space-4) var(--space-4);
+      overflow-y: auto;
+      border: 1px solid var(--hud-edge);
+      border-top: 0.3125rem solid var(--theme-base);
+      border-radius: var(--radius-lg);
+      color: var(--color-ink-high);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      cursor: auto;
+    }
+
+    /* Its first row keeps clear of Close. (The crumbs' words start where a sign's plate does.) */
+    html[data-mode='universe'] main > [data-card]:first-child > .crumbs:first-child {
+      margin-top: calc(var(--space-2) * -1);
+      padding-right: 4.5rem;
+    }
+
+    html[data-mode='universe']
+      main
+      > [data-card]:first-child
+      > .page-header:first-child
+      > .eyebrow {
+      max-width: calc(100% - 4.5rem);
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child h1 {
+      font-size: var(--text-narrow-xl);
+      line-height: 1.1;
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child .eyebrow + h1 {
+      margin-top: var(--space-3);
+    }
+
+    html[data-mode='universe'] main > [data-card]:first-child .lede {
+      margin-top: var(--space-2);
+      color: var(--color-ink-mid);
+      font-size: var(--text-narrow-sm);
+      line-height: 1.5;
+    }
+
+    /*
+     * A card's title is its title row: one line, the station ring of the page's family before
+     * the words, and the link the whole row (its ring drawn inside it). A title the page keeps
+     * quiet in one column (1a) is the card's title here like any other.
+     */
+    html[data-mode='universe'] main > [data-card] > h2[id] {
+      position: var(--title-position, static);
+      top: 0;
+      left: auto;
+      z-index: 1;
+      display: flex;
+      gap: 0;
+      align-items: center;
+      width: auto;
+      height: var(--title-h);
+      min-height: 0;
+      margin: 0 calc(var(--space-4) * -1);
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      border-bottom: 1px solid var(--title-rule, transparent);
+      clip-path: none;
+      color: var(--color-ink-high);
+      background: var(--title-ground, none);
+      font-size: var(--title-size, var(--text-narrow-base));
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id]::before {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a {
+      position: static;
+      display: block;
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      padding: 0 var(--space-4);
+      overflow: hidden;
+      background: none;
+      /* The row's hairline is part of its height, and the words' line is the rest: so the row
+         is as tall by what it holds as by its `height`, which is what a stub is sized by. */
+      line-height: calc(var(--title-h) - 1px);
+      text-overflow: ellipsis;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a::before {
+      content: '';
+      display: inline-block;
+      width: 0.625rem;
+      height: 0.625rem;
+      margin-right: 0.625rem;
+      border: 0.125rem solid var(--ring-edge, var(--theme-base));
+      border-radius: var(--radius-pill);
+      background: var(--ring-fill, none);
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a::after {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] > a:focus-visible {
+      outline-offset: -0.1875rem;
+      box-shadow: none;
+    }
+
+    /* What a card holds keeps the pace it has in the panel; a section that is a grid there (its
+       title and its list) is a block here, so that its title can be the row. */
+    html[data-mode='universe'] main > [data-card]:is(.section, .resume-section) > * + * {
+      margin-top: var(--space-4);
+    }
+
+    html[data-mode='universe'] main > [data-card] > h2[id] + * {
+      margin-top: var(--title-gap, 0);
+    }
+
+    /* Running text takes the card's ink: quieter in a stub, the page's own in the open card. */
+    html[data-mode='universe'] main > [data-card] > :is(p, ul, ol) {
+      color: inherit;
+    }
+
+    /* The planet drawn for a project with no picture: the real one is in the middle. */
+    html[data-mode='universe'] main > [data-card] .cover--planet {
+      display: none;
+    }
+
+    /*
+     * A sun's card on the projects page: its sun is the ring before its title, on the lane its
+     * planets stand on, and the list under it draws its own line (in the panel the line runs
+     * down from the sun, which here is in a row of its own).
+     */
+    html[data-mode='universe'] main > .system {
+      --sun: 1.125rem;
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] {
+      padding-left: var(--space-4);
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] > a {
+      padding-left: 1.9375rem;
+    }
+
+    html[data-mode='universe'] main > .system > h2[id] > a::before,
+    html[data-mode='universe'] main > .system::before {
+      content: none;
+    }
+
+    html[data-mode='universe'] main > .system .cards {
+      padding-bottom: var(--space-6);
+    }
+
+    html[data-mode='universe'] main > .system .cards::before,
+    html[data-mode='universe'] main > .system .cards::after {
+      display: block;
+    }
+
+    /* A cut stub's text fades into its plate, instead of being cut through a line: and so does a
+       planet's dot on its route line, which stands a layer above the text (z-index: 1). The fade
+       is never taller than the space under a stub's text (--stub-foot): on a stub that shows
+       all it holds it lies over that space, and over none of its words. */
+    html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after {
+      content: '';
+      position: absolute;
+      z-index: 1;
+      inset: auto 0 0;
+      width: auto;
+      height: clamp(0.75rem, 25%, var(--stub-foot));
+      border-radius: 0;
+      background: linear-gradient(transparent, var(--ground) 85%);
+      pointer-events: none;
+    }
+
+    /*
+     * A stub with no room for a line of its text is its title alone, as a chip is (the two
+     * under a head with crumbs and a lede, in a window 576 px tall): its title row takes the
+     * whole card, the title in the middle of it, and what the card holds is below the cut. The
+     * product is a switch: far under the row's own height in a stub of 72 px or more (46 inside
+     * its hairlines and the space under its text), far over the card's in a shorter one, and
+     * steep enough that no height a layout can have (they come in 64ths of a px) is between.
+     */
+    html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child) > h2[id] {
+      height: clamp(var(--title-h), calc((2.875rem - 100%) * 99999), calc(100% + var(--stub-foot)));
+    }
+
+    /*
+     * A stub that ENDS with its actions (the resume's Download) keeps them in sight however
+     * little of it shows: one row of keys at its foot, and what lies between its title and them
+     * fades out behind them. The order is still the page's: title, text, actions. The room the
+     * row takes is a margin under the text before it and never the stub's own padding (a card's
+     * padding is the least it can be, and a column wraps by that), so a stub that shows all it
+     * holds reads as it does with the keys in the flow. The same switch as the title's, a row of
+     * keys further on: a stub with no room for a line of its text over the keys lets them go
+     * under the cut with the rest, and is a stub like any other.
+     */
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child):has(> .actions:last-child) {
+      /* The row of keys and the space under it; that and the fade over it; and the switch, 0 or
+         more in a stub that has the room (100% is the stub inside its hairlines). */
+      --keys-room: calc(var(--stub-keys) + var(--space-3));
+      --keys-foot: calc(var(--stub-foot) + var(--keys-room));
+      --keys-in: calc((100% - 2.875rem - var(--keys-foot)) * 99999);
+    }
+
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child)
+      > :has(+ .actions:last-child) {
+      margin-bottom: var(--keys-room);
+    }
+
+    /* The fade is then the whole foot: the text fades over the first of it, and the rest is
+       plate for the keys to stand on. */
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child):has(> .actions:last-child)::after {
+      height: clamp(
+        clamp(0.75rem, 25%, var(--stub-foot)),
+        calc(var(--keys-in) + var(--keys-foot)),
+        var(--keys-foot)
+      );
+      background: linear-gradient(transparent, var(--ground) min(85%, var(--stub-foot)));
+    }
+
+    html[data-mode='universe']:not([data-card-open])
+      main
+      > [data-card]:not(:first-child)
+      > .actions:last-child {
+      position: absolute;
+      z-index: 2;
+      right: var(--space-4);
+      bottom: min(var(--space-3), calc(var(--keys-in) + var(--space-3)));
+      left: var(--space-4);
+      flex-wrap: nowrap;
+      margin: 0;
+    }
+
+    /* One card is open: every other card is a chip, its title row and nothing more. */
+    html[data-mode='universe'][data-card-open] main > [data-card] {
+      flex: 0 0 var(--chip-h);
+      max-height: var(--chip-h);
+      padding-bottom: 0;
+      overflow: clip;
+    }
+
+    html[data-mode='universe'][data-card-open] main > .system::after {
+      content: none;
+    }
+
+    /*
+     * What a chip holds under its title row is below its cut, and it is SAID to be out of sight
+     * too, as what the head's chip holds is (below). It is still laid out there, under the chip:
+     * and packed, that is where the next chip's title row stands, 12 px on. Whatever goes by
+     * where a box lies and not by what cuts it (axe does not know `overflow: clip`) would find a
+     * chip's keys under the next title: two things to press in one place. Nothing looks
+     * different, and nothing leaves the page, the tab order or find-in-page. The open card shows
+     * what it holds: its rule sets the property.
+     */
+    html[data-mode='universe'][data-card-open] main > [data-card]:not(:first-child) > :not(h2) {
+      opacity: var(--content-opacity, 0);
+    }
+
+    /* The head's chip is the page's title on the row, with Close: everything else of the head
+       is still in the page, and out of sight and out of reach. Pressing the chip shows the head
+       again (and every card with it). */
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child {
+      padding-block: 0;
+      cursor: pointer;
+    }
+
+    html[data-mode='universe'][data-card-open]
+      main
+      > [data-card]:first-child
+      :not(.page-header, h1) {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child > .page-header {
+      position: absolute;
+      inset: 0;
+    }
+
+    html[data-mode='universe'][data-card-open] main > [data-card]:first-child h1 {
+      position: absolute;
+      inset: 0 4.5rem 0 var(--space-4);
+      margin: 0;
+      overflow: hidden;
+      font-size: var(--text-narrow-base);
+      line-height: calc(var(--chip-h) - 0.375rem);
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /*
+     * The open card: the whole section at the reading size, as tall as it is, up to the column
+     * less a title row for each card that shares it; past that it scrolls inside itself, under
+     * its title. Its ring is filled butter: here.
+     */
+    html[data-mode='universe'][data-card-open='1'] main > [data-card]:nth-child(2),
+    html[data-mode='universe'][data-card-open='2'] main > [data-card]:nth-child(3),
+    html[data-mode='universe'][data-card-open='3'] main > [data-card]:nth-child(4),
+    html[data-mode='universe'][data-card-open='4'] main > [data-card]:nth-child(5),
+    html[data-mode='universe'][data-card-open='5'] main > [data-card]:nth-child(6),
+    html[data-mode='universe'][data-card-open='6'] main > [data-card]:nth-child(7),
+    html[data-mode='universe'][data-card-open='7'] main > [data-card]:nth-child(8),
+    html[data-mode='universe'][data-card-open='8'] main > [data-card]:nth-child(9) {
+      --text-base: var(--text-narrow-base);
+      --text-lg: var(--text-narrow-lg);
+      --text-xl: var(--text-narrow-xl);
+      --title-h: 3.25rem;
+      --title-size: var(--text-narrow-lg);
+      --title-position: sticky;
+      --title-ground: var(--ground);
+      --title-rule: var(--color-surface-line);
+      --title-gap: var(--space-3);
+      --ring-edge: var(--color-focus);
+      --ring-fill: var(--color-focus);
+      --edge-held: var(--hud-edge);
+      /* It is the one card with a fade for what is under its cut (the rule after this one):
+         how tall that is, and the space under what the card holds, which the fade reaches down
+         through. */
+      --more: '';
+      --more-h: var(--space-12);
+      --open-foot: var(--space-4);
+      --keys-position: sticky;
+      /* What it holds is to be seen: a chip's is not (the rule over the head's chip). */
+      --content-opacity: 1;
+
+      flex: 0 1 auto;
+      /* LOAD-BEARING: the 1px, as for the head. */
+      max-height: calc(100% - var(--deck-mates, 0) * (var(--chip-h) + var(--deck-gap)) - 1px);
+      padding-bottom: var(--open-foot);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* Whatever is scrolled to in it (a link the keyboard lands on) stops under its title, and
+         over the fade at its foot. */
+      scroll-padding-top: var(--title-h);
+      scroll-padding-bottom: var(--more-h);
+      color: var(--color-ink-high);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      cursor: auto;
+      scrollbar-color: var(--color-ink-low) transparent;
+      scrollbar-width: thin;
+    }
+
+    /*
+     * An open card with more under its cut says so: its last lines fade into the plate, as a
+     * stub's do, until the last of what it holds is in sight (a scrollbar says it too, where a
+     * browser shows one at rest: many do not). The shell says when (`data-card-more`: cards.ts).
+     * The fade is taller than a stub's: a line of the card's text and the space over it, so that
+     * a cut which falls between two paragraphs still has words to fade.
+     * The fade is a box in the flow that takes no room (its own height back, as a margin), so a
+     * card measures the same with it and without, and it takes no press. It sticks to the foot
+     * of the plate: a box sticks INSIDE its card's padding, so it is told to stand that far
+     * below, and it is as wide as the plate (the card's padding again, as margins). It comes
+     * and goes at once: nothing in the deck is on the move unless a card is.
+     */
+    html[data-mode='universe'][data-card-more] main > [data-card]::after {
+      content: var(--more, none);
+      position: sticky;
+      z-index: 1;
+      inset: auto auto calc(-1 * var(--open-foot));
+      display: block;
+      width: auto;
+      height: var(--more-h);
+      margin: calc(-1 * var(--more-h)) calc(-1 * var(--space-4)) 0;
+      border-radius: 0;
+      background: linear-gradient(transparent, var(--ground) 85%);
+      pointer-events: none;
+    }
+
+    /*
+     * An open card that ENDS with its actions keeps them in sight as a stub does, however
+     * little of it shows (the resume's Download, in a window 576 px tall, where the card is cut
+     * above it): the row sticks to the foot of what shows. A card that shows all it holds has
+     * its keys where they stand in the flow, and sticking moves nothing. While there is more,
+     * the row stands on a plate of its own (::before, behind the keys and over the text that
+     * scrolls by): from a fade's height above the row down to the foot of the plate, and as
+     * wide as the plate. It is placed, not in the flow, and inside the card's padding box: the
+     * card measures the same with it and without.
+     */
+    html[data-mode='universe'][data-card-open] main > [data-card] > .actions:last-child {
+      position: var(--keys-position, static);
+      z-index: 2;
+      bottom: 0;
+    }
+
+    html[data-mode='universe'][data-card-more] main > [data-card] > .actions:last-child::before {
+      content: var(--more, none);
+      position: absolute;
+      z-index: -1;
+      inset: calc(-1 * var(--stub-foot)) calc(-1 * var(--space-4)) calc(-1 * var(--open-foot));
+      background: linear-gradient(transparent, var(--ground) calc(0.85 * var(--stub-foot)));
+      pointer-events: none;
+    }
+
+    /* What the keyboard scrolls to in such a card stops over the keys and their plate. */
+    html[data-mode='universe'][data-card-open] main > [data-card]:has(> .actions:last-child) {
+      scroll-padding-bottom: calc(var(--stub-keys) + var(--stub-foot) + var(--space-4));
+    }
+
+    /* A mouse over a card that can be pressed: its edge in the family's colour. Nothing moves:
+       a card that moved would leave its leader behind. */
+    @media (hover: hover) {
+      html[data-mode='universe'] main > [data-card]:not(:first-child):hover,
+      html[data-mode='universe'][data-card-open] main > [data-card]:first-child:hover {
+        --edge: var(--theme-base);
+      }
+
+      html[data-mode='universe'][data-card-open] main > [data-card]:first-child:hover {
+        border-color: var(--theme-base);
+      }
+    }
+
+    /* Asked for more contrast, or in forced colours: plates that nothing shows through, and no
+       gradient (forced colours would paint it in the page's navy over the system's own ground). */
+    @media (prefers-contrast: more), (forced-colors: active) {
+      html[data-mode='universe'] main > [data-card] {
+        background: var(--color-surface-panel);
+      }
+    }
+
+    @media (forced-colors: active) {
+      html[data-mode='universe']:not([data-card-open]) main > [data-card]:not(:first-child)::after,
+      html[data-mode='universe'][data-card-more] main > [data-card]::after {
+        content: none;
+      }
+
+      /* Keys at a stub's foot keep a plate to stand on: the system's own ground, and no fade.
+         It reaches a step over the keys, so that what it cuts off does not touch them. */
+      html[data-mode='universe']:not([data-card-open])
+        main
+        > [data-card]:not(:first-child):has(> .actions:last-child)::after {
+        --keys-plate: calc(var(--keys-room) + var(--space-2));
+
+        content: '';
+        height: clamp(0px, calc(var(--keys-in) + var(--keys-plate)), var(--keys-plate));
+        background: Canvas;
+      }
+
+      /* And so do the keys an open card keeps at its foot. */
+      html[data-mode='universe'][data-card-more] main > [data-card] > .actions:last-child::before {
+        top: calc(-1 * var(--space-2));
+        background: Canvas;
+      }
+    }
+
+    /* The Map button stands in the middle of what the cards leave free, as the dock prompt does
+       at the bottom: top right, the first card's leader would run through it. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle {
+      right: auto;
+      left: calc(50% + var(--panel-inset-left, 0px) / 2);
+      translate: -50% 0;
+    }
+
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle:active {
+      translate: -50% var(--ledge);
+    }
+
+    /* A card that opens moves that middle: the button and the prompt go there as their layer
+       does (its own right edge slides, above), not in one jump. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .map-toggle {
+      transition: left var(--motion-slow) var(--motion-ease-out);
+    }
+
+    /* The prompt has a second move, and keeps it here: its step beside the flight deck and back
+       (the deck's own rule, above). A press still drops it onto its ledge at once. */
+    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt {
+      transition:
+        left var(--motion-slow) var(--motion-ease-out),
+        translate var(--motion-base) var(--motion-ease-out);
+    }
+
+    html[data-mode='universe']:has(.panel > main > [data-card]) .dock-prompt:active {
+      transition-duration: 0s;
     }
   }
 
@@ -3697,9 +6224,22 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   .crumbs,
   .eyebrow,
   .actions,
+  .system__page,
   .screen-only,
   .footer {
     display: none !important;
+  }
+
+  /* A quiet title (1a) is not in the paper's words either: gone, not clipped, so that it is not
+     in a PDF's text or its outline. */
+  main > [data-card] > .card-title--quiet {
+    display: none;
+  }
+
+  /* The room a title's link keeps round itself for a finger (1a) is the screen's too: in a PDF
+     it would lay every title's link over the lines above and below it. */
+  main > [data-card] > h2 > a::after {
+    content: none;
   }
 
   h1 {
@@ -3746,7 +6286,8 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     text-decoration: none;
   }
 
-  main > * + * {
+  main > * + *,
+  main > :where([data-card]) > * + * {
     margin-top: var(--space-3);
   }
 
@@ -3805,15 +6346,18 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
   }
 
   /* A resume on paper is headed by the name, in full, and by nothing else: the wordmark and the
-     page's own title are the screen's. This is also what the PDF is printed from
+     page's own title (its head card) are the screen's. This is also what the PDF is printed from
      (`npm run resume-pdf`). Without :has(), it prints like any other page, name and all. */
   body:has(.resume-name) .wordmark,
-  main:has(.resume-name) > .page-header {
+  main:has(.resume-name) > [data-card]:first-child {
     display: none;
   }
 
-  main > .resume-name {
+  main > .resume-intro {
     margin-top: 0;
+  }
+
+  .resume-name {
     font-size: 2rem;
     font-weight: 700;
     line-height: 1.2;

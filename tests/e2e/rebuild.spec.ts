@@ -4,30 +4,19 @@
 // page last asked of the engine (here: the star map) still in force.
 
 import type { Page } from '@playwright/test';
-import { engineReady, expect, openUniverse, test, watchText } from './support';
+import {
+  engineReady,
+  expect,
+  loseContext,
+  openUniverse,
+  rebuilt,
+  test,
+  watchText,
+} from './support';
 
 const html = (page: Page) => page.locator('html');
 const prompt = (page: Page) => page.locator('.dock-prompt');
 const pathOf = (page: Page): string => new URL(page.url()).pathname;
-
-/** Take the context away, the way a browser would. Answers false where that cannot be done. */
-function loseContext(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');
-    if (!canvas) return false;
-    canvas.setAttribute('data-e2e-canvas', 'lost');
-    // The canvas has a context already, and asking again hands back that very one.
-    const lose = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
-    lose?.loseContext();
-    return Boolean(lose);
-  });
-}
-
-const rebuilt = (page: Page): Promise<boolean> =>
-  page.evaluate(() => {
-    const canvas = document.querySelector('#universe-host canvas');
-    return canvas !== null && canvas.getAttribute('data-e2e-canvas') !== 'lost';
-  });
 
 test('a lost WebGL context is rebuilt, docked where it was, with the page still open', async ({
   page,
@@ -63,6 +52,33 @@ test('the star map is still open after a rebuild', async ({ page }) => {
   await close.click();
   await expect(html(page)).not.toHaveAttribute('data-map', /.*/);
   await expect(page.getByRole('button', { name: 'Map', exact: true })).toBeVisible();
+});
+
+test('the flight deck and the minimap are back after a rebuild, one of each, laid out as before', async ({
+  page,
+  isMobile,
+}) => {
+  await openUniverse(page, '/');
+  const deck = page.locator('.flight-deck');
+  const minimap = page.locator('.minimap');
+  // A laptop has the cluster and the minimap beside it; a phone the strip, and no minimap.
+  const layout = isMobile ? 'strip' : 'full';
+  await expect(deck).toBeVisible();
+  await expect(deck).toHaveAttribute('data-layout', layout);
+  await expect(minimap).toBeVisible({ visible: !isMobile });
+
+  test.skip(!(await loseContext(page)), 'this browser cannot lose a context on request');
+  await expect.poll(() => rebuilt(page)).toBe(true);
+  await engineReady(page);
+
+  // The old engine took its pictures with it, and the new one drew its own: neither keeps
+  // anything a rebuild could lose, so they are simply there again.
+  await expect(deck).toHaveCount(1);
+  await expect(minimap).toHaveCount(1);
+  await expect(deck).toBeVisible();
+  await expect(deck).toHaveAttribute('data-layout', layout);
+  await expect(minimap).toBeVisible({ visible: !isMobile });
+  if (!isMobile) await expect(minimap).toHaveAttribute('data-scope', 'galaxy');
 });
 
 test('a Stop pressed in the frame the context goes still ends the journey and closes its page', async ({

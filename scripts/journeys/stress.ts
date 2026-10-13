@@ -12,6 +12,7 @@ import {
   type JourneySpec,
   type SimTuning,
   type TapInput,
+  type Visitor,
 } from './fly';
 
 // A VISITOR WHO CHANGES THEIR MIND: journeys flown again and again, with one thing done to each
@@ -47,6 +48,13 @@ import {
 // a failure is a failure, and the gate for a change to the autopilot, the approach, Stop, the
 // guard or the snapshot is none. By default the journeys are between systems; `kinds` adds journeys within one
 // and from the spawn point.
+//
+// With a visitor who presses HYPERSPACE (JOURNEYS "hyper": true; fly.ts, Visitor) every one of
+// those flights is flown with the jump taken whenever it is offered: at once on the journey, and
+// again after each new destination and after a rebuild. So every way a journey is handed back is
+// also tried in the wind-up and in the jump itself, and a flight fails (`hyper`) when the dock
+// still says anything of hyperspace on a step the autopilot is not flying (sim/docking.ts,
+// endHyper). The moments stay those of the journey flown as it is: it is the same flight.
 
 export const STRESS_MODES = [
   'redirect',
@@ -133,6 +141,7 @@ export function stress(
   options: StressOptions,
   seed: string,
   limitSec = 60,
+  visitor: Visitor = {},
 ): StressFlight[] {
   const chosen = options.kinds.flatMap((kind) =>
     sampleOf(
@@ -185,7 +194,7 @@ export function stress(
         mode,
         spec,
         interrupt,
-        result: fly(galaxy, spec, sim, limitSec, undefined, interrupt),
+        result: fly(galaxy, spec, sim, limitSec, undefined, interrupt, visitor),
         undisturbedSec: plain.seconds,
       });
     };
@@ -356,6 +365,8 @@ export function describeFlight(flight: StressFlight): string {
 /** The stress test's numbers for one galaxy: one line per mode, and the failures. */
 export function stressTable(flights: readonly StressFlight[]): string {
   const kinds = [...new Set(flights.map((flight) => flight.spec.kind))].join(', ');
+  // A visitor who pressed hyperspace leaves a trace on some flight: one was offered a jump.
+  const pressed = flights.some((flight) => flight.result.interrupt?.inHyper === true);
   const lines: string[] = [
     `stress (${new Set(flights.map((flight) => flight.spec)).size} journeys: ${kinds}; ${flights.length} flights):`,
     '             n  fail  shell graze tunnel timeout  at u/s  | docked after: median    max  | peak accel u/s²  closest u  shell u',
@@ -382,6 +393,14 @@ export function stressTable(flights: readonly StressFlight[]): string {
         `  |${Math.round(quantile(accel, 1)).toString().padStart(16)}${f1(least(closest)).padStart(11)}` +
         `${f2(least(shell)).padStart(9)}`,
     );
+    if (pressed) {
+      const inHyper = group.filter((flight) => flight.result.interrupt?.inHyper === true).length;
+      const strayed = group.filter((flight) => flight.result.hyper.strayed).length;
+      lines.push(
+        `            hyperspace, taken whenever offered: winding up or in it on ${inHyper} flights ` +
+          `when this was done; it outlived its journey on ${strayed}`,
+      );
+    }
     if (
       mode === 'stop' ||
       mode === 'stopDock' ||

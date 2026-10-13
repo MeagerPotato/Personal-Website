@@ -24,18 +24,20 @@ export interface AnchorLike {
 /** Pages end with "/". Anything with a file extension (a PDF, an image, /universe.json) is a file. */
 const FILE_PATH = /\.[a-z0-9]{1,8}$/i;
 
+/** Where the browser is, as far as the rules look (a Location satisfies this). */
+export interface Here {
+  origin: string;
+  pathname: string;
+  search: string;
+}
+
 /**
- * Should the router handle this click instead of the browser? Returns the destination if so.
- *
- * The answer is "no" whenever the browser would do something the router cannot: open a new tab
- * (modifier keys, middle click, target), download, leave the site, fetch a file, or jump to an
- * anchor on the page that is already showing.
+ * Where a click on this link leads, if it is the router's to take at all: a plain left click on
+ * a link to a page of this site. Null whenever the browser would do something the router
+ * cannot: open a new tab (modifier keys, middle click, target), download, leave the site, or
+ * fetch a file.
  */
-export function interceptableUrl(
-  event: ClickLike,
-  anchor: AnchorLike,
-  current: { origin: string; pathname: string; search: string },
-): URL | null {
+function ownUrl(event: ClickLike, anchor: AnchorLike, origin: string): URL | null {
   if (event.defaultPrevented || event.button !== 0) return null;
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
 
@@ -46,13 +48,63 @@ export function interceptableUrl(
 
   if (!URL.canParse(anchor.href)) return null;
   const url = new URL(anchor.href);
-  if (url.origin !== current.origin) return null;
+  if (url.origin !== origin) return null;
   if (FILE_PATH.test(url.pathname)) return null;
-
-  const samePage = url.pathname === current.pathname && url.search === current.search;
-  if (samePage && url.hash !== '') return null;
-
   return url;
+}
+
+/** A link to a part of the page that is showing: the same page, and a fragment. */
+const isSamePageFragment = (url: URL, here: Here): boolean =>
+  url.pathname === here.pathname && url.search === here.search && url.hash !== '';
+
+/**
+ * Should the router take this click to ANOTHER page (or to this one afresh) instead of the
+ * browser? Returns the destination if so.
+ *
+ * A link to a part of the page that is already showing is not a navigation: samePageAnchor().
+ */
+export function interceptableUrl(event: ClickLike, anchor: AnchorLike, current: Here): URL | null {
+  const url = ownUrl(event, anchor, current.origin);
+  return url && !isSamePageFragment(url, current) ? url : null;
+}
+
+/**
+ * The id a click asks for, when it is a plain click on a link to a part of the page that is
+ * showing (`#rockets` on the About page). The page stays: only its fragment changes, and the
+ * fragment is a reading position, which the router replaces instead of pushing (router.ts,
+ * `anchor`). Null for every other click.
+ */
+export function samePageAnchor(event: ClickLike, anchor: AnchorLike, here: Here): string | null {
+  const url = ownUrl(event, anchor, here.origin);
+  return url && isSamePageFragment(url, here) ? fragmentId(url.hash) : null;
+}
+
+/** The id a URL's fragment names ("#rockets" is "rockets"), or null when it has none. */
+export function fragmentId(hash: string): string | null {
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (raw === '') return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    // Not a valid escape sequence ("%zz"): an id may be spelt that way too.
+    return raw;
+  }
+}
+
+/**
+ * The place in the page's content that an id names, if it names one: an element INSIDE <main>.
+ * Only the content is read, so only a place in it is a reading position. Whatever else a
+ * fragment can name is not one, and stays the browser's business: <main> itself ("Skip to
+ * content" jumps there, and the browser moves the focus with it), or nothing at all.
+ */
+export function readingTarget(
+  doc: Pick<Document, 'getElementById'>,
+  id: string | null,
+): HTMLElement | null {
+  if (id === null) return null;
+  const main = doc.getElementById('main');
+  const target = doc.getElementById(id);
+  return main && target && target !== main && main.contains(target) ? target : null;
 }
 
 /**

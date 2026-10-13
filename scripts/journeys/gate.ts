@@ -1,6 +1,6 @@
 import type { JourneyResult } from './fly';
 import type { GalaxyReport } from './measure';
-import { describe as describeRow, statsOf } from './report';
+import { describe as describeRow, describeTwin, statsOf } from './report';
 import { describeFlight } from './stress';
 
 // THE GATE: what `npm run journeys` has to measure for the run to pass. It used to be words in
@@ -15,7 +15,9 @@ import { describeFlight } from './stress';
  * Whatever it says, and with the gate off too (JOURNEYS "gate": false), a stress flight
  * (MeasureOptions.stress) or a journey stopped at its fastest (MeasureOptions.stop) that fails is
  * always a breach when they ran: none failing is the gate for a change to the autopilot, the
- * approach, Stop, the guard or the snapshot, and nothing here loosens that.
+ * approach, Stop, the guard or the snapshot, and nothing here loosens that. The same goes for a
+ * journey flown again with hyperspace taken (MeasureOptions.hyper): a twin that flew differently
+ * is a breach, whatever the gate says, because hyperspace is the same flight or it is a bug.
  */
 export interface GalaxyGate {
   /** How many journeys may fail (not docked in time, a shell touched or tunnelled, a graze). */
@@ -81,7 +83,8 @@ const failedJourney = (row: JourneyResult): string => `${row.failure}: ${describ
  * no limits, and stress flights and Stop are still held to 0 failures.
  */
 export function breachesOf(
-  report: Pick<GalaxyReport, 'error' | 'rows' | 'stops' | 'stress'>,
+  report: Pick<GalaxyReport, 'error' | 'rows' | 'stops' | 'stress'> &
+    Partial<Pick<GalaxyReport, 'twins'>>,
   gate: GalaxyGate,
 ): string[] {
   // A galaxy that was never flown (it cannot be built, or its sample is empty) has shown nothing,
@@ -126,11 +129,19 @@ export function breachesOf(
     }
   }
 
+  const twins = (report.twins ?? []).filter((row) => row.failure !== null);
+  if (twins.length > 0) {
+    breaches.push(
+      `${twins.length} of ${report.twins?.length ?? 0} journeys flown again with hyperspace taken ` +
+        `failed, the gate allows none: ${some(twins, describeTwin)}`,
+    );
+  }
   const stops = report.stops.filter((row) => row.failure !== null);
   if (stops.length > 0) {
     breaches.push(
       `${stops.length} of ${report.stops.length} journeys stopped at their fastest ` +
-        `touched a shell or grazed, the gate allows none: ${some(stops, failedJourney)}`,
+        `failed (a shell touched, a graze, a jump that outlived its journey), the gate allows ` +
+        `none: ${some(stops, failedJourney)}`,
     );
   }
   const stressed = report.stress.filter((flight) => flight.result.failure !== null);

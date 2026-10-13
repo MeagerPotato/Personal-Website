@@ -1,13 +1,16 @@
 import type { ThemeKey } from '../../design/tokens';
 import { TAU } from '../math';
 import type { Rgb } from '../meshBuilder';
+import { ROUND_FROM } from '../meshBuilder';
 import { finish } from '../planet';
-import { bead, fin, pix, tile } from './atoms';
+import { bead, BEAD_SIDES, fin, pix, tile } from './atoms';
 import { glyph } from './glyphs';
 import { groundOf, type GroundLooks, type GroundSpec } from './ground';
 import {
   add,
+  AS_WRITTEN,
   basisM,
+  bent,
   box,
   brg,
   cone,
@@ -27,9 +30,11 @@ import {
   rotm,
   rq,
   scale,
+  sidesFor,
   sub,
   tri,
   xf,
+  type Fine,
   type Mat3,
   type Place,
   type Radii,
@@ -67,6 +72,10 @@ import { atNormal, normalFrame, onSurf, surfaceFrame, type SurfaceOptions } from
  *   ['n', pos, normal, spin, scale, item]          stood on a point along a normal (atNormal)
  * Wherever an item is expected a function of the index may stand, which is how a row of 35
  * cells or twelve teeth is one line.
+ *
+ * HOW ROUND. The rows write a round thing with a handful of sides, as a sketch does; what is built
+ * has as many as its size wants (`refine`, kit.ts `sidesFor`, and `BuildOptions.fine`): more up
+ * close than every day, fewer on the low tier. Which ops are round is the kit's to say (kit.ts).
  *
  * The close-up parts are the same rows in another module (design/worlds/near.ts), loaded later.
  * A port of the concept set's prototype (rows.mjs), with types: an op's arguments are checked by
@@ -119,7 +128,7 @@ export interface OpArgs {
   ];
   ring: [
     [radii: Radii, b0: number, b1: number, steps: number, y0: number, y1: number, top: Cs],
-    [side: Cs, flags: number],
+    [side: Cs, flags: number, per: number],
   ];
   rq: [
     [b: number, r0: number, r1: number, w0: number, w1: number, y0: number, y1: number, top: C],
@@ -129,7 +138,7 @@ export interface OpArgs {
   tri: [[a: Vec3, b: Vec3, c: Vec3, color: C], [hint: Vec3]];
   poly: [[points: readonly Vec3[], color: C], [hint: Vec3]];
   glyph: [[family: ThemeKey, r: number], [y: number, h: number]];
-  bead: [[r: number, color: C], []];
+  bead: [[r: number, color: C], [sides: number]];
   tile: [[r: number, sides: number, color: C], [y: number, phase: number]];
   fin: [[outline: readonly Vec2[], thick: number, color: C], []];
   pix: [[art: string | readonly string[], px: number, color: C], []];
@@ -261,6 +270,68 @@ const decode = (x: unknown): unknown =>
 const runOp = <K extends OpName>(op: K, args: readonly unknown[]): Tri[] =>
   OPS[op](...(decode(args) as KitArgs<K>));
 
+/** Is this one colour path per band (and not one for the whole lathe)? */
+const isPaths = (colors: Cs): colors is readonly C[] => typeof colors !== 'string';
+
+/** A wavy ring (its radii a function of the bearing) is built this much finer than a plain one. */
+const WAVY = 3;
+
+/**
+ * Give a round op the sides its size wants, in place: the count the rows wrote is a sketch's
+ * (kit.ts, `sidesFor`). The arguments are the kit's own, by position (`OpArgs`).
+ */
+function refine(op: OpName, args: unknown[], fine: Fine): void {
+  const num = (i: number): number => args[i] as number;
+  const sides = (r: number, i: number): number => (args[i] = sidesFor(r, num(i), fine));
+  switch (op) {
+    case 'lathe': {
+      sides(Math.max(...(args[0] as readonly Vec2[]).map((ring) => ring[1])), 1);
+      // Round along its profile as it is round about its axis: a gentle bend is built as a curve.
+      if (num(1) < ROUND_FROM) break;
+      const curve = bent(args[0] as readonly Vec2[], args[2] as Cs, fine, isPaths);
+      [args[0], args[2]] = [curve.rings, curve.colors];
+      break;
+    }
+    case 'cyl':
+      sides(num(0), 3);
+      break;
+    case 'cone':
+      sides(Math.max(num(0), num(1)), 4);
+      break;
+    case 'dome':
+      // Its bands from rim to pole: a quarter of the way round, as its sides are all the way.
+      args[2] = Math.max(num(2), Math.ceil(sides(num(0), 1) / 4));
+      break;
+    case 'tile':
+      sides(num(0), 1);
+      break;
+    case 'bead':
+      args[2] = sidesFor(num(0), (args[2] as number | undefined) ?? BEAD_SIDES, fine);
+      break;
+    case 'ring': {
+      // One step is a straight block. More is a curve: each step becomes `per` steps.
+      const steps = num(3);
+      if (steps < 2) break;
+      const radii = args[0] as Radii;
+      const [b0, b1] = [num(1), num(2)];
+      const wavy = typeof radii === 'function';
+      const r = wavy ? Math.max(...[b0, (b0 + b1) / 2, b1].map((b) => radii(b)[1])) : radii[1];
+      const want = (sidesFor(r, ROUND_FROM, fine) * (wavy ? WAVY : 1) * Math.abs(b1 - b0)) / TAU;
+      const finer = Math.max(1, Math.ceil(want / steps));
+      args[3] = steps * finer;
+      args[9] = finer * ((args[9] as number | undefined) ?? 1);
+      break;
+    }
+    default:
+  }
+}
+
+/** `fine` for what stands inside a placement that scales it by `s`. */
+const within = (fine: Fine, s: number | Vec3 = 1): Fine => {
+  const k = typeof s === 'number' ? s : Math.max(...s);
+  return k === 1 ? fine : { sag: fine.sag / Math.abs(k), max: fine.max };
+};
+
 /** An item's op, its arguments, and its modifiers (the trailing plain object, if there is one). */
 function parse(item: readonly unknown[]): { op: string; args: unknown[]; mod: Mod | undefined } {
   const [op, ...args] = item;
@@ -270,19 +341,24 @@ function parse(item: readonly unknown[]): { op: string; args: unknown[]; mod: Mo
   return { op: String(op), args, mod };
 }
 
-/** An item's triangles. `index` is its place in its list, for an item that is a function of it. */
-export function mk(item: Item, index = 0): Tri[] {
-  if (typeof item === 'function') return mk(item(index), index);
-  if (isList(item)) return item.flatMap((x, j) => mk(x, j));
+/**
+ * An item's triangles. `index` is its place in its list, for an item that is a function of it;
+ * `fine`: how finely its round things are built (default: as the rows wrote them).
+ */
+export function mk(item: Item, index = 0, fine: Fine = AS_WRITTEN): Tri[] {
+  if (typeof item === 'function') return mk(item(index), index, fine);
+  if (isList(item)) return item.flatMap((x, j) => mk(x, j, fine));
   const { op, args, mod } = parse(item);
+  // What an item's own modifiers scale is built for the size it ends at.
+  const inner = within(fine, mod?.s);
   let tris: Tri[];
   switch (op) {
     case 'g':
-      tris = (args as Item[]).flatMap((x, j) => mk(x, j));
+      tris = (args as Item[]).flatMap((x, j) => mk(x, j, inner));
       break;
     case 'x': {
       const [ats, child] = args as [readonly Vec3[], Item];
-      tris = ats.flatMap((at, j) => xf(mk(child, j), { at }));
+      tris = ats.flatMap((at, j) => xf(mk(child, j, inner), { at }));
       break;
     }
     case 'around': {
@@ -290,22 +366,26 @@ export function mk(item: Item, index = 0): Tri[] {
       tris = Array.from({ length: n }, (_, j) => {
         const b = phase + (j / n) * TAU;
         const [x, z] = brg(b, r);
-        return xf(mk(child, j), face ? { at: [x, y, z], rot: [0, -b, 0] } : { at: [x, y, z] });
+        return xf(
+          mk(child, j, inner),
+          face ? { at: [x, y, z], rot: [0, -b, 0] } : { at: [x, y, z] },
+        );
       }).flat();
       break;
     }
     case 's': {
       const [lat, lon, options, child] = args as [number, number, SurfaceOptions, Item];
-      tris = onSurf(mk(child), lat, lon, options);
+      tris = onSurf(mk(child, 0, within(inner, options.s)), lat, lon, options);
       break;
     }
     case 'n': {
       const [pos, normal, spin, s, child] = args as [Vec3, Vec3, number, number, Item];
-      tris = atNormal(mk(child), pos, normal, spin, s);
+      tris = atNormal(mk(child, 0, within(inner, s)), pos, normal, spin, s);
       break;
     }
     default: {
       if (!isOp(op)) throw new Error(`mk: '${op}' is not an op of the kit, the atoms or the rows`);
+      refine(op, args, inner);
       tris = runOp(op, args);
     }
   }
@@ -449,6 +529,8 @@ export interface BuildOptions {
   readonly seed?: string;
   /** The close-up parts (design/worlds/near.ts), once that chunk is loaded. */
   readonly near?: readonly PartRow[];
+  /** How finely round things are built (design/tuning.ts, `world.round`). Default: as written. */
+  readonly fine?: Fine;
 }
 
 /** The rows of a body, for these options. */
@@ -467,8 +549,9 @@ export function* makeBody(
   options: BuildOptions,
 ): Generator<void, Build> {
   const [ground, ...far] = rowsOf(recipe, { map: options.map ?? false });
+  const fine = options.fine ?? AS_WRITTEN;
   const groundTris = isHull(ground)
-    ? mk(ground)
+    ? mk(ground, 0, fine)
     : yield* groundOf(ground, options.seed ?? id, options.detail, options.looks);
   const parts: BuiltPart[] = [];
   const names = new Set<string>();
@@ -486,7 +569,7 @@ export function* makeBody(
         throw new Error(`${id}: '${name}' is a ghost, so the recipe names its family (ghost)`);
       }
       const g: Unlit = flags & FLAG.glow ? 2 : flags & FLAG.flat ? 1 : 0;
-      const tris = items.flatMap((x, j) => mk(x, j)).map((t) => (t.g ? t : { ...t, g }));
+      const tris = items.flatMap((x, j) => mk(x, j, fine)).map((t) => (t.g ? t : { ...t, g }));
       parts.push({ name, tier, flags, tris, pivot: pivotOf(items) });
       yield;
     }

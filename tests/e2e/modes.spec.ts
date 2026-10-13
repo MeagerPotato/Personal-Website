@@ -103,7 +103,10 @@ test.describe('the 404 page', () => {
       const link = document.createElement('a');
       link.href = '/nope/';
       link.textContent = 'A link that leads nowhere';
-      document.getElementById('main')?.prepend(link);
+      // Into the page's first card: on a wide screen <main> is the deck, where only a card takes
+      // the pointer (cards.spec.ts).
+      const main = document.getElementById('main');
+      (main?.querySelector(':scope > [data-card]') ?? main)?.prepend(link);
     });
     await page.getByRole('link', { name: 'A link that leads nowhere' }).click();
     await expect(page).toHaveURL(/\/nope\/$/);

@@ -82,3 +82,57 @@ test.describe('with a keyboard', () => {
     await expect(prompt).toContainText('Leave orbit');
   });
 });
+
+test.describe('the offer of hyperspace', () => {
+  // A test of its own: the universe's test above runs with less motion, where no jump is offered.
+  test('has no serious accessibility issue while it shows, and says what it is', async ({
+    page,
+    isMobile,
+  }) => {
+    await openUniverse(page, '/');
+    // An offer lasts a second or two, and axe judges a page that holds still: the moment a
+    // journey offers its jump, the page stops handing the engine its frames (the engine asks for
+    // each one afresh), and gives them back when asked to.
+    await page.evaluate(() => {
+      const root = document.documentElement;
+      const watch = new MutationObserver(() => {
+        if (root.dataset.hyper !== 'offered') return;
+        watch.disconnect();
+        const request = window.requestAnimationFrame.bind(window);
+        const held: { frame: FrameRequestCallback | null } = { frame: null };
+        window.requestAnimationFrame = (callback) => {
+          held.frame = callback;
+          return 0;
+        };
+        (window as Window & { e2eThaw?: () => void }).e2eThaw = () => {
+          window.requestAnimationFrame = request;
+          if (held.frame) request(held.frame);
+        };
+      });
+      watch.observe(root, { attributes: true, attributeFilter: ['data-hyper'] });
+    });
+    // Set out for the next system by its name (a real button; hyper.spec.ts says why its click
+    // is made without a pointer).
+    await page
+      .locator('.body-label')
+      .filter({ hasText: /^Hackathons$/ })
+      .dispatchEvent('click');
+
+    const offer = page.locator('.hyper-offer');
+    await expect(offer).toBeVisible();
+    // (Its arrival, and the ring that goes out from it once.)
+    await offer.evaluate((button) =>
+      Promise.all(button.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+    );
+    // A key cap and a word under a mouse; under a finger a round pad that reads HYPER, with no
+    // key a phone has not got, and the whole word, as ONE word, for whoever hears it.
+    await expect(offer).toHaveAccessibleName(isMobile ? 'Hyperspace' : 'Shift Hyperspace');
+    expect(await seriousIssues(page)).toEqual([]);
+    // It was judged with the offer standing.
+    await expect(page.locator('html')).toHaveAttribute('data-hyper', 'offered');
+    await expect(offer).toBeVisible();
+
+    await page.evaluate(() => (window as Window & { e2eThaw?: () => void }).e2eThaw?.());
+    await expect(page.locator('.dock-prompt')).toContainText('Leave orbit', { timeout: 75_000 });
+  });
+});

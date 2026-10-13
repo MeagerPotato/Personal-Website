@@ -3,13 +3,14 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { applyPose, createPose } from '../camera/CameraRig';
 import type { Frame } from '../core/Engine';
+import { directionOf, SKY_POSES } from '../sim/skyDirections';
 import { TurntableCam } from './TurntableCam';
 
 const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 
 function view(cam: TurntableCam, aspect = 16 / 9, dt = 0) {
   const pose = createPose();
-  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1, freeTop: 0 }, pose);
+  cam.update(frame(dt), { aspect, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 }, pose);
   const camera = new PerspectiveCamera();
   applyPose(camera, pose);
   return { pose, camera, forward: new Vector3(0, 0, -1).applyQuaternion(camera.quaternion) };
@@ -72,5 +73,34 @@ describe('TurntableCam', () => {
     const before = cam.yaw;
     view(cam, 16 / 9, 2);
     expect(cam.yaw).toBeCloseTo(before + 1, 6);
+  });
+
+  it('looks OUT, where a gaze says, and holds still there', () => {
+    const cam = new TurntableCam(document.createElement('div'));
+    for (const pose of Object.values(SKY_POSES)) {
+      cam.gaze = { yawDeg: pose.yawDeg, pitchDeg: pose.pitchDeg, fovDeg: pose.fovDeg };
+      // A second goes by: a turntable would have turned, a gaze does not.
+      const { forward, pose: out, camera } = view(cam, 1.6, 1);
+      const want = directionOf(pose.yawDeg, pose.pitchDeg);
+      expect(forward.distanceTo(new Vector3(...want))).toBeLessThan(1e-6);
+      expect(out.fov).toBe(pose.fovDeg);
+      // No roll: the camera's right is level.
+      expect(new Vector3(1, 0, 0).applyQuaternion(camera.quaternion).y).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('pulls the sky round with the hand, and zooms the lens with the wheel', () => {
+    const cam = new TurntableCam(document.createElement('div'));
+    cam.gaze = { yawDeg: 0, pitchDeg: 0, fovDeg: 50 };
+    cam.drag(100, 50);
+    // Dragged right and down: the camera has turned left (azimuth grows) and up.
+    expect(cam.gaze.yawDeg).toBeGreaterThan(0);
+    expect(cam.gaze.pitchDeg).toBeGreaterThan(0);
+    cam.drag(0, 1e6);
+    expect(cam.gaze.pitchDeg).toBeLessThan(90);
+    cam.zoom(-400);
+    expect(cam.gaze.fovDeg).toBeLessThan(50);
+    cam.zoom(1e6);
+    expect(cam.gaze.fovDeg).toBeLessThanOrEqual(100);
   });
 });

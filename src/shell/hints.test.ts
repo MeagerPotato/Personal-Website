@@ -107,6 +107,48 @@ describe('flight hints', () => {
     expect(pressedE.element.hidden).toBe(true);
   });
 
+  it('makes way for an offer of hyperspace, which stands where the card does', () => {
+    // Pointed at a planet: the card lingers. A step later the journey offers its jump.
+    const h = harness();
+    h.emit('statechange', { mode: 'autopilot', target: 'system/code' });
+    vi.advanceTimersByTime(20);
+    expect(h.element.hidden).toBe(false);
+    h.emit('hyper', { state: 'offered' });
+    expect(h.element.hidden).toBe(true);
+    expect(h.store.get('hints')).toBe('seen');
+    expect(h.listening()).toBe(0);
+    // And the timer it cut short does nothing later.
+    vi.advanceTimersByTime(10_000);
+    expect(h.element.hidden).toBe(true);
+
+    // The same for a tunnel taken up after a rebuild, with the card still lingering.
+    const rebuilt = harness();
+    rebuilt.emit('firstinput', undefined);
+    rebuilt.emit('hyper', { state: 'tunnel' });
+    expect(rebuilt.element.hidden).toBe(true);
+    expect(rebuilt.store.get('hints')).toBe('seen');
+  });
+
+  it('keeps a card that is not lingering through an offer: that visitor has learned nothing yet', () => {
+    // A link's journey: its page is open over the card (the stylesheet hides it meanwhile).
+    const link = harness();
+    link.state.panelClosed = false;
+    link.emit('statechange', { mode: 'autopilot', target: 'system/code' });
+    link.emit('hyper', { state: 'offered' });
+    link.emit('hyper', { state: 'off' });
+    vi.advanceTimersByTime(10_000);
+    expect(link.element.hidden).toBe(false);
+    expect(link.store.has('hints')).toBe(false);
+
+    // And an offer that ends is no reason to go either, lingering or not.
+    const over = harness();
+    over.emit('firstinput', undefined);
+    over.emit('hyper', { state: 'off' });
+    expect(over.element.hidden).toBe(false);
+    vi.advanceTimersByTime(4100);
+    expect(over.element.hidden).toBe(true);
+  });
+
   it('works without storage: the card shows, and goes, and nothing throws', () => {
     const h = harness({ brokenStorage: true });
     expect(h.element.hidden).toBe(false);

@@ -3,12 +3,13 @@ import { MeshBuilder, type ModelData } from '../../sim/meshBuilder';
 import { tokens } from '../tokens';
 
 /**
- * THE ENGINE FLAME: a candy-corn cone in three flat bands, hottest at the nozzle. It is modelled
+ * THE ENGINE FLAME: a candy-corn cone in three flat bands of colour, hottest at the nozzle. It is modelled
  * ONE unit long and ONE unit wide (radius 1 at its widest), starting at the origin and pointing
  * along -Z; ship/EngineFlame.ts scales it with the throttle. Drawn unlit (it IS the light).
  */
 
-const SIDES = 6;
+/** Round: a flame is a cone of light, not a hexagon. */
+const SIDES = 16;
 
 const profile = [
   { z: -1.0, radius: 0, paint: tokens.color.system.coral.base }, // the tail

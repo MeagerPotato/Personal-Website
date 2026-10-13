@@ -2,12 +2,15 @@
 // A planet or a moon: one project. Both kinds share this page and this URL shape.
 import type { InferGetStaticPropsType } from 'astro';
 import { getImage } from 'astro:assets';
-import { getCollection, render } from 'astro:content';
+import { getCollection } from 'astro:content';
+import Card from '../../components/Card.astro';
 import Crumbs from '../../components/Crumbs.astro';
+import MarkdownCards from '../../components/MarkdownCards.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
 import Shot from '../../components/Shot.astro';
 import Base from '../../layouts/Base.astro';
+import { projectCards } from '../../site/cards';
 import { OG_SIZE } from '../../site/og';
 import { routes } from '../../site/routes';
 import { breadcrumbLd, pageTitle, projectLd } from '../../site/seo';
@@ -31,7 +34,12 @@ const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
 const context = projectContext(entry, systems, projects);
 const links = projectLinks(data.links);
-const { Content } = await render(entry);
+const cards = projectCards(entry, {
+  title: data.title,
+  gallery: data.gallery.length > 0,
+  moons: context.moons.length > 0,
+  related: context.related.length > 0,
+});
 
 // The link-preview picture: the cover, cropped from the top to the card shape, as the JPEG that
 // preview crawlers insist on. Without a cover, the page takes the site's card (Base's default).
@@ -64,74 +72,81 @@ const jsonLd = [
 ---
 
 <Base title={pageTitle(data.title)} description={data.summary} image={image} jsonLd={jsonLd}>
-  <Crumbs crumbs={context.crumbs} />
+  <div data-card>
+    <Crumbs crumbs={context.crumbs} />
 
-  <PageHeader
-    eyebrow={context.placement}
-    title={data.title}
-    lede={data.summary}
-    theme={context.theme}
-  />
-
-  {links.length > 0 && (
-    <ul class="actions">
-      {links.map((link, index) => (
-        <li>
-          <a
-            class:list={['button', { 'button--primary': index === 0 }]}
-            href={link.href}
-            rel="noopener"
-          >
-            {link.label}
-            <span class="button__host">{link.host}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  )}
-
-  {cover ? (
-    <Shot class="cover" src={cover.src} alt={cover.alt} eager />
-  ) : (
-    <div
-      class="cover cover--planet"
-      data-biome={data.planet.biome}
-      data-theme={context.theme}
-      data-planned={data.status === 'planned' ? '' : undefined}
-      aria-hidden="true"
-    >
-      <span class="planet-dot planet-dot--hero" />
-    </div>
-  )}
-
-  <dl class="facts">
-    {facts.map((fact) => (
-      <div>
-        <dt>{fact.label}</dt>
-        <dd>{fact.value}</dd>
-      </div>
-    ))}
-    {data.stack.length > 0 && (
-      <div class="facts__wide">
-        <dt>Built with</dt>
-        <dd>
-          <ul class="tags">
-            {data.stack.map((tool) => (
-              <li>{tool}</li>
-            ))}
-          </ul>
-        </dd>
-      </div>
-    )}
-  </dl>
-
-  <div class="prose">
-    <Content />
+    <PageHeader
+      eyebrow={context.placement}
+      title={data.title}
+      lede={data.summary}
+      theme={context.theme}
+    />
   </div>
 
-  {data.gallery.length > 0 && (
-    <section class="section" aria-labelledby="project-gallery">
-      <h2 id="project-gallery">Gallery</h2>
+  <Card {...cards.glance}>
+    {links.length > 0 && (
+      <ul class="actions">
+        {links.map((link, index) => (
+          <li>
+            <a
+              class:list={['button', { 'button--primary': index === 0 }]}
+              href={link.href}
+              rel="noopener"
+            >
+              {link.label}
+              <span class="button__host">{link.host}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    {cover ? (
+      <Shot class="cover" src={cover.src} alt={cover.alt} eager />
+    ) : (
+      <div
+        class="cover cover--planet"
+        data-biome={data.planet.biome}
+        data-theme={context.theme}
+        data-planned={data.status === 'planned' ? '' : undefined}
+        aria-hidden="true"
+      >
+        <span class="planet-dot planet-dot--hero" />
+      </div>
+    )}
+
+    <dl class="facts">
+      {facts.map((fact) => (
+        <div>
+          <dt>{fact.label}</dt>
+          <dd>{fact.value}</dd>
+        </div>
+      ))}
+      {data.stack.length > 0 && (
+        <div class="facts__wide">
+          <dt>Built with</dt>
+          <dd>
+            <ul class="tags">
+              {data.stack.map((tool) => (
+                <li>{tool}</li>
+              ))}
+            </ul>
+          </dd>
+        </div>
+      )}
+    </dl>
+  </Card>
+
+  {cards.story && (
+    <Card {...cards.story.card} class="prose">
+      <Fragment set:html={cards.story.html} />
+    </Card>
+  )}
+
+  <MarkdownCards sections={cards.sections} />
+
+  {cards.gallery && (
+    <Card {...cards.gallery} class="section">
       <ul class="gallery">
         {data.gallery.map((shot) => (
           <li>
@@ -142,20 +157,18 @@ const jsonLd = [
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   )}
 
-  {context.moons.length > 0 && (
-    <section class="section" aria-labelledby="project-moons">
-      <h2 id="project-moons">Moons of {data.title}</h2>
+  {cards.moons && (
+    <Card {...cards.moons} class="section">
       <ProjectCards cards={context.moons} />
-    </section>
+    </Card>
   )}
 
-  {context.related.length > 0 && (
-    <section class="section" aria-labelledby="project-related">
-      <h2 id="project-related">Connected by motorway</h2>
+  {cards.related && (
+    <Card {...cards.related} class="section">
       <ProjectCards cards={context.related} />
-    </section>
+    </Card>
   )}
 </Base>

@@ -24,6 +24,8 @@ interface Harness {
   hardLoads: string[];
   reloads: number;
   navigations: Array<{ path: string; kind: string }>;
+  /** What onAnchor was told, in order. */
+  anchors: Array<string | null>;
   /** Hold responses back until released, to stage races. */
   gate(path: string): () => void;
 }
@@ -36,6 +38,7 @@ function start(site_: Site = SITE, extra: Partial<RouterOptions> = {}): Harness 
     hardLoads: [],
     reloads: 0,
     navigations: [],
+    anchors: [],
     gate(path) {
       let release = (): void => undefined;
       gates.set(path, new Promise<void>((resolve) => (release = resolve)));
@@ -59,6 +62,7 @@ function start(site_: Site = SITE, extra: Partial<RouterOptions> = {}): Harness 
     hardLoad: (href) => harness.hardLoads.push(new URL(href).pathname),
     reload: () => (harness.reloads += 1),
     onNavigate: ({ url, kind }) => harness.navigations.push({ path: url.pathname, kind }),
+    onAnchor: (id) => harness.anchors.push(id),
     ...extra,
   });
   return harness;
@@ -254,6 +258,151 @@ describe('history', () => {
     // goes to the network, gets the 500, and gives up the soft way.
     expect(harness.reloads).toBe(1);
     expect(harness.hardLoads).toEqual([]);
+  });
+});
+
+describe('the fragment is a reading position, not a page', () => {
+  /** FishAI, opened from the sky as a click opens it: one push, so that Close is Back. */
+  async function onFishAi(): Promise<Harness> {
+    const started = start();
+    await started.router.navigate('/projects/fishai/');
+    return started;
+  }
+
+  it('anchor() replaces it in the entry that is showing: same state, no new entry', async () => {
+    harness = await onFishAi();
+    const state: unknown = history.state;
+    const entries = history.length;
+
+    harness.router.anchor('the-bots');
+    expect(location.href).toBe(`${ORIGIN}/projects/fishai/#the-bots`);
+    expect(history.state).toEqual(state);
+    expect(history.length).toBe(entries);
+
+    harness.router.anchor(null);
+    expect(location.href).toBe(`${ORIGIN}/projects/fishai/`);
+    expect(history.state).toEqual(state);
+    expect(history.length).toBe(entries);
+
+    // Its caller knows, so nobody is told; and the page was never fetched or swapped again.
+    expect(harness.anchors).toEqual([]);
+    expect(harness.navigations).toHaveLength(1);
+    expect(harness.fetched).toEqual(['/projects/fishai/']);
+  });
+
+  it('a link to a part of the page goes through it: replaced, not pushed, and told', async () => {
+    harness = await onFishAi();
+    const state: unknown = history.state;
+    const entries = history.length;
+
+    const event = click('#the-bots > a');
+    await flush();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(location.href).toBe(`${ORIGIN}/projects/fishai/#the-bots`);
+    expect(history.state).toEqual(state);
+    expect(history.length).toBe(entries);
+    expect(harness.anchors).toEqual(['the-bots']);
+    // The page stays: nothing fetched, nothing swapped, no navigation.
+    expect(harness.fetched).toEqual(['/projects/fishai/']);
+    expect(harness.navigations).toHaveLength(1);
+    expect(heading()).toBe('FishAI');
+  });
+
+  it('tells again for the same link: the reader may have scrolled away since', async () => {
+    harness = await onFishAi();
+    const entries = history.length;
+    click('#the-bots > a');
+    click('#the-bots > a');
+    expect(harness.anchors).toEqual(['the-bots', 'the-bots']);
+    expect(history.length).toBe(entries);
+  });
+
+  it('so Close still leaves the page, and by Back when Back is the open sky', async () => {
+    harness = await onFishAi();
+    click('#the-bots > a');
+
+    harness.router.leave('/');
+    await flush();
+    expect(location.href).toBe(`${ORIGIN}/`);
+    expect(heading()).toBe('Home');
+    expect(harness.navigations.at(-1)).toEqual({ path: '/', kind: 'pop' });
+  });
+
+  it('leaves to the browser a fragment that names no place in the content', async () => {
+    harness = await onFishAi();
+    // "Skip to content" names <main> itself, and the browser moves the focus there with it.
+    expect(click('a.skip-link').defaultPrevented).toBe(false);
+    document
+      .getElementById('main')
+      ?.insertAdjacentHTML('beforeend', '<a id="lost" href="#nowhere">Lost</a>');
+    expect(click('#lost').defaultPrevented).toBe(false);
+    // And a click that opens the part somewhere else is the browser's as ever.
+    expect(click('#the-bots > a', { ctrlKey: true }).defaultPrevented).toBe(false);
+
+    // (What the browser then does with them is its own: the router took none of the three.)
+    expect(harness.anchors).toEqual([]);
+  });
+
+  it('Back and Forward between two fragments of a page tell the listener, once each', async () => {
+    harness = await onFishAi();
+    // An entry of the browser's own making: a fragment typed into the address bar. (Test
+    // setup: in the app only router.ts writes history.) By the standard that is a popstate,
+    // then a hashchange.
+    window.history.pushState(null, '', '#the-bots');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    window.dispatchEvent(new Event('hashchange'));
+    await flush();
+    expect(harness.anchors).toEqual(['the-bots']);
+
+    history.back();
+    await flush();
+    window.dispatchEvent(new Event('hashchange'));
+    expect(location.href).toBe(`${ORIGIN}/projects/fishai/`);
+    expect(harness.anchors).toEqual(['the-bots', null]);
+
+    // The page stayed all along.
+    expect(heading()).toBe('FishAI');
+    expect(harness.fetched).toEqual(['/projects/fishai/']);
+    expect(harness.reloads).toBe(0);
+    expect(harness.router.busy).toBe(false);
+  });
+
+  it('hears a fragment the browser changed where that is a hashchange alone', async () => {
+    harness = await onFishAi();
+    window.history.replaceState(window.history.state, '', '#the-bots');
+    window.dispatchEvent(new Event('hashchange'));
+    expect(harness.anchors).toEqual(['the-bots']);
+  });
+
+  it('is not told when a navigation arrives at a fragment: onNavigate says that', async () => {
+    harness = start();
+    await harness.router.navigate('/projects/fishai/#the-bots');
+    window.dispatchEvent(new Event('hashchange'));
+
+    expect(location.href).toBe(`${ORIGIN}/projects/fishai/#the-bots`);
+    expect(harness.navigations).toEqual([{ path: '/projects/fishai/', kind: 'push' }]);
+    expect(harness.anchors).toEqual([]);
+  });
+
+  it('never writes a fragment into the entry of a page that is still on its way in', async () => {
+    harness = await onFishAi();
+    const release = harness.gate('/');
+    history.back();
+    await flush();
+    // The address bar says "/" already; FishAI is still showing, and so is its link.
+    expect(location.pathname).toBe('/');
+    expect(heading()).toBe('FishAI');
+
+    const event = click('#the-bots > a');
+    // Taken from the browser (which would push an entry), and then dropped.
+    expect(event.defaultPrevented).toBe(true);
+    expect(location.href).toBe(`${ORIGIN}/`);
+    expect(harness.anchors).toEqual([]);
+
+    release();
+    await flush();
+    expect(heading()).toBe('Home');
   });
 });
 

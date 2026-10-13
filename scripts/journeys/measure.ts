@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { ManifestSystem } from '../../src/universe/data/types';
 import {
   fly,
+  flyTwins,
   planJourneys,
   simTuning,
   stopAtPeak,
@@ -21,7 +22,7 @@ import {
   type GalaxyGate,
   type Gate,
 } from './gate';
-import { describe as describeRow, phasesOf, statsOf, stopTable, table } from './report';
+import { describe as describeRow, hyperTable, phasesOf, statsOf, stopTable, table } from './report';
 import {
   STRESS_DEFAULTS,
   STRESS_MODES,
@@ -75,6 +76,21 @@ export interface MeasureOptions {
    */
   stress: StressOptions | null;
   /**
+   * HYPERSPACE (sim/hyper.ts) is the same flight shown as a jump, and here that is held:
+   *   'real'  every journey of the REAL galaxy is flown a second time by a visitor who takes the
+   *           jump the moment it is offered, and held to its twin bit for bit (fly.ts,
+   *           flyTwins); the block "hyperspace" says how many were offered one and how long the
+   *           jumps were. The default.
+   *   true    that for every galaxy, and the stress visitor presses too: every stress flight is
+   *           flown with the jump taken whenever it is offered (again after a new destination or
+   *           a rebuild), so every way a journey is handed back is also tried in hyperspace; and
+   *           so is every journey stopped at its fastest (`stop`).
+   *   false   nobody presses.
+   * A twin that flew differently, or a jump that outlived its journey, is a failure (`hyper`),
+   * and none is allowed, gate off or on.
+   */
+  hyper: 'real' | boolean;
+  /**
    * What each galaxy must show (gate.ts): limits per galaxy name ("real", "6"), "*" for the rest.
    * Every report carries its breaches in words, and journeys.measure.ts fails the run on any.
    * Null: the gate is off, no limits; stress flights and Stop, when they ran, are still held to
@@ -98,6 +114,7 @@ export const DEFAULTS: MeasureOptions = {
   trace: null,
   stop: null,
   stress: null,
+  hyper: 'real',
   gate: DEFAULT_GATE,
   log: (text) => console.log(text),
 };
@@ -109,6 +126,11 @@ export interface GalaxyReport {
   /** Why the galaxy could not be built (a tripwire in data/build.ts), if it could not. */
   error: string | null;
   rows: JourneyResult[];
+  /**
+   * Every journey again, flown by a visitor who takes hyperspace the moment it is offered
+   * (MeasureOptions.hyper): row for row with `rows`, or empty when nobody pressed.
+   */
+  twins: JourneyResult[];
   /** The journeys between systems again, stopped at their fastest (MeasureOptions.stop). */
   stops: JourneyResult[];
   /** The stress test's flights (MeasureOptions.stress). */
@@ -195,6 +217,7 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         systems: [],
         error: null,
         rows: [],
+        twins: [],
         stops: [],
         stress: [],
         gate: options.gate === null ? null : gateFor(options.gate, spec),
@@ -222,26 +245,36 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         starts: typeof starts === 'number' ? starts : spec === 'real' ? starts.real : starts.grown,
       };
       const journeys = planJourneys(galaxy, sample, options.seed);
+      // Hyperspace's twin pass: this galaxy's journeys are each flown twice (MeasureOptions.hyper).
+      const twinned = options.hyper === true || (options.hyper === 'real' && spec === 'real');
       for (const journey of journeys) {
         const traced =
           options.trace !== null &&
           (journey.from ?? 'spawn') === options.trace.from &&
           journey.to === options.trace.to;
         if (traced) log(`\ntrace ${variant.name} / ${name}: ${JSON.stringify(journey)}`);
-        const row = fly(
-          galaxy,
-          journey,
-          sim,
-          options.limitSec,
-          traced ? tracer(journey.to, options.trace?.everySec ?? 0.25, log) : undefined,
-        );
+        const watch = traced ? tracer(journey.to, options.trace?.everySec ?? 0.25, log) : undefined;
+        let row: JourneyResult;
+        if (twinned) {
+          const { plain, twin } = flyTwins(galaxy, journey, sim, options.limitSec, watch);
+          row = plain;
+          report.twins.push(twin);
+        } else row = fly(galaxy, journey, sim, options.limitSec, watch);
         report.rows.push(row);
         if (options.rows)
           log(
             `  ${row.kind.padEnd(7)} ${describeRow(row)}  [${phasesOf(row)}]${row.failure ? ` FAIL ${row.failure}` : ''}`,
           );
         if (options.stop !== null && journey.kind === 'between') {
-          const stopped = stopAtPeak(galaxy, journey, sim, options.stop.coastSec, options.limitSec);
+          const stopped = stopAtPeak(
+            galaxy,
+            journey,
+            sim,
+            options.stop.coastSec,
+            options.limitSec,
+            // Stopped by the visitor the stress has: one who takes hyperspace when it is offered.
+            { hyper: options.hyper === true },
+          );
           if (stopped !== null) report.stops.push(stopped);
         }
       }
@@ -253,6 +286,8 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
           options.stress,
           options.seed,
           options.limitSec,
+          // The stress visitor presses hyperspace too, whenever it is offered.
+          { hyper: options.hyper === true },
         );
       }
       report.wallSec = (performance.now() - began) / 1000;
@@ -260,6 +295,7 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
         `\n== ${variant.name} / ${name}: ${bodies.length} bodies, ${report.rows.length} journeys ` +
           `(${report.wallSec.toFixed(0)} s to simulate)\n${describeSystems(systems)}\n${table(report.rows)}`,
       );
+      if (twinned) log(hyperTable(report.twins, sim.hyper.minTunnelSec));
       if (options.stop !== null) log(stopTable(report.stops, options.stop.coastSec));
       if (options.stress !== null) log(stressTable(report.stress));
     }
@@ -301,11 +337,16 @@ export function measure(overrides: Partial<MeasureOptions> = {}): GalaxyReport[]
   }
   // With the gate off it is `{}`: no limits, and stress flights and Stop still held to 0 failures.
   for (const report of reports) report.breaches = breachesOf(report, report.gate ?? {});
-  if (options.gate !== null || options.stress !== null || options.stop !== null) {
+  if (
+    options.gate !== null ||
+    options.stress !== null ||
+    options.stop !== null ||
+    options.hyper !== false
+  ) {
     log(
       options.gate === null
-        ? '\n== the gate: off ("gate": false), but stress flights and Stop, when they ran: 0 failures'
-        : '\n== the gate (gate.ts; stress flights and Stop, when they ran: 0 failures)',
+        ? '\n== the gate: off ("gate": false), but stress flights and Stop, and the twins of hyperspace, when they ran: 0 failures'
+        : '\n== the gate (gate.ts; stress flights and Stop, and the twins of hyperspace, when they ran: 0 failures)',
     );
     for (const report of reports) {
       const gate = report.gate === null ? 'off' : describeGate(report.gate);
@@ -331,6 +372,7 @@ const OPTION_KEYS = [
   'trace',
   'stop',
   'stress',
+  'hyper',
   'gate',
   'out',
 ] as const;
@@ -391,6 +433,12 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): EnvOptions
         throw new Error(`JOURNEYS: unknown stress kind "${kind}" (known: between, within, spawn)`);
       }
     }
+  }
+  if (raw.hyper !== undefined) {
+    if (raw.hyper !== true && raw.hyper !== false && raw.hyper !== 'real') {
+      throw new Error('JOURNEYS: "hyper" is true, false or "real" (the default)');
+    }
+    options.hyper = raw.hyper;
   }
   if (raw.gate !== undefined) options.gate = parseGate(raw.gate);
   if (raw.sample !== undefined) {

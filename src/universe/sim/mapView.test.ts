@@ -6,6 +6,7 @@ import {
   fitSpan,
   fitView,
   panBy,
+  pointOn,
   pointUnder,
   spanLimit,
   takeIn,
@@ -181,6 +182,36 @@ describe('the map, dragged and zoomed', () => {
     const before = { ...view };
     zoomAbout(view, 2, -310, 222, PHONE, limits);
     expect(view).toEqual(before);
+  });
+
+  it('says where a point of the world is on the map: `pointOn` undoes `pointUnder` for any view', () => {
+    const world = new Float64Array(2);
+    const screen = new Float64Array(2);
+    for (const frame of [DESKTOP, PHONE, { width: 132, height: 132 }]) {
+      for (const view of [
+        { x: 0, z: 0, span: 400 },
+        { x: 100, z: 200, span: 1600 },
+        { x: -873.5, z: 834, span: 2090.4 },
+      ]) {
+        for (const [px, py] of [
+          [0, 0],
+          [150, -80],
+          [-310, 222],
+          [-66, 66],
+        ] as const) {
+          pointUnder(view, px, py, frame, world);
+          pointOn(view, world[0] ?? NaN, world[1] ?? NaN, frame, screen);
+          expect(screen[0]).toBeCloseTo(px, 9);
+          expect(screen[1]).toBeCloseTo(py, 9);
+        }
+      }
+    }
+    // North is up and +X is to the left: the middle of the view is the middle of the frame.
+    const view = { x: 100, z: 200, span: 1320 };
+    const small = { width: 132, height: 132 };
+    expect([...pointOn(view, 100, 200, small, screen)]).toEqual([0, 0]);
+    expect([...pointOn(view, 100, 300, small, screen)]).toEqual([0, -10]);
+    expect([...pointOn(view, 150, 200, small, screen)]).toEqual([-5, 0]);
   });
 });
 

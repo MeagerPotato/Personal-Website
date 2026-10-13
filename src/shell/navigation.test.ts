@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   ExpiringCache,
+  fragmentId,
   interceptableUrl,
   isSwappableResponse,
   mayPrefetch,
   pageKey,
+  readingTarget,
+  samePageAnchor,
   type AnchorLike,
   type ClickLike,
 } from './navigation';
@@ -90,7 +93,7 @@ describe('interceptableUrl', () => {
     }
   });
 
-  it('lets the browser scroll to an anchor on the page that is showing', () => {
+  it('is not for a link to a part of the page that is showing: that is no navigation', () => {
     expect(interceptableUrl(click(), anchor('#the-bots'), HERE)).toBeNull();
     expect(interceptableUrl(click(), anchor('/projects/#the-bots'), HERE)).toBeNull();
   });
@@ -105,6 +108,94 @@ describe('interceptableUrl', () => {
   it('ignores an <a> without href', () => {
     const bare = { ...anchor('/about/'), hasAttribute: () => false };
     expect(interceptableUrl(click(), bare, HERE)).toBeNull();
+  });
+});
+
+describe('samePageAnchor', () => {
+  it('names the part a plain click on a same-page link asks for', () => {
+    expect(samePageAnchor(click(), anchor('#the-bots'), HERE)).toBe('the-bots');
+    expect(samePageAnchor(click(), anchor('/projects/#the-bots'), HERE)).toBe('the-bots');
+    expect(samePageAnchor(click(), anchor('#caf%C3%A9'), HERE)).toBe('café');
+  });
+
+  it('is for this page only: another page, or another query, is a navigation', () => {
+    expect(samePageAnchor(click(), anchor('/projects/fishai/#the-bots'), HERE)).toBeNull();
+    expect(samePageAnchor(click(), anchor('?plain#the-bots'), HERE)).toBeNull();
+    expect(samePageAnchor(click(), anchor('https://github.com/#the-bots'), HERE)).toBeNull();
+  });
+
+  it('is not for a link to the page itself, which has no fragment', () => {
+    expect(samePageAnchor(click(), anchor('/projects/'), HERE)).toBeNull();
+    expect(samePageAnchor(click(), anchor('#'), HERE)).toBeNull();
+  });
+
+  it('leaves to the browser what interceptableUrl leaves to it', () => {
+    for (const gesture of [
+      { button: 1 },
+      { metaKey: true },
+      { ctrlKey: true },
+      { shiftKey: true },
+      { altKey: true },
+      { defaultPrevented: true },
+    ]) {
+      expect(samePageAnchor(click(gesture), anchor('#the-bots'), HERE)).toBeNull();
+    }
+    expect(samePageAnchor(click(), anchor('#the-bots', { target: '_blank' }), HERE)).toBeNull();
+    expect(samePageAnchor(click(), anchor('#the-bots', { download: '' }), HERE)).toBeNull();
+    expect(samePageAnchor(click(), anchor('#the-bots', {}, true), HERE)).toBeNull();
+    const bare = { ...anchor('#the-bots'), hasAttribute: () => false };
+    expect(samePageAnchor(click(), bare, HERE)).toBeNull();
+  });
+
+  it('and one of the two always answers for a plain click on a link of this site', () => {
+    for (const href of ['#the-bots', '/projects/#the-bots', '/projects/', '/about/#rockets']) {
+      const taken = [
+        samePageAnchor(click(), anchor(href), HERE) !== null,
+        interceptableUrl(click(), anchor(href), HERE) !== null,
+      ];
+      expect(taken.filter(Boolean), href).toHaveLength(1);
+    }
+  });
+});
+
+describe('fragmentId', () => {
+  it('is what the fragment names, or null for none', () => {
+    expect(fragmentId('#rockets')).toBe('rockets');
+    expect(fragmentId('rockets')).toBe('rockets');
+    expect(fragmentId('#what%20the%20lab%20found')).toBe('what the lab found');
+    expect(fragmentId('')).toBeNull();
+    expect(fragmentId('#')).toBeNull();
+  });
+
+  it('takes a fragment that is no valid escape as it is spelt', () => {
+    expect(fragmentId('#100%zz')).toBe('100%zz');
+  });
+});
+
+describe('readingTarget', () => {
+  // A page as far as the rule looks: <main>, a heading inside it, and something outside it.
+  const inside = { id: 'rockets' };
+  const outside = { id: 'footer-note' };
+  const main = {
+    id: 'main',
+    // (As Node.contains: a node contains itself.)
+    contains: (node: unknown): boolean =>
+      node === inside || (node as { id?: string }).id === 'main',
+  };
+  const page = {
+    getElementById: (id: string) =>
+      [main, inside, outside].find((element) => element.id === id) ?? null,
+  } as unknown as Pick<Document, 'getElementById'>;
+
+  it('is a place INSIDE the content', () => {
+    expect(readingTarget(page, 'rockets')).toBe(inside);
+  });
+
+  it('is not <main> itself (the skip link), nor anything outside it, nor nothing', () => {
+    expect(readingTarget(page, 'main')).toBeNull();
+    expect(readingTarget(page, 'footer-note')).toBeNull();
+    expect(readingTarget(page, 'nowhere')).toBeNull();
+    expect(readingTarget(page, null)).toBeNull();
   });
 });
 

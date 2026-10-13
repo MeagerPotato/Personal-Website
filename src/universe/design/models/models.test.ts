@@ -33,7 +33,8 @@ describe('the model conventions', () => {
     expect((max[0] ?? 0) - (min[0] ?? 0)).toBeLessThan(2);
 
     expect(mesh.triangleCount).toBeGreaterThan(50);
-    expect(mesh.triangleCount).toBeLessThan(400);
+    // Round: 24 sides, a nose of eight bands and a window laid on the curve (it was under 400).
+    expect(mesh.triangleCount).toBeLessThan(1000);
     expect(mesh.colors.every(isColour)).toBe(true);
     expect(mesh.normals.every(Number.isFinite)).toBe(true);
 

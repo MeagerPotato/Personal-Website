@@ -6,6 +6,7 @@ import { BODIES } from '../design/worlds/bodies';
 import { hexToLinear } from '../sim/color';
 import type { BodyRecipe } from '../sim/world/rows';
 import {
+  airOf,
   biomeBands,
   lookOf as lookWithRows,
   plannedBands,
@@ -165,6 +166,56 @@ describe('lookOf', () => {
     expect(ids.length).toBeGreaterThan(0);
     for (const id of ids) {
       expect(lookWithRows(body({ kind: 'planet', id }), 'sky').world).toBe(BODIES[id]);
+    }
+  });
+});
+
+describe('airOf', () => {
+  const table = {
+    'page/about': { air: 'terra', cloud: { share: 0.8, peak: 'frost' }, windows: true },
+    'project/egg': { air: 'tide' },
+  } as const;
+
+  it('gives a body in the table its row, globe or not', () => {
+    expect(airOf({ id: 'page/about', kind: 'home' }, false, table)).toBe(table['page/about']);
+    expect(airOf({ id: 'project/egg', kind: 'planet', planned: true }, false, table)).toBe(
+      table['project/egg'],
+    );
+  });
+
+  it('gives a generated planet or home the air of its biome, with neither clouds nor lamps', () => {
+    expect(airOf({ id: 'project/new', kind: 'planet', biome: 'frost' }, true, table)).toEqual({
+      air: 'frost',
+    });
+    // No biome is terra, as the generator has it.
+    expect(airOf({ id: 'page/other', kind: 'home' }, true, table)).toEqual({ air: 'terra' });
+    // Every biome with a sea has an air; primer, the clay of planned work, has none.
+    for (const biome of Object.keys(tokens.color.biome) as Array<keyof typeof tokens.color.biome>) {
+      const air = airOf({ id: 'project/new', kind: 'planet', biome }, true, table);
+      if (biome === 'primer') expect(air).toBeUndefined();
+      else expect(air).toEqual({ air: biome });
+    }
+  });
+
+  it('gives none to planned work, moons, built things, suns, or an emblem off the table', () => {
+    const globe = { id: 'project/new', biome: 'tide' } as const;
+    expect(airOf({ ...globe, kind: 'planet', planned: true }, true, table)).toBeUndefined();
+    expect(airOf({ ...globe, kind: 'moon' }, true, table)).toBeUndefined();
+    expect(airOf({ ...globe, kind: 'station' }, true, table)).toBeUndefined();
+    expect(airOf({ ...globe, kind: 'link' }, true, table)).toBeUndefined();
+    // Drawn from rows or as a model: not a globe, so only the table can give it air.
+    expect(airOf({ ...globe, kind: 'planet' }, false, table)).toBeUndefined();
+    // A sun never, even if a table said so.
+    expect(airOf({ id: 'page/about', kind: 'sun' }, true, table)).toBeUndefined();
+  });
+
+  it('reads design/tuning.ts when handed no table: the five worlds with a sea', () => {
+    const ids = Object.keys(tuning.look.air.worlds);
+    expect(ids).toHaveLength(5);
+    for (const id of ids) {
+      expect(airOf({ id, kind: 'planet' }, false)).toBe(
+        (tuning.look.air.worlds as Record<string, unknown>)[id],
+      );
     }
   });
 });

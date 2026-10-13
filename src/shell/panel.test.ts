@@ -118,6 +118,43 @@ describe('on any other page', () => {
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
+  it('asks what is in the panel first: Escape closes an open card before it leaves the page', () => {
+    // cards.ts answers through `onEscape`: true while it had a card to close.
+    let open = true;
+    const onEscape = vi.fn<() => boolean>(() => {
+      const took = open;
+      open = false;
+      return took;
+    });
+    panel = startPanel({ homePath: '/', onLeave, onEscape });
+    panel.sync('/about/');
+    const press = (): boolean =>
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    press();
+    expect(onEscape).toHaveBeenCalledTimes(1);
+    expect(onLeave).not.toHaveBeenCalled();
+    // The card is closed: the next Escape leaves, as it always did.
+    press();
+    expect(onEscape).toHaveBeenCalledTimes(2);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks nobody about an Escape that is not the panel’s: in a field, or with it closed', () => {
+    const onEscape = vi.fn<() => boolean>(() => true);
+    panel = startPanel({ homePath: '/', onLeave, onEscape });
+    panel.sync('/about/');
+    document.querySelector('main')?.insertAdjacentHTML('beforeend', '<input id="field" />');
+    document
+      .getElementById('field')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    showPage(HOME);
+    panel.sync('/');
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(onEscape).not.toHaveBeenCalled();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
   it('does nothing on Escape when there is no panel to close', () => {
     showPage(HOME);
     start('/');

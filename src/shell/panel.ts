@@ -5,12 +5,14 @@
 // destination, and a destination's panel is open: closing it means LEAVING (the router goes
 // home), so there is no such thing as a project URL with a hidden panel, and Back always does
 // what it looks like it should. The home page is the open sky: its welcome text waits behind a
-// button in the HUD, and that one toggle is the only state that is not in the URL.
+// button in the HUD, and that one toggle is the only state that is not in the URL. (The path says
+// which page; the fragment says which of its cards is open, and that half is cards.ts.)
 //
 // All state goes on <html> as data attributes, so CSS does the showing and a test can read it:
 //   data-panel       "open" | "closed"
 //   data-panel-home  present on the home page (the HUD shows the welcome button)
 //   data-panel-size  "half" | "full"   (bottom sheet on narrow screens; kept for the session)
+//   data-card-open, data-card-side     (the open card: cards.ts)
 
 export type PanelState = 'open' | 'closed';
 
@@ -19,6 +21,11 @@ export interface PanelOptions {
   homePath: string;
   /** The visitor closed a destination's panel: go home (the router decides how). */
   onLeave(): void;
+  /**
+   * Escape was pressed on an open panel. True: something in it took the key (an open card
+   * closed, cards.ts), so nobody leaves; the next Escape asks again.
+   */
+  onEscape?(): boolean;
 }
 
 export interface Panel {
@@ -109,7 +116,7 @@ export function startPanel(options: PanelOptions, doc: Document = document): Pan
     // Escape inside a field or a widget belongs to that widget.
     if (target?.closest('input, textarea, select, [contenteditable], dialog, [role="dialog"]'))
       return;
-    leave();
+    if (options.onEscape?.() !== true) leave();
   };
   // "Skip to content" must never jump into a panel that is not there.
   const onSkip = (): void => {

@@ -104,6 +104,7 @@ export class Engine {
   private paused = false;
   private disposed = false;
   private hasRendered = false;
+  private excused = false;
 
   constructor(private readonly options: EngineOptions) {
     const { quality } = options;
@@ -168,6 +169,15 @@ export class Engine {
   /** True once dispose() ran: late arrivals (a lazy chunk) must not add themselves any more. */
   get isDisposed(): boolean {
     return this.disposed;
+  }
+
+  /**
+   * This frame did one-off work that says nothing about the device (a band of the sky's
+   * panorama: world/SkyBake.ts): the governor is not fed it, so neither the probe nor the
+   * dynamic resolution can take the bake for a slow device. Its clocks wait.
+   */
+  excuseFrame(): void {
+    this.excused = true;
   }
 
   add<T extends System>(system: T): T {
@@ -262,7 +272,10 @@ export class Engine {
       this.options.onFirstFrame();
     }
 
-    const action = this.governor.frame(frameMs, performance.now() - workStarted);
+    const action = this.excused
+      ? null
+      : this.governor.frame(frameMs, performance.now() - workStarted);
+    this.excused = false;
     if (action?.kind === 'scale') {
       this.resize();
     } else if (action?.kind === 'demote') {

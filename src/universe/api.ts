@@ -15,11 +15,13 @@ import { RebuildBudget, startingFrom, type Snapshot, type StartOptions } from '.
 import { boot, type Booted, type ViewInset } from './main';
 import { galaxyKey, readManifest } from './manifest';
 import { FLIGHT, type AppState } from './state/appMachine';
-import type { NavigatorEvents } from './state/Navigator';
+import type { HyperState, NavigatorEvents } from './state/Navigator';
+import type { SkyState } from './world/SkyBake';
 
 export type { QualityTier } from './core/quality/tiers';
 export type { StartOptions } from './core/snapshot';
 export type { AppMode, AppState } from './state/appMachine';
+export type { HyperState } from './state/Navigator';
 
 /**
  * DEV ONLY: the lab, one asset on a turntable (lab/LabScene.ts). The condition is a build-time
@@ -30,6 +32,10 @@ export async function createLab(options: {
   mount: HTMLElement;
   quality?: QualityTier;
   onQuality(tier: QualityTier): void;
+  /** What to show, from the page's address (lab/LabScene.ts, `LabOptions.query`). */
+  query?: ReadonlyMap<string, string>;
+  /** The lab's first frame is on the screen. */
+  onReady?(): void;
 }): Promise<{ dispose(): void }> {
   if (import.meta.env.DEV) {
     const { bootLab } = await import('./lab/LabScene');
@@ -37,6 +43,8 @@ export async function createLab(options: {
       mount: options.mount,
       tier: isTier(options.quality) ? options.quality : 'high',
       onTier: options.onQuality,
+      ...(options.query ? { query: options.query } : {}),
+      ...(options.onReady ? { onReady: options.onReady } : {}),
     });
   }
   throw new Error('the lab exists in development only');
@@ -81,6 +89,31 @@ export interface UniverseOptions {
   debug?: { perf?: boolean; tweak?: boolean };
 }
 
+/**
+ * One card of a deck, as the engine needs to know it: which one (`key`: the id of its heading),
+ * where it is (the middle of the inner edge of its title row, the edge towards the body, in CSS
+ * px in the window), and which side of the body it stands on (-1 left, 1 right).
+ */
+export interface DeckCard {
+  key: string;
+  x: number;
+  y: number;
+  side: -1 | 1;
+}
+
+/**
+ * The page's content laid out as cards on both sides of the body its page belongs to, instead of
+ * in a panel or a sheet beside the world. The web layer lays the cards out and says which one is
+ * open; `open: null` means none is (all of them show, short).
+ */
+export interface Deck {
+  /** The body the cards stand round (an id of `/universe.json`), or null: the page has none. */
+  body: string | null;
+  cards: readonly DeckCard[];
+  /** The `key` of the card that is open, or null. */
+  open: string | null;
+}
+
 export type UniverseEvents = {
   /** The first frame is on screen. */
   ready: undefined;
@@ -105,8 +138,21 @@ export type UniverseEvents = {
    * to somewhere else.
    */
   undocked: { id: string; by: 'pilot' | 'asked'; halting: boolean };
+  /**
+   * Hyperspace on the journey under way: `offered` (a long journey may be shown as a jump),
+   * `windup` (the visitor took it: Shift, or its button), `tunnel`, and `off` for everything
+   * else. It is the same flight either way, and it is the simulation's state: whether the button
+   * has room to show is the engine's own business. Never anything but `off` with reduced motion.
+   */
+  hyper: { state: HyperState };
   /** The star map opened or closed, whoever did it: the visitor (M, the Map button) or `setMapOpen`. */
   map: { open: boolean };
+  /**
+   * The baked sky (the Milky Way's haze, far galaxies): `baking` from the first frame, while
+   * the sky is still only navy and stars, then `ready`, or `off` where it cannot be painted (it
+   * stays navy and stars). Again after every rebuild of the engine.
+   */
+  sky: { state: SkyState };
   /** The engine cannot continue; the web layer should fall back to plain mode. */
   fatal: { reason: string };
 };
@@ -146,9 +192,11 @@ export interface Universe {
    */
   snapshot(): unknown;
   /**
-   * How much of the viewport the info panel covers, in CSS pixels from the right and from the
-   * bottom edge. The engine keeps what matters in the middle of what is left, without distorting
-   * it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout of a page.
+   * How much of the viewport the page's content covers, in CSS pixels from the right and from
+   * the bottom edge (the info panel, the sheet) and from the `left` one (content that stands on
+   * both sides of the body). The engine keeps what matters in the middle of what is left, without
+   * distorting it (camera/CameraRig.ts). The view eases over; `cut` jumps, for the first layout
+   * of a page.
    *
    * `top` is how far down the links of the page's top bar reach: the names over the bodies keep
    * clear of them, and so does the star map. `frameTop` is how much of the top the camera leaves
@@ -163,11 +211,20 @@ export interface Universe {
       top?: number;
       right?: number;
       bottom?: number;
+      left?: number;
       frameTop?: number;
       foot?: { right: number; top: number };
     },
     options?: { cut?: boolean },
   ): void;
+  /**
+   * The page's content is a deck of cards round the docked body (`Deck`), or (null) it is not.
+   * Like the inset it is the web layer's word, not the engine's state: it is kept here and a
+   * rebuilt engine is told again. While a deck is set the wheel is the page's, for stepping from
+   * card to card: scrolling out does not open the star map (M and the Map button do, and over the
+   * open map the wheel is the map's). `cut`: at once, as for the inset.
+   */
+  setDeck(deck: Deck | null, options?: { cut?: boolean }): void;
   setPaused(paused: boolean): void;
   dispose(): void;
 }
@@ -200,8 +257,12 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
   let last: Snapshot | null = null;
   /** The web layer's word on the panel: a rebuilt engine needs to hear it again. */
   let inset: ViewInset = {};
+  /** And on the page's cards, likewise. */
+  let deck: Deck | null = null;
   /** Likewise the map: a rebuilt engine opens on what the visitor was looking at. */
   let mapOpen = false;
+  /** What the web layer was last told of hyperspace (`hyper`). */
+  let hyperTold: HyperState = 'off';
   /** The one journey somebody is waiting on. A new one, or the pilot, cancels it. */
   let journey: { id: string; settle(result: 'arrived' | 'cancelled'): void } | null = null;
 
@@ -245,6 +306,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
+      forgetJump();
       tier = lower;
       events.emit('quality', { tier, demoted: true });
       rebuild(snapshot);
@@ -260,6 +322,7 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
         if (event === 'docked') settleJourney('arrived');
         else if (event === 'undocked') settleJourney('cancelled');
       }
+      if (event === 'hyper') hyperTold = (payload as NavigatorEvents['hyper']).state;
       // The navigator's events are a subset of the universe's, name for name and shape for shape.
       events.emit(event, payload as UniverseEvents[K]);
     },
@@ -268,11 +331,13 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       mapOpen = open;
       events.emit('map', { open });
     },
+    onSky: (state: SkyState): void => events.emit('sky', { state }),
     onContextLost: (): void => {
       if (disposed || !current || !deliverPending()) return;
       const snapshot = (last = current.snapshot());
       current.engine.dispose();
       current = null;
+      forgetJump();
       if (!budget.spend(performance.now())) {
         events.emit('fatal', { reason: 'WebGL context lost repeatedly' });
         return;
@@ -292,11 +357,25 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
     return !disposed && current !== null;
   }
 
+  /**
+   * An engine was taken down in the middle of a jump, or of its offer. The next one starts from
+   * `off` and only reports what it does itself: a tunnel it takes up again it tells again, with
+   * its first frame, but an offer or a wind-up is not kept (core/snapshot.ts), and a tunnel whose
+   * fast stretch is over by then is not resumed. So the web layer hears `off` now, or what it
+   * heard last could stand for ever: the deck's chevrons running and the names dimmed, docked.
+   */
+  function forgetJump(): void {
+    if (hyperTold === 'off') return;
+    hyperTold = 'off';
+    events.emit('hyper', { state: 'off' });
+  }
+
   function rebuild(snapshot: Snapshot): void {
     if (disposed) return;
     try {
       current = boot(options, hooks, { tier, forced }, snapshot);
       current.setInset(inset, true);
+      current.setDeck(deck, true);
       current.setMapOpen(mapOpen, true);
       current.engine.setPaused(paused);
     } catch (error) {
@@ -364,6 +443,11 @@ export async function createUniverse(options: UniverseOptions): Promise<Universe
       inset = { ...next };
       // The panel itself does not slide under reduced motion (global.css); neither does the view.
       current?.setInset(inset, cut || options.reducedMotion === true);
+    },
+    setDeck: (next, { cut = false } = {}) => {
+      // A copy: the caller's cards may be measured again into the same objects.
+      deck = next && { ...next, cards: next.cards.map((card) => ({ ...card })) };
+      current?.setDeck(deck, cut || options.reducedMotion === true);
     },
     setPaused: (value) => {
       paused = value;

@@ -208,8 +208,8 @@ const modelRocketry: Rows = [
   [
     'roll-number',
     FLAG.decal,
-    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, 0.2165] }],
-    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, -0.2165], rot: [0, Math.PI, 0] }],
+    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, 0.2215] }],
+    ['pix', '11', 0.04, 'coral.base', { at: [-0.07, 0, -0.2215], rot: [0, Math.PI, 0] }],
   ],
   // The motor's flame, a candy-corn cone that starts inside the casing: it glows (and blooms).
   [
@@ -560,7 +560,15 @@ const fishOnline: Rows = [
       { at: add(scale(TABLE_AT, 1.04), [0, 0.5, 0]), rot: [0, -rad(30), 0], s: 0.8 },
     ],
   ],
-  ...planned('sky', { n: 6, r: [1.4, 1.48], crane: [24, 200], chip: [58, -100, 1.55], debris: 5 }),
+  // The pebbles are balls now, and reach their whole radius every way: a hundredth further in.
+  ...planned('sky', {
+    n: 6,
+    r: [1.4, 1.48],
+    crane: [24, 200],
+    chip: [58, -100, 1.55],
+    debris: 5,
+    pr: 1.39,
+  }),
 ];
 
 export const PROJECTS: Readonly<Record<string, BodyRecipe>> = {

@@ -21,7 +21,7 @@
  * logic: tInput, uTexel (one texel of tInput), tBase, uRadius, tScene, tBloom, uBloomStrength,
  * uSelfBloom, uVignette, uVignetteRange. Define MASKED: multiply by the guest list.
  */
-const fullscreenVertex = /* glsl */ `
+export const fullscreenVertex = /* glsl */ `
   varying vec2 vUv;
 
   void main() {

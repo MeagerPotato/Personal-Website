@@ -35,6 +35,7 @@ import {
   type DockState,
 } from './docking';
 import { NO_INPUT, stepFlight } from './flight';
+import { stepHyper, type HyperParams } from './hyper';
 import { bodyPositions, createOrbitTable, type OrbitTable, type OrbitingBody } from './orbits';
 import type { FlightInput, FlightParams, ShipState, Vec2 } from './types';
 
@@ -62,6 +63,8 @@ export interface SurroundingsParams {
   readonly edge: EdgeParams;
   readonly dock: DockParams;
   readonly cruise: CruiseParams;
+  /** When a journey may be shown as a jump (sim/hyper.ts). Flight reads none of it. */
+  readonly hyper: HyperParams;
 }
 
 /** The few fields of a manifest body that matter here (structural, like sim/orbits.ts). */
@@ -172,6 +175,8 @@ export function flyStep(
       cruise,
       flown,
     );
+    // Hyperspace watches the plan that step made, and the ship: it changes nothing of either.
+    stepHyper(dock, cruise, Math.hypot(state.vx, state.vz), params.hyper, dt);
     drive = params.cruise.flight;
     world.assist.weight = 1;
   } else if (dock.phase === 'approach') {

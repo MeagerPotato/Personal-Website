@@ -65,7 +65,7 @@ function setup(
     ship: null as ScreenBox | null,
     onMap: false,
   };
-  const view = { freeWidth: 1, freeHeight: 1 };
+  const view = { freeLeft: 0, freeWidth: 1, freeHeight: 1 };
   const picked: number[] = [];
   const labels = new Labels({
     overlay,
@@ -195,7 +195,7 @@ describe('Labels', () => {
         { title: 'Kalshi', kind: 'moon', planned: true },
       ],
       params: PARAMS,
-      view: { freeWidth: 1, freeHeight: 1 },
+      view: { freeLeft: 0, freeWidth: 1, freeHeight: 1 },
       target: () => -1,
       docked: () => false,
       onPick: (row) => picked.push(row),
@@ -281,6 +281,25 @@ describe('Labels', () => {
     view.freeHeight = 0.5; // a bottom sheet: 400 px are free
     labels.frameUpdate(tick());
     expect(shown()).toEqual(['Code', 'About']);
+  });
+
+  it('and out from under what stands on the left of the view', () => {
+    const { labels, view, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    // The left 240 px are taken: names begin 8 px in from there, at 248. About's (170.5 to 229.5,
+    // under its planet at 200) has no room; FishAI's, from 367, is where it was.
+    view.freeLeft = 0.2;
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish']);
+    // Both sides taken: what is left is 480 to 720, and only the moon's name is wholly in it.
+    view.freeLeft = 0.4;
+    view.freeWidth = 0.6;
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['Canadian Fish']);
+    view.freeLeft = 0;
+    view.freeWidth = 1;
+    labels.frameUpdate(tick());
+    expect(shown()).toEqual(['Code', 'FishAI', 'Canadian Fish', 'About']);
   });
 
   it('keeps names off a top bar that is taller than usual, once told how tall', () => {
@@ -1028,6 +1047,96 @@ describe('Labels', () => {
     expect(drawn(fresh.button('FishAI'))).toMatchObject({ x: 367, y: 744 });
   });
 
+  it('on the map, slides a name along its body at the LEFT of what is free, too', () => {
+    drawnTags();
+    const { labels, screen, state, view, button, shown } = setup(SPREAD);
+    cleanup = () => labels.dispose();
+    // The left quarter is taken (300 px of 1200): names begin at 308. About's is 59 px wide;
+    // centred under a planet at 330 it would begin at 300.5.
+    view.freeLeft = 0.25;
+    screen.x[3] = 330;
+    labels.frameUpdate(tick());
+    expect(shown()).not.toContain('About');
+
+    state.onMap = true;
+    labels.frameUpdate(tick());
+    expect(shown()).toContain('About');
+    // As far left as it may go, and still under its planet, past the round end of its tag.
+    const at = drawn(button('About'));
+    expect(at).toMatchObject({ x: 308, y: 332 });
+    expect(at.body.x).toBeGreaterThanOrEqual(at.x + 13);
+    expect(at.body.x).toBeLessThanOrEqual(at.x + 59 - 13);
+    expect(button('About').dataset.side).toBeUndefined();
+  });
+
+  it('on the map, takes "towards the middle" from the middle of what is free', () => {
+    drawnTags();
+    // Code's sun alone, and something that can be pressed right through it, from over it to
+    // under it: its name has room only beside it, and goes to the side the middle is on.
+    const rows: readonly Row[] = [
+      [700, 300, 12, 1000],
+      [400, 400, 40, -1],
+      [600, 380, 6, -1],
+      [200, 300, 30, -1],
+    ];
+    const through = { left: 692, top: 200, width: 16, height: 200 };
+    // The whole view is free: its middle is at 600, to the LEFT of the sun.
+    const whole = setup(rows);
+    cleanup = () => whole.labels.dispose();
+    whole.state.onMap = true;
+    whole.state.prompt = through;
+    whole.labels.frameUpdate(tick());
+    expect(whole.button('Code').dataset.side).toBe('left');
+    expect(drawn(whole.button('Code'))).toMatchObject({ x: 700 - 12 - 2 - 52, y: 300 - 22 });
+
+    // The left half is taken: names may go from 608 to 1192, and the middle of that, 900, is to
+    // the RIGHT of the same sun.
+    const half = setup(rows);
+    whole.labels.dispose();
+    cleanup = () => half.labels.dispose();
+    half.view.freeLeft = 0.5;
+    half.state.onMap = true;
+    half.state.prompt = through;
+    half.labels.frameUpdate(tick());
+    expect(half.button('Code').dataset.side).toBe('right');
+    expect(drawn(half.button('Code'))).toMatchObject({ x: 700 + 12 + 2, y: 300 - 22 });
+  });
+
+  it('on the map, knows a body on its way out through the LEFT of what is free', () => {
+    // Code's sun (behind the camera in flight, so that its name is new on the map) in a small
+    // room: taken on both sides and by a sheet, names may go from 308 to 366 px across and from
+    // 80 to 204 down. Its name fits under it, centred (310 to 362, down to 201), and over it, with
+    // no room to spare up or down, and nowhere beside it: so it has a name only while the sun is
+    // not on its way out. The nearest edge of that room is the left one (28 px; the right, 30).
+    const rows: readonly Row[] = [
+      [336, 143, 12, -1],
+      [400, 400, 40, -1],
+      [600, 380, 6, -1],
+      [200, 300, 30, -1],
+    ];
+    const between = (ownX: number): ReturnType<typeof setup> => {
+      const made = setup(rows);
+      made.view.freeLeft = 0.25;
+      made.view.freeWidth = 374 / 1200;
+      made.view.freeHeight = 212 / 800;
+      made.state.onMap = true;
+      made.screen.depth[0] = 1000;
+      made.screen.ownX[0] = ownX;
+      made.labels.frameUpdate(tick());
+      return made;
+    };
+    // Drifting left, towards that edge: on its way out, and no name for the moment it has left.
+    const out = between(-0.02);
+    cleanup = () => out.labels.dispose();
+    expect(out.shown()).not.toContain('Code');
+    // Drifting right, away from it: its name comes, under it, with what room there is.
+    const back = between(0.02);
+    out.labels.dispose();
+    cleanup = () => back.labels.dispose();
+    expect(back.shown()).toContain('Code');
+    expect(drawn(back.button('Code'))).toMatchObject({ x: 310, y: 157 });
+  });
+
   it('on the map, names a body whose only room is nearer an edge than that, unless it is leaving', () => {
     // Code's sun is out of view in flight (behind the camera, half over the bottom edge)...
     const { labels, screen, state, shown, button } = setup([
@@ -1363,7 +1472,7 @@ describe('Labels of links (profiles elsewhere, which nothing docks at)', () => {
         { title: 'LinkedIn', kind: 'link', href: 'https://www.linkedin.com/in/someone' },
       ],
       params: PARAMS,
-      view: { freeWidth: 1, freeHeight: 1 },
+      view: { freeLeft: 0, freeWidth: 1, freeHeight: 1 },
       target: () => -1,
       docked: () => false,
       onPick: (row) => picked.push(row),
@@ -1500,7 +1609,7 @@ describe('the family of each name', () => {
         { title: 'GitHub', kind: 'link', href: 'https://github.com/someone', theme: 'butter' },
       ],
       params: PARAMS,
-      view: { freeWidth: 1, freeHeight: 1 },
+      view: { freeLeft: 0, freeWidth: 1, freeHeight: 1 },
       target: () => -1,
       docked: () => false,
       onPick: () => undefined,

@@ -55,7 +55,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.surface` | `panel raised line` | `panel`: legend plates and the info panel; `raised`: a plate on a plate (the facts in the panel), the hint card, and anything lit under a mouse; `line`: hairlines, and the lit face of a raised key (one whose face is already `raised`, or one on a raised plate) |
 | `color.system` | `coral butter mint sky lilac` × `base light shade` | one family per solar system (a sun of a binary may wear one of its own: Software sky, Hardware coral), worn by its sun, its planets and their moons: `base` fills, lines, stations and the lit side; `light` text on the family's tints, and highlights; `shade` a filled key's ledge and the tinted shadow side |
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
-| `color.star` | `warm cool white` | starfield tints |
+| `color.star` | `white cool hot warm amber ember` | the stars' six temperatures (`hot`, `amber` and `ember` are engine only: "Deep light", below) |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
 
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
@@ -81,13 +81,20 @@ needs a sixth glyph. Every family's numbers are in the contrast tables below.
 Three words of the vocabulary never change meaning:
 
 - **Butter means "here":** the current page (a short bar under its name in the nav), the
-  keyboard's focus (the ring), the body the ship is headed for (the one filled name tag), and what
-  acts on the body at hand (the E key cap of "Orbit FishAI", "Stop"). The home system is butter
-  too, so a focused butter key keeps a navy rim between its fill and the ring.
-- **The cream face (`ink.high` fill) means "on":** only toggles that are switched on wear it (the
-  Map button while the map is open, the sheet's Shrink, the welcome button while its text shows).
-  The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button) are
-  drawn as the white keys they are; they are not a control's face.
+  keyboard's focus (the ring), the body the ship is at or headed for (the one filled name tag, its
+  mark on the flight deck's ball, the ring round it on the minimap, and a journey's line, its
+  clock on the rim and its seconds there), what acts on the body at hand or on the journey to it
+  (the E key cap of "Orbit FishAI", "Stop", the Shift key cap of "Hyperspace", the word on
+  hyperspace's pad under a finger, and the one ring that offer arrives with), and the card of the
+  page's deck that is open (the ring before its title, and the station its leader ends on).
+  The home system is butter too, so a focused butter key keeps a navy rim between its fill and
+  the ring.
+- **The cream face (`ink.high` fill) means "on":** only what is switched on wears it: a toggle
+  (the Map button while the map is open, the sheet's Shrink, the welcome button while its text
+  shows), a lamp of the flight deck (ASSIST, AUTO), which the simulation switches and nobody
+  presses, and the offer of hyperspace from its press until the tunnel opens: the press was
+  heard (under a finger that offer is the boost pad's twin, and coral as the pad is). The small key caps that NAME a key (W, Shift, M in the hint card and on the Map button)
+  are drawn as the white keys they are; they are not a control's face.
 - **One solid family fill per view:** the primary action. Route signs above the headings and a
   project's tags are tinted, with a hairline edge; secondary keys are outlined in `ink.low`.
 
@@ -108,13 +115,14 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | `ink.high` on the page / the panel | 17.2 / 14.0 | headings, the lede, card titles, the wordmark, a key's label, a fact's value, the current page in the nav |
 | `ink.high` on `surface.panel` / `surface.raised` | 15.5 / 13.7 | `surface.panel`: the facts' values in plain mode, a key in the panel, a notice's key, "Got it" on the hint card, the Launch the starfield chip; `surface.raised`: the facts' values in the panel, the panel bar's keys, anything lit under a mouse (a nav word, a key, a chip, a name's tag) |
 | `ink.high` on `surface.line` | 9.8 | a raised key under a mouse (its face already `surface.raised`, or on a raised plate): the panel bar's Close and Expand, the hint card's "Got it" |
-| `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip |
+| `ink.high` on the HUD plate | 11.6 | every chip over the world: the wordmark, the nav tray's current page, "About this site", Map, the dock prompt, a name, the boost pad, the Plain version chip; the flight deck's speed and heading; the minimap's pill while it names a body, and the figures on its chip |
+| `ink.high` on the ball's sky / ground (`surface.line` / `space.900`) | 9.8 / 17.2 | N, E, S and W on the flight deck's ball (12 px, 700, each on a navy rim): they are painted on the sky |
 | `ink.mid` on the page / the panel | 10.6 / 8.6 | running text, the nav, the crumbs, a card's summary and status chip, the resume's dates, bullets and skills, a caption, the footer |
 | `ink.mid` on `surface.panel` / `surface.raised` | 9.6 / 8.5 | a notice's words; the hint card's words and inline `code` |
-| `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name |
+| `ink.mid` on the HUD plate | 7.2 | the nav tray's other links, a moon's name; a lamp of the flight deck that is off, its "m/s" and "HDG"; the minimap's pill while it says what the scope shows (the galaxy, a system), and "RANGE", "ETA" and the unit on its chip |
 | `accent` (sky) on the page / the panel | 9.9 / 8.0 | links in running text, the legend's links (Elsewhere, Contact), the resume's ways to reach Allen, a card's title under a mouse |
-| butter on the HUD plate | 9.3 | "Stop" in the dock prompt |
-| `space.900` on cream (`ink.high`) | 17.2 | a toggle that is on (Close map, Shrink, the welcome button), the key caps W A S D, Shift and M; cream on navy, the M cap of the open Map button |
+| butter on the HUD plate | 9.3 | "Stop" in the dock prompt; a journey's seconds on the minimap's chip; "HYPER" on hyperspace's pad under a finger |
+| `space.900` on cream (`ink.high`) | 17.2 | a toggle that is on (Close map, Shrink, the welcome button), a lit lamp of the flight deck, the key caps W A S D, Shift and M; cream on navy, the M cap of the open Map button |
 | `space.900` / `space.950` on butter | 13.9 / 14.5 | the target's name tag and the E cap of "Orbit" / the skip link |
 | `space.900` on coral | 8.4 | the pressed boost pad |
 | `space.900` on a family's base / light | 6.3 / 11.5 | the primary key and its hover; lilac is the lowest (every family below) |
@@ -122,7 +130,7 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | a family's light on its tags, `surface.panel` / `surface.raised` | 8.7 / 7.7 | a project's "Built with" tags (a 12 % tint on the facts plate, plain / panel); lilac is the lowest |
 | a family's light on `surface.panel` / `surface.raised` | 10.4 / 9.2 | the facts' labels (Status, When, Role), plain / panel; a system's name under a mouse, on the bare page, is higher still |
 | `ink.low` on the page / `surface.panel` / the panel / `surface.raised` | 6.7 / 6.0 / 5.4 / 5.3 | no text today, only edges and marks (below); the test still holds it to 4.5, so it may carry small print on these grounds |
-| `ink.low` on the HUD plate | 4.49 | **never**: it falls short, and a test fails any rule that sets a chip's text over the world in it |
+| `ink.low` on the HUD plate | 4.49 | **never**: it falls short, and a test fails any rule that sets the text of a chip over the world, or of any part of one, in it: by its own name, or by a property that only hands it on (`--hud-edge`, the plate's edge; `--minimap-tick`, the minimap's ticks, which are marks) |
 | black on white | 21.0 | every page on paper (print keeps to the keywords `black` and `white`) |
 
 | Non-text (3:1) | Ratio | Where it is used |
@@ -131,7 +139,12 @@ break one; recompute these numbers whenever a colour in a pairing changes.
 | butter on the page / the panel / the HUD plate | 13.9 / 11.3 / 9.3 | the ring where it meets the ground outside it; the current page's bar under its word (plain / universe) |
 | `ink.low` edge on the page | 6.7 | a secondary key (its face is the page too), a mixed list's route line, the Launch the starfield chip (its face is `surface.panel`, 6.0 inside) |
 | `ink.low` edge on `surface.panel` / the panel / `surface.raised` | 6.0 / 5.4 / 5.3 | a key in the panel (face `surface.panel` on the panel), the panel bar's keys (face `surface.raised`), "Got it" on the hint card, a notice's ring and key, a mixed list in the panel |
+| a family's base on `space.950` | 6.5 (lilac) to 14.8 (mint) | a leader's line on its casing, whatever the world shows under it; the open card's butter station on its rim (14.5) |
 | a family's base on the page / `surface.panel` / the panel / `surface.raised` / the HUD plate | 6.3 / 5.6 / 5.1 / 5.0 / 4.2 | route lines, stations, glyphs, suns, the crumbs' dashes, the prose's heading rings, a plate's band, the panel's top band, the primary key's fill, the glyph before a body's name on its tag; lilac is the lowest |
+| the flight deck's ball, each mark on its sky / ground (`surface.line` / `space.900`) | `ink.high` 9.8 / 17.2; butter 7.9 / 13.9; `ink.low` 3.8 / 6.7; a family's base 3.6 / 6.3; `ink.mid` 6.1 / 10.6 | the nose, prograde and home; the target; the meridians and the rim; the horizon, in the family of the system the ship is in (lilac is the lowest) and in `ink.mid` between systems. Every mark but the meridians has a navy rim (`space.950`) under it, the letters too. The sky is the lighter half, as a sky is, and the two are 1.75 apart, which is all these navies give: the horizon carries the division |
+| `ink.high` / coral on the HUD plate | 11.6 / 5.7 | the flight deck's arcs: the throttle and the g; the throttle while boosting |
+| the minimap's marks on its face (`space.900`) | a family's base 6.3; `ink.low` 6.7; `ink.mid` 10.6; `ink.high` 17.2; butter 13.9 | suns, the home planet, planets, moons and the pins just inside the rim (lilac is the lowest); planned work's dashed outline and the face's own rim; the N (12 px, on a navy rim: it clears the bar for text too); the ship and the ring of a pointer's aim; the ring that says "here", a journey's line and its clock on the rim. The circles the bodies travel on are the family at 35 % and the dots of the range rings are `surface.line` (1.7): decoration, nothing is found by them |
+| `ink.low` on the HUD plate, as a mark | 4.49 | the ten ticks on the minimap's plate (marks; as text it falls short: the table above) |
 | `ink.high` edge of the HUD (`--hud-edge`, 14 %) on the HUD plate | 1.5 | decoration, not a boundary: a chip is found by its words, as a text button is. Under `prefers-contrast: more` and forced colours it becomes `ink.low` on an opaque plate (6.0) |
 | `surface.line` hairline on the page / the panel | 1.7 / 1.4 | decoration, not a boundary: the rules between legend rows, a status or date chip's outline, the resume's rail. Nothing is found by them alone |
 
@@ -199,8 +212,8 @@ device's own mono stack (`font.mono`), which costs nothing. The other four stage
   when motion is reduced.
 - DOM motion tokens: `motion.fast base slow` with `easeOut` and `easeInOut`. Things ease out when
   they arrive and ease in-out when they move. Nothing bounces more than once.
-- **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax. The
-  static frame must still look composed.
+- **Reduced motion:** no twinkle, no drift, no camera flights (cuts instead), no parallax, no
+  hyperspace (it is never offered). The static frame must still look composed.
 - Engine timings (camera blends, flight feel) are in `design/tuning.ts`, in seconds. _(open: A3)_
 
 ## States
@@ -209,22 +222,22 @@ Every state is designed, not only the resting one, and each has a shape as well 
 
 | State | How it looks | Where |
 | --- | --- | --- |
-| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring. **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips |
+| Hover | A key lights (to `surface.raised`, or `surface.line` when its face or its plate is already raised) and its edge goes to `ink.mid`; a primary key goes to its family's light; a chip over the world lights to `surface.raised` with an `ink.low` edge; plain mode's chips (Launch the starfield, the resume's ways to reach Allen) take a sky edge; a nav word lights a chip behind it; a name's tag lights with a thin `ink.low` ring; a card of the deck that is not open takes an edge in its family's base, and nothing moves (a moved card would leave its place round the body). **Only where hover exists** (`(hover: hover)`): after a tap on a phone a lit key would stay lit, and a lit key reads as "on". A text link's hover only changes its words' colour (to `ink.high`; sky for a card's title or a moon's name; the family's light for a system's name on the projects page) and needs no gate: pressing it opens another page | keys, chips, nav words, names, the resume's contact chips, the deck's cards |
 | Focus (`:focus-visible`) | A 3 px butter ring outside a 2 px `space.950` rim, so it reads on anything: a white peak, a pale ring, a butter key (butter meets navy, never butter). A key at rest carries the same three shadows with the rim at nothing, so a focus eases in the rim and nothing else | everything focusable, in both modes. The ring goes round a name's tag, not its 44 px box, round a nav word's 36 px chip (no rim: it sits on navy already), and round a card title's words. The heading the router focuses after a soft navigation, and `<main>` where the skip link lands, show none: they are not controls |
 | Current page (`aria-current`) | The word in `ink.high` over a short butter bar, like a lane marking (20 by 3 px, low in the chip, clear of the descenders) | the main nav, both modes |
 | Target (`data-state='target'`) | The one filled name tag: navy on butter, its family glyph turned navy, the station it stops at (every other tag shows the glyph in its family's base) | the body the ship is headed for |
 | On | The cream face: `ink.high`, navy words, no edge. A toggle is named for what it does next ("Close map", "Shrink"), so the sheet's button carries no `aria-pressed` ("Shrink, toggle button, pressed" contradicted itself) | the Map button while the map is open (`data-state='open'`; its M cap turns navy), the sheet's Shrink (`html[data-panel-size='full']`), "About this site" while its text shows (`aria-expanded`) |
-| Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the boost pad |
-| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail and the crumbs' dashes are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap | `@media (forced-colors: active)`, after the rules it overrides |
-| More contrast | The HUD plate and the panel are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
+| Pressed | A key drops onto its ledge (`translate` by `--ledge`, the ledge gone), and so do the chips over the world that have one. The boost pad (`data-active`) fills coral, the flame's colour, with navy words, and gives a little (`scale: 0.94`, none when motion is reduced) | keys, the Map button, the dock prompt, the minimap (as one instrument: plate, pill and chip drop together), the boost pad |
+| Forced colours | The plates are the system's. Keys and chips keep a real border; the ring (an outline) is kept, and a focused name gets a `Highlight` outline. The current page is underlined. The glyphs, the suns, the route lines and their end bars, the resume's rail, the crumbs' dashes and the leaders of the deck of cards (on a `Canvas` casing, the open card's station `Highlight`) are drawn in `CanvasText`; a toy planet keeps its colours (it is a picture) inside rings of `Canvas` and `CanvasText`. The target's tag gets a `CanvasText` border, and every name's glyph is `CanvasText`, the pressed boost pad `Highlight`. The flight deck's ball and the minimap's face are `Canvas` with their marks in `CanvasText` (what is hollow stays hollow); the minimap's ticks, the dots of its range rings, its face's rim and the circles the bodies travel on are `GrayText`; and what is lit is `Highlight`: a lamp, the target on the ball, the boosting throttle, the minimap's ring that says "here", a journey's line and its clock on the rim. The wordmark's three stations (gradients, which forced colours drop) are hidden rather than leave a gap, on the wordmark and on the minimap's pill | `@media (forced-colors: active)`, after the rules it overrides |
+| More contrast | The HUD plate, the panel and the deck's cards are opaque `surface.panel` (no blur), and the HUD's edge turns `ink.low` | `@media (prefers-contrast: more)` |
 
 ## The two modes
 
 | | Plain | Universe |
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
-| `<main>` is | the page | the info panel: a side panel on a wide screen (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (about 176 KiB gzipped: the engine 169, the shell 7) loads on demand, of a 250 KiB budget |
+| `<main>` is | the page | the info panel: a deck of cards round the docked body on a wide screen (1280 by 576 px and up), a side panel on a smaller one (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (230.2 KiB gzipped on 2026-10-07 with the look, the cards, the flight deck and hyperspace together: the engine 216.6, the shell 9.9, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget; `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
@@ -263,7 +276,18 @@ transit map.
   colour on every page.
 - **The projects page:** each solar system is a line whose first station, the terminus, is its
   sun, with the family's glyph cut out of it like a line's bullet on a transit map. The tagline is
-  the sun's caption.
+  the sun's caption, and under it one line, "The Software system" (`sm`, 600), is the way to the
+  sun's own page.
+- **A section's title is a link to itself** (`/about/#rockets` is that section). It looks like
+  the heading it is, `ink.high` and not underlined; a mouse lights it in the family's light and
+  underlines it. Its room for a finger (44 px) lies round the words and takes no space. A link
+  to a section lands it a step (`space-6`) below the top of what scrolls, the window or the
+  panel, as a page's first line stands, and in the universe it adds no step to Back. A part
+  of a page with no heading of its own (a project's facts, the opening of About, the resume's
+  contact line) has a **quiet title**: a heading for a screen reader, unseen until its link has
+  the keyboard's focus, when it shows as a small label (`sm`, 600) on a plate of the ground in
+  the gap above its part, so that nothing on the page moves. On paper a title is plain black
+  words and a quiet title is gone.
 - **A project's page:** the facts are a legend plate (`surface.panel`, a 4 px band in the family,
   a ledge), their labels in the family's light, in caps; what it is built with is a row of tags
   tinted in the family (12 %) with a hairline edge; the cover sits in a hairline frame.
@@ -300,7 +324,9 @@ transit map.
 
 The DOM over the 3D world. Every control is a **chip on the HUD plate** (`--hud`: `surface.panel`
 at 90 %, with a faint `--hud-edge`), opaque enough that its words pass AA over the brightest thing
-behind it. Where the engine makes a control (the names, the prompt, the Map button, the touch
+behind it. **In hyperspace's tunnel the plate is solid** (`html[data-hyper='tunnel']`): the tenth
+of the world that shows through a plate is then hundreds of bright lines on the move, and the
+words over them swam, on a phone's nav and prompt most of all. Where the engine makes a control (the names, the prompt, the Map button, the touch
 controls), the stylesheet only says how it looks. Where each one sits, and what it keeps clear
 of, is in the table under The 3D world.
 
@@ -312,7 +338,9 @@ of, is in the table under The 3D world.
   568 px with tighter chips; at 400 % zoom (320 by 256) it takes the phone's two rows.
 - **"About this site"** (the home page only): the welcome text waits behind it, and it wears the
   cream face while the text shows.
-- **The Map button**, top right under the bar: "Map" with its M key cap; on the map, "Close map"
+- **The Map button**, top right under the bar (over a deck: top centre of the part of the world
+  the cards leave free, where the dock prompt stands at the bottom; both slide there as a card
+  opens and its column widens): "Map" with its M key cap; on the map, "Close map"
   in the cream face. A finger gets no key cap and a fixed width, and so does a mouse beside a
   phone-shaped sheet, where the row is short of room. Whatever shares its row keeps --space-3
   clear of it, at the width it has then (`--map-chip`: wider under `html[data-map]`, where a
@@ -321,7 +349,8 @@ of, is in the table under The 3D world.
   tag at the end nearest its body (the top below it, the bottom above it), like a label on a
   transit map, 13 px at every width and on the map. A sun or the
   home planet names a whole system, in spaced caps at 700; a moon is quieter (`ink.mid`, 500).
-  The body the ship is headed for has the one butter tag. Whichever side of its body, a tag sits
+  The body the ship is headed for has the one butter tag; in hyperspace's tunnel every other
+  name (but one the keyboard is on) steps back to 40 %, still a button. Whichever side of its body, a tag sits
   2 px off the disc. On the map the ship's marker is "you are here": no name's tag lies on it,
   or on the Plain version chip. A name the ship would be under glides a few pixels past it, away
   from its body, or goes above its body; so does one with no room below (the sheet, an edge, a
@@ -347,7 +376,116 @@ of, is in the table under The 3D world.
   steps out a little, by `translate`.
 - **The dock prompt** ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit") is one
   chip. Its E key cap is butter, the one key cap that is not white, because it is the prompt's
-  action and not a key being named; "Stop" is set apart by a hairline, in butter.
+  action and not a key being named; "Stop" is set apart by a hairline, in butter. It sits in the
+  middle of the free view, and beside the flight deck while that is up at full size: its right end
+  12 px left of the cluster, where "Flying to" steps aside (heard, not seen: AUTO, the target on
+  the ball and the minimap's pill say it).
+- **The offer of hyperspace** ("Shift Hyperspace") is the prompt's chip once more, a real
+  button right after it (Tab goes Stop, then Hyperspace): the same plate, edge and ledge, and
+  its Shift key cap is butter as the prompt's E is, because it is this chip's action and not a
+  key being named. It is there only on a journey that is fast for long enough to be shown as a
+  jump, and only while the world has the whole screen (no page open, the star map closed);
+  never for a visitor who asked for less motion. **It arrives with one butter ring** that goes
+  out from its edge, a rem, and fades (0.48 s, once; an offer does not nag): it is there for a
+  second or two, in a corner of a picture that moves, and a chip larger than the prompt it sits
+  by would outrank it, so it keeps the HUD's size at every width and says so once instead.
+  Pressed, it is "on" through the wind-up, on
+  the cream face, and it leaves with the punch. It stands in one of three places. Beside the
+  seated deck: a row above the prompt, its right end 12 px left of the cluster as the prompt's
+  is, the ship in the middle. Where the deck is the strip, or there is none: the bottom right
+  corner (no minimap stands there without the full cluster), and in a window under 26rem wide
+  the key cap alone (the word is heard). Under a finger: **the boost pad's own box, as a round
+  pad that reads HYPER** in the pad's ring and type, **its word in butter** (what acts on the
+  journey, as "Stop" is; it is also what tells it at a glance from the boost pad it stands in
+  for), coral while pressed and through the
+  wind-up: on a journey, boost is hyperspace (the boost pad is out in free flight only, so its
+  box is free, and the prompt and the minimap keep off it already). The rest of the word stays
+  in its line at no size, so the pad is heard as one word, "Hyperspace" (taken out of the line
+  it was heard as two).
+- **The flight deck** is Kerbal Space Program's cluster of instruments at the bottom centre,
+  drawn flat: a picture of the simulation, not a control (no ledge, no hover, no focus;
+  `aria-hidden`). It shows whenever the ship is not docked and the star map is closed. The
+  cluster is 15rem wide; its round plate (`--deck-size`, by the view's height: 64 px in a view
+  576 px tall, 112 from 832 up, so that its top keeps half a rem under the fins of a ship at
+  rest, at the bottom of its hover: `tests/deck-room.test.ts`) wears the boost pad's ring and
+  holds **the ball**: a globe, its sky half `surface.line` (the lighter one, as a sky is) over
+  its ground half `space.900`, with a meridian every 30 degrees and N E S W riding them, and a
+  3 px horizon in the family of the system the ship is in (`ink.mid` between systems). The
+  letters stay upright, each on a navy rim; one fades out as it turns away from the nose, gone
+  before the rim would cut it (60 degrees off the nose on the biggest ball, 43 on the
+  smallest), and makes way for the target where their lanes meet. The ball leans and nods with
+  the ship (not under reduced motion). On it: the nose (a fixed "-v-"), prograde (a ring with a
+  dot, where the ship is really going), home (a house) and **the target, in butter**: a whole
+  ring while a journey or an approach is locked on (it closes in once, 1.6 to 1), a dashed one
+  for a body that is only within reach, hollow at the rim when it is behind. Up the plate's
+  left the throttle (coral while boosting), up its right the g (full at 15 g, then a peg lights
+  at its top end); above it the speed pill ("42 m/s", with one to three chevrons from 82, 300
+  and 600: only the autopilot gets there), below it the heading chip ("HDG 067°", 000 is
+  north), and a lamp on each shoulder: ASSIST and AUTO, on the cream face while lit. In
+  hyperspace's tunnel the autopilot's lamp reads HYPER (the same lamp, lit as before; an offer
+  or a wind-up is not the tunnel) and the pill's chevrons run, one after the other; the speed
+  stays the real speed. Where the
+  free view is under 48rem by 36rem it is **the strip**: one pill, 7.75rem by 2.75rem, in the
+  Map button's row at the far end from it, with the ball, the speed and the heading (or the lit
+  lamp's name); nothing moves for it. Under 18.5rem by 20rem, or under a phone's sheet, there
+  is none. The first-visit card keeps 12 px above the cluster, and the strip waits for the card.
+  Beside a page's deck of cards the free view is what its two columns leave between them (570 px
+  of a window 1280 px wide: the strip, which begins where the left column's room ends; the whole
+  cluster from a window about 1570 px wide), and the cluster's middle is the middle of that.
+- **The minimap** is the ball's sibling, a scope: the star map at another size, bottom right of
+  the free view, wherever the deck has its full size: flying or docked (a reader can hop to the
+  next planet), not on the star map. It is built as the ball is. A round plate, `--minimap-size`
+  across, by the view's height and in two sizes. In flight under a mouse it is 176 to 220 px
+  (212 in a view 800 px tall), a fifth larger than it was, so that the marks of a system stand
+  further apart (Allen, 2026-10-06: "slightly larger so it can show things more clear").
+  Docked, and always under a finger, it holds the 148 to 184 px it was measured at
+  (`--minimap-held`): the carried ship passes right above this corner on every turn round its
+  body, and a thumb has the boost pad's place under it. It eases from one size to the other,
+  at once when it shrinks and after a wait when it grows. The plate wears the deck's ring and, because it can be
+  pressed, a ledge; ten ticks stand on it (`ink.low`, one every 30 degrees but at twelve and
+  six), and the round face lies 14 px inside its edge. A pill is fastened over its top (the
+  speed pill's twin) and a chip under its bottom (the HDG chip's twin), so the plate stands on
+  the line the ball's plate stands on and the chip on the HDG chip's line, at every size
+  (`tests/e2e/deck.spec.ts` holds both to the pixel); under a finger the whole instrument sits
+  above the boost pad's place instead. The face's ground is `space.900` inside an `ink.low`
+  hairline, with the page's dot grid drawn round: two rings of dots in `surface.line`, a third
+  and two thirds of the way out, which is a third and two thirds of what the chip says, and an N
+  at the top (`ink.mid`, under every mark). The N stands where a pin does, so it gives way to
+  one: while a system's pin has its middle within 24 px of the N's, the N is not shown (it
+  fades as a mark does), since an outlined glyph and a letter side by side read as one sign.
+  Today that is home's own scope, where Research lies a little west of due north. A body that
+  is really there may pass over the N. It shows the whole galaxy while the ship is between
+  systems or headed for another, else the system the ship is in, north up, and eases from one
+  to the other. A sun and the home planet are their family's glyph, filled, with a navy rim;
+  planets, docks and moons are discs; planned work is hollow and dashed in `ink.low`; each
+  travels on a hairline circle in its family; the ship is a cream chevron on a navy rim, 13 px
+  long (a little bigger than a sun's mark), on top of whatever it is at. A system off the face
+  is its glyph in outline, pinned on a circle 9 px inside the rim, on the line to where it is.
+  **The pill names**: what the scope shows, set as the sky sets a system's name (spaced
+  capitals in `ink.mid` behind the family's glyph; the galaxy wears the wordmark's three
+  stations), or a body, as written, in `ink.high`: the one a pointer aims at, else the one a
+  journey is headed for. The pill of a long name may reach a rem past the plate on either
+  side (then it is cut short with an ellipsis); it stays centred on the plate, and the names
+  in the sky keep off its two ends as they keep off the rest of the instrument. Docked, the
+  pill rests (it is not shown) until a pointer aims: the
+  page beside the scope says where the ship is, and the carried ship passes just above the
+  plate on every turn, where the pill was the one part of the instrument it went behind
+  (measured: docs/PLAN.md, "the minimap as a scope"). **The chip measures**: RANGE, how far the
+  face reaches from its middle ("RANGE 1.1 km" for the galaxy, "RANGE 470 m" for Projects), or
+  on a journey the seconds it still takes ("ETA 3 s", figures and unit in butter), which only
+  count down. **Butter is "here"**: a 2 px ring round the body the ship is at or headed for,
+  the way that is left of a journey as a 2 px line from the ship (in hyperspace's tunnel,
+  dashes that run toward where it is going), the journey's clock on the
+  rim (a 2 px ring, whole when the journey starts, that a gap eats clockwise from twelve; it
+  fades as it stands at a Stop or on arrival) and the seconds on the chip. A pointer aims (a
+  1.5 px cream ring, the name on the pill; the plate's ring brightens under a mouse) and a
+  press on a mark flies there, exactly as a press on its name does; a press where nothing is
+  (on the face, the plate, the pill or the chip) opens the star map; pressed, the whole
+  instrument drops onto its ledge. The corners of its box are the world's: a press there is a
+  press on the sky. Whoever asked for less motion sees none of it move or fade: the view cuts
+  from one scope to the other, and no journey is flown for them (the ship is put there), so
+  the clock never runs. It is a picture too (`aria-hidden`, nothing to focus): the names in the
+  sky and the Map button are the real controls for all of it.
 - **The first-visit hint card** is an opaque legend card (`surface.raised`: nothing of the world
   ghosts through the words), its band in `ink.low` (a hint is news, not a family, and butter keeps
   its one meaning), with white key caps on a ledge and "Got it" as a key with an `ink.low` edge.
@@ -360,6 +498,85 @@ of, is in the table under The 3D world.
   route sign's plate 24, the crumbs' words 22). The panel
   pins the type scale to its narrow end. On a wide screen it is a side panel on the HUD's grid: its
   right edge flush with the nav tray, its bottom level with the Plain version chip.
+- **The deck** (a window at least 1280 px wide and 576 px tall) is the same content as cards
+  round the docked body, not beside it: two columns on the HUD's grid (18 to 22rem wide, the
+  window's edges at most 120rem apart), the body between them. The page's head (crumbs, route
+  sign, the `<h1>` at `xl`, the lede at `sm` in `ink.mid`) stands top left with Close beside its
+  first line; the sections follow in reading order, down the left column, then down the right
+  (the two columns hold as many boxes as each other, the head counted: of three or four
+  sections the first stands under the head, of five or six the first two, of seven or eight
+  the first three; one or two sections stand on the right, facing the head). Eight sections at
+  most. Every card is one of three things:
+  - **a stub** (the overview): its title row, 44 px, with a 10 px station ring in the family's
+    base before the words (`base`, 600), then its section at `sm` in `ink.mid`. A stub is as
+    tall as what it holds while its column has the room: a page with one section shows all of
+    it on arrival (Contact, its links with it), and a monitor shows most cards whole. In a
+    column that is full the stubs still growing share what is left, and each is cut under a
+    fade to the plate, as tall as the space under a stub's text (24 px), so a stub that shows
+    everything fades none of its words. A stub that ENDS with its keys (the resume's Download)
+    keeps that row at its foot however little of it shows, the text fading out behind it: what
+    a page is for is never under a cut (from 130 px; a shorter stub lets the keys go with the
+    rest). One left under 72 px, with no room for a line of its
+    text, is its title alone in the middle of the card, never a sliver of what it holds (the
+    two under a project's head in a window 576 px tall). (Firefox keeps a cap of 7.5 to 11rem,
+    `--stub-max`, until it is seen to size a box by what it holds: not run.) The plate is the panel's
+    (`surface.panel` at 96 %), with no
+    blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
+    cards read as the ends of lines to it;
+  - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
+    `base` on one line, with Close. What a chip holds under that row is cut off, and it is also
+    said to be out of sight (`opacity: 0`, on everything of a chip that is not its title row;
+    the open card alone sets it back): it is still laid out there, where the next chip's title
+    stands, and a tool that goes by where a box lies would find a chip's keys under that title.
+    Nothing looks different, and nothing leaves the page, the tab order or find-in-page;
+  - **the open card**: the whole section at the panel's sizes in `ink.high`, as wide as
+    30rem (40 % of the window at most), its title at `lg` on a sticky 52 px row over a hairline,
+    its ring filled butter ("here"). Longer than its column, it scrolls inside itself (a thin
+    `ink.low` scrollbar), and the cards it shares the column with stay chips above and below.
+    While a card is open BOTH columns are packed toward the top, in the page's order, with the
+    stubs' own 12 px between one card and the next: the chips over the open card, the open card,
+    the chips under it directly under it, and sky under the last (spread down their column as
+    the stubs are, title rows stood 80 px and more apart with nothing between them). The open
+    card may be as tall as its column less a title row and a gap for each card beside it, so it
+    never pushes one of them off the stage. With none open a column still reaches from the top
+    of the stage to its foot.
+    While it has more under its cut, its last lines fade into the plate as a stub's do (48 px,
+    a line of its text and the space over it, so that a cut between two paragraphs still has
+    words to fade; at the foot of the plate and as wide), until the last of what it holds is in
+    sight: a scrollbar says the same, but many browsers show none at rest. The fade comes and goes at
+    once, and in forced colours there is none. An open card that ENDS with its keys (the
+    resume's first, in a window too short for it) keeps them in sight as its stub does: the
+    row sticks to the foot of what shows, on a plate that the text fades out behind, and
+    stands in its own place once the card is read to its end.
+  **Leaders** tie the cards to the body, as Allen drew them: from each card (the middle of
+  its title row, on the edge that faces the body) a route line in the body's family, 3 px on a
+  7 px casing of `space.950` so that it reads on a white peak as on the night sky, runs straight
+  to the nearest point of the body's limb and ends in a station: a `space.900` disc in a 2 px
+  `ink.high` ring, 12 px across. They all make for the middle of the disc, so no two cross.
+  With a card open only its own leader is left; as the camera turns to what the card points at
+  and closes in, the line's end slides off the limb to that place, and its station is the
+  butter dot that stands before the open card's title (10 px, in a 2 px rim of `space.950`:
+  butter meets navy, never the world): here. The lines lie over the world and under the cards,
+  are nothing a visitor can press or a screen reader hears, and are away on the star map and
+  while the ship is not in orbit. In forced colours they are `CanvasText` on `Canvas`, the open
+  station `Highlight`.
+  A section's cover picture is not in its card where the card's body is the planet itself
+  (`.cover--planet`). Opening, closing and stepping are a click on a card or its title, the
+  wheel, the scroll keys and Esc; none adds a step to Back, and the fragment in the address is
+  the card (`/about/#rockets`). A keyboard that closes a card (Esc, Home, up from the first)
+  is left on that card's title, in its focus ring, a press away from opening it again: never
+  on the page's heading, which wears no ring. The cards arrive with the page (opacity, and 8 px up by
+  `translate`; the right column 80 ms after the left). A change of card is carried: the layout
+  changes at once, and each card that moved glides from where it was to where it belongs
+  (`motion.base`, ease-out), its title going with it; a card that grew unrolls from the size it
+  had, so a column unfolds in step, and where the head unrolls sideways (a card opens under
+  it, and its column widens) Close rides the head's edge, never ahead of it on the sky. The
+  leaders step aside while the cards travel (out in
+  `motion.fast`, back in `motion.base` once the cards rest; a window that is only resized
+  takes them along at once, since nothing travels), and when they first appear (the
+  ship in orbit, the view at rest) each is drawn from its card to the body, 40 ms after the one
+  before, in `motion.slow`, its station landing as the line arrives. With reduced motion none
+  of this moves: the cards, the lines and every new state are simply there.
 - **The bottom sheet** (a phone held upright) has rounded top corners. At rest it leaves at least
   20rem above it: the bar, the Map button's row and a strip of world for the docked body. The home
   page's welcome text rests lower (at most 45 % of the height), because the chase camera needs a
@@ -370,6 +587,7 @@ of, is in the table under The 3D world.
   Motorways; the boost pad is a ring on the HUD plate that fills coral while it is pressed. It is
   out in free flight only: boost multiplies the pilot's own thrust, and docked or on a journey
   the stick is what takes the controls back, so there the pad would light up and do nothing.
+  On a journey that is offered a jump, hyperspace's pad stands in its box instead (above).
 - **The Plain version chip** sits bottom left, a HUD chip with a sky station ring. Focused, it
   comes up above any panel.
 
@@ -406,17 +624,21 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 
 | What | Where |
 | --- | --- |
-| The three shading bands: where a facet flips between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
+| How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
 | Which token feeds which shader input | `design/materials.ts` |
-| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (suns, the flame, rings), `sky.ts` (backdrop and stars), `dust.ts`, `post.ts` (bloom, vignette) |
+| The shaders themselves (GLSL) | `design/shaders/`: `toonFlat.ts` (every lit surface), `glow.ts` (the flame, rings, a generated sun), `corona.ts` (the light round every sun), `air.ts` (the shell and the clouds of a world with air), `traffic.ts` (the dots on the orbit lines), `chart.ts` (the star map's ground), `sky.ts` (backdrop and stars), `skyBake.ts` (the Milky Way's haze and the far galaxies, painted once), `dust.ts`, `hyperspace.ts` (the tunnel and the dashes of a jump), `post.ts` (bloom, vignette) |
 | Bloom and vignette: how strong, how wide, how dark the corners | `tuning.post` |
 | WHAT blooms, and how much (0 to 1 each) | `tuning.world.sunBloom`, `tuning.world.ringBloom`, `tuning.ship.flame.bloom` |
 | Quality tiers: pixel caps, anti-aliasing samples, which tiers get post-processing, the 30 fps cap, when the engine lowers its own resolution | `tuning.quality` |
-| The sky: horizon glow, and up to four huge soft glows of colour (family, direction, size, strength) | `tuning.backdrop` |
-| Stars: count, sizes, tints, twinkle, drift | `tuning.starfield` |
+| The sky's navy: how quickly it lightens toward the horizon. Nothing else: the sky has no glows of colour and no gas ("Deep light", below) | `tuning.backdrop` |
+| What the sky adds to the navy: the Milky Way's haze (where its great circle lies, its two banks, its twelve clumps, its dark lane, where its bulge is and how far the haze swells there), the fifteen far galaxies, the ceiling on luminance, the calm strip along the horizon, how much of it shows while docked and on the star map, the panorama's size by tier | `tuning.look.sky` (the painting: `shaders/skyBake.ts`; the river's shape, for the haze and for the stars alike: `sim/milkyWay.ts`) |
+| Stars: how many (`count`: the faintest class, the rest in proportion), the six temperatures and their shares (`palette`, or a class's own), the five classes (`classes`, `hero`: brightness, core, halos, spikes), how much of each class lies along the Milky Way (`bandShare`), the stars of the Milky Way's bulge (`bulge`: how many more, in which warm tints), where the eight heroes and the six clusters are (three of the clusters are the sky's compass: one at each system's bearing from home) and how a cluster is made (`cluster`: its bright heart), the double stars (`pairs`), twinkle, a hero's breath, drift (0: the sky is painted) | `tuning.starfield` (the drawing: `stars` in `shaders/sky.ts`; the list: `sim/starList.ts`) |
 | Space dust: count, size, brightness, streak length, and how fast it may slide past (`maxFieldSpeed`: faster than that, the lens and the planets rushing by say how fast) | `tuning.dust` (the slide: `uField` in `shaders/dust.ts`) |
 | How planets are shaped and painted: relief, continents, sea level, terraces, where the colour bands change | `tuning.planet` (colours: `tokens.color.biome`) |
+| Hyperspace, the look of a journey's fast stretch: how long the picture takes to go (`dropoutSec`), how far the real stars and the baked sky's light dim under it (`starOpacity`), how many dashes there are on each tier (`dashes`), how wide and how long one is (`dashWidthPx`, `dashLength`), how fast it all streams (`flowPerSec`), the dark eye the destination grows out of (`eyeRad`), and the walls: their bands, how thick the wash is on one band and on the next, the thin lines and the ring (`bands`, `wash`, `ribAlpha`, `ringAlpha`). The first five keys of the block are not a look: they say WHEN a jump is offered and when its tunnel opens and closes, measured on every journey (`npm run journeys` prints the block "hyperspace": run it after moving one) | `tuning.hyper` (what shows at which moment: `hyperLook` in `sim/hyper.ts`; which token goes where, and how many dashes wear which: `createHyperTubeMaterial`, `wearHyperFamily` and `HYPER_TINT_SHARES` in `design/materials.ts`; where the dashes run: `DASH_SPAN`, `DASH_EASE` in `shaders/hyperspace.ts`) |
 | The world: mesh detail, planet spin, the ring of a ringed planet, orbit lines, how the ship is lit between systems and near a body | `tuning.world` |
 | Every body's emblem world: its ground and parts (`bodies.ts` and the files it gathers: `home.ts`, `projects.ts`, `research.ts`, `hackathons.ts`, and `gears.ts`, the Hardware sun's ball of fourteen meshing gears, each a slab with a wall under every edge of its plate, which `tests/world-gears.test.ts` keeps from jamming and from being paper at the limb); a recipe may say `still` and `faces: 'prograde'` (Model Rocketry is a rocket whose nose follows its orbit round its sun), what it adds up close (`near.ts`), how its parts move (`motion.ts`), and how far its solid reaches (`reach.ts`, measured by `tests/world-reach.test.ts`) | `design/worlds/` |
 | The planet ring; the station, the satellite and a relay as models, for a recipe in `design/worlds.ts` that asks for one, or a body of that kind with no rows | `design/models/docks.ts` |
@@ -424,8 +646,10 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | The rocket and its flame: shapes (rings, fins, window) and which token paints what | `design/models/rocket.ts`, `design/models/flame.ts` |
 | Which model a name stands for (generated code now, a `.glb` later) | `design/assets.ts` |
 | How the ship leans (never more than `bankRad`, however hard the autopilot turns it, eased at `bankOmega`), nods and bobs, and how the flame follows the throttle | `tuning.ship` (the lean: `sim/bank.ts`) |
-| The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
-| The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders | `tuning.orbitCam` |
+| The chase camera: where it sits, how far it looks ahead (and never further than `lookAheadMax`: at the autopilot's speeds the view would lie flat along the plane), how loosely it follows, how fast it may swing round (`maxYawRate`: the autopilot turns at 7 rad/s, and the view follows at no more than about 195 degrees a second; under reduced motion no faster than the pilot turns, `flight.yawRateSlow`), how the lens widens with speed and how quickly it gets there (`fovOmega`: the autopilot changes speed in a tenth of a second), how much further it opens in hyperspace's tunnel and how far the ship lunges ahead of the view there (`surgeFovDegrees`, `surgeTrail`, eased in and out at `surgeOmega`), tall screens, and how it fits into the strip between a phone's solid bar and its sheet (`fitDegrees`, `maxFitWiden`: the home page's welcome text keeps the home planet and the ship both in view) | `tuning.chaseCam` |
+| The orbit camera of a docked ship: lens, how far above, how far round from the light, how much air round the docking ring, how fast the view wanders; and, while a card of the deck is open, how quickly it turns to that card's landmark (`faceOmega`, never faster than `faceMaxRadPerSec`), how far round from the middle of the disc the landmark rests, toward its card (`faceBiasDeg`), and how far it closes in (`focusFitRingRadii`) | `tuning.orbitCam` |
+| What each card of a page points at on its body: a latitude and a longitude for a card that should mean something (About's Rockets is the launch pad, each section of the resume a pod of the station), and where the rest point, evenly round the body | `design/worlds/landmarks.ts`; the ring: `tuning.deck` (`defaultLatDeg`, `defaultLonDeg`) |
+| The leaders from the cards to the body: the line, its casing and the stations (colours, widths), in the stylesheet; how big a station is | `.leaders` in `src/styles/global.css`; `tuning.deck.stopRadiusPx` |
 | Changing between cameras and making room for the panel: seconds from chase view to orbit view, how quickly the view slides over | `tuning.cameraRig` |
 | How the ship flies (not a look, but it decides how every look is seen) | `tuning.flight` |
 | Orbit assist: how fast and how far out a ship that lets go is eased onto a ring, how early a ship flying at a planet is swung round it | `tuning.assist` |
@@ -441,12 +665,17 @@ backdrop treatment, post-processing amounts, the look of map mode and of the lan
 | Where the systems sit: how far from home and from each other (`homeRoom`, `slotRoom`) and which way the cluster grows (`clusterAxisDeg`). Not a look: **changing any of the three moves every system** (a test pins them, and `galaxy.lock.json` will), so ask Allen first. The build refuses rooms too small for the tripwires (`maxSystemRadius`, `minSystemGap`). One system is not on its slot's centre: Research, placed by hand in its file (`position`), which is content and Allen's to move, not a look (docs/PLAN.md §5.4). | `tuning.layout` |
 | The first-visit hint card ("W A S D or the arrow keys to fly..."): where it sits for a mouse and for a finger, the key caps. It never covers the ship or the home planet: bottom left beside the ship on a wide screen, under the bar on a tablet or a phone held sideways, below the ship on a phone held upright (where it steps aside once the boost pad or the prompt appears). Its band is `ink.low`: a hint is news, not a family, and not "here" | `.flight-hint` in `src/styles/global.css` (the words: `src/layouts/Base.astro`) |
 | The dock prompt ("Orbit FishAI", "Flying to FishAI" with its "Stop", "Leave orbit"): a real button, bottom centre above the corner chip (on a phone held upright, above the boost pad; held sideways, down on the bottom edge, below the ship); on a phone with the sheet up, in the Map button's row, so the docked body has the strip between that row and the sheet (`frameTop`, `src/shell/panel-inset.ts`); its offers out of sight while the map is open there, where they would sit on the galaxy (`quiet` in `ui/Prompt.ts`); a journey's Stop always shows, since there it is the only way to stop. Where room is short (that row, the narrowest sideways phone) "Flying to" steps aside, heard but not seen (`.dock-prompt__lead`) | `.dock-prompt` in `src/styles/global.css` |
+| The offer of hyperspace: the chip beside the prompt, its three places (the corner, beside the seated deck, the boost pad's box under a finger), the one ring it arrives with (`hyper-offer-ping`), "on" through the wind-up (`data-on`). And what the tunnel does to the rest of the screen, by the stylesheet alone: the deck's chevrons and the minimap's route run, the other names step back, and the HUD plate is solid | `.hyper-offer` and the `html[data-hyper='tunnel']` rules in `src/styles/global.css` (the lamp's word: `ui/FlightDeck.ts`) |
+| The flight deck: how big the free view must be for the cluster and for the strip (`fullMinRem`, `stripMinRem`), from where the ship counts as in a system (`enterRadii`, `leaveRadii`: the horizon's family, and what the minimap looks at), under what speed prograde is put away, what one g is and where the g arc is full (`gUnit`, `gFull`), how quickly the two arcs follow, when ASSIST lights (`assistOn`), the speeds of the chevrons (`warpTiers`), how often the digits change | `tuning.instruments` (the maths: `sim/instruments.ts`) |
+| The LOOK of the flight deck: the plate's size by the view's height (`--deck-size`), half the cluster's width (`--deck-half`), and every fill and stroke of the ball, the arcs, the lamps, the chips and the strip | `.flight-deck` in `src/styles/global.css` |
+| The minimap: how its view is fitted and how quickly it eases from the galaxy to a system (`fitMargin`, `fitPadPx`, `spanMin`, `viewOmega`), the smallest mark of each kind of body in the galaxy's view and in a system's (`minRadiusPx`; 0: its true size), when a moon has room (`clearPx`, `minVisiblePx`), the pins of the systems off the face (`rimInsetPx`: how far inside the face's edge the circle they stand on lies; `rimRadiusPx`), how sure a finger must be between two marks (`ambiguityPx`), the points of a journey's line (`routePoints`), how often the marks are moved (`bodiesHz`), the ship's chevron (`shipPx`) | `tuning.minimap` (the maths: `sim/minimap.ts`; a mouse's and a finger's reach are `tuning.picking`'s) |
+| The LOOK of the minimap: its two sizes by the view's height (`--minimap-size`: the plate in flight under a mouse; `--minimap-held`: docked, and under a finger; `tests/minimap-galaxy.test.ts` reads both) and how it eases between them (`--minimap-wait`), the plate's ring and its ticks, the face's ground, the rings of dots and the N, the marks, the rings, a journey's line and its clock on the rim, the pill, the chip | `.minimap` in `src/styles/global.css` |
 | Where space ends, and how hard it pulls a ship back | `tuning.edge` |
 | Touch controls: the look of the stick and the boost pad | `src/styles/global.css` (`.touch-stick`, `.touch-boost`) |
 | Touch controls: the stick's travel, dead zone, how sharply it steers, the brake cone | `tuning.input` |
 
 **Tuning by hand:** run `npm run dev` and open `/?universe&tweak`. Every value of `tuning.flight`,
-`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.cameraRig`, `tuning.map`, `tuning.ship` and `tuning.shading` is a slider that acts at once; "copy tuning as
+`tuning.assist`, `tuning.cushion`, `tuning.dock`, `tuning.cruise`, `tuning.hyper` (but the number of dashes, which an engine takes when it is built), `tuning.input`, `tuning.chaseCam`, `tuning.orbitCam`, `tuning.deck`, `tuning.cameraRig`, `tuning.map`, `tuning.instruments`, `tuning.minimap`, `tuning.ship` and `tuning.shading` is a slider that acts at once (the flight deck's two room sizes at the next resize); "copy tuning as
 JSON" gives the values to paste back into `design/tuning.ts`. Add `&perf` for a frame-rate readout.
 
 **The horizon is where the planets are.** Everything flies on one plane, so every planet sits on
@@ -459,20 +688,565 @@ the top bar, with three quarters of the screen empty below them.
 or still, or its star map variant), a planet (any biome, any seed, with or without rings,
 everyday or close-up detail), moon, sun, the rocket, the station, the satellite or a relay on a
 turntable in front of the real sky. Drag to look around, wheel to zoom, move the light, and use the sliders
-for `shading`, `planet`, `world`, `post` and `ship`; "copy tuning as JSON" gives you what to paste
+for `shading`, `planet`, `world`, `post`, `ship` and `hyper`; "copy tuning as JSON" gives you what to paste
 back into `tuning.ts`. Token colours are not sliders: edit `tokens.ts` and the page reloads.
+The subject **hyperspace** is a jump seen from behind the rocket: hold it at any moment from the
+press on (the wind-up, the punch, the tunnel, the way out) or play it in a loop, at any speed,
+in any family's lines. Judge a change to the jump there in all five families, and on LOW.
+
+**Hyperspace is flat too** (`world/Hyperspace.ts`). A jump is drawn the way the rest of the world
+is: flat colour and hard edges, no blur, no flash, no gradient, and nothing of it blooms. In the
+wind-up dots come up over the stars and are pulled out into dashes, all pointing away from the
+one spot the ship is going to, while the real stars dim, and the sky's own light with them (the
+Milky Way's haze and the far galaxies, to the same 15 %: left as they were they showed through
+the walls as a fog that stood still). At the punch a thin cream ring races out
+from that spot and the tunnel opens behind it: walls in bands that stream outward, a wash of
+navy (`space.700`) that is thinner on one band and thicker on the next, a hairline in the
+destination family's base at each band's edge, and in the middle a dark eye (`space.950`) that
+the destination grows out of. All of it
+is sky: every planet, the ship and the orbit lines are in front of it, so where the ship is
+going is never smeared. **Half of the dashes are starlight** (the stars' own white, cool and
+warm) **and half wear the five families' bases**: the destination's a quarter of all, the other
+four a few each (`HYPER_TINT_SHARES` in `design/materials.ts`), so a jump reads as where it is
+going at a glance and as the galaxy's own pastels at a second one. A coloured dash is never
+dimmer than half of itself (a pastel at a fifth over navy is a grey); a white one may be. (As
+first built one dash in seven had a colour, and the jump read as white on navy: timid.) On the
+way out the same ring closes round the course onto the eye, all but unseen while it is wide and
+clearest as it gets there, and the
+dashes shrink back into dots: gone 0.35 s after whatever ended the jump. (**The ring is round
+the course, never round the destination**, which is seldom in the middle of the view: drawn
+round it, the closing ring crossed the whole screen as one grey arc.) The lens opens 14 degrees further in
+the tunnel and the flame burns as long as at boost. LOW has 700 dashes and no hairlines, MEDIUM
+900, HIGH 1400; it is two draw calls on every tier. **The family is in the lines and the dashes,
+never in the walls:** a wash in the family's own shade was tried, and it is a clean blue, green and purple
+for sky, mint and lilac, but over the navy sky coral's goes brick and butter's goes khaki (the
+lesson below, again). One rule for all five, so the walls are navy.
 
 **Judge a look on every tier.** `/?universe&q=low`, `&q=medium` and `&q=high` show the three
 side by side in three tabs. LOW has no bloom and no vignette, so nothing may DEPEND on them: they
 are seasoning. Only things that ask for it bloom (the knobs above), so the pastel world stays crisp
 however strong the bloom is.
 
-Three things learned the hard way. **The sky uses glows, not noise clouds:** on a calm dark sky,
-procedural noise reads as mud and the eye finds its lattice at once. **Dark gradients band in 8
+Three things learned the hard way. **The sky has no clouds:** on a calm dark sky, procedural
+noise reads as mud and the eye finds its lattice at once; and gas that was baked, lit and cut
+into flat steps read as waves, because the edge of a step that follows noise is a contour line
+(2026-10-03, "Deep light" below: Allen flew it and chose "No clouds, rich stars"). What the sky
+holds is navy, stars, and light with no edge anywhere (the Milky Way's haze, a far galaxy):
+nothing run through noise, nothing cut into levels. **Dark gradients band in 8
 bits**, so the backdrop adds half a code value of noise after the conversion to sRGB; keep that
 line if you rewrite the shader. **A big warm glow on navy reads as brown:** the chase camera looks
 down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part cool, and warm
-colours small and high.
+colours small and high. (It holds for any big see-through warm area over the sky, not only a
+glow: hyperspace's walls in coral's or butter's shade went brick and khaki.)
+
+## Deep light _(a preview: branch `claude/deep-space`, not on `main`)_
+
+On 2026-10-01 Allen asked for "higher fidelity art styles across the board, instead of just
+plain, muted glows", "more hifi and in depth", keeping "the feeling of that simplicity but with a
+lot more details", and pointed at space photographs (the Carina cliffs, the Pillars, Jupiter,
+Earthrise, deep fields). The answer that was chosen is **flat worlds, deep light**: matter
+(planets, ships, signs) stays flat-coloured and token-exact, and what is around matter (stars,
+coronas, air) becomes light with structure. (It began as "matter stays faceted"; on
+2026-10-02 Allen asked for everything round and smooth but what should have edges, and the
+facets went: "As built: round and smooth", below. And it began with gas in the sky; on
+2026-10-03 Allen flew that sky and chose "No clouds, rich stars", and the gas went: "As built:
+the sky of stars", below.) It is built in steps on a preview branch that Allen
+flies before any of it reaches `main`.
+
+**DRAFT, NOT SIGNED: what this would change in the principles above.** These are Allen's to
+accept, change or refuse once he has flown the preview; until then the principles stand as
+written, and nothing on `main` follows the drafts.
+
+- Principle 2 would read: **Flat colour, round form; light may be soft.** A surface keeps its
+  flat colours and its two or three bands of light and never gets a gradient, but colour and
+  light follow the FORM, not the mesh: a ball is lit as a ball and a coast is a line, whatever
+  the facets under them, and an edge shows only where the thing has one (a box, a cog's tooth).
+  Light and air (halos, coronas, shells, spikes) may be soft, and round a body they are still
+  cut into a few flat steps; the sky's own light (the Milky Way's haze, a far galaxy) has no
+  steps at all, because on something as large as the sky the edge of a step is a line across
+  the view. (Redrafted on 2026-10-02, after Allen saw step 2: "everything should roughly look
+  round and smooth", "the planets too", "except for just the stuff that should have edges (like
+  the hardware cogs)". It was "Matter is flat, light may be soft", with matter faceted. The
+  sky's clause is of 2026-10-03.)
+- Principle 3 would add: **and the sky, never brighter than luminance 0.19** (where the butter
+  focus ring still reads 3:1 over it), with a strip along the horizon left near today's navy,
+  because that is where planets and orbit lines sit.
+- The lesson "the sky uses glows, not noise clouds" (it stood above, under the 3D world) was
+  drafted here as "noise only baked, limited and lit", and built that way: cliffs of gas at the
+  systems' bearings, their glows in flat steps. **Allen flew it and refused it on 2026-10-03**:
+  "i dont really like the new background with the waves". Asked which way to go on, he chose
+  **"No clouds, rich stars: Remove the gas clouds entirely. Keep the new coloured stars, the
+  six-spiked hero stars, the Milky Way band and the far galaxies on dark navy."** That one is
+  decided, not a draft, and the lesson now reads **the sky has no clouds** (above). Noise still
+  cuts a sun's surface and a world's clouds into round cells: those are small things with an
+  outline of their own, not a sky.
+
+**Eight rules a change to the look is checked against.** (1) Matter is flat in colour and round
+in form (an edge only where the thing has one); light may be smooth.
+(2) Every colour is a token; shaders receive colours as uniforms. (3) Light is added, never
+replaced: the sky is today's navy plus added light, and a strength of 0 skips the pass. (4) Depth
+is layering: flats at different distances, never volumetric noise at run time. (5) One lens for
+every bright point: spikes on the hero stars, a four-point sparkle on a sun's limb. (6) Only what
+already glows may bloom: nothing new joins the bloom guest list, so nothing depends on bloom and
+the low tier loses nothing but seasoning. (7) Calm where the work is: the horizon strip stays
+dark, the sky is halved while docked, and the whole sky has a ceiling. (8) The star map stays
+flat.
+
+**As built so far: the groundwork (step 0). Nothing looks different yet.**
+
+- **25 tokens**, all engine only: three more star temperatures (`color.star.hot`, `amber`,
+  `ember`); the dim tones under `color.nebula`: the Milky Way's haze (`band.deep`, `mid` and
+  `lit`: three tones of the navy's own blue, and no warm one) and, for each of the five
+  families, a `mid` and a `lit`, which paint the star map's districts and nothing in the sky;
+  the air of worlds (`color.air.<biome>`, every biome with a sea); `color.shading.dusk` and
+  `night`; and `color.window`. (There were 36: every family also had a `deep` and a `rim` for
+  its gas, and they went with the gas on 2026-10-03. The haze's own fourth tone, a cream `rim`
+  for its bulge, went that day too, when the bulge was made of stars instead. The group keeps
+  its name.) They are **left out of the CSS mirror** (`ENGINE_ONLY` in
+  `src/site/tokens-css.ts`): no stylesheet reads them, and plain pages do not carry them.
+- **What the palette promises** (`src/site/look-colours.test.ts`): the haze's `deep` and `mid`
+  sit barely above space (under 1.4:1 and 1.8:1 on `space.900`: a haze under stars, never a
+  shape), each tone of its ramp is lighter than the one before, even the brightest stays under
+  3:1 (never a mark), and every one is the navy's own hue (blue over green over red, the blue
+  half again the red or more): the ramp has no warm tone and no grey one; a district's `mid` is
+  a quiet plate (between 1.4:1
+  and 2.5:1) and its `lit` has more than one and a half times that contrast, or the two steps
+  would be one; the families are told apart by their
+  `lit` (the closest pair over 7 CIEDE2000: sky and lilac under deuteranopia, 7.1 when the
+  palette was set), under normal vision and each simulated deficiency
+  (`src/site/colour-vision.ts`), while `mid` carries shape, not identity; every district is in
+  its family's colour, home's too (no plate within 6 of the grey of its own lightness; butter's
+  is the quietest of the five, 8.5, and warm); no star tint within 10 of butter ("here") or of
+  coral, and every one a clear point on space (over 6:1).
+- **The numbers** are `tuning.look` (the sky, the suns, air, traffic, the map's chart, lamps) and
+  the star classes in `tuning.starfield`, with the shapes of their tables in
+  `design/lookTypes.ts`. Each block of `tuning.look` is switched on by the step that builds its
+  system (every one is by now). `tests/look.test.ts` keeps the tables honest (a cluster of
+  stars sits at the bearing of each system from home, and home has none; a far galaxy wears
+  star tints and keeps off the horizon strip; every view the sky is judged from has a hero
+  star clear of the bars and the panel; air only on bodies that exist).
+- **The seven views** the sky is judged from are `SKY_POSES` (`sim/skyDirections.ts`), and the
+  lab's `sky` subject looks out from each of them. The first is the first frame at home as the
+  chase camera takes it: pitched 10 degrees down, the horizon a third of the way down the
+  frame (it was 17.4 until 2026-10-03, which showed less sky than a visitor sees).
+
+**As built: the stars (step 1; made the whole sky on 2026-10-03).** The first thing that looked
+different, and since Allen chose "No clouds, rich stars" the thing the sky is made of: the
+numbers here are that day's.
+
+- **Five classes, six temperatures.** 9,311 stars with a mouse on the medium and high tiers
+  (6,400 dust, 1,500 field, 260 bright, 64 mid, 666 more in the Milky Way's bulge, 385 in six
+  clusters, 28 in fourteen double stars, 8 heroes); 4,674 on a phone (half of each class, of
+  the bulge and of each cluster; the heroes and the doubles are the same everywhere), and half
+  again on the low tier, which also has no mid class (4,642 with a mouse, 2,340 on a phone).
+  About 1,900 are in the first frame at home.
+  The ordinary star is still far fainter than the old points were, and **the dust has a wide
+  range of its own**: a dust star peaks anywhere from 0.07 to 0.56 of its tint, most of them
+  faint, the brightest as bright as a field star. (At 0.16 to 0.46 it was dots of one size and
+  one brightness, which read as grain, as a texture laid over the sky, and a river of them as
+  a stripe.) A few stars are much brighter: the sky has a range. Tints by weight:
+  white 30, cool 20, hot 17, warm 15, amber 12, ember 6 percent, and a class may have its own:
+  the dust is whiter and cooler (a faint star looks white), the bright and the mid carry the
+  colour (more of them hot, amber and ember). No star wears a family colour.
+- **The Milky Way is a river of stars.** Seven tenths of the dust, half the field, a third of
+  the bright and a fifth of the mid lie along the great circle the haze is painted on, placed
+  by the very functions that paint it (`sim/milkyWay.ts`): dense where it has a clump, thin
+  between, and four fifths of them missing in its dark lane. So the band is stars first, and
+  its rift is made of missing stars and of no paint at all. Across the river the stars fall
+  away as the haze does: each of its two banks holds stars in proportion to its mass (its
+  weight times its width; by weight alone the narrow bank held half of them, a hard core with
+  banks that stopped short).
+- **The bulge is a crowd of stars.** Where the river is thickest (in the first frame, between
+  the top bar's two groups of chips; `look.sky.band.core` says where) it gains 666 more stars,
+  520 dust, 130 field and 16 bright, in an oval on the river, **in warm tints** (half of them
+  warm, the rest amber, white and ember; no blue one), with the dark lane cut through them as
+  through the rest. Its oval holds more of its own stars than of the river's, and more stars
+  than any other stretch of the river. That is all the warmth the bulge has: the haze under it
+  is the same blue as everywhere (below).
+- **A compass of clusters.** Six small clusters; three of them sit **at the bearing from home
+  of each system** (Projects, Research, Hackathons), 20 degrees under the horizon, where the
+  sky is emptiest, each in the star temperature nearest its family (hot, white, cool: there is
+  no green star and no violet one). The sky is at infinity, so the bearing holds from
+  everywhere. A cluster is separate stars and nothing under them: no light, no halo, and no
+  haze of the river's either (its middle stays 8 degrees and more from every cluster). **A
+  cluster has a heart**: three bright stars close in, seven field stars round them, and the
+  dust across its whole width, brighter toward the middle. (Sixty faint dots of one size read
+  as a patch of grain.) Home has none: home is where the viewer stands.
+- **Double stars.** Fourteen pairs anywhere in the sky, a bright one and a fainter companion
+  seven to ten pixels away, blue-white beside amber or white beside cool. Found by looking,
+  never noise; they do not twinkle.
+- **How a star is drawn.** A Gaussian core; the bright, mid and hero classes add a wider, fainter
+  halo (a hero two); a **mid star is a small hero**, six short spikes (14 to 26 px, each star
+  its own length); a **hero has six diffraction spikes** (three
+  lines 60 degrees apart, one upright) and a short faint line across. Along a spike the light
+  falls as `(1 - t)^2.4 / (1 + 5t)`: a fast fall and a long thin tail, which is what reads as
+  diffraction and not as a plus sign. This is the "one lens" of rule 5: a sun's glint is the
+  same artefact, with arms so short that they fade evenly. Sizes are CSS px written for a view 1080 px high and scale with the view's
+  height (0.6 to 1.2), so a hero's arm is 78 px there, 58 px at 800, and never dominates a phone.
+- **Where the heroes are.** Eight, in all six temperatures, on every tier. Every view the sky
+  is judged from has one, and none sits behind the top bar's chips: three in the first frame
+  at home (upper right, above the home planet, and low on the left, where the frame is
+  emptiest), one beside a docked body clear of its panel, one or two toward each system
+  (`tests/look.test.ts` projects them through each view). And every sixth of the sky's round
+  holds three or more of hero, galaxy and cluster: a slow look round always finds something.
+- **Calm.** About an eighth of the dust, field and bright stars twinkle (some 1,100 of them,
+  about as many as shimmered when the sky held 5,000 stars); a hero breathes by 6
+  percent over 5 to 9 seconds, each at its own pace. Under reduced motion neither happens. On
+  the star map the stars dim to `map.starOpacity` (0.2: a faint star is then under the chart's
+  grid dots) and **lose their spikes** (rule 8). Nothing drifts: the stars lie where the haze
+  is painted.
+- **Not on the bloom guest list** (rule 6): a star's glow is its own halo, drawn, so the low tier
+  shows the same stars. Light is added in linear light; where the picture goes straight to the
+  canvas (the low tier) the shader corrects for the canvas blending after encoding, or every
+  star there would be fatter.
+- **Still to judge in the lab** (the `stars` subject: a sheet of each class at 1:1, one tint or
+  the mix, the heroes as a view of another height draws them, and the stars as the map shows
+  them) and in flight: whether 9,311 is the right number (`starfield.count` scales the dust,
+  the classes their own, `bulge.counts` the bulge), and whether sixty-four small six-pointed
+  stars are too many of one shape.
+
+**As built: round and smooth (steps 2b and 2c, 2026-10-02).** Allen saw step 2's Software sun,
+a ball whose tones fell in sharp triangular facets, and said: "I want some more rounded texture
+instead of sharp triangles. everything should roughly look round and smooth", and then "i meant
+the planets too, make everything round and smooth, except for just the stuff that should have
+edges (like the hardware cogs)". So the faceted look is gone from everything that is round, and
+kept, crisp, on everything that has edges. This replaces the "matter stays faceted" of the look
+as it was first drawn. The rule, as built:
+
+- **What a thing is made with says whether it is round**, once, in the kit
+  (`sim/world/kit.ts`), never body by body and never by guessing from angles:
+  - **Round:** anything turned on a lathe with five sides or more (a tube, a cone, a dome, a
+    wheel, a mast, a cup, a rocket's body and nose, the ship), a bead (a ball; it was an
+    octahedron), the walls of a ring or an arc swept in two steps or more, and a tile of five
+    sides or more (a disc). And every generated ground: a globe, the fish, the rounded cube of
+    Days2Meet, the bus, the clay of planned work.
+  - **Edged:** a box, a prism (a card, a phone, an arrow, a bracket, a glyph plate), a fin, a
+    quad, a trapezoid (a cog's tooth, a clock's tick), pixel art and the pixel digits, a ring
+    of one step (a stand of the stadium, a dash), and a lathe of three or four sides (a house's
+    roof, a square post). The Hardware sun's gears are all of this kind: plates, teeth and
+    walls stay sharp. (Their hubs, axles and paint rings are circles now: a gear's teeth have
+    edges, its hub is turned.)
+  - A round thing keeps the edges it really has: a tube's cap meets its side at an edge, a
+    seam is a seam. Along a lathe's profile a turn of under **50 degrees** (`CREASE_DEG`) is a
+    bend and a sharper one a fold; a profile that ends on its axis within 35 degrees of square
+    (`POLE_DEG`) closes smoothly (a dome's top), a steeper one is a tip.
+  - **A bend is built as a curve.** Where a lathe's profile only bends, light already falls on
+    it as on one surface; its outline now agrees. The corner becomes an arc (`bent`,
+    `sim/world/kit.ts`): from half of the shorter band before it to as far after it, always
+    inside the corner the rows wrote (so no reach grows), in the pieces a circle of its radius
+    would get. A corner already within half the allowed sag of its arc is left alone: the
+    Devpost cup's bowl and Corgi's clay are curves every day, Model Rocketry's nose in the
+    close-up.
+- **Round in light.** A round thing's triangles carry the normals of the true surface, the
+  shader carries the normal across each face and decides the three bands **at every pixel**
+  (`design/shaders/toonFlat.ts`), a pixel soft: anti-aliased, never blurred. So a terminator is
+  a clean curve on a ball, a straight line down a tube, and one flat band on a box's face. A
+  lit place is still exactly its token. An edged thing is lit face by face, as it always was.
+- **Round in outline.** The rows still sketch a wheel with eight sides. It is BUILT with as
+  many as its size wants: the middle of a side may stand no further inside the true circle
+  than `tuning.world.round` says, in radii of the body (0.006 every day, a third of a pixel on
+  a body 55 px in radius; 0.0025 in the close-up, half a pixel at 200 px; twice that on the low
+  tier; never more than 64 sides, never fewer than written). A wheel a third of its world
+  across has 16 sides every day and 24 up close, a mast 7 and 10, a bead is a ball of 10 to
+  15. A polygon of under five sides is never touched. A ring keeps its colours where they were
+  painted (each step becomes a whole number of steps), and a wavy ring is built three times as
+  fine. The ship is 24 sides with a nose of eight bands, and its window lies on the curve of
+  its hull.
+- **Round grounds.** A moon is 1280 facets (`world.detailMoon` 7; it was 320), and so is a
+  planned moon; a planned planet is 1620 (`detailMaquettePlanet` 8, `detailMaquetteMoon` 7;
+  they were 980 and 320, balls of straight sides against the sky). The terrains' relief is
+  about a third of what it was (`terrain.continents` 0.018, `calm` 0.012, `isles` 0.014 of a
+  radius): light no longer shows relief (it falls on the ball), so all the old relief did was
+  put flat-topped lumps on the limb. **Clay keeps its lumps, as round ones**
+  (`terrain.lumpy`: relief 0.045, it was 0.07; two octaves, it was three): planned work still
+  looks unfinished, in soft blotches and a gently uneven outline, not in corners.
+- **Colour is flat, and its outlines are lines.** A face is one colour edge to edge, as before.
+  But a facet of a ground that a coast, a band of height or an edge of paint runs through
+  carries **up to three colours and the lines between them** (`aSide`, `aOver`), found by
+  walking its outline (`sim/planet.ts`), and the shader draws each line through the facet, a
+  pixel soft. **A line is an arc, not a chord** (`aBend`): the generator looks across the
+  line's middle for where the outline really is (the ground's own height, asked again halfway
+  along each edge of the facet; or the paint) and the shader bends the line through that place.
+  So a coast is a curve inside each facet too, an island is a blob and not a polygon, a cape
+  that comes into a facet and leaves by the same edge is drawn, and a painted cap is a circle
+  to a thirtieth of a degree. Where one facet holds more than two lines (four bands of height
+  in seven degrees, or a coast, its shore and a cape) the sliver beyond the second takes its
+  neighbour's colour: a small step in an outline, about one shared edge in forty on the
+  islands of HackGT 13, one in two hundred on home.
+- **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
+  of triangles, which is exactly what was asked away.
+- **A terrain no finer than its facets.** An arc holds one bend a facet, so noise finer than
+  a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` and `lumpy` are two octaves,
+  not three. A terrain's finest octave (`frequency` times two for each further octave) should
+  stay under about 5.
+- **What it cost.** Triangles: the galaxy is about 40,400 every day (it was 32,500), the most
+  in one body 2746 every day and 6176 up close; the budget's ceilings rose once, on purpose,
+  to 2800 and 6600 (`tests/world-bodies.test.ts`). No draw call was added: round and edged
+  parts ride in one buffer and one material. A frame costs what it did (0.2 ms on the desktop
+  it was measured on, on every tier). Nothing reaches further: the reaches of
+  `design/worlds/reach.ts` stand (three beads were trimmed by a hair for it, since a ball
+  reaches its whole radius every way and an octahedron did not).
+- **A blueprint follows.** A ghost's lines are the folds of its mesh, judged by the same
+  normals: a round ghost shows its rims and not a line down every side.
+- **Writing a part, from now on:** pick the op for what the thing IS. If it is round, use a
+  lathe op with any sketch of sides from five up and let the build round it; if it should be
+  a hexagon nut or a pyramid, make it of a prism or of four sides. Do not fit a decal or a
+  part to a FACET of a round thing: there are none to count on (the roll number of Model
+  Rocketry sits on the tube's true radius).
+- **Still Allen's to judge:** whether the relief should go altogether; whether the three tones
+  should stay hard-edged on a tube and a cone (a terminator is a straight line there, which
+  can read as a side of a prism); and a third line a facet (one more attribute), which would take the last steps out
+  of the outlines of small islands and was left out for the weight (the lazy budget).
+
+**As built: the suns (steps 2 and 2b).** A sun is a place now, not a lit ball.
+
+- **A living surface** on the three suns that are balls (Software, Research, Hackathons), and a
+  sun is light, so all of it is round: the surface is DRAWN, pixel by pixel, by the sun's own
+  shader (`toonFlat.ts`, SUN). **Four flat tones** of its family (shade, base, light, and
+  `hot`, the light mixed 55 percent toward white) lie in **round cells** a fifth to a third of
+  the ball across, cut from two layers of smooth noise by three thresholds so that about
+  15 / 45 / 30 / 10 percent of the ball is each: **the middle of the ball is the base**, or the
+  sun washes out to cream. An edge between two tones is soft by a hair (`granulation.soft`) and
+  never thinner than a pixel. Toward the **limb** the tones step one down the ladder, then two:
+  limb darkening in two round bands. **Three spots** sit at fixed places on the ball, a dark
+  core in a ring, round and soft-rimmed. Still no gradient across a tone. Nothing on the
+  surface moves. (Step 2 gave each FACET a tone; that was the ball of triangles.)
+- **The noise** is gradient noise on an integer lattice (`shaders/noise.ts`), which
+  gives the same picture on every driver; its twin on the CPU (`sim/sunGrain.ts`, which
+  nothing shipped imports) is what `sunGrain.test.ts` holds to the shares. Each sun is cut from
+  its own place in the noise: its number rides in the flag its ball's facets carry, so two
+  suns of one family would still differ. Cost: two noise look-ups a pixel of the ball.
+- **The ball is 2000 facets** (`world.detailSun` 9; 1280 on the low tier). They no longer show:
+  the outline's corners are a third of a pixel deep when docked beside it.
+- **The corona** is one draw call for all suns, in two layers. The **light**, behind everything
+  a sun wears, so that its brackets, its stopwatch and its light curve stay crisp: **four halo
+  steps** of the family's base (flat rings, 0.40, 0.20, 0.09 and 0.04, out to 2.1 radii), a
+  **soft glow** through the family's three tones out to 3.4, **ten rays** (thin beams, each
+  its own length, width and lean; a beam is light, so since step 2b it has no edge: brightest
+  along its middle, gone at the width its wedge had, and so with no corner at its tip) and
+  **three prominences** (loops off the limb). The **lens**,
+  in front of the ball: a hot hairline just inside the outline, and a **four-point glint** on
+  the upper left, fixed on the screen. The parts are laid over each other as paint is, over the
+  navy of the sky, and the shader corrects for how each tier blends, so the low tier shows the
+  same corona.
+- **The Hardware sun keeps its gears.** Its ball is its fourteen gears, so it gets the halo
+  steps and the glow and nothing else: no tones, no rays, no loops, no hairline, no glint.
+- **Only the ball blooms** (rule 6), as it always has. The corona is drawn light, never on the
+  guest list: the halo that bloom used to fake is now there on the low tier too.
+- **Calm.** A ray breathes by 12 percent of its length over 9 to 14 seconds, a loop by 10
+  percent over 11 to 17, each at its own pace; nothing else moves, the glint least of all.
+  Under reduced motion they hold the frame of time zero. The low tier keeps six of the rays and
+  has no loops and no glint. On **the star map** a sun is a flat disc of exactly its token
+  (every tone, the limb and the spots go back to the base) inside its halo steps, and nothing
+  else of the corona is drawn (rule 8).
+- **Still to judge in the lab** (the `sun` subject: a living sun of any family, and `as on the
+  star map`; the `world` subject for a real sun with its signs): mint is the palest family, and
+  with bloom on top its hottest tone is nearly white (`look.sun.hotMix` is the knob); whether
+  the rays and the loops stay is decision D8.
+
+**As built: the sky of stars (step 3; rebuilt on 2026-10-03).** Step 3 first made the sky a
+place of gas: four massifs at the systems' bearings, ridge behind ridge, their glows cut into
+flat steps, arcs and knots, and a Milky Way whose lanes were cut by noise. Allen flew it and
+said, on 2026-10-03: "i dont really like the new background with the waves". Asked which way
+to go on, he chose **"No clouds, rich stars: Remove the gas clouds entirely. Keep the new
+coloured stars, the six-spiked hero stars, the Milky Way band and the far galaxies on dark
+navy."** So the gas is gone for good, and the sky is what he kept, made richer: no massifs, no
+ridgelines, no stepped glows, no knots, no arcs, nothing that reads as a wave, a layer or a
+cloud. What carries the sky now is the stars (step 1, above); this is what lies under them.
+
+- **What went.** From the panorama: the massifs (ridges, lit faces, hairlines, ragged ends),
+  their glows and the steam in them, the arcs, the seven knots, and every use of noise and of
+  levels. From the backdrop: the four soft glows of colour the old sky was made of, which had
+  stayed on as the first frame's sky (decision D3, whether to retire them: Allen's sky is "on
+  dark navy", so they are gone, and the first frame is navy and stars). From the tokens: each
+  family's `deep` and `rim`. From the bake: its tier switches. Nothing of it is left behind a
+  flag.
+- **What is in it.** **The Milky Way**: the river of stars, and under it a faint haze along
+  the same great circle, tilted 16 degrees and highest at azimuth -62, so that it **crosses
+  the first frame as a diagonal**: it climbs 76 px across the middle half of that view (five
+  degrees), from the left edge until it leaves through the top behind the nav. (Tilted 14 and
+  highest at -55 it lay nearly level there, and read as a horizontal bar of blue fog.) Across
+  it a narrow bank and a wide one; along it twelve clumps, so it is brighter here and thinner
+  there. The haze is **one family of tones, the navy's own blue**, and it comes in softly: it
+  reaches its full cover only where the river is brightest (`band.gain` 0.5), so it has no
+  lower edge. A **dark lane** runs beside its middle, swinging from side to side: it hides
+  four fifths of the stars in it and **paints nothing** (darkening the haze there, by a third,
+  drew faint streaks along the river, which read as layers). At the **bulge** the haze only
+  swells, in the same blue, an oval 9 degrees by 5.5: the bulge is made of stars (above). A
+  cream haze there, tried first, with no more stars in it than the river beside it, read as a
+  grey smear across the navy. **Fifteen far galaxies**, the same on every tier, each in
+  two star tints (a disc and a nucleus): four showpieces (a spiral seen nearly face on in the
+  first frame at home, one toward Projects, one toward Hackathons, and an ellipse at azimuth
+  186, which was Research's until Research moved beside the other systems on 2026-10-03 and
+  stands in the sky behind home since: whether a showpiece follows Research is still to be
+  decided) and eleven small ones; spirals with
+  two arms, lenses seen edge on with a dark lane along them, plain ellipses. None is amber or
+  ember (on navy they read brown), and every nucleus is 7 degrees or more off the horizon.
+- **Nothing has an edge.** Every term is a Gaussian or a sine of where the texel is. Nothing
+  is run through noise and nothing is cut into levels, because the edge of a level that
+  follows noise is a contour line, and contour lines are what read as waves. A gate holds it:
+  from one texel of the largest panorama to the next the haze changes by less than 0.006 of
+  linear luminance (measured: 0.0027, about two code values of blue; a level cut into it
+  would be a step of 0.01 or more). Two more hold its colour: wherever the river alone adds
+  light, blue leads green by 1.8 times and green leads red; and with a lane that hides
+  nothing the light is the same to the last bit (the lane is in the stars alone).
+- **Light is added, never replaced** (rule 3). The panorama holds what the sky ADDS to the
+  navy; the backdrop draws the navy gradient it always drew and adds the panorama on top, times
+  an exposure. At exposure 0 the sky is navy and stars.
+- **Calm where the work is** (rule 7), held by `tests/sky-gates.test.ts` on the CPU's twin of
+  the picture and measured again on the GPU's own from the seven views (the lab's `sky` subject
+  prints them): **the horizon strip stays near navy** (under 0.03 of linear luminance within 6
+  degrees of the horizon, where planets and orbit lines sit; measured 0.018: the sky's light
+  only comes in over the first 12 degrees), **no pixel of the sky is brighter than 0.19**
+  (the brightest measured: 0.167, a galaxy's nucleus; the butter focus ring still reads over
+  3:1 there), the brightest twentieth of every view stays under 0.04 and its brightest
+  thousandth under 0.10 (as a wide screen shows the view, and as a phone held upright does:
+  about the middle third of it and no more), **more than four fifths of the sky carry no added
+  light at all** (91 percent), and **no haze lies behind a cluster** (within two sigmas of
+  each, under half a thousandth: less than a code value of the darkest navy). The haze alone
+  never adds more than 0.10, and at its brightest, the bulge, must add 0.05, so that it is
+  there (measured: 0.053, as faint as that gate lets it be; with the cream it was 0.082). As
+  measured: the first frame p95 0.027, p99.9 0.059 (with the gas, and from a view pitched
+  seven degrees lower, 0.075 and 0.153); the loudest wide view, between systems with the river
+  across it, 0.031 and 0.059. The loudest of all is the first frame on a phone, 0.039 and
+  0.059: the bulge sits in the middle of that frame, and a narrow screen shows little else of
+  the sky above the planet. **Docked, the sky is half of itself** (`exposureDocked` 0.5: the
+  view is closer and the panel wants quiet; p95 0.007),
+  and **on the star map 0.28 of itself** (rule 8: the map stays flat, and looks straight down
+  at empty sky anyway). The exposure eases over about a second; a cut under reduced motion.
+- **The stars and the haze are one picture.** The star list lays its river from the functions
+  the haze is painted with (`sim/milkyWay.ts`), and the panorama's alpha says how much of a
+  star shows at each place: less in the dark lane, for every star, whichever class laid it
+  there. (So the lane acts on a river star twice: four fifths of them are left out where it
+  runs, and one that is left there is dimmed, at the lane's middle to a ninth of its light.)
+  **The sky does not drift** (`starfield.driftRadPerSec` is 0): the stars would slide
+  off their own haze. Twinkle and the heroes' breathing are all that moves.
+- **It arrives after the first frame.** The first frame is the navy and all the stars, the
+  river among them. The panorama is then painted on the GPU a band of 64 rows a frame, and
+  when it is whole its light comes in over 0.8 s (`revealSec`); a cut under reduced motion,
+  and a cut when the engine is rebuilt in a tab that has already seen it (a lost context
+  paints the same sky again and does not replay the fade). On the desktop it was measured on,
+  the sky is whole about a quarter of a second after the first frame on every tier (with the
+  gas, whose program was far larger, 0.6 to 1.7 s). Where it cannot be painted at all, the
+  sky stays navy and stars.
+- **By tier.** One program everywhere: a tier is only the panorama's size, 2048 x 1024 on
+  high and medium, 1536 x 768 on low (not 1024 x 512: on a phone one of its texels would be 13
+  pixels wide). What the low tier gives up is in the stars: half of each class, and no mid
+  class.
+- **Not on the bloom guest list** (rule 6). The sky writes "do not bloom" like every opaque
+  thing; nothing in it depends on bloom.
+- **Still to judge** (the lab's `sky` subject: the seven views, the plain numbers of `look.sky`
+  as sliders (its tables of banks, clumps and galaxies are edited in `tuning.ts`), `rebake
+  sky`, `copy look.sky as JSON`; in flight, `?tweak` has the same): how loud
+  the haze is (`band.gain` 0.5), above all at the bulge, where it swells into a soft blue
+  glow behind the crowd of stars (`band.core.glow` 0.9; the stars themselves are
+  `starfield.bulge`): the one place where the haze is more than a faint band, and so the one
+  thing left that could still be taken for a cloud; and how loud the sky is as a whole
+  (`intensity` 0.9). **The gates leave those two knobs little room**, and whoever turns one
+  should know which gate answers: under a gain of 0.445 (or a glow of 0.68) the haze's peak
+  falls below the 0.05 that says it is there, and over a gain of 0.51 (or a glow of 0.95) the
+  first frame on a phone held upright passes 0.04, because the bulge fills it. A louder bulge
+  than that means moving it out of the middle of the first frame, or deciding that the gate
+  should move. **Known, and left as they are:** two far galaxies stand beside the HUD in
+  a first frame of 1280 x 800 (the spiral at azimuth -10 some 45 px from "About this site",
+  the one at -64 just under the Map button). The bars are placed in CSS px from the corners
+  and the sky scales with the view's height, so where a galaxy meets them differs by window;
+  no place near either is free of the heroes, the strip and the frame's edge at once. And the
+  star map's sky is nearly bare by design (`map.starOpacity` 0.2). **Not yet measured on a
+  phone:** the bake's time and its memory. Until two real phones have run it, this stays on
+  the preview.
+
+**As built: worlds with air (step 4).** A world with a sea has air now, and its day ends in a
+dusk. Everything of it is round: the day after it was first drawn, Allen asked for "the planets
+too, make everything round and smooth", so nothing of the air follows a facet.
+
+- **Which worlds.** The five globes with a sea, by name (`look.air.worlds`): home, CyberPatriot,
+  Robotics, HackGT 13 and Cal Hacks 13.0, each in the air of its biome (`color.air.<biome>`).
+  A generated planet of a biome with a sea would get its biome's air too; clay (planned work),
+  suns, the station, the satellite, the bus and the relays have none.
+- **Three bands, warm and cool.** The ground keeps its three bands of light, and on a world with
+  air the middle band is a **warm dusk** and the shade a **cool night** (`color.shading.dusk`
+  and `night`) instead of the plain shadow: the dusk at 0.6 of its full colour (`duskShare`;
+  at 1 the belt was an orange stripe and the ring road went salmon), and the night is never black: the
+  shapes of the land still read in it. A lit place seen straight on is exactly its token, as ever.
+  **What stands above the air** (the top of a tower, a ring road's far side: beyond 1.24 radii)
+  is lit as everything without air is.
+- **The limb takes the air's colour**, in three flat round steps toward the outline, strong
+  where the ball faces its light (0.62) and faint at night (0.07). It follows the ball, not the
+  mesh.
+- **The shell**: four flat rings of the air's colour outside the outline (0.50, 0.26, 0.12,
+  0.05, out to 1.3 radii), bright toward the light and a sixth of that on the night side, and a
+  **hairline** on the outline: near white toward the light, the dusk colour on the terminator,
+  nearly gone at night. One draw call for every world. Painted, like the corona, as paint over
+  the navy, so the low tier (three rings) shows the same air.
+- **Clouds** are drawn on a round skin just above the ground: flat shapes with round outlines,
+  in two levels (a thin edge, a body), stretched along the latitudes, in the world's peak colour
+  mixed a little toward its air, in the same three bands of light. Each world's are cut from its
+  own place in the noise. They turn once in about nine minutes and hold still under reduced
+  motion. One draw call for every world. **High: all five worlds; medium: home alone; low:
+  none.** (First drawn as facets of a second ball; that was a ball of triangles.)
+- **Home's lit windows.** Up close, the night side of home shows 150 small round lamps in
+  `color.window`, gathered into towns on the low land near the coasts; they are there only
+  where the ball has turned well away from its light, and on every tier. They do not bloom: a
+  window is lit, it is not a light (rule 6).
+- **Lamps on what is built** (decision D9, kept): the bus's side windows are lit panes (its
+  windshield is dark glass: a lit windshield read as a second sign), the station's four pods
+  have a lit pane each, and the station's mast, the satellite's dish and the bus's sign carry a
+  small flat **beacon**. Flat colour, no bloom.
+- **The star map stays flat** (rule 8): no shell, no clouds, no lamps, no dusk; a world is its
+  tokens.
+- **Cost**, on the desktop it was measured on (1280 x 800, uncapped): one more draw call on the
+  low tier and two on medium and high; the frame stayed at 0.1 to 0.2 ms.
+- **Still to judge in the lab** (`world` and `planet` subjects, the folder "air": any air on any
+  globe, clouds on or off and how much sky they take, windows, and the light's direction for
+  dusk and night): how strong the limb is (`look.air.limb.lit`), how wide the dusk
+  (`duskShare`), how much cloud each world wears (`worlds.<id>.cloud.share`), and whether a
+  generated planet with relief should keep its hairline (its mountains stand through it).
+  **Not yet measured on a phone.**
+
+**As built: traffic and the chart (step 5).** The orbit lines are routes now, and the star map
+has a ground.
+
+- **Traffic.** Every orbit line a ship can dock on carries **two small round dots, one going
+  each way**, in its family's light (`color.system.<family>.light`), at 7 u/s along the line
+  whatever its size, 3.4 and 2.6 CSS px across at any distance. Today that is 18 lines and 36
+  dots; the relays' ring has none of its own (nothing docks there, so nothing goes there). A
+  dot is flat paint with a rim one pixel soft: it does not bloom (rule 6), it goes behind a
+  planet it passes, and seen edge-on a far system's dots are a few beads on its line. Under
+  reduced motion they rest where they start. On the star map they ride the lines as in flight,
+  and an orbit the map has no room to draw has no dots either.
+- **The chart** is drawn only on the star map, under everything: a **grid of dots** in the
+  quietest ink, about 34 px apart at any zoom (the spacing in world units is 1, 2 or 5 times a
+  power of ten, so a dot stays where it is while the map zooms), and a **district** for each
+  system: two flat steps of its family's dim tones (`color.nebula.<family>.mid` out to 1.18 of
+  the system's reach, `lit` at its reach: paint, with no depth; these tones were first mixed
+  for the sky's gas, and the districts are what they paint now) and a
+  **dashed** ring in the family's base at the reach itself. Dashed, because a solid ring read
+  as one more orbit. It fades in and out with the map, takes no part in pointing, and the map
+  is still flat (rule 8): nothing on it is a gradient. The Projects binary is one district, in
+  its own family (sky), with Hardware's coral lines inside it.
+- **Orbit lines keep their strength** (`world.orbitLineOpacity` 0.20, `sunTrackOpacity` 0.10).
+  The stronger pair the look's verdict asked to have judged (0.26 and 0.13) was judged in the
+  lab's `orbits` subject while the sky still had gas behind the lines: over the brightest of
+  it (sky luminance 0.10 and up) a sky line's contrast against what was behind it went from
+  1.13 to 1.15 (coral 1.07 to 1.09, butter 1.20 to 1.27), which the eye does not see, while
+  over the dark sky, where the lines are in practice, every line got a tenth louder (1.46 to
+  1.60). So the lines stayed calm. Since 2026-10-03 the sky behind them is only calmer: the
+  lines lie in the horizon strip, which stays under 0.03.
+- **Different from the spec**, on purpose: a dot is a crisp disc and not a soft one (matter is
+  flat); each orbit's dots are placed from its own id, so a new project moves no other line's
+  dots; the chart is painted as the corona is, as paint over the navy, so the low tier shows
+  the same colours as the others; and a district's dashes are a whole number round its ring.
+- **Cost**: one more draw call everywhere and one more on the map; on the desktop it was
+  measured on (1280 x 800, uncapped) a frame stayed at 0.1 to 0.3 ms on every tier.
+- **Still to judge** (the lab's `orbits` subject: lines and traffic of any family over any of
+  the sky's views, at any strength; and its `chart` subject: the ground alone from above, every
+  key of `look.chart` as a slider): whether the dot grid wants the moodboard's stronger mark on
+  every fifth dot; and how busy a far system's line of beads reads in flight. (Home's
+  district was a grey plate: butter's `mid` was a blue-violet under an olive `lit`. Since
+  2026-10-03 `color.nebula.butter.mid` is a warm dark, and the plate reads as butter: 8.5
+  CIEDE2000 from the grey of its own lightness, where it was 2.0; still the quietest of the
+  five.) **Not yet looked at on a phone.**
 
 ## Accessibility bar (non-negotiable)
 

@@ -29,8 +29,10 @@ const frame = (dt: number): Frame => ({ elapsed: 0, dt, alpha: 1, simTime: 0 });
 function setup({
   reducedMotion = false,
   overlay = true,
+  freeLeft = 0,
   freeWidth = 1,
   ship = undefined as { x: number; z: number } | undefined,
+  wheelOpens = undefined as (() => boolean) | undefined,
 } = {}) {
   const canvas = document.createElement('canvas');
   const layer = document.createElement('div');
@@ -41,9 +43,10 @@ function setup({
     overlay: overlay ? layer : undefined,
     bounds: BOUNDS,
     ship: ship ? () => ship : undefined,
-    view: { freeWidth, freeHeight: 1 },
+    view: { freeLeft, freeWidth, freeHeight: 1 },
     params: PARAMS,
     reducedMotion,
+    wheelOpens,
     onChange: (open, cut) => changes.push([open, cut]),
   });
   map.resize({ width: 1280, height: 800, pixelRatio: 1 });
@@ -212,6 +215,37 @@ describe('StarMap, opening and closing', () => {
     expect(map.isOpen).toBe(true);
   });
 
+  it('leaves the wheel alone while the page keeps it for itself: M and the button still open', () => {
+    let pages = false;
+    const { map, wheel, key, button } = setup({ wheelOpens: () => !pages });
+    cleanup = () => map.dispose();
+    // Half of what it takes, while the wheel is still the map's...
+    wheel(60);
+    // ...then the page takes the wheel: however far it is scrolled out, no map, and the page
+    // hears every notch (nothing is prevented).
+    pages = true;
+    const rolled = wheel(500);
+    expect(map.isOpen).toBe(false);
+    expect(rolled.defaultPrevented).toBe(false);
+    // Nor does what was scrolled meanwhile, or before, count once the wheel is the map's again.
+    pages = false;
+    wheel(60);
+    expect(map.isOpen).toBe(false);
+    wheel(60);
+    expect(map.isOpen).toBe(true);
+
+    // Whoever has the wheel, M and the button open the map, and over the OPEN map it is the map's.
+    map.setOpen(false, true);
+    pages = true;
+    key('KeyM');
+    expect(map.isOpen).toBe(true);
+    expect(wheel(-200, { clientX: 640, clientY: 400 }).defaultPrevented).toBe(true);
+    button()?.click();
+    expect(map.isOpen).toBe(false);
+    button()?.click();
+    expect(map.isOpen).toBe(true);
+  });
+
   it('cuts when asked to, and always under reduced motion', () => {
     const { map, changes } = setup();
     cleanup = () => map.dispose();
@@ -266,6 +300,13 @@ describe('StarMap, looking around', () => {
     narrow.map.setOpen(true);
     expect(narrow.map.unitsPerPx).toBeCloseTo((1004 * 1.25) / 640, 9);
     narrow.map.dispose();
+
+    // The same half, between something on the left and something on the right: the same fit.
+    const between = setup({ freeLeft: 0.25, freeWidth: 0.75 });
+    between.map.setOpen(true);
+    expect(between.map.unitsPerPx).toBeCloseTo((1004 * 1.25) / 640, 9);
+    expect(between.map.x).toBeCloseTo(-436, 6);
+    between.map.dispose();
   });
 
   it('takes in the ship when it is out beyond the galaxy', () => {
@@ -287,7 +328,7 @@ describe('StarMap, looking around', () => {
 
     // Through the camera: the middle of the map is 50 px below the middle of the view.
     const pose = createPose();
-    const view = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 };
+    const view = { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 };
     new MapCam(map, { fovDegrees: 12 }).update(frame(1 / 60), view, pose);
     const camera = new PerspectiveCamera(50, 1.6, 1, 1e6);
     applyPose(camera, pose);
@@ -310,6 +351,38 @@ describe('StarMap, looking around', () => {
     expect(map.z).toBeCloseTo(z, 6);
   });
 
+  it('and from the middle of what is left between two sides', () => {
+    // The left quarter and the right eighth are taken: the map lives from 320 to 1120 px across.
+    const { map, wheel, pointer, run } = setup({ freeLeft: 0.25, freeWidth: 0.875 });
+    cleanup = () => map.dispose();
+    map.setOpen(true, true);
+    // Its middle is at (720, 400): zooming right there moves nothing sideways...
+    const [x, z] = [map.x, map.z];
+    wheel(-300, { clientX: 720, clientY: 400 });
+    run(4);
+    expect(map.x).toBeCloseTo(x, 6);
+    expect(map.z).toBeCloseTo(z, 6);
+    // ...and 200 px to the right of it, what is under the pointer stays under it (+X is left),
+    // on the way and on arrival.
+    const under = map.x - 200 * map.unitsPerPx;
+    wheel(-300, { clientX: 920, clientY: 400 });
+    for (const seconds of [0.05, 0.1, 4]) {
+      run(seconds);
+      expect(map.x - 200 * map.unitsPerPx).toBeCloseTo(under, 6);
+    }
+
+    // Two fingers either side of that middle, spreading: what is between them stays there.
+    const perPx = map.unitsPerPx;
+    const [atX, atZ] = [map.x, map.z];
+    pointer('pointerdown', 1, 620, 400, 'touch');
+    pointer('pointerdown', 2, 820, 400, 'touch');
+    pointer('pointermove', 1, 520, 400, 'touch');
+    pointer('pointermove', 2, 920, 400, 'touch');
+    expect(map.unitsPerPx).toBeCloseTo(perPx / 2, 9);
+    expect(map.x).toBeCloseTo(atX, 6);
+    expect(map.z).toBeCloseTo(atZ, 6);
+  });
+
   it('is what the map camera looks at: north up, and to scale', () => {
     const { map } = setup();
     cleanup = () => map.dispose();
@@ -317,7 +390,7 @@ describe('StarMap, looking around', () => {
     const pose = createPose();
     new MapCam(map, { fovDegrees: 12 }).update(
       frame(1 / 60),
-      { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0 },
+      { aspect: 1.6, freeWidth: 1, freeHeight: 1, freeTop: 0, freeLeft: 0 },
       pose,
     );
     const camera = new PerspectiveCamera(50, 1.6, 1, 1e6);

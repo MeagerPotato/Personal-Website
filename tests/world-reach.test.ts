@@ -9,7 +9,7 @@ import { BODIES } from '../src/universe/design/worlds/bodies';
 import { MOTION } from '../src/universe/design/worlds/motion';
 import { NEAR } from '../src/universe/design/worlds/near';
 import { REACH } from '../src/universe/design/worlds/reach';
-import { assemble, groundDetail } from '../src/universe/sim/world/glue';
+import { assemble, fineOf, groundDetail } from '../src/universe/sim/world/glue';
 import type { GroundLooks } from '../src/universe/sim/world/ground';
 import { absentAtRest, drive, type MotionRow } from '../src/universe/sim/world/motion';
 import { FLAG, make, type Build, type Pivot } from '../src/universe/sim/world/rows';
@@ -34,7 +34,7 @@ const SHIP_BAND_U = 1;
 const SAMPLE_SEC = 1 / 120;
 /** ...and this long (s) before each of its periods ends. */
 const BEFORE_END_SEC = 1e-6;
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 /** How far the rocket's nose is ahead of its centre, u: what of it meets a part first. */
 const NOSE_U = Math.max(...buildRocket().mesh.positions.filter((_, index) => index % 3 === 2));
 
@@ -167,12 +167,20 @@ function measure(id: string, laneOf: (radius: number) => number = laneOfBody): R
   const share = planned ? tuning.world.plannedScale : 1;
   const lane = laneOf(body.radius);
   const detail = (near: boolean): number => groundDetail(kind, planned, near, tuning.world);
-  const far = make(id, recipe, { detail: detail(false), seed: body.seed, looks: LOOKS });
+  // As the galaxy builds them (world/BodyMesh.ts): round things with the sides their size wants.
+  const fine = (near: boolean) => fineOf(near, false, tuning.world.round);
+  const far = make(id, recipe, {
+    detail: detail(false),
+    seed: body.seed,
+    looks: LOOKS,
+    fine: fine(false),
+  });
   const near = make(id, recipe, {
     detail: detail(true),
     seed: body.seed,
     looks: LOOKS,
     near: NEAR[id] ?? [],
+    fine: fine(true),
   });
   const motion = MOTION[id] ?? [];
   const absent = absentAtRest(motion);

@@ -26,7 +26,7 @@ const recipe = BODIES[ID];
 if (!recipe) throw new Error(`no rows for ${ID}`);
 const build = make(ID, recipe, {
   detail: groundDetail('sun', false, false, tuning.world),
-  looks: { planet: tuning.planet, terrain: tuning.terrain },
+  looks: { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun },
 });
 
 interface Gear {

@@ -1,0 +1,19 @@
+---
+// The sections of a page's Markdown, one card each: the heading's words are the card's title
+// and its id the card's fragment (src/site/sections.ts cuts the text; src/site/cards.ts says
+// which cards a page has). The HTML is Astro's own rendering, printed as it is. Markup only.
+import type { Section } from '../site/sections';
+import Card from './Card.astro';
+
+interface Props {
+  sections: readonly Section[];
+}
+
+const { sections } = Astro.props;
+---
+
+{sections.map((section) => (
+  <Card id={section.id} title={section.title} class="prose">
+    <Fragment set:html={section.html} />
+  </Card>
+))}

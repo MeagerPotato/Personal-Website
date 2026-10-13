@@ -6,7 +6,7 @@ import modeScript from '../shell/mode.inline.js?raw';
 import { site } from '../config/site';
 import { buildStamp } from '../site/build-stamp';
 import { DEFAULT_PREVIEW, absoluteUrl, serializeLd, type PreviewImage } from '../site/seo';
-import { tokensToCss } from '../site/tokens-css';
+import { ENGINE_ONLY, tokensToCss } from '../site/tokens-css';
 import { tokens } from '../universe/design/tokens';
 
 interface Props {
@@ -61,4 +61,4 @@ const build = buildStamp(process.env);
 <link rel="preload" href="/fonts/outfit-var-latin.woff2" as="font" type="font/woff2" crossorigin />
 
 <!-- Design tokens as CSS custom properties: one palette for the DOM and the 3D world. -->
-<style is:inline set:html={tokensToCss(tokens)}></style>
+<style is:inline set:html={tokensToCss(tokens, ':root', ENGINE_ONLY)}></style>

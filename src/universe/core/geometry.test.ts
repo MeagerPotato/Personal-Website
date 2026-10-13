@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DECAL_ATTRIBUTE, UNLIT_ATTRIBUTE } from '../design/materials';
+import { BEND_ATTRIBUTE, DECAL_ATTRIBUTE, UNLIT_ATTRIBUTE } from '../design/materials';
 import { geometryFrom } from './geometry';
 
 /** One triangle, facing +Y. */
@@ -36,5 +36,13 @@ describe('geometryFrom', () => {
     expect(flag.array).toBe(unlit);
     expect(flag.itemSize).toBe(1);
     expect(geometry.getAttribute(DECAL_ATTRIBUTE).array).toBe(decal);
+  });
+
+  it("carries how a face's lines bend, and zeros where nothing does", () => {
+    const plain = geometryFrom(triangle()).getAttribute(BEND_ATTRIBUTE);
+    expect(plain.itemSize).toBe(4);
+    expect([...plain.array]).toEqual(new Array(12).fill(0));
+    const bends = new Float32Array([0, 0.5, 0, 0, 1, 0.5, 0, 0, 0.5, 0.5, 0, 0]);
+    expect(geometryFrom({ ...triangle(), bends }).getAttribute(BEND_ATTRIBUTE).array).toBe(bends);
   });
 });

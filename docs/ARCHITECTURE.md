@@ -12,7 +12,8 @@ two ways:
 
 - **Plain mode** is the page as it is. The base CSS _is_ the plain layout, so a browser with no
   JavaScript at all gets a complete, fast site. Plain mode never downloads three.js.
-- **Universe mode** boots a 3D world behind the page. The page's `<main>` becomes the info panel.
+- **Universe mode** boots a 3D world behind the page. The page's `<main>` becomes the info panel
+  (on a wide screen, a deck of cards round the docked body).
 
 The content is written once, the URL is the same, and search engines, link previews, screen
 readers and recruiters in a hurry all get the plain truth. `scripts/verify-dist.mjs` fails the
@@ -39,6 +40,7 @@ the attributes back to plain. Nothing reloads: the content was in the DOM all al
 ```
 src/content/**  (Markdown + resume.yaml)
    |  Astro content collections, schemas from src/site/schemas.ts (plain Zod)
+   |  src/site/cards.ts             which cards a page has; a text cut at its ## headings  (pure)
    v
 src/pages/*.astro --------------------------> dist/**/index.html      the content, for both modes
    |
@@ -60,6 +62,15 @@ its slot's centre unless its file places it by hand (`position`; Research, since
 place by hand must be in the system's own slot's room and leave every other slot the room of a
 full-size system (`handPlace`), so the promise holds either way, and `tests/places.test.ts` pins
 where each system of the real galaxy stands.
+
+Inside `<main>` a page is a list of **cards** (AGENTS.md, invariant 11): a head with the one
+`<h1>`, then at most eight sections, each opening with a heading whose words link to the card's
+own fragment, so `/about/#rockets` names a card. `src/site/sections.ts` cuts a text's rendered
+HTML at its `##` headings (a scanner that counts the open tags: no Markdown plugin),
+`src/site/cards.ts` says which cards each kind of page has and refuses a ninth, and
+`components/Card.astro` is the markup. Plain mode, the side panel and the bottom sheet draw a
+card as a plain block, so a page reads as one column there; on a wide screen the universe stands
+the same cards round the docked body ("The deck" in section 5).
 
 The site's pictures are built the same way, from the design tokens: `/favicon.svg`,
 `/apple-touch-icon.png` and `/og/default.png` are endpoints in `src/pages/` that render pure
@@ -135,11 +146,29 @@ Each display frame:
    render resolution, give some back, or (once, early) ask for a lower tier.
 
 Order in `main.ts` today: assets → input → ship → navigator → the boost pad (out in free flight
-only) → star map → galaxy → ship lighting → camera director → camera rig → bodies on screen →
-picker → labels → sky → stars → dust → the map's look → jobs → prompt → debug overlays. The
+only) → star map → galaxy → ship lighting → hyperspace (how a jump looks: before the rig, whose
+lens follows it) → camera
+director → camera rig → bodies on screen → picker → labels → leaders → sky → stars → dust → the
+map's look (and a jump's dimming of the stars and of the sky's light) → the sky's bake → jobs → prompt → the offer of
+hyperspace → whereabouts (which system the ship is in: `systemAt`, once a frame) → flight deck →
+minimap → debug overlays. The
 camera comes after everything it looks at (the ship AND the planets), so that it sees this
 frame's world; whoever needs to know where things are ON SCREEN comes after the camera. The
-star map comes BEFORE the galaxy, which draws every body at the size the map asks for.
+star map comes BEFORE the galaxy, which draws every body at the size the map asks for. The
+flight deck (`ui/FlightDeck.ts`) and the minimap (`ui/MiniMap.ts`) come last of all. The deck only
+reads what the others did, samples the g in `fixedUpdate` (after the ship's step) and draws in
+`frameUpdate`. The minimap is there wherever the deck has its full size (it asks the deck:
+`full`), draws the galaxy's own positions through the star map's maths at another size
+(`sim/minimap.ts`), and its one way of acting is `pickRow`, the canvas's own call, or opening the
+star map. What is the minimap's own is in `sim/minimap.ts` too: its face is round, so what it
+fits is a DISC (`miniBounds`: the one that holds every system, or one system's own, grown toward
+the ship where the ship is outside it), a body is a mark only while its middle is on the face,
+and a system that is off it is a pin on a CIRCLE just inside the rim (`projectMini`); the N at
+the top of the face gives way to a pin that stands beside it (`pinNear`). The figure
+on its chip, how far the face reaches from its middle, is `rangeShown` in `sim/instruments.ts`;
+the journey's clock on its rim is one number the engine writes (`--gone`), which the stylesheet
+draws. Nothing reads either but the names, which keep off their boxes (the minimap's `box`
+takes in the two ends of a pill that reaches past its plate, as a long name's does).
 
 **The camera** (`camera/`) is one rig and several modes. A mode (`ChaseCam`, `OrbitCam`,
 `MapCam`; cinematic later) only fills in a `Pose`: what to look at, from how far, turned which
@@ -151,6 +180,44 @@ where it last saw it. A few lines in `main.ts` direct it: the map view while the
 else the orbit view while docked, else the chase view; a ship that was PUT at a body (a deep
 link, a rebuild) is cut to, one that flew there is eased to, and under reduced motion everything
 is a cut.
+
+**The orbit view turns to what the open card points at.** Every card of a page's deck has a
+LANDMARK on the body the page belongs to: a latitude and a longitude in the body's own frame
+(`sim/landmarks.ts`), from `design/worlds/landmarks.ts`, or for a card nobody gave one its place
+on a ring round the body. `Galaxy.landmark()` puts one in the world through the transform of
+whatever carries it (the part of the body that turns, or the body itself for one that holds
+still), so the body's own turn, the size the star map draws it at and a planned world's smaller
+scale are in it by construction. While the ship is docked at the deck's body, `main.ts` hands
+the open card's landmark to `OrbitCam.face()` as a function, "how far round the body is it
+NOW": the camera turns to it the short way round on a spring (never faster than
+`faceMaxRadPerSec`), rests with it `faceBiasDeg` round from the middle of the disc toward its
+card, closes in (`focusFitRingRadii`), and then goes round with the body as the body turns.
+With no card open it wanders on from where it is. It only ever turns ROUND the body: its height
+never changes. A ship that arrives, and a view that comes back from the star map, start facing
+it; under reduced motion the turn is a cut. None of it is state: it follows from the deck
+(`setDeck`), which follows from the URL.
+
+**The leaders** (`ui/Leaders.ts`) are what the deck adds to the picture: a line from every card
+to the body, in ONE `<svg>` in the engine's mount, which lies under the page's content (a line
+seems to come out from under its card) and is hidden from assistive technology. They are
+decoration: nothing in them can be pressed, and nothing is said. The system comes after the
+labels because it needs this frame's picture, and it decides nothing about where anything is:
+the body's disc comes from the same map of the screen the picker and the names read
+(`BodiesOnScreen.disc()`), measured out to the body's GROUND (`Galaxy.ground()`: the map has a
+world out to its rings and signs, and planned work's maquette is smaller than its body), and the
+open card's landmark is put on screen through the same camera (`pointAt`). That is how a line
+follows a planet that turns and travels. In the overview every card's line runs straight from
+the card (the middle of its title row, on the edge that faces the body, as `setDeck` gave it) to
+the nearest point of the limb: all of them make for the middle of the disc, so no two can cross.
+With a card open only its line is left, and its end slides from the limb to the landmark with
+the orbit camera's `focus` (0 to 1: how far it has closed in). They show only while the ship is
+docked at the deck's body, the orbit camera is in charge and has arrived (`CameraRig.settled`:
+no blend is under way), and the star map is put away. What is written is rounded to tenths of a
+pixel and written only when it changed: a view at rest writes nothing. How they look, and how
+they come and go, is the stylesheet's (`.leaders`): drawn in from card to body when they appear
+(`data-shown`), faded out when they leave, and aside while the cards travel (`data-aside`: the
+page told its deck anew, and the lines are left as they were until the cards have arrived).
+`dispose()` takes the SVG away, so a rebuilt engine has one set.
 
 The mix itself (`mixPose`) is made for the long way out to the map. **Distance mixes by ratio:**
 from 20 u behind the ship to 6,000 u above the galaxy, halfway is 350 u, so pulling out is one
@@ -166,12 +233,23 @@ the depth buffer a few units coarse from map height.
 
 **The panel and the view.** The info panel covers part of the viewport. The shell measures how
 much (`shell/panel-inset.ts`), tells the engine (`setPanelInset`) and mirrors it to the stylesheet
-(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom` on `<html>`). The rig slides
-the WINDOW onto the view with `camera.setViewOffset` so that the middle of the view is the middle
-of what is left: same camera, same perspective, so a planet stays round (turning the camera
-instead would stretch it into an egg near the edge of a wide lens). Modes that frame something are
-told how much is free and stand back accordingly. `#universe-overlay` is inset the same way, so
-the dock prompt is never under a bottom sheet. Which layout is which is one media query, written
+(`--panel-inset-top`, `--panel-inset-right`, `--panel-inset-bottom`, `--panel-inset-left` on
+`<html>`). The rig slides the WINDOW onto the view with `camera.setViewOffset` so that the middle
+of the view is the middle of what is left: same camera, same perspective, so a planet stays round
+(turning the camera instead would stretch it into an egg near the edge of a wide lens). Modes that
+frame something are told how much is free and stand back accordingly. `#universe-overlay` is inset
+the same way, so the dock prompt is never under a bottom sheet. **What is left has four sides**
+(`ViewShape`: across from `freeLeft` to `freeWidth`, down from `freeTop` to `freeHeight`, as
+shares of the viewport). A panel takes the right and a sheet the bottom; `left` is for content
+that stands on BOTH sides of the body: the deck's cards, where the shell measures the cards
+themselves (`deckInset` in `shell/deck.ts`: `left` is the head's right edge and `right` the last
+card's left edge, each with 24 px of air, and nothing at the bottom). The window
+slides by half of `right - left`; the orbit camera fits its ring to the span between the two
+sides; the names keep to it (`Labels`, `room.left`); the star map is fitted into it and measures
+a pointer from its middle; and the dock prompt, in a layer that already ends where a side panel
+begins, moves right by half of `--panel-inset-left`, into the middle of what is free. The two
+sides together never take more than 80% of the width: past that each gives way in proportion
+(one side alone is held exactly as it always was). Which layout is which is one media query, written
 twice (the stylesheet's sheet block, and `NARROW` in `panel-inset.ts`): narrow AND more than 30rem
 tall is a phone held upright and gets the bottom sheet; a phone held sideways has no height to
 share and keeps the side panel. The inset has a fourth number, `frameTop`: on that upright phone
@@ -289,6 +367,69 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   pilot's own turn, which is what an approach or an E press shows them), and the dust slides past
   no faster than `dust.maxFieldSpeed` (its box moves with the ship; `sim/dustField.ts` and the
   `uField` uniform), so the view neither spins, nor lies flat, nor strobes at 700 u/s.
+- **Hyperspace** (`sim/hyper.ts`): a journey's fast stretch, SHOWN as a jump. It is the same
+  flight: nothing of it steers, pushes or hurries the ship, so it takes exactly as long.
+  `stepHyper` runs in `flyStep` right after the autopilot's own step, reads the plan
+  (`fastAhead`: the top planned speed still ahead, and for how long the plan stays fast) and the
+  ship's speed, and writes two fields of the dock that nothing in flight reads, `hyper` and
+  `hyperSec`. A journey is **offered** a jump while its plan still reaches
+  `hyper.minPlannedSpeed` and a wind-up plus `hyper.minTunnelSec` of fast flight lie ahead; a
+  press (`engageHyper`) starts the **wind-up**; the **tunnel** opens once `hyper.windupSec` has
+  passed and the ship is at `hyper.punchSpeed`, and closes when the plan never reaches
+  `hyper.dropSpeed` again: in today's galaxy at least 0.4 s before the ship docks. One offer and one
+  jump a journey (`spent`): an offer that came back would be a chip that flickers. Everything
+  that ends a journey ends this too (`endHyper` in `sim/docking.ts`: arriving, Stop, the
+  controls, another destination, the web layer letting go), and a press that turned out to be
+  half of a chord takes the wind-up back (`cancelHyper`). `state/Navigator.ts` owns it for
+  everyone outside the simulation: `hyper` (`off`, `offered`, `windup`, `tunnel`; always `off`
+  for a visitor who asked for less motion), `engageHyper()`, `cancelHyper()`, and the `hyper`
+  event, told once a simulation step and delivered with the frame, so every change arrives, in
+  order, at any frame rate. **The look** is one pure function of those two fields and the
+  ship's speed, `hyperLook` (how far the dots are pulled out into dashes, how much of the tunnel
+  shows, the ring's two runs, where the lens and the flame are headed), so the lab, the tests and a
+  flight show the same jump. `world/Hyperspace.ts` draws it as two meshes at the far plane, by
+  the sky's rule (directions only, after the stars and before everything else): a tube round the
+  course, ribbed in the base of the destination's family, and a field of dashes, half of them
+  starlight and half the five families' bases with the destination's in the lead
+  (`wearHyperFamily` and `HYPER_TINT_SHARES` in `design/materials.ts`); neither blooms. One
+  thin ring besides, round the course like the tunnel: out from the eye at the punch, back onto
+  it on the way out, faint while it is wide (it asks nothing of where the destination is). With
+  the look's `surge` the chase
+  camera's lens opens further and the ship pulls ahead of the view (`chaseCam.surge*`), the flame
+  grows to its length at boost, and the real
+  stars dim by its `calm` through `Starfield.setCalm` (`starCalm`, which also holds the star
+  map's own dimming), and the baked sky's light by the same share through `SkyBake.setJump`
+  (its walls are see-through: undimmed, the haze and the far galaxies stood still under them
+  at more than half their strength while every star beside them was down to a seventh). On its way out the picture runs on its own clock, for `hyper.dropoutSec`,
+  whatever ended the jump; and a jump taken while that picture is still going (another
+  destination picked in the tunnel, and Shift again at once) does not cut it: it goes on going
+  under the new wind-up. The star map hides all of it (`mapWeight`). **The offer**
+  (`ui/HyperOffer.ts`) is one real button right after the prompt in `#universe-overlay`, shown
+  while a jump is offered or winding up and the world has the whole screen (no page open, the
+  map closed). "No page open" is asked of the rig as the page WANTS the view, at once
+  (`CameraRig.whole`: nothing wanted from the right, the bottom or the LEFT, where a deck of
+  cards whose only card is its head stands alone), and not as far as the view has slid: a link opens its page and sets the
+  ship out in the same moment, the offer comes with the journey's first step, and the free part
+  of the view EASES, so for two frames at 60 a second nearly all of it still reads as free.
+  `Shift` presses it (a fresh press of the key alone, and not one typed into the
+  page), and any other key while Shift is still down takes the wind-up back. **So on a journey
+  Shift is hyperspace's, and boost is a fresh press in the pilot's own flight**
+  (`core/input/keys.ts`): the keyboard asks the navigator, at every key and every step, whether
+  the ship is being flown for the pilot (the autopilot, an approach), takes no Shift that goes
+  down then, lets go of one that was held into it, and takes none that only repeats. The Shift
+  that took a jump is often still down when an arrow takes the journey back, at the autopilot's
+  speed, where the guard that brakes the ship believes a boost it is shown (`guardInput`); a
+  second finger on the world keeps the same rule (`TouchControls`: boost only in free flight,
+  where its pad is out). The shell mirrors
+  the event as `html[data-hyper]` (`shell/universe-shell.ts`), which is all the stylesheet needs
+  for the deck's running chevrons, the minimap's running route and the names that step back in
+  the tunnel; the deck's lamp reads HYPER there by itself (`ui/FlightDeck.ts`). An engine
+  rebuilt in the tunnel takes the journey up in the tunnel, past its punch (`dock.hyper` in the
+  snapshot, `resumeHyper`); `api.ts` tells the page `off` when it takes an engine down in the
+  middle of an offer or a jump (the new engine starts from `off` and reports changes only), and
+  the new engine tells `tunnel` again if it resumed one. That it is the same flight is held by
+  the journeys harness: `flyTwins` flies every journey twice, once by a visitor who takes the
+  jump the moment it is offered, and compares the two step for step, bit for bit.
 - **Pointing at a planet goes there** (`ui/Picker.ts`). Once a frame `ui/BodiesOnScreen.ts`
   works out where every body is on screen and how big it looks (`sim/screen.ts`, pure: the
   camera is sixteen numbers there). A click, or a tap that neither moved nor lingered (so it was
@@ -373,7 +514,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   LOOKING, not another place to be. The navigator does not know about it: a journey, an approach
   or a docked ship carries on underneath, and the URL and the panel do not change. `M`, the Map
   button (a real button in `#universe-overlay`) or scrolling out opens it; `M`, the button or
-  `Esc` closes it, and the map hears `Esc` before the panel does. The map camera is the SAME
+  `Esc` closes it, and the map hears `Esc` before the panel does. (Scrolling out opens it only
+  while the wheel is the map's to take: `StarMap`'s `wheelOpens`, which `main.ts` answers with
+  "the web layer has set no deck", `setDeck` in `api.ts`. Among cards the wheel steps from one
+  to the next, so there the map is `M` or its button.) The map camera is the SAME
   perspective camera, straight down through a 12° lens from far away, north up (+Z up the
   screen), so nothing pops on the way out, and the picker, the names and the panel's view offset
   work unchanged. What it shows is a `MapView` (a centre and a span; fitting, clamping, panning
@@ -411,16 +555,75 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   asked for by a dock that the pilot has already left again is called off (`router.cancel`), and
   a route that went home only BECAUSE the pilot left does not call the ship back from wherever
   the pilot was going.
+- **A part of a page is a reading position** (`shell/router.ts`, `shell/cards.ts`). The fragment
+  says which part of the page that is showing the visitor is at (`/about/#rockets`), and it never
+  gets a history entry of its own: a link to a part of this page, and `router.anchor()`, replace
+  it in the entry that is showing, so Back and Close go on leaving the page. The router tells
+  `onAnchor` (for such a link, for Back and Forward between two fragments, for one typed into the
+  address bar), and its listener shows the part: in the panel and the sheet it scrolls there,
+  and in the deck the card that holds it opens. The panel and the ship hear nothing, because the
+  page did not change. The same place is gone to when a page ARRIVES at a URL with a fragment
+  (`arrive` in `shell/cards.ts`: every entry's scroll is restored by hand, so on a reload
+  Chromium follows no fragment, and without this a reload at `/about/#work` showed the top of
+  the page in the side panel and the sheet), unless something has scrolled already; and when
+  the window makes a deck one column (`relay`), where the card that was open is the reader's
+  place.
+- **The deck** (`shell/deck.ts`, `shell/cards.ts`, "the deck" in the stylesheet). One content
+  box, three layouts, and which one is a media query alone (`DECK`: at least 80rem wide and 36rem
+  tall; `deck.test.ts` and `panel-inset.test.ts` read the stylesheet and hold it to the code).
+  The STYLESHEET lays the cards out: `<main>` is a column-wrap flex box with one forced break,
+  the head and the first sections down the left, the rest down the right, in DOM order, and
+  nothing is positioned by script. Which card is open is the fragment; `cards.sync()` reads it
+  and writes three values on `<html>` (`data-card-open`, the card's place among the sections;
+  `data-card-side`; `--deck-mates`, how many boxes share its column), and CSS does the rest: a
+  card is a stub (the overview), a chip (another card is open) or the open card, which scrolls
+  inside itself. While that card has a pixel or more of what it holds under its cut (the space
+  under its last line, its own padding, is not more to read), `<html>` also carries
+  `data-card-more` (`more()`, asked again by every sync and by the card's own scroll, which is
+  heard on its way down to it, since a scroll does not bubble): the stylesheet fades the card's
+  last lines, with a box that takes no room, so the card measures the same with it and
+  without. Nothing is ever written inside `<main>`, so a soft navigation still ends in the DOM
+  a hard one builds (invariant 11). Every change of card is `router.anchor(key | null)`
+  and then `cards.sync()`, whoever asks: a press on a card or its title, the wheel (one pure
+  reducer, `wheelStep`: a gesture that begins with the open card at its end steps to the next
+  card, any other scrolls the card, wherever the pointer is), the scroll keys (`keyStep`) and
+  `Esc`, which closes a card before it leaves the page (`panel.ts` asks `onEscape`). After a
+  step the focus moves (to the card's title, if it was in `<main>`; back among all of them, to
+  the title of the card it has just left, which wears the focus ring and opens it again) or the
+  announcer says the card's name and place, never both: a focus that is on that title already
+  does not move, so there the announcer speaks. And the keyboard's focus never rests on
+  something cut off:
+  focus inside a card that is not open opens it. The listeners start with the router and the
+  panel, before the engine arrives, so the cards work while the world loads. The engine hears
+  two things: what the cards leave free (`setPanelInset`, re-measured in the same task as the
+  change, since no card in the deck moves by width, height or position) and the deck itself
+  (`setDeck`: the body the page belongs to, where each card's title row meets the free part,
+  which card is open), which gives the wheel to the cards, tells the orbit camera what to
+  face and gives every card its leader (section 4). A change of card the visitor makes is also
+  SEEN (`carry`): the layout has changed already, and every card whose box moved is eased from
+  where it was by an animation on `translate`, a card that grew unrolling by `clip-path`.
+  Animations write no attribute, so the page's content is still what a hard load builds; a
+  first load, a navigation and a resize are not carried, and nothing is under reduced motion.
+  The engine is told the cards' FINAL places at once, so the leaders wait: they step aside for
+  as long as the cards travel (`tokens.motion.base` on both sides) and are drawn anew then.
+  Only a journey makes them wait (another card open, or other cards: `travels` in
+  `ui/Leaders.ts`); the same deck told again because it was measured again (a resize, the
+  typeface arriving) is followed at once. A journey that is over is let go of (`onfinish`): an
+  animation holds its card, and after a navigation the page that card was in.
 - **How to fly, said once** (`shell/hints.ts`). A first-time visitor in open sky gets a small
   card (markup in `layouts/Base.astro`, shipped `hidden`; the stylesheet picks keys or thumbs by
   pointer and hides it while the panel is open). It goes for good once they have steered
   (`firstinput`), set out for somewhere from the open sky, or pressed "Got it"; a journey that
-  began with a link does not count, because that visitor was reading.
+  began with a link does not count, because that visitor was reading. It lingers a few seconds
+  after they have got it, except when that journey is offered hyperspace: the offer stands where
+  the card does, so the card goes at once.
 - **What the ship does, said aloud** (`shell/announcer.ts`). One polite `role="status"` region,
   in the layout from the start and empty, because a screen reader listens to the regions it found
   when the page loaded. It says "Flying to FishAI.", then "Docked at FishAI.", "Stopped." or,
   when an arrow or the throttle took the journey back and the ship flies on, "Flying by hand."
-  (`undocked`'s `halting`), and that the star map opened or closed. It says nothing about a ship that was PUT somewhere (a deep
+  (`undocked`'s `halting`), and that the star map opened or closed. Between "Flying to" and
+  "Docked at" it says "Hyperspace." once, when a tunnel follows a wind-up: the press was heard.
+  (Not for a tunnel taken up again by a rebuilt engine, which nobody pressed for.) It says nothing about a ship that was PUT somewhere (a deep
   link, a cut under reduced motion), nor about leaving: there a page opens or closes, the focus
   moves, and the heading says it better.
 - **Where a visit starts** (`core/snapshot.ts: startingFrom`). The URL says where the ship is
@@ -445,8 +648,10 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   position of every body follows) and the fields of `Snapshot` (`core/snapshot.ts`: the ship,
   and the dock it is headed for or carried by). Anything a visitor would miss after a rebuild
   must become a snapshot field. (What the web layer last ASKED for is not the engine's state:
-  `api.ts` keeps the panel's inset, the pause and whether the map is open, and tells the new
-  engine, with a cut. And what the old navigator had queued for its next frame, a Stop pressed
+  `api.ts` keeps the panel's inset, the page's deck of cards (`setDeck`: it follows from the URL
+  and the page, so it is no snapshot field and no part of `galaxyKey`), the pause and whether the
+  map is open, and tells the new engine, with a cut; `api.test.ts` holds it to that with a
+  stand-in for the engine. And what the old navigator had queued for its next frame, a Stop pressed
   since the last one say, is delivered before the snapshot is taken: the new engine only reports
   what it does itself.)
 - **Dispose.** Whoever creates a GPU resource disposes it. Systems track geometries, materials and
@@ -475,9 +680,16 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
 | Where every planet and moon is | nowhere: `sim/orbits.ts` computes it from the step count | nothing to synchronise, nothing to go stale |
 | The ship | `ShipState` (plain numbers) inside `ShipSystem`; copied into a `Snapshot` on rebuild | a copy is a snapshot |
 | Flight, journey, approach or docked, and at what (and whether a Stop is still braking, or a ship taken back at speed is still guarded) | `state/Navigator.ts` (the app state machine) and `DockState` in the simulation; in the `Snapshot` on rebuild (`dock`, `halting`, `guarding`) | one owner; the web layer hears events and asks through `api.ts` |
+| Hyperspace on the journey under way: none, offered, winding up, in the tunnel, spent | `DockState.hyper` and `hyperSec` in the simulation (`sim/hyper.ts`), which nothing that flies the ship reads; `Navigator.hyper` for everyone else; mirrored to `html[data-hyper]` for the stylesheet. In the `Snapshot` only that the journey was in the tunnel (`dock.hyper`) | it is a journey's, so it ends with the journey. A rebuilt engine takes a tunnel up past its punch; an offer is simply made again, and so is a wind-up that had not opened yet |
+| How a jump looks this frame | nowhere: `hyperLook` (pure) works it out from the dock's two fields and the ship's speed, and `world/Hyperspace.ts` draws it. The view's own: how far the dashes have streamed, where the lens has got to, and the clock of a picture on its way out (and of the one before it, while that is still going under a new jump) | a picture of state that has its owner. A rebuilt engine starts the stream afresh, which nobody can tell |
+| Which keys are down, and whether a Shift among them is boost | `core/input/keys.ts` (`KeyState`), fed by `KeyboardInput`, which asks the navigator whether the ship is on a journey | boost is a fresh press in the pilot's own flight: a Shift that went down on a journey is hyperspace's, and is not boost when the controls take the ship back |
 | Which page is showing, whether the panel is open | the URL, and `data-panel*` attributes on `<html>` | Back must mean what it looks like |
+| Which card of the deck is open | the URL's fragment, mirrored as `data-card-open`, `data-card-side` and `--deck-mates` on `<html>` (`shell/cards.ts`) | a link to a card is a link; no entry of its own, so Back still leaves the page |
 | Whether the star map is open, and what it shows | `ui/StarMap.ts`; "open" is remembered by `api.ts` across a rebuild and mirrored to `html[data-map]` | a way of looking: not in the URL, not in the snapshot, not the navigator's business |
+| What the flight deck shows | nowhere: `ui/FlightDeck.ts` reads the ship, the navigator and the galaxy's positions each frame, through `sim/instruments.ts` | a picture of state that has its owners: nothing to keep, nothing a rebuild could lose |
+| Which system the ship is in, and what the minimap looks at | `main.ts` (`systemAt`, once a frame) and `ui/MiniMap.ts` (`miniScope`): derived from where the ship is and where it is headed; not in the snapshot | it follows from the ship, so a rebuilt engine has it again with its first frame. A journey's line and seconds are the autopilot's own (`surroundings.cruise`), read each frame. Two things are the picture's own way of telling a journey and are kept by nobody: that the seconds only count down, and the seconds the journey began with, which is what the clock on the rim is whole at. Whenever the minimap comes back in the middle of a journey (from the star map, or in an engine built again from its snapshot) both begin afresh: the ring is whole again at the seconds that are left. Nothing else reads either, so neither is a snapshot field |
 | Plain or universe | `html[data-mode]`, `localStorage.mode`, `sessionStorage.mode` | decided before first paint by `mode.inline.js` |
+| Whether the baked sky is there | `world/SkyBake.ts`; mirrored to `html[data-sky]` (`baking`, `ready`, `off`); that it has been SEEN is the snapshot field `skyRevealed` | the panorama follows from the tuning and the tier; only "do not fade twice" has to survive a rebuild |
 | A demoted quality tier | `localStorage.quality`, for a week | one probe per visit, not one per page |
 | Design values | `design/tokens.ts`, `design/tuning.ts` | one place to look, one place to edit |
 
@@ -501,16 +713,48 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   at its own body, which meets the shell only from nearer than the brake could stop in; a chase
   camera that never swings faster than its limit, nor under reduced motion than a pilot turns;
   a map that zooms about the pointer and never leaves the galaxy, on which a body only ever grows
-  and a crowded one only ever fades; a camera blend that stays level however far round it turns.
+  and a crowded one only ever fades; a camera blend that stays level however far round it turns;
+  the flight deck's instruments (a bearing that never reads 360, a g that is 3.47 from rest at
+  full thrust, a countdown that never rises, a system the ship stays "in" across its edge);
+  hyperspace (`sim/hyper.test.ts`: an offer only once the plan pays and never a second one, no
+  stub of a tunnel for a late press, a tunnel that outlasts a slow bend, a step that reads the
+  plan and the speed and writes the dock's two fields and nothing else; a look that never steps
+  but at the punch, and is gone `dropoutSec` after any way out; `world/Hyperspace.test.ts`: a
+  ring that closes round the course, faint while it is wide, a second jump that does not cut
+  the first one's picture, and none from the future when the lab puts its clock back); the keys (`core/input/input.test.ts`: no Shift of a journey is
+  boost, then or once it is handed back, and a second finger keeps the rule,
+  `core/input/touch.test.ts`); and
+  the minimap's maths, in the real galaxy and in grown ones of 6 and 8 systems
+  (`tests/minimap-galaxy.test.ts`): at every scope and size every body a ship can dock at is
+  on the face (which is round) and every other system is one pin on the circle inside its rim,
+  in a galaxy wider than tall and in one taller than wide; the two sizes of face it is held to
+  must be the ones the stylesheet gives (the smallest and the largest of its two sizes:
+  `--minimap-size`, in flight under a mouse, and `--minimap-held`, docked and under a finger,
+  each less the plate's ring and band: the test reads all of it), so a change of size cannot go
+  unmeasured.
 - **Shell code** runs against happy-dom: the mode script as shipped, the router's navigation and
-  history rules, the panel, the swap contract, the hint card, the announcer.
+  history rules, the panel, the swap contract, the hint card, the announcer, and the cards (what
+  a click, a key, a wheel and the focus do; `<main>` byte for byte the same after each). So does the DOM the
+  engine makes (`src/universe/ui/*.test.ts`): the names, the prompt, the offer of hyperspace
+  (which Shift it takes and which it leaves to the page, that a chord takes the wind-up back,
+  that a thumb and the click after it are one press), the star map's controls, and
+  the two pictures, the flight deck and the minimap (hidden from assistive technology, nothing
+  to focus, what each writes and that it writes nothing while nothing changes; for the minimap,
+  what its pill and its chip say, how the clock on its rim runs down and is put away, that its
+  N gives way to a pin beside it, that the names are told of the two ends of a long pill, that a
+  pointer is measured from the face wherever the face lies in its box, and what a press on a
+  mark, on nothing and on the body the ship is at does).
 - **The build output is a contract** (`scripts/verify-dist.mjs`, part of `npm run verify`): CSP
   hashes present, plain mode free of three.js, weight budgets, every internal link resolves, every
-  page identical outside `<main>` and `[data-page-head]`, nothing dev-only (`/lab`, lil-gui) and
+  page identical outside `<main>` and `[data-page-head]` and, inside `<main>`, the cards that
+  invariant 11 describes (`scripts/lib/cards.mjs`), nothing dev-only (`/lab`, lil-gui) and
   no `TODO(copy)` in `dist/`; and every old URL in `_redirects` (`/systems/code/`) is one exact
   path, 301, to a page of the build that no page links past (`scripts/lib/redirects.mjs`).
 - **`tests/`** holds the checks that are about the repo rather than a module: the lint boundaries
   still bite, the build scripts work, and no phone number or private address is in the repo.
+  And those that hold two parts against each other that know nothing of each other: the flight
+  deck's top, which is the stylesheet's, against the fins of a ship at rest, which are the chase
+  camera's and the model's (`tests/deck-room.test.ts`).
 - **Real browsers, by machine** (`npm run e2e`, Playwright, `tests/e2e`): Chromium, WebKit and a
   phone-sized Chromium drive the real build behind `wrangler dev`, so the headers and the CSP are
   under test too (over HTTPS: the CSP says `upgrade-insecure-requests`, and WebKit honours that
@@ -522,9 +766,30 @@ strip. The map ignores the band. (Why, and the measurements: "As built, A1" in P
   context taken away mid-visit (the engine rebuilds in place: same page, same dock, the map still
   open); pointing at a planet and at its name, Stop, the cut under reduced motion, the hint card;
   the star map by button, key, wheel, drag and pinch (real touches, through the browser's own input
-  pipeline), none of which flies the ship or changes the URL; axe with no serious issue on any page
-  in either mode, nor on the map; nothing scrolls sideways at 360 and 320 px, and every control is
-  44 px. They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
+  pipeline), none of which flies the ship or changes the URL; the flight deck and the minimap
+  (`deck.spec.ts`): where they sit and what they keep clear of, the strip on a phone, that Tab
+  never lands in either, that the minimap's plate and chip stand on the ball's and the HDG chip's
+  lines, a press on a mark of the minimap flying there with its line, its clock and its
+  seconds, a press on its empty ground or on its chip opening the star map, the corners of its
+  box being the sky's, its pill resting while the ship is docked (which hangs on the deck
+  standing before it in the overlay: asked too), its N shown where no pin is near and gone
+  where one stands beside it, and both back after a lost context; hyperspace (`hyper.spec.ts`):
+  Shift on a long journey shows it as a jump, says "Hyperspace." once and docks where it was
+  going, with the deck's lamp reading AUTO, HYPER, AUTO on the way; Shift+Tab is no jump; Stop
+  in the tunnel ends both; the Shift that took the jump, still down when an arrow takes the
+  journey back, is not boost until it is pressed afresh (the deck's own boost light says so);
+  nothing is offered on a hop, on a link's journey (nor for one frame
+  of it: that test hands the page its frames by hand, a sixtieth of a second apart, since what
+  a view does in its first two frames depends on the machine's pace), on the open map or
+  under reduced motion; a context lost in the tunnel comes back in the tunnel; on a phone the
+  offer is a round pad exactly where the boost pad stands; and where the chip stands at three
+  sizes of window;
+  axe with no serious issue on any page
+  in either mode, nor on the map, nor with the offer of hyperspace up; nothing scrolls sideways at 360 and 320 px, and every control is
+  44 px; the deck (`cards.spec.ts`: two columns, no card over another or outside the window, at
+  three sizes and with each card open; the wheel, the keys, Esc and Back among cards; a leader
+  from every card to one disc in the middle of what the cards leave free, the open card's to
+  its landmark on its card's side of that disc, none on the map, one set after a rebuild). They fly for real, on whatever renders (a CI runner has no GPU and draws on its CPU), so
   they wait for outcomes, never for seconds.
 - **Real browsers, by hand.** `npm run preview` serves `dist/` the way Cloudflare will (headers,
   CSP, 404). Looks and feel are judged there and on real phones; a number in a test cannot say
@@ -541,11 +806,220 @@ run there is a reason to look, not a locked door.
 | Perf readout | `?perf` on any page, in every build | fps, frame time, draw calls, triangles, pixels, tier and resolution scale, position, speed, whose pull the ship is under, and the state (`autopilot system/software`, with `(map)` while the map is open) |
 | Force a tier | `?q=low`, `?q=medium`, `?q=high` | judge a look on every tier; the probe is off |
 | Tuning panel | `?universe&tweak`, development only | sliders for the live blocks of `tuning.ts`, "copy tuning as JSON", and a flight recorder that replays a run |
-| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier |
+| **The lab** | `http://localhost:4321/lab/`, development only | one planet (built or planned), moon, sun, rocket, station, satellite or relay on a turntable, in front of the real sky, lit and post-processed as in the universe; sliders for `shading`, `planet`, `world`, `post`, `ship`; light direction; tier. The `sky` subject turns the camera round: it stands in the middle and looks OUT, from one of the seven views the sky is judged from (`sim/skyDirections.ts`) or wherever a drag leaves it, with the baked sky on it: the plain numbers of `look.sky` as sliders (its tables of clumps and galaxies are edited in `tuning.ts`), `rebake sky`, `copy look.sky as JSON`, what the view measures (`html[data-sky-y]`), and with `parity=1` the GPU against the CPU oracle. The `stars` subject looks out the same way at the stars: the sky's own, or a sheet of one class (`starKind`) in one tint or the mix, drawn as a view of another height would draw them (`starRows`), or as the star map shows them (`starMap`). The address says what to show (`/lab/?subject=sky&pose=first&q=high`; any key of the table's state, and `turn`, `still=1`, `ui=0`), so a view can be linked to |
+| The look's pictures | `node scripts/look/capture.mjs --out <dir> --site <origin> --lab <origin>` (its header says how to start what it looks at) | the same views every time, on a desktop and a phone: the first frame at home on each tier and under reduced motion, in flight, docked at home, a planet, an emblem world and each sun, the star map; and the lab's sky from the seven views, and its stars (a sheet of each class, the heroes at two view heights and on the low tier, the stars as the map shows them), and its suns (a living sun of each family, on the low tier and as the map shows it, and the Hardware sun). `--perf` reads `?perf` on each tier instead. Before-and-after pictures of one view are how a change to the look is judged (docs/DESIGN.md, "Deep light") |
 | Production preview | `npm run build`, then `npm run preview` | CSP, headers, 404, trailing slashes. Restart it after every build |
 
 The lab and the tuning panel are imported behind `import.meta.env.DEV`. A production build drops
 them and lil-gui with them, and `verify-dist` fails the build if either ever shows up.
+
+**Shaders ship squeezed.** The GLSL in `design/shaders/*.ts` is written to be read (a header of
+uniforms, a comment on every trick), and a minifier leaves a template literal alone, so all of
+it used to ship. A Vite plugin (`scripts/vite-glsl-squeeze.mjs`, in `astro.config.ts`) takes the
+comments and the needless whitespace out of every literal tagged `/* glsl */` in that folder, at
+build time only: the dev server and the lab keep the shaders as written, so a compile error
+there names a line a person can find. It is the same program, token for token
+(`scripts/lib/glsl-squeeze.mjs` is pure, and `tests/build-scripts.test.ts` runs it over every
+real shader). Three rules follow for whoever writes one: tag the literal `/* glsl */`; no
+backslash (a line continuation would not survive, and the squeeze refuses it); and a `${...}`
+that brings in a block of GLSL stands alone on its line, which it then keeps.
+
+**three ships on a diet.** three's shader library (its `ShaderChunk`: lights, shadows, PBR,
+morph targets, fog) is strings a tree-shaker cannot drop, about 18 KiB gzipped that this engine
+never runs: every material here is a `ShaderMaterial` of our own, or one of two built-in ones
+(`MeshBasicMaterial`, `LineBasicMaterial`). A second build-time Vite plugin
+(`scripts/vite-three-diet.mjs`; `scripts/lib/three-diet.mjs` is pure) blanks every chunk that
+neither those two programs, the renderer itself nor our shaders' `#include`s reach, and turns
+each dropped PROGRAM into one `#error` line that names the plugin, so a material nobody listed
+fails loudly at its first compile and not as a wrong picture. **Using another built-in three
+material (or `scene.background`, shadows, an `#include` of another chunk) means adding it to
+the lists at the top of `scripts/lib/three-diet.mjs`**; `tests/build-scripts.test.ts` reads the
+engine's source and fails on one that is missing. The dev server and the lab run three whole.
+
+**The mesh is facets, the picture is round.** Four things make it so. (1) NORMALS, said once by
+what a thing is made with: a mesh hands the toon shader a normal a vertex. A generated ground's
+are the ball's or the shape's (`sim/planet.ts`, `shapeNormal`). A LATHE of five sides or more
+(`MeshBuilder.lathe`, and the kit's `lathe`, `cyl`, `cone`, `dome` and bead on top of it) gives
+every corner the normal of the true surface: round about the axis; along the profile shared
+between two bands where it only bends, kept apart where it folds by more than `CREASE_DEG` (a
+cap, a rim); one normal along the axis where a gentle profile ends on it (`POLE_DEG`: the top
+of a dome), one a side at a tip. The rows' `lathe` is also built round ALONG its profile: a
+bend becomes an arc inside its corner (`bent`, `sim/world/kit.ts`), as fine as its size wants.
+A `ring` swept in two steps or more does the same for its
+walls. Everything else (a box, a prism, a fin, a quad, pixel art, a ring of one step, a lathe
+of three or four sides) carries no normals, and `pack` gives each face its own
+(`sim/world/glue.ts`). A triangle's normals ride in `Tri.n` through every placement (`xf`
+takes them through the inverse of a scale, then the turn; a mover's are turned into its
+pivot's frame), and a ghost's wire reads them, so a round ghost is outlined by its rims.
+There is no pass that guesses what is round from the angles between faces any more. (2) SIDES:
+the rows sketch a round thing with a handful of sides, and the interpreter builds it with as
+many as its size wants (`sim/world/rows.ts`, `refine`; `sim/world/kit.ts`, `sidesFor`: the
+middle of a side within `tuning.world.round`'s sag of the true circle, in radii of the body,
+for the size the part ends at after the placements that scale it): more in the close-up than
+every day, fewer on the low tier (`fineOf`), never fewer than written, a polygon of under
+five sides never changed. A ring's steps become a whole number of steps each, so its colours
+stay where they were painted. (3) LIGHT PER PIXEL: the shader carries the NORMAL across a
+face, asks at each pixel how far it faces its sun, and cuts the three bands there, a pixel
+soft (`fwidth`); the colour stays `flat`. (The facing itself was interpolated until step 2c:
+across a long facet of a cone that is not a straight run, and a band's edge showed corners.)
+(4) LINES THROUGH FACETS: the planet
+generator walks each facet's outline, finds where the colour changes (a coast, a band, an edge
+of paint) and gives the facet up to three colours and two lines (`Facet.side`,
+`Facet.over`: a colour and, per corner, where it stands on the line; `MeshData.sides`, eight
+numbers a vertex), which ride through `Tri.s` and `Packed.sides` into two attributes every
+geometry carries (`aSide`, `aOver`: zeros, a byte each, where a face has one colour). A
+neighbour walks the shared edge through the same places, so the lines join. And each line is
+an ARC: a ground's height inside a facet is the one smooth sheet through its three corners
+and the ground's own height halfway along each edge (the same from either side of an edge),
+the generator finds where the outline crosses the line's perpendicular through its middle
+(`bent`), and the shader adds `bend * t * (1 - t)` to the line (`Side.t`, `Side.bend`;
+`MeshData.bends`, four numbers a vertex; `Tri.b`, `Packed.bends`, the attribute `aBend`). A
+line both of whose ends are on ONE edge (a cape) is that edge moved half a step off the facet,
+with the same arc drawn from further along it, so no pixel on the edge has to say which side
+it is on. A change to a
+generator that makes its own triangles keeps to this: give a curved surface its normals (a
+triangle without them is a flat face), and never colour a boundary by the facet.
+
+**A sun is drawn on its ball, and a corona.** A sun's ball is generated like any ground
+(`sim/world/ground.ts`): a smooth ball in its family's base, every facet flagged as the SURFACE
+in the lighting flag every vertex already has: `aUnlit` is 6 plus the sun's own number
+(`sim/sunSurface.ts`, `sunFlag`; under 16), which every reader of the flag still sees as
+"glows" (above one and a half). Only the toon shader's SUN variant (a material a sun family,
+`Galaxy.sunSurfaceOf`) asks "above four?", and there draws the surface per pixel: two layers
+of gradient noise on the ball (`design/shaders/noise.ts`, a chunk the worlds' clouds share) at
+the place the sun's number says, cut by three thresholds into the four tones of a ladder of
+six, stepped down toward the limb, with three spots laid over, every edge soft and never
+thinner than a pixel; `uFlatness` takes it to the base. `sim/sunGrain.ts` is the same
+arithmetic on the CPU, for the tests. No new attribute for it, and a plain glow (a lamp, a gear
+of the Hardware sun, whose painted frame ball is no living surface) is left alone. The light round the
+suns is `world/SunCorona.ts`: one instanced draw (`design/shaders/corona.ts`), two quads a
+living sun (its light behind what it wears, its lens in front of its ball) and one a plain sun,
+placed each frame from the galaxy's positions and display scales, so it is added after the
+galaxy. It is its sun's seed, the tokens, the tuning and the simulation time, so nothing of it
+is a snapshot field.
+
+**A world with air is a variant of the toon shader, and two instanced draws.** Which worlds
+have air is `world/looks.ts` (`airOf`: the table `tuning.look.air.worlds`, else a generated
+globe's biome). The galaxy gives such a world its own material, the toon shader's AIR variant
+(`createToonMaterial({ air: { key, center } })`, `center` being the body's own position vector,
+read live): per pixel it finds the direction from the world's centre, so the dusk and night
+bands, the stepped tint on the limb and how far above the air a place stands all follow the
+BALL and never a facet; `sim/air.ts` is the same arithmetic on the CPU, for the tests. A body's
+moving parts get their material from the same factory (`BodyMesh`'s `another`). Home's lit
+windows are a part the galaxy adds to its close-up (`sim/windows.ts`: pure, ranked by a seeded
+noise; flag 3 in `aUnlit`, which only the AIR variant reads, and which it discards by day and
+on the map). Round the worlds, `world/AirShells.ts` (added after the coronas, in `main.ts`):
+one instanced draw of quads for the shells and hairlines and one of unit balls for the clouds
+(`design/shaders/air.ts`; the clouds' twin is `sim/clouds.ts`), placed each frame from the
+galaxy's positions and display scales and each world's light. Which worlds wear clouds is the
+tier's (`look.air.cloudTiers`). Air is the world's id, the tokens, the tuning and the simulation
+time: nothing of it is a snapshot field.
+
+**Traffic and the chart** are two more systems added after the galaxy in `main.ts`.
+`world/Traffic.ts` is one instanced draw of quads (`design/shaders/traffic.ts`): two dots on
+every orbit that has a family to wear (a relay's has none). Which dots there are and where each
+is at a time is `sim/traffic.ts`, pure: a dot is its orbit's id, `tuning.look.traffic` and the
+simulation time of the frame, laid on the galaxy's positions of that same frame, so a rebuilt
+engine draws the same dots and reduced motion is simply time zero. A dot's size rides in its
+place's `y` (the flight plane is `y = 0`), which is also how an orbit the star map does not
+draw loses its dots (`displayScale` of its body: size 0). `world/Chart.ts` is the star map's
+ground, a little under the flight plane (`design/shaders/chart.ts`), visible only while the
+star map's weight is above 0.01, drawn after the backdrop and before the stars; it reads the
+map's weight and scale each frame. With post-processing it is one plane and one program, which
+lays every part over the next itself and has as many districts as the manifest has systems (a
+`#define`). Straight to the canvas (the low tier) the canvas's own blending lays the paint, so
+it is three draws, each only where its part is: the dots on the plane, every district's discs
+on a polygon round them and every ring on a strip along it (`sim/chartMesh.ts` makes those
+meshes). That is for a renderer with no GPU, which works out every pixel a draw covers: in
+Chromium's software renderer, which is what CI draws with, the one program took 24 ms of every
+frame of the map, and the three parts take 4. Neither is state, neither is picked, and neither
+is on the bloom guest list.
+
+**The sky is baked once, on the GPU, after the first frame** (`world/SkyBake.ts`). What the sky
+adds to the navy (the Milky Way's haze and fifteen far galaxies; no gas and no clouds: Allen's
+decision of 2026-10-03, docs/DESIGN.md, "Deep light") is
+one fragment shader, `design/shaders/skyBake.ts`, whose constants and tables are printed into it
+from `tuning.look.sky` by `design/skyRecipe.ts` (pure). It is the same program on every tier,
+with no noise and no levels in it: every term is a Gaussian or a sine of where the texel is.
+Its colours (the haze's three tones, the six star tints) and the lengths of its two tables are
+uniforms: with constant counts Direct3D's compiler unrolls the loops and takes longer over it.
+The haze is only ever mixed up its own ramp: its dark lane is not painted (it is the fourth
+number, below), and its bulge is a swell of the same tones.
+It is drawn into a panorama (an equal-area cylinder: u is the
+azimuth, v the sine of the elevation; sRGB, 8 bits, 2048 x 1024, or 1536 x 768 on the low
+tier: a tier is only a size) whose alpha says how much of a star shows there (less in the
+Milky Way's dark lane). The steps, each of which must not
+hold a frame up:
+
+1. `paint()` is called once the first frame is out: the event `sky: baking` goes to the shell
+   (`html[data-sky]`), and the program is compiled with `renderer.compileAsync` (the render
+   target bound first, or the program would be compiled for the canvas and again for the
+   target).
+2. Then **a band of rows a frame** (`bandRows`, a scissor), in an order and at a pace that
+   `sim/skySchedule.ts` decides (pure, tested): after a frame of `bandSlowMs` or longer only
+   every second frame paints one. A frame that painted a band is not fed to the governor
+   (`Engine.excuseFrame()`): the bake is the engine's own doing, not the device being slow.
+3. When the last band is in: `sky: ready`, and the panorama's light comes in over `revealSec`.
+   Until then the sky is the navy and the stars (all of them: the river of stars is there in
+   the first frame). `setSky()` in `design/materials.ts` hands the panorama, the reveal and the
+   exposure to the backdrop AND the stars, which share those three uniforms (the backdrop reads
+   the panorama and `uExposure`, which already carries the reveal; the stars the panorama and
+   `uReveal`). The exposure follows `setView(docked, calm)`: the navigator's mode and the
+   star map's calm, eased.
+4. If anything fails (no render target, a compile error) the sky is `off`:
+   it stays navy and stars, and nothing else notices. `intensity` 0 is the same path.
+
+Nothing of it is state but one bit: **`skyRevealed` is a snapshot field**, so an engine rebuilt
+in the same tab (a lost context, a demoted tier) paints the same panorama again and shows it
+with a cut, not a second fade. `parseSnapshot` drops it, so a page load fades again. The
+panorama itself follows from the tuning and the tier, like every planet's mesh.
+
+**The sky's twin on the CPU** is `sim/skyOracle.ts`: the same program, expression for
+expression, which nothing shipped imports. The Milky Way's shape (its frame, its two banks and
+how its stars are shared between them, its clumps, its lane, its bulge) is `sim/milkyWay.ts`,
+pure, which the oracle AND the star list read: the haze and the river of stars are laid from
+the same functions, so they cannot drift apart. `tests/sky-gates.test.ts` holds the oracle
+still (a table of its own values: a regression pin, which a change to the oracle or the recipe
+has to move on purpose; it is no second opinion) and holds the sky to its gates from the seven
+views of `sim/skyDirections.ts`, each as a wide screen shows it and as a phone held upright
+does: the horizon strip, the percentiles, the ceiling, how much of the sky stays empty, that
+the haze is faint and yet there, that it is blue everywhere and never darkened, that none of
+it lies behind a cluster, and that it has no edge (no step from one texel to the next: what a
+level cut into it would be). What checks the oracle against something other than itself is
+the GPU: the lab's `sky` subject reads the GPU's own panorama
+back and prints the same numbers (`html[data-sky-y]`), and with `?parity=1` the difference
+between the two (`html[data-sky-parity]`: a seventh of a code value on average, the dither's own,
+and 1.1 code values at worst, on every tier). A change to the recipe changes the shader and
+the oracle together, or that number says so.
+
+**The stars are a list, then one draw.** `sim/starList.ts` (pure, seeded) turns the star
+classes of `tuning.starfield` into parallel arrays: a direction, a class, a tint, a brightness,
+a phase. It is handed the Milky Way too (`tuning.look.sky.band`): a class's `bandShare` of its
+stars is laid along the river by trying places until one is kept, in proportion to the haze's
+own clumps there and thinned in its dark lane (`sim/milkyWay.ts`), the rest anywhere; then the
+Milky Way's bulge (more dust, field and bright stars in an oval on the river, in warm tints:
+the bulge is these stars), the clusters (three of them at the systems' bearings from home;
+each a few bright stars, then field stars, then dust), the double stars, and the heroes
+last, at the places the table gives. How many depends on the pointer and the tier, which are known before the renderer
+exists, so the list is built once in the constructor of `world/Starfield.ts` and nothing about
+it is state: a rebuilt engine makes the same sky. It is drawn as one draw of quads, a quad a
+star (`stars` in `design/shaders/sky.ts`): the vertex shader puts the quad at the star's direction
+on the far plane and sizes it in CSS px by class; the fragment shader sums a core, halos and
+spikes. Every quad has four vertices of its own and none is an instance: a software renderer
+(CI has no GPU) runs each instance as a draw of its own, and thousands of them were the most
+expensive thing in its frame (`starGeometry` in `world/Starfield.ts` has the numbers).
+`createStarMaterial` lays the classes out as the shader's tables, a row a class. Points
+could not do it: a point's size is capped by the GPU and a point has no angle. A star also
+reads the panorama's alpha at its own direction, in the vertex shader, and dims in the Milky
+Way's dark lane. `sim/skyDirections.ts` projects a direction into each of the seven views
+(`pointOf`), which is how `tests/look.test.ts` holds a hero in every view, clear of the bars.
+
+**Tokens only the engine paints with** (the Milky Way's haze and the star map's districts,
+air, the extra star temperatures, dusk
+and night, a lit window) are left out of the CSS mirror: `ENGINE_ONLY` in
+`src/site/tokens-css.ts`, passed by `Head.astro`. The engine reads `tokens` itself, never the
+CSS, so a plain page does not carry custom properties that no stylesheet reads. A new token that
+the DOM never uses joins that list; one the DOM does use must not.
 
 ## 10. Adding things
 

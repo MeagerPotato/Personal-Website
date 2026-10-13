@@ -25,6 +25,9 @@ export class EngineFlame {
   private readonly handle: AssetHandle;
   private throttle = 0;
   private boost = 0;
+  /** Hyperspace's pull on the flame, as asked for and as it has eased so far (0 to 1). */
+  private surge = 0;
+  private surged = 0;
 
   constructor(
     assets: AssetStore,
@@ -43,11 +46,20 @@ export class EngineFlame {
     socket.add(this.handle.object);
   }
 
+  /**
+   * In hyperspace the flame burns as long as under boost while it thrusts, by this share (0 to
+   * 1: world/Hyperspace.ts, the look's `surge`). It may step; the flame follows at its own rate.
+   */
+  setSurge(surge: number): void {
+    this.surge = Math.min(1, Math.max(0, surge));
+  }
+
   update(input: Readonly<FlightInput>, frame: Frame): void {
     const { params } = this;
     this.throttle = approach(this.throttle, input.thrust, params.responsePerSec, frame.dt);
     const boosting = input.boost && input.thrust > 0 ? 1 : 0;
     this.boost = approach(this.boost, boosting, params.responsePerSec, frame.dt);
+    this.surged = approach(this.surged, this.surge, params.responsePerSec, frame.dt);
 
     const flame = this.handle.object;
     flame.visible = this.throttle > 0.01;
@@ -58,7 +70,7 @@ export class EngineFlame {
     const wobble = this.flickers ? 0.6 * Math.sin(t * 41) + 0.4 * Math.sin(t * 67 + 1.3) : 0;
     const length =
       this.throttle *
-      lerp(params.lengthCruise, params.lengthBoost, this.boost) *
+      lerp(params.lengthCruise, params.lengthBoost, Math.max(this.boost, this.surged)) *
       (1 + params.flicker * wobble);
     // Full width almost at once, so a tap of the throttle shows; the length carries the rest.
     const width =

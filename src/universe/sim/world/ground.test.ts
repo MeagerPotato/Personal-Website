@@ -7,7 +7,7 @@ import { colorOf } from './palette';
 // The ground is the engine's own generator with a world's options: it must count, colour and
 // seed exactly as a body's rows say.
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 const ground = (spec: GroundSpec, seed = 'body', detail = 3) =>
   finish(groundOf(spec, seed, detail, LOOKS));
 /** A colour as the generator's buffers hold it: float32. */
@@ -36,19 +36,51 @@ describe('the ground', () => {
     expect(ground({ recipe: 'continents' }, 'page/about')).not.toEqual(named);
   });
 
-  it('paints a sun in its family, unlit and glowing, with no nudge', () => {
+  it('makes a sun a smooth, glowing ball of its family’s base (sim/sunSurface.test.ts)', () => {
     const tris = ground({ sun: 'mint', recipe: 'sun' }, 'sun', 4);
     expect(tris).toHaveLength(500);
-    expect(tris.every((t) => t.g === 2)).toBe(true);
-    const allowed = [f32('mint.base'), f32('mint.light'), f32('mint.shade')];
-    expect(tris.every((t) => allowed.includes(String(t.c)))).toBe(true);
+    expect(tris.every((t) => [0, 1, 2].every((i) => Math.abs(radiusOf(t.p, i) - 1) < 1e-6))).toBe(
+      true,
+    );
+    // Glowing, and flagged as the surface (above 4); its tones are the shader's to draw.
+    expect(tris.every((t) => t.g > 4)).toBe(true);
+    const colours = new Set(tris.map((t) => String(Array.from(new Float32Array(t.c)))));
+    expect([...colours]).toEqual([f32('mint.base')]);
+  });
+
+  it('is round: every facet carries the normals of the ball or the shape it lies on', () => {
+    for (const t of ground({ recipe: 'continents' }, 'page/about')) {
+      if (!t.n) throw new Error('a ground’s facet has its normals');
+      for (let i = 0; i < 9; i += 3) {
+        // The relief lifts a corner along its direction and never turns its normal.
+        const r = radiusOf(t.p, i / 3);
+        for (let k = 0; k < 3; k += 1) expect(t.n[i + k]).toBeCloseTo((t.p[i + k] ?? NaN) / r, 6);
+      }
+    }
+    // A rounded box: flat on its faces, turning only round its edges.
+    const box = ground({ shape: { p: 4, s: [1, 1, 1] } });
+    const top = box.filter((t) => [1, 4, 7].every((i) => (t.p[i] ?? 0) > 0.95));
+    expect(top.length).toBeGreaterThan(0);
+    for (const t of top) expect(t.n?.[1]).toBeGreaterThan(0.9);
+  });
+
+  it('takes a detail of its own over its kind’s', () => {
+    expect(ground({ biome: 'dune', detail: 1 }, 'x', 6)).toHaveLength(80);
   });
 
   it('paints its ops over the bands, exactly', () => {
     const tris = ground({ biome: 'primer', paint: [['band', 0, 0.5, 'coral.base']] });
-    const north = tris.filter((t) => (t.p[1] ?? 0) + (t.p[4] ?? 0) + (t.p[7] ?? 0) > 0.3);
+    const north = tris.filter((t) => Math.min(t.p[1] ?? 0, t.p[4] ?? 0, t.p[7] ?? 0) > 1e-6);
     expect(north.length).toBeGreaterThan(0);
-    expect(north.every((t) => String(t.c) === f32('coral.base'))).toBe(true);
+    expect(north.every((t) => String(t.c) === f32('coral.base') && !t.s)).toBe(true);
+    // Along the equator the paint ends INSIDE the facets: they carry both colours and the line.
+    const split = tris.filter((t) => t.s);
+    expect(split.length).toBeGreaterThan(0);
+    for (const t of split) {
+      const ys = [t.p[1] ?? 0, t.p[4] ?? 0, t.p[7] ?? 0];
+      expect(Math.min(...ys)).toBeLessThan(1e-6);
+      expect(Math.max(...ys)).toBeGreaterThan(-1e-6);
+    }
   });
 
   it('makes the generator’s look of the looks it is given, the terrain and its own stops', () => {

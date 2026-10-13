@@ -19,7 +19,7 @@ import {
   createToonMaterial,
   type ToonMaterial,
 } from '../design/materials';
-import { tokens, type ThemeKey } from '../design/tokens';
+import { tokens, type AirKey, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import type { WorldRecipe } from '../design/worlds';
 import type { OrbitSubject } from '../camera/OrbitCam';
@@ -30,6 +30,7 @@ import {
   type UniverseManifest,
 } from '../manifest';
 import { familyReaches } from '../sim/families';
+import { landmarkPoint, type Landmark } from '../sim/landmarks';
 import { displayScales, type MapBodies, type MapScaleParams } from '../sim/mapView';
 import { TAU, smoothstep } from '../sim/math';
 import { bodyPositions, createOrbitTable, type OrbitTable } from '../sim/orbits';
@@ -37,7 +38,8 @@ import { createRng } from '../sim/rng';
 import { lightClaims, turnToward, type LitBodies } from '../sim/shipLight';
 import type { BodyRecipe } from '../sim/world/rows';
 import { BodyMesh, CloseUpLoader, type CloseUpRows } from './BodyMesh';
-import { lookOf } from './looks';
+import { airOf, lookOf, type AirTable } from './looks';
+import type { AirWorldView } from './AirShells';
 import { PlanetMesh } from './PlanetMesh';
 
 /** How the galaxy is drawn on the star map (`tuning.map`). */
@@ -79,6 +81,8 @@ export interface GalaxyOptions {
   bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
   /** How the close-up rows and the motion table arrive: their chunk's import(), unless a test says. */
   closeUp?: () => Promise<CloseUpRows>;
+  /** Which worlds have air, by body id. `tuning.look.air.worlds` when not given (a test gives its own). */
+  air?: AirTable;
 }
 
 interface BodyView {
@@ -91,6 +95,8 @@ interface BodyView {
   planet: PlanetMesh | null;
   /** An emblem world, drawn from its rows. */
   world: BodyMesh | null;
+  /** A body that is no emblem world, as drawn: its generated mesh, or its model. */
+  surface: Object3D | null;
   /**
    * Row of the body it keeps facing away from, or -1: a relay's arrow and the Contact satellite's
    * trail point away from home, toward the edge of the map.
@@ -177,6 +183,8 @@ export class Galaxy implements System {
 
   private readonly scope = new Scope();
   private readonly views: BodyView[] = [];
+  /** The same views by their body's id: asked every frame (a deck's leaders), so no search. */
+  private readonly viewById = new Map<string, BodyView>();
   private readonly lines: OrbitLine[] = [];
   private readonly systems = new Map<string, ManifestSystem>();
   /** Every body's colour family, by id, and each family's look, made once a body wears it. */
@@ -187,6 +195,10 @@ export class Galaxy implements System {
   /** The lines of planned work's parts still to come, one material per family they will wear. */
   private readonly edges = new Map<ThemeKey, Material>();
   private worldCount = 0;
+  /** A sun's own material (its ball is a living surface), by family, made once a sun wears it. */
+  private readonly sunSurfaces = new Map<ThemeKey, ToonMaterial>();
+  /** The worlds that have air (world/looks.ts, `airOf`), as their shells and clouds know them. */
+  private readonly airs: AirWorldView[] = [];
   /** Every sun's light, and the key light for whatever has no sun. */
   private readonly suns: SunLight[] = [];
   private readonly sunById = new Map<string, SunLight>();
@@ -283,7 +295,9 @@ export class Galaxy implements System {
     for (const body of byDistance) {
       const family = this.families.get(body.id);
       if (!this.systems.has(body.system) || family === undefined) continue;
-      this.views.push(this.createView(body, family, sunMaterial));
+      const view = this.createView(body, family, sunMaterial);
+      this.views.push(view);
+      this.viewById.set(body.id, view);
     }
     // One line for each path, named after the first body on it in the manifest. A path is its
     // circle: the body it goes round (or its system's centre) and its radius. It wears the
@@ -437,7 +451,7 @@ export class Galaxy implements System {
    * for an unknown id.
    */
   subject(id: string): OrbitSubject | null {
-    const view = this.views.find((candidate) => candidate.body.id === id);
+    const view = this.viewById.get(id);
     if (!view) return null;
     return {
       position: view.node.position,
@@ -446,11 +460,52 @@ export class Galaxy implements System {
     };
   }
 
+  /**
+   * Where a landmark of body `id` is in the world THIS frame (sim/landmarks.ts), into `out`.
+   * False for an unknown id. The point is taken through the transform of whatever carries it, as
+   * that is drawn: the part of the body that turns (or, for a landmark that holds still, and for
+   * a body nothing of which turns, the body itself). So the body's own turn, the size the star
+   * map draws it at and a planned world's smaller scale are all in it, with nothing to keep in
+   * step. Ask after this system's frameUpdate: it has put the body where it is by then.
+   */
+  landmark(id: string, mark: Landmark, out: Vector3): boolean {
+    const view = this.viewById.get(id);
+    if (!view) return false;
+    const { world, surface, node, body } = view;
+    let carrier: Object3D = node;
+    // An emblem world's rows and a model are made at radius 1 and scaled; a generated planet's
+    // mesh, and the body's own node, are in units.
+    let unit = body.radius;
+    if (world) {
+      carrier = (mark.hold ? null : world.turning) ?? world.object;
+      unit = 1;
+    } else if (surface && !mark.hold) {
+      carrier = surface;
+      if (!view.planet) unit = 1;
+    }
+    landmarkPoint(mark, unit, out);
+    // The renderer works the matrices out when it draws, which is after anyone asks.
+    carrier.updateWorldMatrix(true, false);
+    out.applyMatrix4(carrier.matrixWorld);
+    return true;
+  }
+
+  /**
+   * The radius of body `id`'s GROUND as it is drawn, u: its radius, or less for planned work's
+   * maquette (0 for an unknown id). Whoever draws to the body's EDGE on screen measures with it:
+   * a body's reach in the simulation is its solid, out to its rings and signs.
+   */
+  ground(id: string): number {
+    const view = this.viewById.get(id);
+    return view ? view.body.radius * (view.world?.share ?? 1) : 0;
+  }
+
   dispose(): void {
     for (const view of this.views.splice(0)) {
       view.planet?.dispose();
       view.world?.dispose();
     }
+    this.viewById.clear();
     this.scope.dispose();
   }
 
@@ -473,6 +528,43 @@ export class Galaxy implements System {
       this.looks.set(family, look);
     }
     return look;
+  }
+
+  /** The material of a sun of a family: the toon shader's SUN variant, lit by the key light. */
+  private sunSurfaceOf(family: ThemeKey): ToonMaterial {
+    let surface = this.sunSurfaces.get(family);
+    if (!surface) {
+      surface = this.scope.track(createToonMaterial({ vertexColors: true, sun: family }));
+      this.sunSurfaces.set(family, surface);
+    }
+    return surface;
+  }
+
+  /**
+   * The worlds that have air, for whoever draws their shells and clouds (world/AirShells.ts):
+   * each with its light as a LIVE position (a sun of a binary moves).
+   */
+  get airWorlds(): readonly AirWorldView[] {
+    return this.airs;
+  }
+
+  /**
+   * The lit material of a body: its light's, which everything that light shines on shares; or,
+   * for a world with air, one of its own in that light (the toon shader's AIR variant: a
+   * material carries its world's air and its centre). `center`: the world's own position, the
+   * very vector that moves with it.
+   */
+  private surfaceOf(body: ManifestBody, air: AirKey | undefined, center: Vector3): ToonMaterial {
+    if (air === undefined) return this.lightOf(body).surface;
+    return this.scope.track(this.airSurface(body, air, center));
+  }
+
+  /** A material of a world with air, in its light. Whoever asks owns it. */
+  private airSurface(body: ManifestBody, air: AirKey, center: Vector3): ToonMaterial {
+    const surface = createToonMaterial({ vertexColors: true, air: { key: air, center } });
+    // The very object its light's own material reads: the light moves for both at once.
+    surface.uniforms.uSunPosition.value = this.lightOf(body).position;
+    return surface;
   }
 
   /** What lights `body`: the first sun up its chain of parents, or, with none, the key light. */
@@ -569,19 +661,34 @@ export class Galaxy implements System {
       spinning: null,
       planet: null,
       world: null,
+      surface: null,
       outward: -1,
       outwardYaw: 0,
     };
 
     const shape = lookOf(body, family, this.options.worlds, this.options.bodies);
+    // Its air, if it has any (world/looks.ts): a material of its own, a shell, clouds, lamps.
+    const air = airOf(body, shape.model === null && !shape.world, this.options.air);
+    if (air) {
+      this.airs.push({
+        id: body.id,
+        row: index,
+        radius: body.radius,
+        air: air.air,
+        light: this.lightOf(body).position,
+        cloud: air.cloud,
+      });
+    }
     if (shape.world) {
-      // An emblem world. A SUN'S is drawn with the distant key light's toon material, not with
-      // the glow material of a generated sun: its ball is flagged to glow (sim/world/ground.ts)
-      // and its signs are flat, so neither takes any light, and the ball blooms as a sun always
-      // has (the toon shader's glow is the glow material's); and a part a sun's rows might one day
-      // leave lit is shaded by the far key light, as anything in space is, where the sun's own
-      // material would light it from the sun's centre, from inside. Everything else is lit by its
-      // own sun, or by the key light.
+      // An emblem world. A SUN'S is drawn with a toon material of its own, lit by the distant
+      // key light, not with the glow material of a generated sun: its ball is flagged to glow
+      // (sim/world/ground.ts) and its signs are flat, so neither takes any light, and the ball
+      // blooms as a sun always has (the toon shader's glow is the glow material's); and a part a
+      // sun's rows might one day leave lit is shaded by the far key light, as anything in space
+      // is, where its family's material would light it from the sun's centre, from inside. Its
+      // own, because its ball is a living surface in its family's tones (sunSurfaceOf).
+      // Everything else is lit by its own sun, or by the key light; a world with air by a
+      // material of its own in that light, and with lamps on its night side if it has them.
       const world = new BodyMesh({
         id: body.id,
         kind: body.kind,
@@ -589,7 +696,12 @@ export class Galaxy implements System {
         radius: body.radius,
         seed: body.seed,
         recipe: shape.world,
-        material: body.kind === 'sun' ? this.key.surface : this.lightOf(body).surface,
+        material:
+          body.kind === 'sun'
+            ? this.sunSurfaceOf(family)
+            : this.surfaceOf(body, air?.air, node.position),
+        ...(air ? { another: () => this.airSurface(body, air.air, node.position) } : {}),
+        lamps: air?.windows === true,
         jobs,
         low: this.options.low ?? false,
         reducedMotion,
@@ -623,7 +735,8 @@ export class Galaxy implements System {
     }
 
     // A sun is light itself; everything else is lit by its own sun, or by the key light.
-    const material = body.kind === 'sun' ? sunMaterial : this.lightOf(body).surface;
+    const material =
+      body.kind === 'sun' ? sunMaterial : this.surfaceOf(body, air?.air, node.position);
     let object: Object3D;
     if (shape.model !== null) {
       const handle = assets.acquire(shape.model, material);
@@ -644,6 +757,7 @@ export class Galaxy implements System {
       object = view.planet.mesh;
     }
     node.add(object);
+    view.surface = object;
     // The satellite holds its pose; everything else turns on its own axis.
     view.spinning = body.kind === 'satellite' ? null : object;
     // Each world starts turned its own way, or every planet would show the same face.

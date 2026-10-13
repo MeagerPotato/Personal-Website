@@ -186,7 +186,7 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
-  it('draws a sun’s world with the key light’s material: its ball glows, its signs are flat', () => {
+  it('draws a sun’s world in a material of its own, lit by the key light: its ball glows in tones, its signs are flat', () => {
     const { galaxy, world, finish } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
@@ -194,12 +194,88 @@ describe('the real galaxy, drawn from its rows', () => {
       const mesh = world(sun.id).getObjectByName('far:hold') as Mesh;
       const material = mesh.material as ToonMaterial;
       expect(material.uniforms.uSunPosition.value.equals(KEY_LIGHT_POSITION), sun.id).toBe(true);
+      // The SUN variant, with the ladder of its own family: no planet shares it.
+      expect(material.defines).toHaveProperty('SUN');
+      expect(material.uniforms).toHaveProperty('uSunTone');
       const unlit = mesh.geometry.getAttribute('aUnlit');
-      const kinds = new Set(Array.from(unlit.array));
-      // Nothing of it is lit: the ball glows (2), the rest is flat (1). Except Hardware's gears
-      // (design/worlds/gears.ts), which glow too: flat beside the ball's halo they would wash out.
-      expect([...kinds].sort(), sun.id).toEqual(sun.id === 'system/hardware' ? [2] : [1, 2]);
+      const kinds = [...new Set(Array.from(unlit.array))].sort((a, b) => a - b);
+      // Nothing of it is lit: the ball glows, every facet flagged as the surface with the sun's
+      // own number above 6 (sim/sunSurface.ts, `sunFlag`), and the rest is flat (1). Except
+      // Hardware: its frame ball and its gears (design/worlds/gears.ts) are plain glow (2); flat
+      // beside the halo they would wash out.
+      if (sun.id === 'system/hardware') expect(kinds, sun.id).toEqual([2]);
+      else {
+        expect(kinds, sun.id).toHaveLength(2);
+        expect(kinds[0], sun.id).toBe(1);
+        expect(kinds[1], sun.id).toBeGreaterThanOrEqual(6);
+        expect(kinds[1], sun.id).toBeLessThan(16);
+      }
     }
+    // Two suns of one family would share a material; these four are four families.
+    const materials = withRows
+      .filter((body) => body.kind === 'sun')
+      .map((sun) => (world(sun.id).getObjectByName('far:hold') as Mesh).material);
+    expect(new Set(materials).size).toBe(materials.length);
+    galaxy.dispose();
+  });
+
+  it('gives each world with air a material of its own, in its light, round its own centre', () => {
+    const { galaxy, node, world, finish } = setup();
+    finish();
+    galaxy.frameUpdate(frame(1));
+    const surfaceOf = (id: string): ToonMaterial => {
+      const mesh = (world(id).getObjectByName('far:turn') ??
+        world(id).getObjectByName('far:hold')) as Mesh;
+      return mesh.material as ToonMaterial;
+    };
+    const airs = Object.keys(tuning.look.air.worlds);
+    expect(galaxy.airWorlds.map((air) => air.id).sort()).toEqual([...airs].sort());
+    for (const air of galaxy.airWorlds) {
+      const material = surfaceOf(air.id);
+      expect(material.defines, air.id).toHaveProperty('AIR');
+      // The very vector that moves with the world, and the very light its neighbours are lit by.
+      expect(material.uniforms.uAirCenter?.value, air.id).toBe(node(air.id).position);
+      expect(material.uniforms.uSunPosition.value, air.id).toBe(air.light);
+      expect(air.row, air.id).toBe(galaxy.orbits.indexOf(air.id));
+    }
+    expect(new Set(airs.map(surfaceOf)).size).toBe(airs.length);
+    // Home is lit by the key light; a planet by its sun, wherever that is this frame.
+    const home = galaxy.airWorlds.find((air) => air.id === 'page/about');
+    expect(home?.light.equals(KEY_LIGHT_POSITION)).toBe(true);
+    const calHacks = galaxy.airWorlds.find((air) => air.id === 'project/cal-hacks-13');
+    expect(calHacks?.light.equals(node('system/hackathons').position)).toBe(true);
+    // A world without air keeps the one material of its light, shared with its neighbours.
+    expect(surfaceOf('project/days2meet').defines).not.toHaveProperty('AIR');
+    expect(surfaceOf('project/days2meet')).toBe(surfaceOf('project/fishai'));
+    galaxy.dispose();
+  });
+
+  it('lights lamps on home’s night side up close, and nowhere else', async () => {
+    const { galaxy, viewer, node, world, finish } = setup();
+    finish();
+    galaxy.frameUpdate(frame(1));
+    await Promise.resolve();
+    const lampsIn = (id: string, tier: string): number => {
+      let lamps = 0;
+      world(id).traverse((child) => {
+        if (!child.name.startsWith(`${tier}:`) || !('geometry' in child)) return;
+        const unlit = (child as Mesh).geometry.getAttribute('aUnlit');
+        if (unlit) for (const value of Array.from(unlit.array)) if (value === 3) lamps += 1;
+      });
+      return lamps;
+    };
+    for (const id of ['page/about', 'project/cal-hacks-13']) {
+      viewer.position.copy(node(id).position).add(new Vector3(0, 0, -30));
+      galaxy.frameUpdate(frame(1));
+      finish();
+      galaxy.frameUpdate(frame(1));
+    }
+    // Four triangles a lamp, three corners each; in the group that turns with the ground.
+    expect(lampsIn('page/about', 'near')).toBe(tuning.look.air.windows.most * 12);
+    expect(lampsIn('page/about', 'far')).toBe(0);
+    expect(lampsIn('project/cal-hacks-13', 'near')).toBe(0);
+    const turn = world('page/about').getObjectByName('near:turn') as Mesh;
+    expect(Array.from(turn.geometry.getAttribute('aUnlit').array)).toContain(3);
     galaxy.dispose();
   });
 
@@ -294,5 +370,69 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
     expect(made).toBeGreaterThan(real.bodies.length);
     expect(disposed).toHaveBeenCalledTimes(made);
+  });
+});
+
+describe('a landmark on an emblem world', () => {
+  const DEG = Math.PI / 180;
+  const bodyOf = (id: string) => {
+    const found = real.bodies.find((body) => body.id === id);
+    if (!found) throw new Error(`no body '${id}'`);
+    return found;
+  };
+
+  it('is on the ground that turns, and goes round with it', () => {
+    const { galaxy, node, world } = setup();
+    galaxy.frameUpdate(frame(1));
+    const out = new Vector3();
+    const middle = node('page/about').position;
+    const turning = world('page/about').getObjectByName('turning');
+    if (!turning) throw new Error('About Me does not turn');
+
+    // The launch pad: far north, out at the ground.
+    expect(galaxy.landmark('page/about', { lat: 80, lon: 30 }, out)).toBe(true);
+    expect(out.distanceTo(middle)).toBeCloseTo(bodyOf('page/about').radius, 6);
+    expect(out.y).toBeCloseTo(bodyOf('page/about').radius * Math.sin(80 * DEG), 6);
+    // As far round as its longitude and the ground's own turn together.
+    const round = (): number => Math.atan2(out.x - middle.x, out.z - middle.z);
+    const turned = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
+    expect(round()).toBeCloseTo(turned(30 * DEG + turning.rotation.y), 9);
+
+    galaxy.frameUpdate(frame(2, 1));
+    galaxy.landmark('page/about', { lat: 80, lon: 30 }, out);
+    expect(round()).toBeCloseTo(turned(30 * DEG + turning.rotation.y), 9);
+    // What is held (the Circle Line and its stops) never turns: a landmark on it neither.
+    galaxy.landmark('page/about', { lat: 0, lon: 144, alt: 0.35, hold: true }, out);
+    expect(round()).toBeCloseTo(144 * DEG, 9);
+    expect(out.distanceTo(middle)).toBeCloseTo(1.35 * bodyOf('page/about').radius, 6);
+    galaxy.dispose();
+  });
+
+  it('holds still on a body nothing of which turns, and is as small as planned work is drawn', () => {
+    const { galaxy, node } = setup();
+    galaxy.frameUpdate(frame(1));
+    const out = new Vector3();
+    // The Resume station holds its pose: a pod is where its row puts it, turn or no turn.
+    galaxy.landmark('page/resume', { lat: 0, lon: 90 }, out);
+    const station = node('page/resume').position;
+    expect(Math.atan2(out.x - station.x, out.z - station.z)).toBeCloseTo(90 * DEG, 9);
+    galaxy.frameUpdate(frame(9, 8));
+    galaxy.landmark('page/resume', { lat: 0, lon: 90 }, out);
+    expect(Math.atan2(out.x - station.x, out.z - station.z)).toBeCloseTo(90 * DEG, 9);
+
+    // Planned work is a maquette at plannedScale of its size: so is where its landmarks are.
+    const planned = real.bodies.find((body) => body.planned === true && body.kind === 'planet');
+    if (!planned) throw new Error('the galaxy has no planned planet');
+    galaxy.landmark(planned.id, { lat: 10, lon: 200 }, out);
+    expect(out.distanceTo(node(planned.id).position)).toBeCloseTo(
+      planned.radius * tuning.world.plannedScale,
+      6,
+    );
+    // And the galaxy says how big a body's ground is drawn, for whoever draws to its edge.
+    expect(galaxy.ground(planned.id)).toBeCloseTo(planned.radius * tuning.world.plannedScale, 12);
+    const about = real.bodies.find((body) => body.id === 'page/about');
+    expect(galaxy.ground('page/about')).toBe(about?.radius);
+    expect(galaxy.ground('project/gone')).toBe(0);
+    galaxy.dispose();
   });
 });

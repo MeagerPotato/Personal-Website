@@ -40,12 +40,17 @@ const STOPPING: Snapshot = { ...FLYING, halting: true };
 const GUARDED: Snapshot = { ...FLYING, guarding: true };
 const DOCKED: Snapshot = {
   ...FLYING,
-  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0 },
+  dock: { id: 'project/fishai', docked: true, angle: 2.5, spin: -1, holdSec: 0, hyper: false },
 };
 /** Half a second into a hop: the journey must still last a second before it may arrive. */
 const HEADED: Snapshot = {
   ...FLYING,
-  dock: { id: 'project/fishai', docked: false, angle: 0, spin: 1, holdSec: 1 },
+  dock: { id: 'project/fishai', docked: false, angle: 0, spin: 1, holdSec: 1, hyper: false },
+};
+/** On a long journey, in hyperspace's tunnel (sim/hyper.ts). */
+const JUMPING: Snapshot = {
+  ...FLYING,
+  dock: { id: 'project/fishai', docked: false, angle: 0, spin: 1, holdSec: 0, hyper: true },
 };
 /** What a snapshot looks like after a night in sessionStorage. */
 const stored = (snapshot: unknown): unknown => JSON.parse(JSON.stringify(snapshot));
@@ -57,10 +62,18 @@ const unstamped = (snapshot: Snapshot): unknown => {
 };
 
 describe('a snapshot that has been away', () => {
+  it('no longer says that the baked sky was seen: a page opens on navy and stars, and fades', () => {
+    // A rebuild within the tab is handed the engine's own snapshot, and that one says so.
+    const seen: Snapshot = { ...FLYING, skyRevealed: true };
+    expect(parseSnapshot(stored(seen))).toEqual(FLYING);
+    expect(startingFrom({ snapshot: stored(seen) }, HERE).snapshot?.skyRevealed).toBeUndefined();
+  });
+
   it('comes back as it left', () => {
     expect(parseSnapshot(stored(FLYING))).toEqual(FLYING);
     expect(parseSnapshot(stored(DOCKED))).toEqual(DOCKED);
     expect(parseSnapshot(stored(HEADED))).toEqual(HEADED);
+    expect(parseSnapshot(stored(JUMPING))).toEqual(JUMPING);
     expect(parseSnapshot(stored(STOPPING))).toEqual(STOPPING);
     expect(parseSnapshot(stored(GUARDED))).toEqual(GUARDED);
     // Written before STOP braked, or before a ship taken back was guarded: neither.
@@ -76,6 +89,14 @@ describe('a snapshot that has been away', () => {
     // Written before a journey's hold was kept: nothing to wait for.
     const before = { id: 'project/fishai', docked: false, angle: 0, spin: 1 };
     expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.holdSec).toBe(0);
+    // Written before hyperspace existed (an open tab over a deploy): still believed, and in no
+    // tunnel.
+    expect(parseSnapshot({ ...HEADED, dock: before })?.dock?.hyper).toBe(false);
+    const older2: Record<string, unknown> = { ...HEADED.dock };
+    delete older2.hyper;
+    expect(parseSnapshot({ ...HEADED, dock: older2 })).toEqual(HEADED);
+    // A docked ship is in no tunnel, whatever was written.
+    expect(parseSnapshot({ ...DOCKED, dock: { ...DOCKED.dock, hyper: true } })).toEqual(DOCKED);
     // A key that was dropped on the way is the same as no dock.
     expect(parseSnapshot({ steps: 1, ship: FLYING.ship, galaxy: HERE })).toEqual({
       ...FLYING,
@@ -111,6 +132,9 @@ describe('a snapshot that has been away', () => {
       { ...HEADED, dock: { ...HEADED.dock, holdSec: 3600 } },
       { ...HEADED, dock: { ...HEADED.dock, holdSec: '1' } },
       { ...HEADED, dock: { ...HEADED.dock, holdSec: null } },
+      { ...HEADED, dock: { ...HEADED.dock, hyper: 'tunnel' } },
+      { ...HEADED, dock: { ...HEADED.dock, hyper: 3 } },
+      { ...HEADED, dock: { ...HEADED.dock, hyper: null } },
       { ...FLYING, halting: 'yes' },
       { ...FLYING, halting: null },
       { ...FLYING, guarding: 1 },
@@ -187,6 +211,17 @@ describe('where a visit starts', () => {
       HEADED,
     );
     expect(startingFrom({ snapshot: stored(DOCKED) }, HERE).snapshot?.halting).toBe(false);
+    // In hyperspace's tunnel it is the same: the jump goes with the journey that is not taken
+    // up, and a dock that is kept is kept whole (its own page: main.ts then puts the ship in
+    // orbit there, which ends the jump as arriving does).
+    expect(startingFrom({ snapshot: stored(JUMPING) }, HERE).snapshot).toEqual({
+      ...JUMPING,
+      dock: null,
+      halting: true,
+    });
+    expect(
+      startingFrom({ at: 'project/fishai', snapshot: stored(JUMPING) }, HERE).snapshot,
+    ).toEqual(JUMPING);
   });
 
   it('brakes an orbit still settling, as a key or a link would', () => {

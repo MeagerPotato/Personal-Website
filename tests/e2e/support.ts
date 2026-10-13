@@ -247,6 +247,31 @@ export function sameCanvas(page: Page): Promise<boolean> {
   );
 }
 
+/**
+ * Take the WebGL context away, the way a browser would (a phone that put the tab in the
+ * background): the engine then builds itself again on a fresh canvas (src/universe/api.ts).
+ * Answers false where that cannot be done on request.
+ */
+export function loseContext(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('#universe-host canvas');
+    if (!canvas) return false;
+    canvas.setAttribute('data-e2e-canvas', 'lost');
+    // The canvas has a context already, and asking again hands back that very one.
+    const lose = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
+    lose?.loseContext();
+    return Boolean(lose);
+  });
+}
+
+/** The canvas whose context was taken (`loseContext`) is gone, and a new one stands in its place. */
+export function rebuilt(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector('#universe-host canvas');
+    return canvas !== null && canvas.getAttribute('data-e2e-canvas') !== 'lost';
+  });
+}
+
 /** One thing said, and the path the page was at when it was said. */
 export interface Said {
   text: string;
@@ -355,4 +380,37 @@ export function collectErrors(page: Page): string[] {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
   });
   return errors;
+}
+
+/**
+ * Every value `<html>` gives the attribute `name` from now on, in order (null: it has none),
+ * starting with the one it has now. As `watchText` is for what was said: a jump is over in a
+ * second or two, and a machine drawing on its CPU may not look while it lasts. Changes made
+ * within one task are all kept (each record of a mutation carries the value before it).
+ */
+export async function watchAttribute(
+  page: Page,
+  name: string,
+): Promise<() => Promise<(string | null)[]>> {
+  const key = `e2eAttribute:${name}`;
+  await page.evaluate(
+    ({ name, key }) => {
+      const root = document.documentElement;
+      const seen: (string | null)[] = [root.getAttribute(name)];
+      (window as unknown as Record<string, unknown>)[key] = seen;
+      const note = (value: string | null): void => {
+        if (seen.at(-1) !== value) seen.push(value);
+      };
+      new MutationObserver((records) => {
+        for (const record of records.slice(1)) note(record.oldValue);
+        note(root.getAttribute(name));
+      }).observe(root, { attributes: true, attributeFilter: [name], attributeOldValue: true });
+    },
+    { name, key },
+  );
+  return () =>
+    page.evaluate(
+      (key) => (window as unknown as Record<string, (string | null)[]>)[key] ?? [],
+      key,
+    );
 }

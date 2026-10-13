@@ -4,23 +4,31 @@ import { lathe, prism, quad, tri, type Tri, type Vec2, type Vec3 } from './kit';
 
 /**
  * THE ATOMS: four props so common that every world is partly made of them (radius-1 worlds, +Y
- * up). A bead is a pebble, a rivet, a marker or a stop; a tile a pip, a badge, a window or a chip
- * of confetti; a fin a rocket's fin, a dorsal fin or a card; `pix` pixel art, or text through
+ * up). A bead is a pebble, a rivet, a marker or a stop, and ROUND (kit.ts); a tile a pip, a badge,
+ * a window or a chip of confetti, a disc from five sides and a polygon under; a fin a rocket's fin, a dorsal fin or a card; `pix` pixel art, or text through
  * the 3x5 pixel font (a roll number, a scoreboard). Their triangle counts are part of the
  * vocabulary's budget (vocabulary.md, 4.1) and pinned in atoms.test.ts.
  */
 
-/** An octahedron of radius r: 8 triangles. */
-export const bead = (r: number, color: Rgb): Tri[] =>
-  lathe(
-    [
-      [-r, 0],
-      [0, r],
-      [r, 0],
-    ],
-    4,
+/** The sides of a bead nobody asked more of: with three bands pole to pole, 24 triangles. */
+export const BEAD_SIDES = 6;
+
+/**
+ * A ball of radius r: `sides` round it and half as many bands pole to pole (sides x (bands - 1)
+ * x 2 triangles). It was an octahedron; a bead is a ball, and is lit and built as one (rows.ts
+ * gives each the sides its size wants).
+ */
+export const bead = (r: number, color: Rgb, sides = BEAD_SIDES): Tri[] => {
+  const bands = Math.max(2, Math.round(sides / 2));
+  return lathe(
+    Array.from({ length: bands + 1 }, (_, i): Vec2 => {
+      const a = (i / bands) * Math.PI;
+      return [-r * Math.cos(a), i % bands ? r * Math.sin(a) : 0];
+    }),
+    sides,
     [color],
   );
+};
 
 /** A flat n-gon of radius r lying on the plane y, top only: n - 2 triangles. */
 export const tile = (r: number, sides: number, color: Rgb, y = 0, phase = 0): Tri[] =>

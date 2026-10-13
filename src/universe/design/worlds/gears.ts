@@ -70,10 +70,12 @@ function gear(kind: Kind): Item {
     out.push(['quad', p, q, sunk(q), sunk(p), wall, outward]);
   });
   // a ring of paint on the web of the big cogs, then a hub and an axle: each ring is invariant under
-  // one click of its own gear, so the picture after any number of clicks is exactly the still
+  // one click of its own gear, so the picture after any number of clicks is exactly the still.
+  // They are ROUND (a gear's teeth have edges; its hub is turned on a lathe): enough sides to read
+  // as circles, each count a multiple of its gear's teeth.
   if (kind === 'big') {
-    for (let i = 0; i < 16; i += 1) {
-      const [b0, b1] = [(i / 16) * TAU, ((i + 1) / 16) * TAU];
+    for (let i = 0; i < 32; i += 1) {
+      const [b0, b1] = [(i / 32) * TAU, ((i + 1) / 32) * TAU];
       const [a, b, c, d] = [
         at(root * 0.66, b0, 0.01),
         at(root * 0.74, b0, 0.01),
@@ -97,8 +99,8 @@ function gear(kind: Kind): Item {
       out.push(['tri', [0, lift, 0], p, ring[(i + 1) % n] ?? p, color, [0, 1, 0]]),
     );
   };
-  disc(0.42, kind === 'big' ? 8 : 12, 'coral.shade', 0.016); // the hub
-  disc(0.18, kind === 'big' ? 8 : 6, 'coral.light', 0.022); // the axle
+  disc(0.42, 24, 'coral.shade', 0.016); // the hub
+  disc(0.18, kind === 'big' ? 16 : 18, 'coral.light', 0.022); // the axle
   return ['g', ...out];
 }
 
@@ -124,6 +126,9 @@ export const GEARS: readonly (readonly [name: string, kind: Kind, lat: number, l
 export const hardware: Rows = [
   {
     ...sunGround('coral'),
+    // The frame is all but hidden under the gears, whose walls were sunk for these 500 facets
+    // (SUNK): it stays as coarse as it was when the other suns' balls grew fine.
+    detail: 4,
     shape: { p: 2, s: [CORE, CORE, CORE] },
     paint: [['band', 0, 1.01, 'coral.shade']],
   },

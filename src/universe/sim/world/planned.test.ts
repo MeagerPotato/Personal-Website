@@ -8,11 +8,11 @@ import { FLAG, make, mk } from './rows';
 
 // The planned kit's parts and their counts are the vocabulary's (section 6).
 
-const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain };
+const LOOKS: GroundLooks = { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun };
 
 describe('the planned kit', () => {
   it.each(THEME_KEYS.map((family) => [family]))('builds its parts in %s', (family) => {
-    expect(mk(crane(family))).toHaveLength(80);
+    expect(mk(crane(family))).toHaveLength(96);
     const card = mk(chip(family));
     expect(card).toHaveLength(64);
     for (const band of ['light', 'base', 'shade'] as const) {
@@ -25,7 +25,7 @@ describe('the planned kit', () => {
 
   it('lights the crane’s beacon, and nothing else', () => {
     const tris = mk(crane('coral'));
-    expect(tris.filter((t) => t.g === 2)).toHaveLength(8);
+    expect(tris.filter((t) => t.g === 2)).toHaveLength(24);
   });
 
   it('dashes a ring: 8 triangles a dash under ten dashes, 4 from ten on', () => {
@@ -34,9 +34,9 @@ describe('the planned kit', () => {
     expect(mk(['g', ...dashes('mint', [1.42, 1.5], 16)])).toHaveLength(64);
   });
 
-  it('scatters the same pebbles every time, 8 triangles each, in primer', () => {
+  it('scatters the same pebbles every time, 24 triangles each as written, in primer', () => {
     const one = mk(pebbles(5, 1.4));
-    expect(one).toHaveLength(40);
+    expect(one).toHaveLength(120);
     expect(mk(pebbles(5, 1.4))).toEqual(one);
     // A bead is a lathe, whose colours come through MeshBuilder's float32 buffers.
     const primer = Array.from(new Float32Array(colorOf('biome.primer.high')));
@@ -56,6 +56,6 @@ describe('the planned kit', () => {
       { rows: [[['bead', 0.1, 'ink.high']], ...rows] },
       { detail: 0, looks: LOOKS },
     );
-    expect(build.parts.map((p) => p.tris.length)).toEqual([64, 80, 64, 48]);
+    expect(build.parts.map((p) => p.tris.length)).toEqual([64, 96, 64, 144]);
   });
 });

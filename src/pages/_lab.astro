@@ -6,7 +6,7 @@
 // a build in which /lab ever shows up. The page is only a full-window host for the engine: what
 // the lab shows lives in src/universe/lab/LabScene.ts, and it is started by the same boot script
 // as every other page (src/shell/boot.ts, behind `import.meta.env.DEV`).
-import { tokensToCss } from '../site/tokens-css';
+import { ENGINE_ONLY, tokensToCss } from '../site/tokens-css';
 import { tokens } from '../universe/design/tokens';
 import '../styles/lab.css';
 ---
@@ -19,7 +19,7 @@ import '../styles/lab.css';
     <meta name="robots" content="noindex" />
     <title>Lab (dev only)</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <style is:inline set:html={tokensToCss(tokens)}></style>
+    <style is:inline set:html={tokensToCss(tokens, ':root', ENGINE_ONLY)}></style>
   </head>
   <body>
     <div id="lab-host"></div>

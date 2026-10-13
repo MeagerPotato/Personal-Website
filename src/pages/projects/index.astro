@@ -1,35 +1,42 @@
 ---
-// Every project, grouped the way the galaxy is: one section per sun (a binary star's two suns
+// Every project, grouped the way the galaxy is: one card per sun (a binary star's two suns
 // one after the other), planets with their moons. This is also the page of the binary star.
 import { getCollection } from 'astro:content';
+import Card from '../../components/Card.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import ProjectCards from '../../components/ProjectCards.astro';
 import Base from '../../layouts/Base.astro';
+import { sunCards } from '../../site/cards';
 import { pageTitle } from '../../site/seo';
 import { buildProjectTree, visibleProjects } from '../../site/view-models';
 
 const systems = await getCollection('systems');
 const projects = visibleProjects(await getCollection('projects'), import.meta.env.DEV);
-const suns = buildProjectTree(systems, projects).flatMap((system) => system.suns);
+const suns = sunCards(
+  buildProjectTree(systems, projects).flatMap((system) => system.suns),
+  'src/pages/projects/index.astro',
+);
 ---
 
 <Base
   title={pageTitle('Projects')}
   description="Everything Allen has built, mapped the way the galaxy is: solar systems are passions, planets are projects, moons are the smaller things in their orbit."
 >
-  <PageHeader
-    eyebrow="Star chart"
-    title="Projects"
-    lede="Solar systems are the things I care about. Planets are projects, and moons are the smaller things in their orbit."
-  />
+  <div data-card>
+    <PageHeader
+      eyebrow="Star chart"
+      title="Projects"
+      lede="Solar systems are the things I care about. Planets are projects, and moons are the smaller things in their orbit."
+    />
+  </div>
 
-  {suns.map((sun) => (
-    <section class="section system" data-theme={sun.theme} aria-labelledby={`system-${sun.id}`}>
-      <h2 id={`system-${sun.id}`}>
-        <span class="sun-dot" aria-hidden="true" />
-        <a href={sun.href}>{sun.name}</a>
-      </h2>
+  {suns.map(({ sun, card }) => (
+    <Card {...card} class="section system" data-theme={sun.theme}>
+      <span slot="mark" class="sun-dot" aria-hidden="true" />
       <p>{sun.tagline}</p>
+      <p class="system__page">
+        <a href={sun.href}>The {sun.name} system</a>
+      </p>
       {sun.twin && (
         <p class="twin">
           One of the two suns of {sun.twin.binary.label}; it circles the centre opposite
@@ -37,6 +44,6 @@ const suns = buildProjectTree(systems, projects).flatMap((system) => system.suns
         </p>
       )}
       <ProjectCards cards={sun.planets} />
-    </section>
+    </Card>
   ))}
 </Base>

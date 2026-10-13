@@ -80,7 +80,7 @@ const sportsAnalysis: Rows = [
   [
     'ball',
     FLAG.hold,
-    ['bead', 0.1, 'ink.high', { at: [brg(rad(300), 1.46)[0], 0.02, brg(rad(300), 1.46)[1]] }],
+    ['bead', 0.097, 'ink.high', { at: [brg(rad(300), 1.46)[0], 0.02, brg(rad(300), 1.46)[1]] }],
   ],
 ];
 

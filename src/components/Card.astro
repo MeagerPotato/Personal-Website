@@ -1,0 +1,28 @@
+---
+// One card of a page: a section that opens with its title, and the title is a link to the
+// card's own fragment, so `/about/#rockets` names the card. Everything a page says after its
+// head is in one of these (AGENTS.md, invariant 11; scripts/lib/cards.mjs holds the built pages
+// to it). Markup only: which cards a page has is decided in src/site/cards.ts.
+//
+// `quiet` is for a title the page never showed (the facts at the top of a project, the intro of
+// the About page): it is there for a screen reader and for the keyboard, and hidden from the eye
+// until its link has focus (`.card-title--quiet`, src/styles/global.css). The `mark` slot is for
+// a drawing that goes before the words (a sun on the projects page); it is not part of the link.
+import type { HTMLAttributes } from 'astro/types';
+
+interface Props extends HTMLAttributes<'section'> {
+  id: string;
+  title: string;
+  quiet?: boolean | undefined;
+}
+
+const { id, title, quiet = false, class: className, ...rest } = Astro.props;
+---
+
+<section data-card class={className} aria-labelledby={id} {...rest}>
+  <h2 id={id} class={quiet ? 'card-title--quiet' : undefined}>
+    <slot name="mark" />
+    <a href={`#${id}`}>{title}</a>
+  </h2>
+  <slot />
+</section>

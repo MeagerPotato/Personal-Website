@@ -83,7 +83,8 @@ const KINDS: readonly JourneyKind[] = ['between', 'within', 'spawn'];
 
 /**
  * Journeys stopped at their fastest moment (fly.ts, stopAtPeak): how fast they were going, how
- * far they slid, how close they came to anything, and whether anything was touched.
+ * far they slid, how close they came to anything, and whether anything was touched; and, when
+ * the visitor who stopped them had taken hyperspace, how many were in it and whether it ended.
  */
 export function stopTable(rows: readonly JourneyResult[], coastSec: number): string {
   const stops = rows.flatMap((row) => (row.stop ? [{ row, stop: row.stop }] : []));
@@ -111,12 +112,80 @@ export function stopTable(rows: readonly JourneyResult[], coastSec: number): str
       `${nearest ? ` (${nearest.stop.closestBody}, ${nearest.row.from} -> ${nearest.row.to})` : ''}`,
     `  shell touches ${touches}, grazes ${grazes}`,
   ];
+  // A visitor who takes hyperspace whenever it is offered (JOURNEYS "hyper": true) was in it.
+  const inHyper = stops.filter(({ row }) => row.interrupt?.inHyper === true).length;
+  if (inHyper > 0) {
+    const strayed = stops.filter(({ row }) => row.hyper.strayed).length;
+    lines.push(
+      `  hyperspace, taken whenever offered: winding up or in it on ${inHyper} of them when Stop ` +
+        `was pressed; it outlived its journey on ${strayed}`,
+    );
+  }
   if (furthest) {
     lines.push(
       `  slid furthest: ${furthest.row.from} -> ${furthest.row.to}, stopped at ${furthest.stop.atSpeed.toFixed(0)} u/s, ` +
         `${furthest.stop.slideU.toFixed(0)} u, ${furthest.stop.endSpeed.toFixed(1)} u/s at the end`,
     );
   }
+  return lines.join('\n');
+}
+
+/**
+ * What went wrong with a journey flown again with the jump taken (fly.ts, flyTwins), in words.
+ * Hyperspace is the same flight: a twin that is not, or a jump that outlived its journey, is
+ * said as that; anything else is the journey's own failure, which its first flight has too.
+ */
+export function describeTwin(row: JourneyResult): string {
+  if (row.hyper.differs) return `hyperspace changed the flight: ${row.from} to ${row.to}`;
+  if (row.hyper.strayed) return `hyperspace outlived its journey: ${row.from} to ${row.to}`;
+  return `${row.failure}: ${describe(row)}`;
+}
+
+/**
+ * HYPERSPACE (sim/hyper.ts): every journey again, flown by a visitor who takes the jump the
+ * moment it is offered (fly.ts, flyTwins), per kind: how many of the journeys the autopilot flies
+ * were offered one, how many went into it, for how long, and how long before docking they were
+ * out of it again. `leastSec`: a jump shorter than this is counted (tuning.hyper.minTunnelSec:
+ * pressed at once, none should be). (In this harness a "tunnel" is a ship gone through a body,
+ * so the simulation's tunnel is "in it" here.)
+ */
+export function hyperTable(twins: readonly JourneyResult[], leastSec: number): string {
+  const sorted = (values: number[]): number[] =>
+    values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  const f2 = (value: number): string => (Number.isFinite(value) ? value.toFixed(2) : '-');
+  const failed = twins.filter((row) => row.failure !== null);
+  const differ = twins.filter((row) => row.hyper.differs).length;
+  const lines = [
+    `hyperspace (every journey again, the jump taken the moment it is offered: ${twins.length} twins, ` +
+      `${differ} flew differently):`,
+    '         autopilot  offered   jumped  | s in it: min  median    p90    max  ' +
+      `under ${leastSec} s  | out of it, s before docking: min  median    p90`,
+  ];
+  const all: Array<[string, readonly JourneyResult[]]> = [
+    ...KINDS.map((kind): [string, JourneyResult[]] => [
+      kind,
+      twins.filter((row) => row.kind === kind),
+    ]),
+    ['all', twins],
+  ];
+  for (const [label, group] of all) {
+    if (group.length === 0) continue;
+    const flown = group.filter((row) => row.how === 'travel');
+    const offered = flown.filter((row) => Number.isFinite(row.hyper.offeredSec));
+    const jumped = flown.filter((row) => row.hyper.inSec > 0);
+    const inSec = sorted(jumped.map((row) => row.hyper.inSec));
+    const out = sorted(jumped.map((row) => row.hyper.outBeforeDockSec));
+    lines.push(
+      `${label.padEnd(8)}${pad(String(flown.length), 10)}${pad(String(offered.length), 9)}` +
+        `${pad(String(jumped.length), 9)}  |${pad(f2(inSec[0] ?? NaN), 14)}` +
+        `${pad(f2(quantile(inSec, 0.5)), 8)}${pad(f2(quantile(inSec, 0.9)), 7)}` +
+        `${pad(f2(inSec.at(-1) ?? NaN), 7)}` +
+        `${pad(String(inSec.filter((value) => value < leastSec - 1e-9).length), `under ${leastSec} s`.length + 2)}` +
+        `  |${pad(f2(out[0] ?? NaN), 33)}${pad(f2(quantile(out, 0.5)), 8)}${pad(f2(quantile(out, 0.9)), 7)}`,
+    );
+  }
+  for (const row of failed.slice(0, 8)) lines.push(`FAIL ${describeTwin(row)}`);
+  if (failed.length > 8) lines.push(`... and ${failed.length - 8} more failures`);
   return lines.join('\n');
 }
 

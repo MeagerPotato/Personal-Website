@@ -4,7 +4,7 @@ import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
 import { planned } from '../../sim/world/planned';
 import { FLAG, type BodyRecipe, type Item, type PartRow, type Rows } from '../../sim/world/rows';
-import { rad, sunGround } from './shared';
+import { WINDOW, beacon, rad, sunGround } from './shared';
 
 /**
  * HACKATHONS: its sun (lilac), HackGT 13, Hackathons at Berkeley, Cal Hacks 13.0 and Corgi
@@ -145,16 +145,23 @@ const berkeley: Rows = [
     up: 'vertex',
     paint: [['where', (o) => o.pos[1] > 0.56, 'ink.high']],
   },
-  // Windows are props (crisp at any facet size): seven panes a side and the windshield, its two
-  // halves either side of the middle.
+  // Windows are props (crisp at any facet size): seven panes a side. The lamps are on inside (the
+  // bus runs through the night): every pane is the colour of a lit window, flat, and none of
+  // them blooms.
   [
     'windows',
-    FLAG.decal,
+    FLAG.decal | FLAG.flat,
     ...[-1, 1].flatMap((side) =>
       Array.from({ length: 7 }, (_, i) => -0.84 + i * 0.28).flatMap((x) =>
-        skin(onFlank(side), [x - 0.11, x + 0.11], [0.03, 0.33], 'space.800', [0, 0, side]),
+        skin(onFlank(side), [x - 0.11, x + 0.11], [0.03, 0.33], WINDOW, [0, 0, side]),
       ),
     ),
+  ],
+  // The windshield, its two halves either side of the middle: dark glass (the driver's cab is
+  // not lit, and a bus needs its face).
+  [
+    'windshield',
+    FLAG.decal,
     ...skin(
       onFront,
       both([0, 0.22, 0.36, 0.45, 0.52]),
@@ -198,7 +205,13 @@ const berkeley: Rows = [
   ],
   // The destination sign says 13.0 in cells of 0.034 (2.7 px on a 390 px phone: the legibility
   // floor is 2 px); the headlights are on. Both are real light, so both bloom.
-  ['destination-sign', 0, ['box', 0.04, 0.2, 0.62, 'space.900', { at: [SIGN, 0.56, 0] }]],
+  [
+    'destination-sign',
+    0,
+    ['box', 0.04, 0.2, 0.62, 'space.900', { at: [SIGN, 0.56, 0] }],
+    // A beacon on the sign's top edge.
+    beacon([SIGN, 0.7, 0]),
+  ],
   [
     'sign-digits',
     FLAG.glow,

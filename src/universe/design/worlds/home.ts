@@ -3,7 +3,7 @@ import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
 import { FLAG, type BodyRecipe, type Item, type Mod, type Rows } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
-import { cutRect, nth, rad } from './shared';
+import { WINDOW, beacon, cutRect, nth, rad } from './shared';
 
 /**
  * HOME: About Me (the home planet), the Resume station, the Contact satellite and the relays of
@@ -204,10 +204,14 @@ const resume: Rows = [
       (i) => [
         'g',
         ['box', 0.22, 0.2, 0.22, 'butter.light'],
+        // One lit pane on its outer wall (a pod looks out along its own -Z).
+        ['box', 0.13, 0.09, 0.01, WINDOW, { at: [0, 0.01, -0.111], g: 1 }],
         ['g', nth(ICONS, i), { at: [0, 0.1, 0] }],
       ],
     ],
   ],
+  // A beacon on the mast, under the two pages it holds up.
+  ['beacon', 0, beacon([0, 0.74, 0])],
   [
     'two-pages',
     FLAG.hold,
@@ -280,6 +284,8 @@ const contact: Rows = [
       'g',
       ['cyl', 0.03, 0.08, 0.36, 5, 'ink.low'],
       ['dome', 0.2, 8, 2, 'ink.high', { at: [0, 0.4, 0], rot: [0.5, 0, 0], s: [1, 0.8, 1] }],
+      // A beacon where the dish gathers what it hears.
+      beacon([0, 0.55, 0.08]),
       { at: [0, 0, -0.2] },
     ],
   ],

@@ -28,12 +28,14 @@ export function printSection(css) {
 
 /**
  * The parts of the resume's <main> that never reach paper, because section 4 of the stylesheet
- * hides them: the page's own header (its title and eyebrow), the screen-only intro, and the
- * actions (the download button). A new word there changes nothing in the PDF, so it must not ask
- * for a new one. Regex, like ./html.mjs: the input is our own generated HTML.
+ * hides them: the page's own header (its title and eyebrow), a card's quiet title (heard on a
+ * screen, never printed), the screen-only intro, and the actions (the download button). A new
+ * word there changes nothing in the PDF, so it must not ask for a new one. Regex, like
+ * ./html.mjs: the input is our own generated HTML.
  */
 const SCREEN_ONLY = [
   /<header class="page-header"[^>]*>[\s\S]*?<\/header>/g,
+  /<h2\b[^>]*\sclass="card-title--quiet"[^>]*>[\s\S]*?<\/h2>/g,
   /<div class="prose screen-only"[^>]*>[\s\S]*?<\/div>/g,
   /<ul class="actions"[^>]*>[\s\S]*?<\/ul>/g,
 ];

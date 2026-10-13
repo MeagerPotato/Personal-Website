@@ -3,7 +3,9 @@
  *
  * Pure data with NO imports, so everything can read it: the engine, the Astro shell, the content
  * schemas, and tests. `src/site/tokens-css.ts` mirrors it into CSS custom properties
- * (`color.ink.high` -> `--color-ink-high`), so the 3D world and the DOM always share one palette.
+ * (`color.ink.high` -> `--color-ink-high`), so the 3D world and the DOM always share one palette;
+ * the keys marked ENGINE ONLY are the ones it leaves out (`ENGINE_ONLY` there), because only the
+ * 3D world paints with them and every plain page would carry them for nothing.
  * The engine renders with NoToneMapping, so a fully lit facet shows EXACTLY the hex written here.
  *
  * DESIGN SURFACE (docs/PLAN.md §5.6): values are free to change. Keys are API: renaming one is a
@@ -88,18 +90,62 @@ export const tokens = {
      */
     shading: {
       shadow: '#bbbfdd',
+      /**
+       * ENGINE ONLY (src/site/tokens-css.ts leaves them out). `dusk` and `night` multiply the
+       * middle and the shade band of a world WITH AIR instead (its lit band stays its token):
+       * a warm sunset belt, and a night that is cool and never black.
+       */
+      dusk: '#eebeae',
+      night: '#7a83b1',
     },
+    /** ENGINE ONLY. A lit window: a lamp on home's night side, in the bus and the station. */
+    window: '#febe8e',
     /**
      * Interactive text (the sky base), and BUTTER, WHICH MEANS "HERE": the focus ring, the current
      * page's marker, the name the ship is headed for (the butter base).
      */
     accent: '#8bc0f2',
     focus: '#f8d98c',
-    /** Starfield tints. */
+    /**
+     * Starfield tints. warm, cool and white are the old three and reach the CSS; hot (blue-white),
+     * amber and ember (a red giant) complete six temperatures and are ENGINE ONLY
+     * (src/site/tokens-css.ts leaves them out).
+     */
     star: {
       warm: '#fff1d6',
       cool: '#d6e4ff',
       white: '#ffffff',
+      hot: '#c5d9f9',
+      amber: '#f8bc90',
+      ember: '#d68960',
+    },
+    /**
+     * ENGINE ONLY. The dim, deep versions of the families' colours, as light far away would
+     * wear them. Each family has the two tones of its district on the star map's chart (`mid`
+     * the plate out past a system's reach, about 2:1 on space.900; `lit` the plate at its
+     * reach); a family is told apart by its lit (src/site/look-colours.test.ts), and always by
+     * where it sits and by the names. `band` is the Milky Way's haze, a ramp of three in the
+     * navy's own blue: deep and mid barely above space (1.1:1 and 1.6:1 on space.900), and lit
+     * where the river is densest. It has no warm tone: the river's bulge is warm because its
+     * STARS are (`star.warm`, `amber`, `ember`), never its haze. Nothing else in the sky wears
+     * a colour of these: the sky is navy, stars and far galaxies, and those are `star` tints.
+     */
+    nebula: {
+      coral: { mid: '#4d3651', lit: '#975851' },
+      butter: { mid: '#544d36', lit: '#b4a272' },
+      mint: { mid: '#1f4a52', lit: '#4d8f7b' },
+      sky: { mid: '#244172', lit: '#41709b' },
+      lilac: { mid: '#373062', lit: '#6c4c7c' },
+      band: { deep: '#111836', mid: '#2a3358', lit: '#575b84' },
+    },
+    /** ENGINE ONLY. The air of a world, by biome. Primer (planned clay) has none. */
+    air: {
+      terra: '#a3d9fd',
+      tide: '#8fe6e2',
+      dune: '#fdce9b',
+      frost: '#d1edfb',
+      ember: '#feb0ac',
+      bloom: '#d4baf4',
     },
   },
 
@@ -189,3 +235,8 @@ export const THEME_KEYS = Object.keys(tokens.color.system) as [ThemeKey, ...Them
  */
 export type BiomeKey = keyof Tokens['color']['biome'];
 export const BIOME_KEYS = Object.keys(tokens.color.biome) as [BiomeKey, ...BiomeKey[]];
+
+/** Star tints (`color.star`). */
+export type StarKey = keyof Tokens['color']['star'];
+/** Biomes whose worlds have air (`color.air`): every one with a sea, so never `primer`. */
+export type AirKey = keyof Tokens['color']['air'];
