@@ -148,6 +148,23 @@ export const tuning = {
       yawRate: 3.6,
       minSpeed: 6,
     },
+    /**
+     * The longest journeys, between far systems of a grown galaxy (in today's four only the
+     * longest few paths pass vastLeg[0], and only just): from vastLeg[0] u the profile blends
+     * toward `vast`, all of it from vastLeg[1]. It speeds up as `far` does; the drive gives a
+     * little less than that only in the last of it (flight.thrustAccel - flight.forwardDrag *
+     * 1,300 = 475 u/s² to spare at its cruise), which the throttle simply takes longer over.
+     */
+    vastLeg: [1500, 2500],
+    vast: {
+      cruiseSpeed: 1300,
+      accel: 550,
+      decel: 800,
+      lateralAccel: 500,
+      brakeRate: 5,
+      yawRate: 3.6,
+      minSpeed: 6,
+    },
     /** Every body is kept clear of by its docking ring plus this, u. */
     keepOut: 4,
     /** A planet with its moons is gone round as one disc when that disc is no bigger than this, u. */
@@ -180,7 +197,8 @@ export const tuning = {
     /**
      * 1/s. A journey handed back at speed (Stop, or a touch of the controls) loses what the
      * pilot's own drive could never make at this rate: from 700 u/s the ship is back to its own
-     * top speed within 0.7 s and 160 u, instead of coasting on for 875 u.
+     * top speed within 0.7 s and 160 u, instead of coasting on for 875 u (from `vast`'s 1,300, on
+     * the longest journeys of a grown galaxy, within about 0.8 s).
      */
     dropOutPerSec: 5,
   } satisfies CruiseParams,
