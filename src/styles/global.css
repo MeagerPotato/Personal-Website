@@ -1175,9 +1175,27 @@ main > .resume-section {
     radial-gradient(ellipse 24% 18% at 70% 72%, var(--planet-shore) 98%, transparent),
     var(--planet-sea);
   box-shadow:
-    inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.1875rem var(--ground),
     0 0 0 calc(0.1875rem + var(--line)) var(--theme-base);
+}
+
+/* A project's own world, drawn at build time from the galaxy's (src/site/portrait.ts), in place of
+   the toy: it stands on the station's ground, lit already, so the toy's shade side goes. */
+.planet-dot--world {
+  --dot-shade: inset 0 0 0 0 transparent;
+
+  background: var(--ground);
+}
+
+.planet-dot--world > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .planet-dot--moon {
@@ -1185,7 +1203,10 @@ main > .resume-section {
   height: 1.5rem;
   margin-top: 0.1rem;
   box-shadow:
-    inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.125rem var(--ground),
     0 0 0 0.25rem var(--theme-base);
 }
@@ -1416,7 +1437,10 @@ picture {
   height: auto;
   aspect-ratio: 1;
   box-shadow:
-    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.5rem var(--ground),
     0 0 0 calc(0.5rem + var(--line)) var(--theme-base);
 }
@@ -1426,7 +1450,10 @@ picture {
 .card[data-planned] > .planet-dot,
 .cover--planet[data-planned] > .planet-dot {
   box-shadow:
-    inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -0.55rem -0.4rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.1875rem var(--ground);
   outline: var(--line) dashed var(--theme-base);
   outline-offset: 0.1875rem;
@@ -1434,14 +1461,20 @@ picture {
 
 .cover--planet[data-planned] > .planet-dot {
   box-shadow:
-    inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -1.8rem -1.3rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.5rem var(--ground);
   outline-offset: 0.5rem;
 }
 
 .card__moons > [data-planned] > .planet-dot--moon {
   box-shadow:
-    inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent),
+    var(
+      --dot-shade,
+      inset -0.28rem -0.2rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    ),
     0 0 0 0.125rem var(--ground);
   outline: 0.125rem dashed var(--theme-base);
   outline-offset: 0.125rem;
@@ -5926,14 +5959,18 @@ main > .resume-intro > .card-title--quiet {
     grid-column: 1;
     width: 2.5rem;
     height: 2.5rem;
-    box-shadow: inset -0.45rem -0.33rem 0 0
-      color-mix(in srgb, var(--color-space-800) 38%, transparent);
+    box-shadow: var(
+      --dot-shade,
+      inset -0.45rem -0.33rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    );
   }
 
   /* Planned work: the planet has no ring here either; its station on the line is the dashed one. */
   .card[data-planned] > .planet-dot {
-    box-shadow: inset -0.45rem -0.33rem 0 0
-      color-mix(in srgb, var(--color-space-800) 38%, transparent);
+    box-shadow: var(
+      --dot-shade,
+      inset -0.45rem -0.33rem 0 0 color-mix(in srgb, var(--color-space-800) 38%, transparent)
+    );
     outline: none;
   }
 
