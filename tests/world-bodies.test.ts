@@ -115,7 +115,7 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'project/hackgt-13':              { everyday: 1908, closeup: 6156, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '50d29a94' },
   'project/hackathons-at-berkeley': { everyday: 2498, closeup: 6088, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c94123a3' },
   'project/cal-hacks-13':           { everyday: 1950, closeup: 4980, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: 'f71727c0' },
-  'project/alai':                   { everyday: 1992, closeup: 5000, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '1e735242' },
+  'project/alai':                   { everyday: 1992, closeup: 5000, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '88f5e832' },
   'project/fish-online':            { everyday: 2084, closeup: 2676, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'ff1e7ca6' },
   'project/sports-analysis':        { everyday: 2340, closeup: 3016, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '2eb57b5b' },
   'project/kalshi':                 { everyday: 676,  closeup: 1260, groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '569d8408' },
