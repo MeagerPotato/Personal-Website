@@ -1149,10 +1149,14 @@ main > .resume-section {
 
 .card__moon-summary {
   display: block;
+  /* A span, so the paragraph's measure does not reach it: held to it here, or a moon's words
+     run wider than its planet's. */
+  max-width: var(--measure);
   margin-top: var(--space-1);
   color: var(--color-ink-mid);
   font-size: var(--text-sm);
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* A toy planet, flat-shaded like the 3D ones: sea, two landmasses with a shoreline, a polar cap,
@@ -1318,6 +1322,22 @@ main > .resume-section {
   box-shadow:
     0 0 0 0.25rem var(--ground),
     0 0 0 calc(0.25rem + var(--line)) var(--theme-base);
+}
+
+/*
+ * In plain mode on a screen with room for it, the sun is the line's bullet at full size: a disc
+ * as large as a station, so the terminus outweighs the planets after it and each system reads as
+ * a new line at a glance. Its left edge is the lane's, so the gap puts the name where the
+ * planets' names start (--stop + space-4). The phone's lane and the universe keep their own sun.
+ */
+@media screen and (min-width: 30rem) {
+  html:not([data-mode='universe']) .system {
+    --sun: var(--stop);
+  }
+
+  html:not([data-mode='universe']) .system > h2 {
+    gap: calc(var(--stop) + var(--space-4) - var(--lane-x) - var(--sun) / 2);
+  }
 }
 
 /* The family's glyph, cut out of the sun: a line's bullet on a transit map. */
