@@ -40,6 +40,7 @@ export const REACH: Readonly<Record<string, number>> = {
   'project/hackgt-13': 1.36,
   'project/hackathons-at-berkeley': 1.4,
   'project/cal-hacks-13': 1.19,
+  'project/alai': 1.02,
   'project/fish-online': 1.09,
   'project/sports-analysis': 1.09,
   'project/kalshi': 1,

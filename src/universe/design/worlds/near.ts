@@ -5,7 +5,7 @@ import { dirOf, shapeNormal, shapePoint, spinToward } from '../../sim/world/plac
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
 import type { ThemeKey } from '../tokens';
 import { CORE } from './gears';
-import { BUS, LOAF, WAVE } from './hackathons';
+import { BUS, LOAF, MISTAKE, SCREEN_TOP, WAVE } from './hackathons';
 import { rocket } from './home';
 import { D2M, SCR, SHAPE_FISH, tilted, yTop } from './projects';
 import { COIN_TILT } from './research';
@@ -379,6 +379,22 @@ const cyberpatriot: PartRow[] = [
     'fix-tick',
     0,
     tilted(['g', ['box', 0.1, 0.1, 0.02, 'mint.base'], { at: [-0.34, SCR.cy - 0.07, 0.046] }]),
+  ],
+];
+
+// alai: the wrong step itself, the number the coral ring circles, written in the worksheet's
+// pencil grey.
+const alai: PartRow[] = [
+  [
+    'wrong-step',
+    FLAG.flat,
+    [
+      'pix',
+      '12',
+      0.016,
+      'space.800',
+      { at: [MISTAKE[0], SCREEN_TOP + 0.008, MISTAKE[1]], rot: [-Math.PI / 2, 0, 0] },
+    ],
   ],
 ];
 
@@ -780,6 +796,7 @@ export const NEAR: Readonly<Record<string, readonly PartRow[]>> = {
   'project/hackgt-13': hackgt,
   'project/hackathons-at-berkeley': berkeley,
   'project/cal-hacks-13': calHacks,
+  'project/alai': alai,
   'project/model-rocketry': modelRocketryNear,
   'project/sports-analysis': sportsAnalysis,
   'project/kalshi': kalshi,
