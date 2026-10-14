@@ -11,7 +11,7 @@
 # repositories (docs/PLAN.md §9, point 6), and Allen kept it on 2026-09-28.
 #
 # Updated 2026-10-14 from the Career project's handoff, which follows the facts Allen confirmed on
-# 2026-10-12 and his LinkedIn of that day: the Fisher Lab, alai, the AFRL role as it really was,
+# 2026-10-12 and his LinkedIn of that day: the Fisher Lab, the AFRL role as it really was,
 # CyberPatriot as competitor and instructor (never captain), VEX by its LinkedIn numbers and with no
 # dollar amounts. Raytheon's title stays as the resume has it until Allen settles it.
 
@@ -110,8 +110,6 @@ skills:
 awards:
   section: awards
   items:
-    - title: Keewano track winner (Best Use of Keewano, $1,000), a16z SpeedHacks, with alai
-      detail: October 2026
     - title: Corgi Hackathon, 5th of 1,000+, Y Combinator Startup School
       detail: Summer 2026
     - title: CyberPatriot National Finals, 2nd place, and Cisco Networking Challenge, 1st place

@@ -71,12 +71,6 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
   // The coin rocks as a whole ('*'), about the body's centre.
   'project/kalshi': [CRANE, ['*', 'rot', 'z', 'sine', 0.12, 12]],
   'project/corgi': [CRANE],
-  // Ally bobs over the tablet; the pencil draws back along itself and taps the wrong step, once
-  // every 10 s (its pivot's y is along the pencil: hackathons.ts builds it on +Y, then lays it).
-  'project/alai': [
-    ['ally', 'pos', 'y', 'sine', 0.03, 6],
-    ['pencil', 'pos', 'y', 'bump', 0.04, 10],
-  ],
   // The magnifier rides with the ring, over its seam.
   'project/hackgt-13': [
     ['wave-ring', 'rot', 'y', 'ramp', TAU, 60],

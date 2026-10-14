@@ -4,10 +4,10 @@ import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
 import { planned } from '../../sim/world/planned';
 import { FLAG, type BodyRecipe, type Item, type PartRow, type Rows } from '../../sim/world/rows';
-import { WINDOW, beacon, cutRect, rad, sunGround } from './shared';
+import { WINDOW, beacon, rad, sunGround } from './shared';
 
 /**
- * HACKATHONS: its sun (lilac), HackGT 13, Hackathons at Berkeley, Cal Hacks 13.0, alai and Corgi
+ * HACKATHONS: its sun (lilac), HackGT 13, Hackathons at Berkeley, Cal Hacks 13.0 and Corgi
  * (planned). Rows (sim/world/rows.ts), keyed by manifest id; the close-up parts (evidence
  * markers, the roof rack, the floodlights...) are in near.ts, the motions in motion.ts.
  *
@@ -308,114 +308,6 @@ const calHacks: Rows = [
   ],
 ];
 
-// --- alai ------------------------------------------------------------------------------------------
-
-// A voice-first tutor that watches homework on an iPad. The world is the paper (frost); on its
-// north pole lies the tablet, a worksheet of five lines on its screen. One step is wrong: a coral
-// ring circles it. The Apple Pencil rests across the screen, its tip at the ring, and Ally, the on-screen
-// companion, hovers over the corner with a "?" (the student asking "why?"). Ally bobs and the
-// pencil taps (motion.ts); the ring is a mark already made, and stays. Everything stands above the
-// flight lane (|y| < 0.3), so the world reaches no further than its ground.
-export const TABLET = { w: 0.56, h: 0.42, y: 1.0, top: 1.05 } as const;
-/** The wrong step: where the coral ring stands on the screen (x, z). */
-export const MISTAKE: Vec2 = [0.12, 0.02];
-/** The height of the tablet's screen, where the worksheet is drawn (near.ts writes on it too). */
-export const SCREEN_TOP = TABLET.top + 0.002;
-const SCREEN_Y = SCREEN_TOP;
-const LINE_Y = SCREEN_Y + 0.004;
-/** The lines of working: where each is (z) and how long. The third holds the wrong step. */
-const WORKING: readonly Vec2[] = [
-  [-0.18, 0.78],
-  [-0.08, 0.56],
-  [0.02, 0.66],
-  [0.12, 0.7],
-  [0.22, 0.44],
-];
-// prettier-ignore
-const QUESTION = ['##.', '..#', '.#.', '...', '.#.'];
-const alai: Rows = [
-  { seed: 'alai', biome: 'frost', recipe: 'calm' },
-  [
-    'tablet',
-    0,
-    [
-      'prism',
-      cutRect(TABLET.w, TABLET.h, 0.08),
-      TABLET.y,
-      TABLET.top,
-      'space.900',
-      'ink.mid',
-      'ink.mid',
-      1,
-    ],
-  ],
-  [
-    'screen',
-    0,
-    ['prism', cutRect(TABLET.w - 0.04, TABLET.h - 0.04, 0.06), SCREEN_Y, SCREEN_Y, 'ink.high'],
-  ],
-  // The worksheet, across the tablet's long side: a problem on top in the family's lilac, then
-  // five lines of working, of different lengths, in pencil.
-  [
-    'worksheet',
-    0,
-    ['box', 0.56, 0.004, 0.05, 'lilac.base', { at: [-0.18, LINE_Y, -0.3] }],
-    ...WORKING.map(([z, length]): Item => [
-      'box',
-      length,
-      0.004,
-      0.035,
-      'space.700',
-      { at: [-0.46 + length / 2, LINE_Y, z] },
-    ]),
-  ],
-  [
-    'mistake-ring',
-    FLAG.flat,
-    [
-      'ring',
-      [0.085, 0.11],
-      0,
-      TAU,
-      16,
-      LINE_Y,
-      LINE_Y + 0.006,
-      'coral.base',
-      'coral.base',
-      0,
-      1,
-      { at: [MISTAKE[0], 0, MISTAKE[1]] },
-    ],
-  ],
-  // The Apple Pencil: white, lying across the screen towards the south-east, its tip at the
-  // ring's edge. It is built along +X from its tip, then turned.
-  [
-    'pencil',
-    0,
-    [
-      'g',
-      [
-        'g',
-        ['cone', 0.006, 0.028, 0, 0.08, 6, 'ink.mid'],
-        ['cyl', 0.028, 0.08, 0.56, 6, 'ink.high'],
-        { rot: [0, 0, -Math.PI / 2] },
-      ],
-      {
-        at: [MISTAKE[0] + 0.08, LINE_Y + 0.028, MISTAKE[1] + 0.08],
-        rot: [0, rad(-45), 0],
-      },
-    ],
-  ],
-  // Ally, the companion, over the north-west corner, and the "why?" it is asked.
-  ['ally', FLAG.glow, ['bead', 0.07, 'star.warm', { at: [-0.46, 1.32, -0.32] }]],
-  [
-    'why',
-    FLAG.flat,
-    ['cyl', 0.1, 1.3, 1.31, 8, 'ink.high', { at: [-0.22, 0, -0.32] }],
-    ['pix', QUESTION, 0.026, 'space.800', { at: [-0.22, 1.315, -0.32], rot: [-Math.PI / 2, 0, 0] }],
-  ],
-];
-
 // --- Corgi (planned) -------------------------------------------------------------------------------
 
 // RunItBack, built in twelve hours and 5th of more than 1,000; the write-up is coming. A long low
@@ -484,6 +376,5 @@ export const HACKATHONS: Readonly<Record<string, BodyRecipe>> = {
   'project/hackgt-13': { rows: hackgt },
   'project/hackathons-at-berkeley': { rows: berkeley },
   'project/cal-hacks-13': { rows: calHacks },
-  'project/alai': { rows: alai },
   'project/corgi': { rows: corgi, ghost: 'lilac' },
 };

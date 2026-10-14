@@ -7,11 +7,9 @@ dock: home
 I'm Allen, an aerospace engineering student at UC Berkeley (class of 2030). I want to work on
 autonomous flight, robotics and spacecraft systems, and on the AI that runs them.
 
-At AFRL I took a staged-recovery rocket through eleven design iterations to a 3,200-foot flight. In
-October 2026 I won the Keewano track at a16z SpeedHacks with [alai](/projects/alai/), a voice-first
-iPad tutor that catches homework mistakes as they happen. At Berkeley I'm building an ESP32
-telemetry and black-box system on Cal Aero SAE's avionics team and running logistics for Cal Hacks
-13.0.
+At AFRL I took a staged-recovery rocket through eleven design iterations to a 3,200-foot flight. At
+Berkeley I'm building an ESP32 telemetry and black-box system on Cal Aero SAE's avionics team and
+running logistics for Cal Hacks 13.0.
 
 ## Berkeley
 
@@ -52,10 +50,9 @@ in my school's program.
 
 ## Software
 
-The newest is [alai](/projects/alai/), a voice-first iPad tutor that a teammate and I built in one
-day at a16z SpeedHacks; it won the Keewano track. Most of my software orbits
-[Software](/systems/software/), one of the two suns of [Projects](/projects/):
-[FishAI](/projects/fishai/), bots for [Canadian Fish](/projects/canadian-fish-demo/) (a six-player card game) and the lab that measures
+Most of my software orbits [Software](/systems/software/), one of the two suns of
+[Projects](/projects/): [FishAI](/projects/fishai/), bots for
+[Canadian Fish](/projects/canadian-fish-demo/) (a six-player card game) and the lab that measures
 them, and [Days2Meet](/projects/days2meet/), a scheduling poll for the plans where hours are
 meaningless. At the [Corgi Hackathon](/projects/corgi/) during Y Combinator's Startup School in
 2026 I built RunItBack in twelve hours, a tool that turns a single photo into an interactive 3D

@@ -131,23 +131,13 @@ async function drag(page: Page, near: { x: number; y: number }, dx: number, dy: 
   const clear = await clearOfNames(page);
   const size = page.viewportSize() ?? { width: 412, height: 839 };
   const on = (x: number, y: number) => x > 8 && y > 8 && x < size.width - 8 && y < size.height - 8;
-  const starts = [0, 60, 90, 120, 160]
+  const start = [0, 60, 90, 120, 160]
     .flatMap((r) => [90, -90, 0, 180, 45, -45, 135, -135].map((degrees) => ({ r, degrees })))
     .map(({ r, degrees }) => ({
       x: near.x + r * Math.cos((degrees * Math.PI) / 180),
       y: near.y + r * Math.sin((degrees * Math.PI) / 180),
     }))
-    .filter(({ x, y }) => clear(x, y) && on(x, y) && on(x + dx, y + dy));
-  // A finger goes on the map itself, never on the page's own controls over it (the top bar, the
-  // nav, Close map): where the map has slid up under them, the spot nearest `near` may be one.
-  const onMap = await page.evaluate(
-    (points) =>
-      points.findIndex(
-        ({ x, y }) => !document.elementFromPoint(x, y)?.closest('header, nav, a, button'),
-      ),
-    starts,
-  );
-  const start = starts[onMap];
+    .find(({ x, y }) => clear(x, y) && on(x, y) && on(x + dx, y + dy));
   if (!start) throw new Error('names everywhere: nowhere to put a finger');
   await touch('touchStart', [{ ...start, id: 1 }]);
   for (let step = 1; step <= 6; step += 1) {
