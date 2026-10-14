@@ -211,7 +211,10 @@ export interface LookAt {
   stage: LookStage;
   /** Seconds in that stage; on the way out, since the picture was last on. */
   seconds: number;
-  /** The ship's speed, and the fastest the autopilot cruises (cruise.far.cruiseSpeed), u/s. */
+  /**
+   * The ship's speed, and the speed at which the look is full (cruise.far.cruiseSpeed), u/s. The
+   * longest journeys of a grown galaxy cruise faster (cruise.vast); their look simply stays full.
+   */
   speed: number;
   topSpeed: number;
   /** On the way out: what was showing when it began, and whether that was the tunnel. */

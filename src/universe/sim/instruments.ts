@@ -149,7 +149,7 @@ export interface GParams {
 /**
  * The g the ship pulled over one step: how much its velocity changed (`dvx`, `dvz`, u/s) in `dt`
  * seconds, in g, from 0 up to `gFull`. It is clamped, never skipped: a journey handed back at
- * 700 u/s sheds its speed at some 300 g (sim/surroundings.ts, dropOutOfWarp), and that is where
+ * 700 u/s (1,300 on the longest journeys of a grown galaxy) sheds its speed at some 300 g or more (sim/surroundings.ts, dropOutOfWarp), and that is where
  * the gauge should peg, not freeze.
  */
 export function gOf(dvx: number, dvz: number, dt: number, params: GParams): number {

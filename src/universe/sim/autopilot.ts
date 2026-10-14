@@ -52,6 +52,14 @@ export interface CruiseParams {
   readonly longLeg: number;
   readonly near: ProfileParams;
   readonly far: ProfileParams;
+  /**
+   * u. A journey longer than `vastLeg[0]` (a far system of a galaxy grown past today's four) is
+   * flown by a blend of `far` and `vast` that follows its length, all `vast` from `vastLeg[1]`:
+   * the long open stretch between two far systems is where the time goes, and going faster there
+   * is what keeps such a journey near "about 5 s". Shorter journeys never see it.
+   */
+  readonly vastLeg: readonly [from: number, to: number];
+  readonly vast: ProfileParams;
   /** Every body is kept clear of by its docking ring plus this, u. */
   readonly keepOut: number;
   /**
@@ -461,6 +469,8 @@ export function planCruise(
     if (cruise.far === null) {
       cruise.far = smoothstep(params.shortLeg, params.longLeg, cruise.path.length);
       blendProfile(params.near, params.far, cruise.far, cruise.profile);
+      const vast = smoothstep(params.vastLeg[0], params.vastLeg[1], cruise.path.length);
+      if (vast > 0) blendProfile(cruise.profile, params.vast, vast, cruise.profile);
     }
     const { profile } = cruise;
 
