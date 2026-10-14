@@ -6,7 +6,8 @@ compared with upstream later. Lint, Prettier and `astro check` leave this folder
 
 ## The house set
 
-Claude may reach for these on its own when a task matches.
+Claude may reach for `frontend-design` and `animation-performance` on its own when a task matches;
+`review-animations` runs only when typed by name.
 
 | Skill | What it is for | Source (commit) | Licence |
 | --- | --- | --- | --- |
@@ -52,7 +53,8 @@ Some of them carry scripts, which Claude Code asks before running:
 a page; `ui-ux-pro-max/scripts` is Python that searches its CSV files; `design-dna/scripts` needs
 `npm install` in that folder (it pulls `sharp`) to measure colours. Nothing here installs hooks.
 
-Changes from upstream: `disable-model-invocation: true` added to each one's frontmatter; sample
+Changes from upstream: `disable-model-invocation: true` added to the frontmatter of every
+exploration skill and of `review-animations`; sample
 email addresses and a sample phone number in `break-ui` and `redesign-existing-projects` rewritten
 to `example.com` and a non-North-American number, and `design-taste-frontend/evals/` (sample
 briefs with real-looking addresses) left out, so that `tests/privacy.test.ts` still passes.
