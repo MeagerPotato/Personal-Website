@@ -275,7 +275,9 @@ transit map.
   (`data-theme`, from `projectTheme()` in `src/site/view-models.ts`), so a planet wears its own
   colour on every page.
 - **The projects page:** each solar system is a line whose first station, the terminus, is its
-  sun, with the family's glyph cut out of it like a line's bullet on a transit map. The tagline is
+  sun, with the family's glyph cut out of it like a line's bullet on a transit map. Where the
+  screen has room (30rem and up) the sun is as large as a station, so each system's terminus
+  outweighs the planets after it; the phone's lane keeps a small one. The tagline is
   the sun's caption, and under it one line, "The Software system" (`sm`, 600), is the way to the
   sun's own page.
 - **A section's title is a link to itself** (`/about/#rockets` is that section). It looks like
