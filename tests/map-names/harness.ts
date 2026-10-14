@@ -99,8 +99,11 @@ export interface Look {
   readonly zoomIns?: number;
   /** Arrow keys held one after another once it has zoomed (the code, and for how long, s). */
   readonly pan?: ReadonlyArray<readonly [code: string, seconds: number]>;
-  /** A page open beside the map: a laptop's side panel (right) or a phone's sheet (bottom), px. */
-  readonly inset?: { readonly right?: number; readonly bottom?: number };
+  /**
+   * A page open beside the map, px: a laptop's deck of cards (left and right: its two columns),
+   * a narrower window's side panel (right) or a phone's sheet (bottom).
+   */
+  readonly inset?: { readonly right?: number; readonly bottom?: number; readonly left?: number };
   /** Fingers on the map while it is watched: strokes, pinches and a slow drag (`fingers`). */
   readonly fingers?: boolean;
 }
@@ -436,7 +439,15 @@ function mapAt(look: Look, makeLabels?: MakeLabels) {
   );
 
   rig.resize(viewport);
-  rig.setInset({ top: 0, right: look.inset?.right ?? 0, bottom: look.inset?.bottom ?? 0 }, true);
+  rig.setInset(
+    {
+      top: 0,
+      right: look.inset?.right ?? 0,
+      bottom: look.inset?.bottom ?? 0,
+      left: look.inset?.left ?? 0,
+    },
+    true,
+  );
   onScreen.resize(viewport);
   map.resize(viewport);
   map.setTop(screen.top);

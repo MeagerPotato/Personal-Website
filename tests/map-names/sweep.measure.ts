@@ -153,8 +153,8 @@ const SWEEPS: readonly Sweep[] = [
     most: 1,
   },
   {
-    name: 'beside a page, 1280x800 (the side panel)',
-    look: { size: '1280x800', inset: { right: 480 } },
+    name: 'beside a page, 1280x800 (the deck of cards)',
+    look: { size: '1280x800', inset: { left: 355, right: 355 } },
     windows: [8, 60],
     most: 12,
     named: true,
