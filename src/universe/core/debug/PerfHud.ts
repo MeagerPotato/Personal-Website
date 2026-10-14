@@ -42,7 +42,9 @@ export class PerfHud implements System {
       // That row is HUD_ROW_REM (src/shell/panel-inset.ts), which panel-inset.test.ts holds to
       // the stylesheet. No test holds this copy (a debug view): change it with that one.
       'top:calc(var(--panel-inset-top, 6.25rem) + var(--space-3) + 2.75rem + var(--space-3))',
-      'left:var(--space-4)',
+      // Clear of whatever stands on the left (a deck's left column of cards, --panel-inset-left),
+      // which would otherwise cover it whenever the ship is docked on a wide screen.
+      'left:calc(var(--panel-inset-left, 0px) + var(--space-4))',
       'margin:0',
       'padding:var(--space-2) var(--space-3)',
       'border-radius:var(--radius-sm)',

@@ -39,11 +39,14 @@ const LIMITS: Readonly<
   '1280x800': { fit: 9, zoomed: [8, 17, 27], pan: 25, fingers: [320, 66], landmarks: 0.05 },
 };
 
-/** A page open beside the map: the laptop's side panel, a phone's sheet (as tall as at 60%). */
+/**
+ * A page open beside the map: the laptop's deck of cards (its two columns at 1280 px wide, as the
+ * shell measures them), a phone's sheet (as tall as at 60%).
+ */
 const PANEL: Readonly<Record<ScreenSize, Look['inset']>> = {
   '360x740': { bottom: 444 },
   '412x839': { bottom: 503 },
-  '1280x800': { right: 480 },
+  '1280x800': { left: 355, right: 355 },
 };
 
 function onNoLandmark(seen: Seen): void {
