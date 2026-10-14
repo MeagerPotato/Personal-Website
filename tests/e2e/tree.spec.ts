@@ -108,8 +108,10 @@ test('planned work says so, and shows its planet in place of a picture', async (
   await expect(planet).toHaveAttribute('data-planned', '');
   await expect(planet).toHaveAttribute('data-biome', 'tide');
   // No picture pretends to be one: the stand-in is decoration, hidden from assistive technology.
+  // It is a picture of the body's own world (src/site/portrait.ts), with no words of its own.
   await expect(planet).toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('main img')).toHaveCount(0);
+  await expect(planet.locator('img')).toHaveAttribute('alt', '');
+  await expect(page.locator('main img:not(.cover--planet img)')).toHaveCount(0);
 });
 
 test('finished work without a picture shows its planet, and says "Completed"', async ({ page }) => {

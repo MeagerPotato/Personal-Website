@@ -255,6 +255,10 @@ pointing the way it goes round its parent, as Model Rocketry flies nose first ro
 sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
 is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
 on the low tier and on the star map.
+The pages show a project's rows too: its station on a route line, and its planet where it has no
+cover, are a picture of the same everyday build (`src/site/portrait.ts`, drawn at build time as
+`/worlds/<id>-<size>.webp`), so a change to the rows repaints them with nothing else to do. A
+project with no rows yet (or with a recipe, which `lookOf` puts first) keeps its ball there.
 
 **Give a card a landmark.** Opening a card of the deck turns the orbit camera to that card's
 LANDMARK on the body its page belongs to. An entry in `design/worlds/landmarks.ts`, under the
