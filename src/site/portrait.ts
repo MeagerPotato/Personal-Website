@@ -1,24 +1,27 @@
-import type { BodyKind } from '../universe/data/types';
+import type { BodyKind, ManifestBody } from '../universe/data/types';
 import { tokens } from '../universe/design/tokens';
 import { tuning } from '../universe/design/tuning';
+import { worlds } from '../universe/design/worlds';
 import { BODIES } from '../universe/design/worlds/bodies';
 import { hexToLinear } from '../universe/sim/color';
+import type { Rgb } from '../universe/sim/meshBuilder';
 import { assemble, fineOf, groundDetail, type Packed } from '../universe/sim/world/glue';
 import type { GroundLooks } from '../universe/sim/world/ground';
 import { make } from '../universe/sim/world/rows';
+import { routes } from './routes';
 
 // A PORTRAIT of a body: its emblem world (design/worlds/), drawn once at build time as a small
 // picture for the pages, so that a project's station on a route line, and a page's planet where
 // it has no cover, show the world the universe shows and not a toy ball of its biome's colours.
 //
-// The same build as the galaxy's everyday mesh on the low tier (sim/world/rows.ts `make`, then
-// glue.ts `assemble`: everything still, nothing turning), lit as design/shaders/toonFlat.ts lights
+// The same build as the galaxy's everyday mesh (sim/world/rows.ts `make` at the everyday detail,
+// then glue.ts `assemble` as the low tier does it: everything still, nothing turning), lit as design/shaders/toonFlat.ts lights
 // it: three bands by how a pixel faces the light, the shade side the colour times the shadow
 // tint (never black), a flat or glowing part its own colour, a facet's other colours where its
-// lines say. No air, no corona, no lamps (a portrait is by day). Orthographic, from a little
+// lines say, and planned work's ghost parts outlined in their family's lines. No air, no corona, no lamps (a portrait is by day). Orthographic, from a little
 // above and to one side, so that a ring or a part on top reads.
 //
-// Pure: same body in, same pixels out. src/pages/worlds/[id].png.ts turns them into a PNG.
+// Pure: same body in, same pixels out. src/pages/worlds/[file].ts encodes them as WebP.
 
 export interface PortraitOf {
   /** Manifest id: `project/<id>`, `system/<id>` or `page/<id>`. */
@@ -59,12 +62,33 @@ function toSrgb(c: number): number {
   return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
 }
 
-/** Does this body have a world of its own to draw? (Every project does: design/worlds/.) */
-export const hasPortrait = (id: string): boolean => BODIES[id] !== undefined;
+/**
+ * Does this body have a world of its own to draw? It does when the galaxy draws it from emblem
+ * rows (design/worlds/): world/looks.ts `lookOf` lets a recipe in design/worlds.ts win over the
+ * rows, so a body with one is not drawn here either. A body without falls back to its ball.
+ */
+export const hasPortrait = (id: string): boolean =>
+  worlds[id] === undefined && BODIES[id] !== undefined;
 
-/** The packed triangles of a body's everyday build, still, as the low tier draws it. */
-function trianglesOf(body: PortraitOf): readonly Packed[] {
-  const recipe = BODIES[body.id];
+/** A project's picture on the pages, or null when it has no world to draw (it keeps its ball). */
+export const pictureOf = (projectId: string, size: number): string | null =>
+  hasPortrait(`project/${projectId}`) ? routes.worldPicture(projectId, size) : null;
+
+/** What a portrait needs to know of a body of the galaxy. */
+export const subjectOf = (body: ManifestBody): PortraitOf => ({
+  id: body.id,
+  kind: body.kind,
+  planned: body.planned === true,
+  seed: body.seed,
+});
+
+/** The packed triangles of a body's everyday build, still, and its ghosts' edge lines. */
+function buildOf(body: PortraitOf): {
+  packs: readonly Packed[];
+  lines: readonly Float32Array[];
+  lineColor: Rgb | null;
+} {
+  const recipe = hasPortrait(body.id) ? BODIES[body.id] : undefined;
   if (!recipe) throw new Error(`portrait: ${body.id} has no world (design/worlds/)`);
   const build = make(body.id, recipe, {
     detail: groundDetail(body.kind, body.planned, false, tuning.world),
@@ -72,15 +96,15 @@ function trianglesOf(body: PortraitOf): readonly Packed[] {
     looks: LOOKS,
     fine: fineOf(false, false, tuning.world.round),
   });
-  const { turn, hold } = assemble(build, { kind: body.kind, still: true, low: true });
-  return [turn, hold];
+  const { turn, hold, edges } = assemble(build, { kind: body.kind, still: true, low: true });
+  return { packs: [turn, hold], lines: [edges.turn, edges.hold], lineColor: edges.color };
 }
 
 /**
  * Draw a body's portrait, `size` pixels square, the body centred on a transparent ground.
  */
 export function portraitOf(body: PortraitOf, size: number): Portrait {
-  const packs = trianglesOf(body);
+  const { packs, lines, lineColor } = buildOf(body);
   const yaw = (PORTRAIT_VIEW.yawDeg * Math.PI) / 180;
   const pitch = (PORTRAIT_VIEW.pitchDeg * Math.PI) / 180;
   const [cy, sy, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)];
@@ -179,9 +203,10 @@ export function portraitOf(body: PortraitOf, size: number): Portrait {
           if (z <= (depth[at] ?? -Infinity)) continue;
           depth[at] = z;
           covered[at] = 1;
-          const w = [w0, w1, w2];
           const lerp = (arr: ArrayLike<number>, stride: number, offset: number): number =>
-            w.reduce((sum, wk, k) => sum + wk * (arr[(v0 + k) * stride + offset] ?? 0), 0);
+            w0 * (arr[v0 * stride + offset] ?? 0) +
+            w1 * (arr[(v0 + 1) * stride + offset] ?? 0) +
+            w2 * (arr[(v0 + 2) * stride + offset] ?? 0);
           let r = base[0] ?? 0;
           let g = base[1] ?? 0;
           let b = base[2] ?? 0;
@@ -195,9 +220,9 @@ export function portraitOf(body: PortraitOf, size: number): Portrait {
             if (lerp(sides, 8, 7) + arc(2) > 0.5) [r, g, b] = over as [number, number, number];
           }
           if (lit) {
-            const fx = w.reduce((s2, wk, k) => s2 + wk * (nx[k] ?? 0), 0);
-            const fy = w.reduce((s2, wk, k) => s2 + wk * (ny[k] ?? 0), 0);
-            const fz = w.reduce((s2, wk, k) => s2 + wk * (nz[k] ?? 0), 0);
+            const fx = w0 * (nx[0] ?? 0) + w1 * (nx[1] ?? 0) + w2 * (nx[2] ?? 0);
+            const fy = w0 * (ny[0] ?? 0) + w1 * (ny[1] ?? 0) + w2 * (ny[2] ?? 0);
+            const fz = w0 * (nz[0] ?? 0) + w1 * (nz[1] ?? 0) + w2 * (nz[2] ?? 0);
             const len = Math.hypot(fx, fy, fz) || 1;
             const level = band((fx * LIGHT[0] + fy * LIGHT[1] + fz * LIGHT[2]) / len);
             r *= (shade[0] ?? 1) + (1 - (shade[0] ?? 1)) * level;
@@ -207,6 +232,44 @@ export function portraitOf(body: PortraitOf, size: number): Portrait {
           colour[at * 3] = r;
           colour[at * 3 + 1] = g;
           colour[at * 3 + 2] = b;
+        }
+      }
+    }
+  }
+
+  // The ghosts' lines, over what they outline, about a pixel wide (the engine draws them one
+  // pixel wide, unlit, in the family's base): stamped along each segment, depth tested a little
+  // in front so that a line on a face shows and one behind the body does not.
+  if (lineColor) {
+    const radius = SUPER * 0.55;
+    const lift = reach * 8e-3;
+    for (const segments of lines) {
+      for (let i = 0; i + 5 < segments.length; i += 6) {
+        const a = view(segments[i] ?? 0, segments[i + 1] ?? 0, segments[i + 2] ?? 0);
+        const c = view(segments[i + 3] ?? 0, segments[i + 4] ?? 0, segments[i + 5] ?? 0);
+        const ax = n / 2 + (a[0] - midX) * scale;
+        const ay = n / 2 - (a[1] - midY) * scale;
+        const cx = n / 2 + (c[0] - midX) * scale;
+        const cy2 = n / 2 - (c[1] - midY) * scale;
+        const steps = Math.max(1, Math.ceil(Math.hypot(cx - ax, cy2 - ay) * 2));
+        for (let k = 0; k <= steps; k += 1) {
+          const f = k / steps;
+          const qx = ax + (cx - ax) * f;
+          const qy = ay + (cy2 - ay) * f;
+          const z = a[2] + (c[2] - a[2]) * f + lift;
+          const r = Math.ceil(radius);
+          for (let py = Math.floor(qy) - r; py <= Math.floor(qy) + r; py += 1) {
+            for (let px = Math.floor(qx) - r; px <= Math.floor(qx) + r; px += 1) {
+              if (px < 0 || py < 0 || px >= n || py >= n) continue;
+              if (Math.hypot(px + 0.5 - qx, py + 0.5 - qy) > radius) continue;
+              const at = py * n + px;
+              if (covered[at] && z < (depth[at] ?? -Infinity)) continue;
+              covered[at] = 1;
+              colour[at * 3] = lineColor[0];
+              colour[at * 3 + 1] = lineColor[1];
+              colour[at * 3 + 2] = lineColor[2];
+            }
+          }
         }
       }
     }

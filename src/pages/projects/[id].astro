@@ -12,6 +12,7 @@ import Shot from '../../components/Shot.astro';
 import Base from '../../layouts/Base.astro';
 import { projectCards } from '../../site/cards';
 import { OG_SIZE } from '../../site/og';
+import { pictureOf } from '../../site/portrait';
 import { routes, WORLD_PICTURE_SIZES } from '../../site/routes';
 import { breadcrumbLd, pageTitle, projectLd } from '../../site/seo';
 import {
@@ -111,15 +112,19 @@ const jsonLd = [
         data-planned={data.status === 'planned' ? '' : undefined}
         aria-hidden="true"
       >
-        <span class="planet-dot planet-dot--hero planet-dot--world">
-          <img
-            src={routes.worldPicture(entry.id, WORLD_PICTURE_SIZES.hero)}
-            alt=""
-            width={WORLD_PICTURE_SIZES.hero}
-            height={WORLD_PICTURE_SIZES.hero}
-            decoding="async"
-          />
-        </span>
+        {pictureOf(entry.id, WORLD_PICTURE_SIZES.hero) ? (
+          <span class="planet-dot planet-dot--hero planet-dot--world">
+            <img
+              src={pictureOf(entry.id, WORLD_PICTURE_SIZES.hero)}
+              alt=""
+              width={WORLD_PICTURE_SIZES.hero}
+              height={WORLD_PICTURE_SIZES.hero}
+              decoding="async"
+            />
+          </span>
+        ) : (
+          <span class="planet-dot planet-dot--hero" />
+        )}
       </div>
     )}
 

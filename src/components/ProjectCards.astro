@@ -11,7 +11,8 @@ import {
   type PlanetNode,
   type ProjectCard,
 } from '../site/view-models';
-import { routes, WORLD_PICTURE_SIZES } from '../site/routes';
+import { pictureOf } from '../site/portrait';
+import { WORLD_PICTURE_SIZES } from '../site/routes';
 
 const station = WORLD_PICTURE_SIZES.station;
 
@@ -30,16 +31,20 @@ const { cards } = Astro.props;
       data-theme={card.theme}
       data-planned={card.planned ? '' : undefined}
     >
-      <span class="planet-dot planet-dot--world" aria-hidden="true">
-        <img
-          src={routes.worldPicture(card.id, station)}
-          alt=""
-          width={station}
-          height={station}
-          loading="lazy"
-          decoding="async"
-        />
-      </span>
+      {pictureOf(card.id, station) ? (
+        <span class="planet-dot planet-dot--world" aria-hidden="true">
+          <img
+            src={pictureOf(card.id, station)}
+            alt=""
+            width={station}
+            height={station}
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+      ) : (
+        <span class="planet-dot" aria-hidden="true" />
+      )}
       <div class="card__body">
         <h3 class="card__title">
           <a href={card.href}>{card.title}</a>
@@ -50,16 +55,20 @@ const { cards } = Astro.props;
           <ul class="card__moons" aria-label={`Moons of ${card.title}`}>
             {card.moons.map((moon) => (
               <li data-biome={moon.biome} data-planned={moon.planned ? '' : undefined}>
-                <span class="planet-dot planet-dot--moon planet-dot--world" aria-hidden="true">
-                  <img
-                    src={routes.worldPicture(moon.id, station)}
-                    alt=""
-                    width={station}
-                    height={station}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </span>
+                {pictureOf(moon.id, station) ? (
+                  <span class="planet-dot planet-dot--moon planet-dot--world" aria-hidden="true">
+                    <img
+                      src={pictureOf(moon.id, station)}
+                      alt=""
+                      width={station}
+                      height={station}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                ) : (
+                  <span class="planet-dot planet-dot--moon" aria-hidden="true" />
+                )}
                 <span>
                   <a href={moon.href}>{moon.title}</a>
                   <span class="card__moon-summary">{moon.summary}</span>

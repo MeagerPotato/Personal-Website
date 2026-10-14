@@ -2,7 +2,7 @@ import type { APIRoute, GetStaticPaths } from 'astro';
 import { getCollection } from 'astro:content';
 import sharp from 'sharp';
 import { site } from '../../config/site';
-import { portraitOf } from '../../site/portrait';
+import { hasPortrait, portraitOf, subjectOf } from '../../site/portrait';
 import { profiles } from '../../site/profiles';
 import { WORLD_PICTURE_SIZES } from '../../site/routes';
 import { toUniverseInput } from '../../site/universe-input';
@@ -31,11 +31,13 @@ export const getStaticPaths = (async () => {
   return visible.flatMap((entry) => {
     const body = bodies.find((b) => b.id === `project/${entry.id}`);
     if (!body) throw new Error(`worlds: project ${entry.id} has no body in the galaxy`);
+    // A body with no world of its own keeps its ball on the pages, and has no picture.
+    if (!hasPortrait(body.id)) return [];
     return Object.values(WORLD_PICTURE_SIZES).map((size) => ({
       params: { file: `${entry.id}-${size}.webp` },
       props: {
         size,
-        body: { id: body.id, kind: body.kind, planned: body.planned === true, seed: body.seed },
+        body: subjectOf(body),
       },
     }));
   });

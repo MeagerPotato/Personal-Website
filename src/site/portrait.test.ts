@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { readRealInput } from '../../scripts/journeys/galaxies';
 import { buildUniverse } from '../universe/data/build';
-import { hasPortrait, portraitOf, type Portrait, type PortraitOf } from './portrait';
+import { tokens } from '../universe/design/tokens';
+import { BODIES } from '../universe/design/worlds/bodies';
+import {
+  hasPortrait,
+  pictureOf,
+  portraitOf,
+  subjectOf,
+  type Portrait,
+  type PortraitOf,
+} from './portrait';
 
 const real = buildUniverse(readRealInput(true));
 const projects = real.bodies.filter((body) => body.id.startsWith('project/'));
 const of = (id: string): PortraitOf => {
   const body = real.bodies.find((b) => b.id === id);
   if (!body) throw new Error(id);
-  return { id: body.id, kind: body.kind, planned: body.planned === true, seed: body.seed };
+  return subjectOf(body);
 };
 
 /** How much of the picture the body covers, and the middle of what it covers. */
@@ -61,8 +70,28 @@ describe('a world as a picture', () => {
     expect((lums.at(-1) ?? 0) - tenth).toBeGreaterThan(25);
   });
 
-  it('says so of a body with no world', () => {
+  it("outlines planned work in its family's lines, as the galaxy draws its ghosts", () => {
+    const planned = projects.filter((body) => BODIES[body.id]?.ghost);
+    expect(planned.length).toBeGreaterThan(0);
+    for (const body of planned) {
+      const family = BODIES[body.id]?.ghost ?? 'sky';
+      const hex = tokens.color.system[family].base;
+      const want = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+      const picture = portraitOf(of(body.id), 96);
+      let lines = 0;
+      for (let i = 0; i < 96 * 96; i += 1) {
+        if ((picture.data[i * 4 + 3] ?? 0) < 255) continue;
+        const near = want.every((v, k) => Math.abs((picture.data[i * 4 + k] ?? 0) - v) <= 2);
+        if (near) lines += 1;
+      }
+      expect(lines, body.id).toBeGreaterThan(15);
+    }
+  });
+
+  it('says so of a body with no world, which keeps its ball on the pages', () => {
     expect(hasPortrait('project/nowhere')).toBe(false);
+    expect(pictureOf('nowhere', 96)).toBeNull();
+    expect(pictureOf('fishai', 96)).toBe('/worlds/fishai-96.webp');
     expect(() => portraitOf({ ...of('project/fishai'), id: 'project/nowhere' }, 8)).toThrow(
       /no world/,
     );
