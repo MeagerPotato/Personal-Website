@@ -116,7 +116,7 @@ test('finished work without a picture shows its planet, and says "Completed"', a
   await page.goto(plain('/projects/cyberpatriot/'));
   await expect(heading(page)).toHaveText('CyberPatriot');
   await expect(page.locator('.facts')).toContainText('Completed');
-  await expect(page.locator('.facts')).toContainText('Sep 2022 – May 2026');
+  await expect(page.locator('.facts')).toContainText('Aug 2022 – May 2026');
   const planet = page.locator('.cover--planet');
   await expect(planet).toBeVisible();
   await expect(planet).not.toHaveAttribute('data-planned', /.*/);
@@ -148,6 +148,7 @@ test('Hackathons lists its work newest first, and joins the role to the event', 
   // Hackathons @ Berkeley and HackGT 13 both began in September 2026, and a tie goes by id
   // (src/site/view-models.ts, byShowcase).
   await expect(page.locator('main h3')).toHaveText([
+    'alai',
     'Cal Hacks 13.0',
     'Hackathons @ Berkeley',
     'HackGT 13',
