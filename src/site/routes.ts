@@ -11,6 +11,11 @@ export const routes = {
   project: (id: string): string => `/projects/${id}/`,
   system: (id: string): string => `/systems/${id}/`,
   universeManifest: (): string => '/universe.json',
+  /**
+   * A project's world as a small picture (src/site/portrait.ts), drawn at build time at one of
+   * `WORLD_PICTURE_SIZES` pixels square.
+   */
+  worldPicture: (id: string, size: number): string => `/worlds/${id}-${size}.webp`,
   /** The link-preview image for pages without a picture of their own. */
   ogDefault: (): string => '/og/default.png',
   /**
@@ -19,6 +24,12 @@ export const routes = {
    */
   resumePdf: (): string => '/allen-hsieh-resume.pdf',
 } as const;
+
+/**
+ * The sizes a world's picture is drawn at (px): a station on a route line and a moon's (at most
+ * 2.5rem, so twice that for a sharp screen), and a page's planet where it has no cover (10rem).
+ */
+export const WORLD_PICTURE_SIZES = { station: 96, hero: 320 } as const;
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
