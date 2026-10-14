@@ -116,7 +116,7 @@ test('finished work without a picture shows its planet, and says "Completed"', a
   await page.goto(plain('/projects/cyberpatriot/'));
   await expect(heading(page)).toHaveText('CyberPatriot');
   await expect(page.locator('.facts')).toContainText('Completed');
-  await expect(page.locator('.facts')).toContainText('Sep 2022 – May 2026');
+  await expect(page.locator('.facts')).toContainText('Aug 2022 – May 2026');
   const planet = page.locator('.cover--planet');
   await expect(planet).toBeVisible();
   await expect(planet).not.toHaveAttribute('data-planned', /.*/);
