@@ -16,5 +16,8 @@ src/content/
 # Shipped byte-for-byte as the inline mode script (its hash is in the CSP).
 src/shell/mode.inline.js
 
+# Third-party Claude skills, kept as their authors wrote them (.claude/skills/README.md).
+.claude/skills/
+
 # Generated into dist/_headers; column layout is meaningful.
 config/headers.template

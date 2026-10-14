@@ -2,8 +2,9 @@
 
 ## Skills
 
-`.claude/skills/` holds third-party skills (frontend-design, review-animations,
-animation-performance; sources in its README). They are general advice written for other sites.
+`.claude/skills/` holds third-party skills (sources in its README): a house set
+(frontend-design, review-animations, animation-performance) and an exploration set that runs only
+when Allen types its name. They are general advice written for other sites.
 Where one conflicts with AGENTS.md or docs/DESIGN.md, this repo wins. The clashes found so far:
 
 - `transform`: the engine owns it. Movement uses the `translate` and `scale` properties.
