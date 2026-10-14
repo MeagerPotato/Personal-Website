@@ -217,10 +217,13 @@ verify (CI's Sites workflow) runs whenever either changes.
 ## Recipes
 
 **Add a design token.** Add the key to `tokens.ts`. It is now also the CSS custom property
-`--<path-in-kebab-case>` on `:root`. Use it; never copy its value. The site's pictures read the
-tokens too: `/favicon.svg` and `/apple-touch-icon.png` (`src/site/favicon.ts`) and the link-preview
-card (`src/site/og.ts`) are drawn at build time, so a palette change repaints them. `public/`
-holds no picture with colours of its own.
+`--<path-in-kebab-case>` on `:root`, unless only the engine reads it: then add its path to
+`ENGINE_ONLY` (`src/site/tokens-css.ts`), so that no page carries a property no stylesheet
+reads (`tokens-css.test.ts` counts what it leaves out: update its number with the list). Use
+it; never copy its value. The site's pictures read the tokens too: `/favicon.svg` and
+`/apple-touch-icon.png` (`src/site/favicon.ts`) and the link-preview card (`src/site/og.ts`) are
+drawn at build time, so a palette change repaints them. `public/` holds no picture with colours
+of its own.
 
 **Add a material or a shader.** GLSL goes in `design/shaders/<name>.ts` with its uniforms listed
 in the header comment (uniform names are the contract with logic). A factory in
