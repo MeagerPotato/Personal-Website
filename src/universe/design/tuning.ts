@@ -197,7 +197,8 @@ export const tuning = {
     /**
      * 1/s. A journey handed back at speed (Stop, or a touch of the controls) loses what the
      * pilot's own drive could never make at this rate: from 700 u/s the ship is back to its own
-     * top speed within 0.7 s and 160 u, instead of coasting on for 875 u.
+     * top speed within 0.7 s and 160 u, instead of coasting on for 875 u (from `vast`'s 1,300, on
+     * the longest journeys of a grown galaxy, within about 0.8 s).
      */
     dropOutPerSec: 5,
   } satisfies CruiseParams,
