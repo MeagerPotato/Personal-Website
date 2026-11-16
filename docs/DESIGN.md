@@ -61,6 +61,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 | `color.accent`, `color.focus` | | links and interactive text (sky); **butter, which means "here"**: the focus ring, the current page's bar, the name the ship is headed for |
 | `color.star` | `white cool hot warm amber ember` | the stars' six temperatures (`hot`, `amber` and `ember` are engine only: "Deep light", below) |
 | `color.shading` | `shadow` | **multiplies** a surface's colour on the side facing away from its sun: cool and tinted, never black (white would mean no shading) |
+| `color.nature` | `meadow grass moss pine fir gold amber rust rose plum bark loam soil clay rock slate flint water pool foam sand wood brick tile crystal lamp snow` | engine only: what the islands are built from ("The isles", below), trees in their seasons, the ground's strata, water, a cottage's walls and roof, the glow of a lamp |
 
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
 side of a pairing changes: `src/site/contrast.test.ts` measures every pairing the stylesheet relies
@@ -638,7 +639,10 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   under the cubes is built twice as finely as the worlds' budget draws it (`sourceScale`), so a
   coast follows its shape, not its facets. The cubes are a grid in the body's own frame, so they turn
   with it and never crawl.
-- **No cell lines.** A face of cubes is one flat colour; nothing draws the grid.
+- **No cell lines.** Nothing draws the grid: the cubes read by their grain and their corner
+  shade.
+- **Grain.** Each cube is a few percent lighter or darker than its neighbours (`jitter`; see "The
+  isles").
 - **Corner shade.** Where blocks meet in a hollow the corner is darker (ambient occlusion baked
   into each corner, `occlusion`), so the shape reads without lines. Glowing cubes (lamps,
   windows) are never shaded.
@@ -794,25 +798,50 @@ glow: hyperspace's walls in coral's or butter's shade went brick and khaki.)
 ### The isles _(every project a floating island, 2026-11-16)_
 
 Allen asked for the galaxy to be "1000x cooler", with the voxel island on a turtle's back from his
-reference as the inspiration. Every project's world is now a **floating island**: a diorama cut
-out of the ground and hung in space. One kit (`design/worlds/isles.ts`) gives each the same body,
-a grass top on a lip of turf, a band of soil and a root of rock that tapers to a point, boulders
-half out of the rim and stalactites under it, plus scenery: trees, pines, cottages, clouds,
-stepping stones, and a pond whose water runs to the edge and falls off it. On top stands what
-the project is (`design/worlds/islands.ts`): Robotics' field with its bot and its cloud of
-guesses, CyberPatriot's castle, the Canadian fish leaping over a lake, FishAI's jetty and rod,
-the onboarding path, Days2Meet's month of heat beds, HackGT's dish (with a dashed ring of signal
-round the island, in the ship's lane), the Berkeley buses on a ring road, Cal Hacks' campanile
-and scoreboard.
+reference as the inspiration. Every project's world is a **floating island**: a diorama cut out
+of the ground and hung in space. A first pass was "extremely plain" (Allen, the same day: "take a
+deeper look at the design and animation of the artifact"), so the islands were rebuilt to the
+reference's density, its grain and its life.
 
-- **The grass says the family**, by biome: a frost island, a tide island, a bloom island.
-- **Planned work is grey clay, not a blueprint.** A planned island is primer stone with its
-  crane, a paint chip and a little rubble, and what it will be modelled in plain clay. The
-  blueprint (FLAG.ghost, navy with edge lines) still works, but cut into cubes its fill reads as a
-  dark blob and the cubes swallow its lines, so no body uses it now; the tests hold it on a
-  fixture.
-- **Each island has one small life** (`design/worlds/motion.ts`): a bot that shuffles, flags
-  that wave, a fish that leaps, a rod that bobs, two buses round the ring road, drifting clouds.
+- **One kit, one file each.** `design/worlds/isles.ts` is the kit: `isle()` gives a top of hills
+  and flat pads in three greens (or snow, or sand) on a lip of turf, soil in strata, a root of
+  rock to a point, boulders in the rim, stalactites and hanging roots under it and a few glowing
+  crystals; its `at`, `brg` and `h` stand anything on the hills. Then scenery: round trees in
+  autumn colours, pines, bushes, rocks, flower beds, a forest that keeps clear of the story, a
+  cottage with its chimney, lamp posts, stepping stones, and a pond whose stream runs to the rim
+  and falls off it as a waterfall. Each island is a file in `design/worlds/islands/` (the index
+  is `islands.ts`); the planned ones share a building-site kit (`islands/site.ts`).
+- **The story on the high ground, a place round it.** Robotics' VEX field in an autumn wood,
+  CyberPatriot's snowy fortress with its monitor and radar, the Canadian fish leaping over a lake
+  before a fan of cards, FishAI's robot fishing off a jetty under a lighthouse, the onboarding
+  phone and its path through a blossom garden, Days2Meet's month of flower beds and its clock
+  tower, HackGT's dish listening on a hilltop, the Berkeley festival on its ring road with the
+  hacker buses, Cal Hacks' Campanile and scoreboard. 20 to 35 trees, 20 to 50 flowers, rocks, a
+  path, a lamp or two and something that glows on every island.
+- **Planned work is a building site**: bare earth, the project as a maquette in primer clay in
+  its scaffolding, a site office with a smoking stovepipe, survey stakes, a work lamp, the crane
+  and a paint chip of its family, with the same living island round it (Sports Analysis' pitch,
+  Kalshi's coin, Fish Online's pavilion, Corgi's statue half carved).
+- **Every cube its own shade.** The voxel cutter nudges each cube a few percent lighter or
+  darker (`tuning.world.voxel.jitter`, from a hash of its cell, glowing cubes left alone), so
+  grass, leaves, soil and stone have grain, as in the reference. It is the cutter's, so every
+  body in cubes has it (home, the suns, the rocket), not only the islands.
+- **The life of a place** (`ISLE_LIFE`, `design/worlds/motion.ts`), driven by part name: the
+  water pours down the fall (`flow`), two puffs of smoke rise from the chimney (`smoke-1`,
+  `smoke-2`), leaves drift down (`leaves`), gulls wheel (`gulls`), islets bob (`islets`), clouds
+  drift (`clouds`) and the crystals breathe (`crystals`). On a project's world these are LIFE in
+  the calm rules (`sim/world/motion.test.ts`): they may be quicker (1.2 s, events 5 s) and do not
+  count against a body's two story motions. Each island then has at most two of its own (the robot, the
+  salmon's leap, the rod, the brush, the clock's hands, the dish's rings, the buses, the bell).
+- **The ship's lane is measured.** Clouds, gulls and islets hang above or below the plane the
+  ship flies in on a planet; on a small moon that lane is wider in radii (the ship's own band,
+  1 u, is a larger share of a small radius) and the clouds reach into it. Whatever reaches into
+  it is measured into the body's reach (`design/worlds/reach.ts`): Fish Onboarding's is 1.52
+  radii (it was 1.15), under its moon's cap of 2.67.
+- **What it costs.** An island is about 8,500 to 11,000 triangles of rows and 39,000 to 47,000
+  triangles of cubes every day (the suns and home were already that), 170,000 to 200,000 up close.
+  The rows are built a slice at a time (`SLICE_TRIS`, `sim/world/rows.ts`), so no frame builds a
+  whole wood. `tests/world-bodies.test.ts` holds the ceilings, of rows and of cubes.
 - **The suns, home, the profiles and Model Rocketry keep their worlds.** Model Rocketry flies
   nose first round its sun and is no island.
 
@@ -1051,7 +1080,8 @@ as it was first drawn. The rule, as built:
   neighbour's colour: a small step in an outline, about one shared edge in forty on the
   islands of HackGT 13, one in two hundred on home.
 - **No nudge.** `planet.colorJitter` is 0 (it was 0.03): the nudge made every flat area a mosaic
-  of triangles, which is exactly what was asked away.
+  of triangles, which is exactly what was asked away. (The cubes' grain, 2026-11-16, is another
+  thing: one shade a cube, as in Allen's voxel reference; see "Cubes".)
 - **A terrain no finer than its facets.** An arc holds one bend a facet, so noise finer than
   a facet (4 to 7 degrees) cannot be drawn round: `terrain.isles` and `lumpy` are two octaves,
   not three. A terrain's finest octave (`frequency` times two for each further octave) should

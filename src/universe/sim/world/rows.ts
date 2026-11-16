@@ -539,9 +539,33 @@ export const rowsOf = (recipe: BodyRecipe, options: RowOptions): Rows =>
 
 const isHull = (ground: GroundSpec | Hull): ground is Hull => Array.isArray(ground);
 
+/** About how many triangles a build makes between two of its slices (a frame's job budget). */
+const SLICE_TRIS = 800;
+
 /**
- * Build a body. A generator (the ground slices by the icosahedron's faces, then a slice a part),
- * so that core/jobs.ts can spread a close-up body over frames; `make` runs it in one go.
+ * A list of items built as `mk` builds it, with a slice boundary every SLICE_TRIS triangles or
+ * so: an island's hull or its wood is thousands of triangles, more than one frame should spend.
+ * `g` lights what has no lighting of its own (a part's flags), as a part's triangles are.
+ */
+function* mkSliced(items: readonly Item[], fine: Fine, g?: Unlit): Generator<void, Tri[]> {
+  const out: Tri[] = [];
+  let since = 0;
+  for (const [j, item] of items.entries()) {
+    const tris = mk(item, j, fine);
+    for (const t of tris) out.push(g === undefined || t.g ? t : { ...t, g });
+    since += tris.length;
+    if (since >= SLICE_TRIS) {
+      since = 0;
+      yield;
+    }
+  }
+  return out;
+}
+
+/**
+ * Build a body. A generator (the ground slices by the icosahedron's faces, or a hull every
+ * SLICE_TRIS triangles; then the parts, the same way), so that core/jobs.ts can spread a body
+ * over frames; `make` runs it in one go.
  */
 export function* makeBody(
   id: string,
@@ -551,7 +575,7 @@ export function* makeBody(
   const [ground, ...far] = rowsOf(recipe, { map: options.map ?? false });
   const fine = options.fine ?? AS_WRITTEN;
   const groundTris = isHull(ground)
-    ? mk(ground, 0, fine)
+    ? yield* mkSliced(ground, fine)
     : yield* groundOf(ground, options.seed ?? id, options.detail, options.looks);
   const parts: BuiltPart[] = [];
   const names = new Set<string>();
@@ -569,7 +593,7 @@ export function* makeBody(
         throw new Error(`${id}: '${name}' is a ghost, so the recipe names its family (ghost)`);
       }
       const g: Unlit = flags & FLAG.glow ? 2 : flags & FLAG.flat ? 1 : 0;
-      const tris = items.flatMap((x, j) => mk(x, j, fine)).map((t) => (t.g ? t : { ...t, g }));
+      const tris = yield* mkSliced(items, fine, g);
       parts.push({ name, tier, flags, tris, pivot: pivotOf(items) });
       yield;
     }

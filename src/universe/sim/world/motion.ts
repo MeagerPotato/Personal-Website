@@ -4,7 +4,9 @@ import { TAU } from '../math';
  * THE ACT: one small, slow motion that tells a body's story, as a table (design/worlds/motion.ts)
  * and one pure driver. Calm first: a continuous motion takes 6 s or more, an event comes no more
  * often than every 10 s, nothing blinks, and every motion has a STILL (motion.test.ts checks the
- * whole table).
+ * whole table). An island's life (its water, smoke, leaves, gulls, islets, clouds and crystals,
+ * `ISLE_LIFE` in design/worlds/motion.ts) is the one exception: it may be quicker, 1.2 s and an
+ * event every 5 s, and is not counted among a body's two motions.
  *
  * A row is `[part, target, axis, shape, amount, period, phase = 0, rest = 0]`:
  *   part    the part that moves ('*': the whole body). It moves about its own pivot (rows.ts), so

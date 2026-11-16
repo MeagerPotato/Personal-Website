@@ -4,8 +4,8 @@ import type { ColorPath } from '../../sim/world/palette';
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
 import { CORE } from './gears';
 import { rocket } from './home';
-import { ROBOT_AT } from './islands';
-import { on } from './isles';
+import { FIELD_Y, ROBOT_AT } from './islands';
+import { CORGI_DUST } from './islands/corgi';
 import { nth, rad } from './shared';
 
 /**
@@ -69,7 +69,7 @@ const robotics: PartRow[] = [
     0,
     [
       'x',
-      GUESSES.map(([x, z]): Vec3 => on(ROBOT_AT[0] + x * 0.8, ROBOT_AT[1] + z * 0.8, 0.12)),
+      GUESSES.map(([x, z]): Vec3 => [ROBOT_AT[0] + x * 0.8, FIELD_Y + 0.12, ROBOT_AT[1] + z * 0.8]),
       ['box', 0.035, 0.035, 0.035, 'ink.high', { g: 1 }],
     ],
   ],
@@ -268,5 +268,6 @@ export const NEAR: Readonly<Record<string, readonly PartRow[]>> = {
   'system/research': researchSun,
   'system/hackathons': hackathonsSun,
   'project/robotics': robotics,
+  'project/corgi': [CORGI_DUST],
   'project/model-rocketry': modelRocketryNear,
 };

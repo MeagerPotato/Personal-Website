@@ -96,7 +96,8 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
    that is showing (same state, no new entry), and a same-page link goes through it.
 8. **Colours live in `src/universe/design/tokens.ts` and nowhere else.** CSS reads them as custom
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
-   a lit surface is exactly the token hex and 3D matches the DOM.
+   a lit surface is exactly the token hex and 3D matches the DOM (a world's cubes stray a few
+   percent either way round it, cube by cube: docs/DESIGN.md, "Cubes", the grain).
 9. **Whoever creates a GPU resource disposes it.** Every engine system implements `dispose()`.
    In a dev build the engine counts what is left when it is disposed and warns in the console.
 10. **Thin Astro.** Astro pre-renders pages and owns the content layer. `astro:*` imports only in

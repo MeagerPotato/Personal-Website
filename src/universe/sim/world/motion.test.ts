@@ -10,6 +10,27 @@ import { rowsOf } from './rows';
 // pivots and all, is measured on the built bodies: tests/world-bodies.test.ts.)
 
 const CONTINUOUS: ReadonlySet<Shape> = new Set(['ramp', 'sine']);
+
+/**
+ * An island's LIFE (design/worlds/isles.ts and the motion table's ISLE_LIFE): the water that
+ * pours, the smoke, the leaves, the gulls, the islets, the clouds and the crystals. Allen asked on
+ * 2026-11-16 for the islands to live as his reference does ("take a deeper look at the design
+ * and animation"), so these are the background of a diorama, not its story: water pours faster
+ * than a story moves (a period of 1.2 s or more, an event every 5 s), and they are not counted
+ * among a body's two motions. Only a project's world is an island: anywhere else these names
+ * keep every rule below, as the story's motions do.
+ */
+const LIFE: ReadonlySet<string> = new Set([
+  'flow',
+  'smoke-1',
+  'smoke-2',
+  'leaves',
+  'gulls',
+  'islets',
+  'clouds',
+  'crystals',
+]);
+const isLife = (id: string, part: string): boolean => id.startsWith('project/') && LIFE.has(part);
 const rows = Object.entries(MOTION).flatMap(([id, list]) => list.map((row) => [id, row] as const));
 
 /**
@@ -45,10 +66,18 @@ const motionOf = (id: string, part: string): string =>
   TOGETHER[id]?.find((parts) => parts.includes(part))?.join('+') ?? part;
 
 describe('the motion table', () => {
-  it('moves continuously no faster than once in 6 s, an event every 10 s, a glow every 2.4 s', () => {
+  it('moves continuously no faster than once in 6 s, an event every 10 s, a glow every 2.4 s (life: 1.2 s and 5 s)', () => {
     for (const [id, row] of rows) {
       const [part, target, , shape, , period] = row;
-      const floor = target === 'glow' ? 2.4 : CONTINUOUS.has(shape) ? 6 : 10;
+      const floor = isLife(id, part)
+        ? CONTINUOUS.has(shape)
+          ? 1.2
+          : 5
+        : target === 'glow'
+          ? 2.4
+          : CONTINUOUS.has(shape)
+            ? 6
+            : 10;
       expect(period, `${id} ${part}`).toBeGreaterThanOrEqual(floor);
     }
   });
@@ -63,10 +92,12 @@ describe('the motion table', () => {
     }
   });
 
-  it('gives each body at most two motions, besides a planned body’s crane', () => {
+  it('gives each body at most two motions, besides a planned body’s crane and an island’s life', () => {
     for (const [id, list] of Object.entries(MOTION)) {
       const motions = new Set(
-        list.filter(([part]) => part !== 'crane').map(([part]) => motionOf(id, part)),
+        list
+          .filter(([part]) => part !== 'crane' && !isLife(id, part))
+          .map(([part]) => motionOf(id, part)),
       );
       expect(motions.size, `${id}: ${[...motions].join(', ')}`).toBeLessThanOrEqual(2);
     }

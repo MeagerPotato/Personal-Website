@@ -56,6 +56,26 @@ export interface VoxelOptions {
   readonly slice?: number;
   /** Carry where each corner is on its face (`VoxelMesh.cell`), for the shader's bevel. */
   readonly bevel?: boolean;
+  /**
+   * How much each lit cube's brightness strays from its colour, either way (0: none, 0.08: 8%),
+   * so that a field of one colour reads as cubes, the way voxel art paints them: a grain of its
+   * own and a broader patchiness every four cubes. Fixed by where the cube is (`grain`), never
+   * random. A flat, glowing or lamp cube keeps its colour exactly.
+   */
+  readonly jitter?: number;
+}
+
+/**
+ * A fixed value in [-1, 1] for a cube of the grid: an integer hash (no Math.random), so the same
+ * mesh always gets the same grain.
+ */
+export function grain(x: number, y: number, z: number): number {
+  let h =
+    Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1) ^ Math.imul(z | 0, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  h ^= h >>> 16;
+  return ((h >>> 0) / 0xffffffff) * 2 - 1;
 }
 
 /** A corner's openness for 0..3 filled neighbours, as a share of the darkest (classic voxel AO). */
@@ -258,6 +278,7 @@ export function* voxelize(input: VoxelInput, options: VoxelOptions): Generator<v
   const shade: number[] = [];
   const cells: number[] = [];
   const bevel = options.bevel === true;
+  const jitter = options.jitter ?? 0;
   const cube = [0, 0, 0];
   const corner = [0, 0, 0];
   const out = [0, 0, 0];
@@ -268,10 +289,14 @@ export function* voxelize(input: VoxelInput, options: VoxelOptions): Generator<v
         const value = fill[index(x, y, z)] ?? EMPTY;
         if (value < 2) continue;
         const k = (value - 2) * 4;
-        const r = palette[k] ?? 0;
-        const g = palette[k + 1] ?? 0;
-        const b = palette[k + 2] ?? 0;
         const unlit = palette[k + 3] ?? 0;
+        const tint =
+          jitter > 0 && unlit < 0.5
+            ? 1 + jitter * (0.6 * grain(x, y, z) + 0.4 * grain(x >> 2, y >> 2, (z >> 2) + 7919))
+            : 1;
+        const r = (palette[k] ?? 0) * tint;
+        const g = (palette[k + 1] ?? 0) * tint;
+        const b = (palette[k + 2] ?? 0) * tint;
         cube[0] = x;
         cube[1] = y;
         cube[2] = z;

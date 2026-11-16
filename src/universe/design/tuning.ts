@@ -973,6 +973,12 @@ export const tuning = {
       sourceScale: 2,
       /** How dark the darkest inside corner is: 1 is no corner shade at all. */
       occlusion: 0.58,
+      /**
+       * How far a lit cube's brightness strays from its colour, either way (sim/voxel.ts,
+       * `grain`): the grain of voxel art, so a lawn reads as cubes of grass and not one green.
+       * Allen, 2026-11-16: "these planets are extremely plain".
+       */
+      jitter: 0.09,
     },
     /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
     detailPlanet: 8,

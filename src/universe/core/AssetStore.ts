@@ -110,6 +110,6 @@ function inCubes(mesh: VoxelInput): VoxelMesh {
     if (value > (hi[axis] ?? 0)) hi[axis] = value;
   }
   const extent = Math.max(...hi.map((h, axis) => h - (lo[axis] ?? 0)), 1e-6);
-  const { modelCells, maxCells, occlusion } = tuning.world.voxel;
-  return finishNow(voxelize(mesh, { cell: extent / modelCells, maxCells, occlusion }));
+  const { modelCells, maxCells, occlusion, jitter } = tuning.world.voxel;
+  return finishNow(voxelize(mesh, { cell: extent / modelCells, maxCells, occlusion, jitter }));
 }

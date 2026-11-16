@@ -13,11 +13,13 @@ import {
   groundDetail,
   type Assembly,
   type Mover,
+  type Packed,
 } from '../src/universe/sim/world/glue';
 import { groundLook, type GroundLooks, type GroundSpec } from '../src/universe/sim/world/ground';
 import { centroidOf, corner, mulM, rotm, type Vec3 } from '../src/universe/sim/world/kit';
 import { absentAtRest, drive, type MotionRow } from '../src/universe/sim/world/motion';
 import { colorOf } from '../src/universe/sim/world/palette';
+import { finishNow, voxelize } from '../src/universe/sim/voxel';
 import {
   FLAG,
   fromPivot,
@@ -98,36 +100,48 @@ interface Budget {
 
 // prettier-ignore
 const GOLDEN: Readonly<Record<string, Budget>> = {
-  'page/about':                     { everyday: 2136, closeup: 5382, groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '26d94d60' },
-  'page/resume':                    { everyday: 856,  closeup: 1226, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7f1d4ef4' },
-  'page/contact':                   { everyday: 316,  closeup: 476,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'a8dbc6eb' },
-  'link/github':                    { everyday: 420,  closeup: 908,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '944ba5be' },
-  'link/linkedin':                  { everyday: 148,  closeup: 160,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92009a0f' },
-  'link/devpost':                   { everyday: 598,  closeup: 912,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3146ad73' },
-  'system/hardware':                { everyday: 2612, closeup: 2684, groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '0a97d327' },
-  'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
-  'system/research':                { everyday: 2578, closeup: 2890, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3e6c91fb' },
-  'system/hackathons':              { everyday: 2562, closeup: 2850, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c7f289f7' },
-  'project/robotics':               { everyday: 2200, closeup: 3132, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '985dacd5' },
-  'project/canadian-fish-demo':     { everyday: 1700, closeup: 2260, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '30e537eb' },
-  'project/fishai':                 { everyday: 1278, closeup: 1842, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '2b157b55' },
-  'project/days2meet':              { everyday: 1772, closeup: 2240, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'a34f1c3b' },
-  'project/hackgt-13':              { everyday: 2108, closeup: 2716, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '425ad0fb' },
-  'project/hackathons-at-berkeley': { everyday: 1736, closeup: 2316, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c845599b' },
-  'project/cal-hacks-13':           { everyday: 1346, closeup: 1814, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '67ff4d1f' },
-  'project/fish-online':            { everyday: 1242, closeup: 1786, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4e8ec197' },
-  'project/sports-analysis':        { everyday: 1208, closeup: 1780, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'e654ea06' },
-  'project/kalshi':                 { everyday: 1214, closeup: 1760, groups: 1, calls: 1, lowCalls: 1, movers: 3, print: 'dedbcfec' },
-  'project/corgi':                  { everyday: 1224, closeup: 1724, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0c466c85' },
-  'project/model-rocketry':         { everyday: 556,  closeup: 1332, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'ac353ff1' },
-  'project/cyberpatriot':           { everyday: 2100, closeup: 2672, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'fa84ef1c' },
-  'project/fish-onboarding':        { everyday: 1156, closeup: 1608, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'ff9ba358' },
+  'page/about':                     { everyday: 2136,  closeup: 5382,  groups: 2, calls: 2, lowCalls: 1, movers: 3, print: '26d94d60' },
+  'page/resume':                    { everyday: 856,   closeup: 1226,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '7f1d4ef4' },
+  'page/contact':                   { everyday: 316,   closeup: 476,   groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'a8dbc6eb' },
+  'link/github':                    { everyday: 420,   closeup: 908,   groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '944ba5be' },
+  'link/linkedin':                  { everyday: 148,   closeup: 160,   groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '92009a0f' },
+  'link/devpost':                   { everyday: 598,   closeup: 912,   groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3146ad73' },
+  'system/hardware':                { everyday: 2612,  closeup: 2684,  groups: 1, calls: 1, lowCalls: 1, movers: 14, print: '0a97d327' },
+  'system/software':                { everyday: 2052,  closeup: 2052,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
+  'system/research':                { everyday: 2578,  closeup: 2890,  groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3e6c91fb' },
+  'system/hackathons':              { everyday: 2562,  closeup: 2850,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c7f289f7' },
+  'project/robotics':               { everyday: 8650,  closeup: 16296, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '98a65923' },
+  'project/canadian-fish-demo':     { everyday: 10598, closeup: 18954, groups: 1, calls: 1, lowCalls: 1, movers: 9, print: '196b9b63' },
+  'project/fishai':                 { everyday: 10592, closeup: 16508, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: 'b23e6801' },
+  'project/days2meet':              { everyday: 11018, closeup: 18296, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '2c6f43ef' },
+  'project/hackgt-13':              { everyday: 9408,  closeup: 15802, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '03b8a410' },
+  'project/hackathons-at-berkeley': { everyday: 10320, closeup: 17698, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '7f30e6a3' },
+  'project/cal-hacks-13':           { everyday: 8902,  closeup: 15630, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: 'be0d6fc4' },
+  'project/fish-online':            { everyday: 10412, closeup: 18076, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '41fc3fa3' },
+  'project/sports-analysis':        { everyday: 10538, closeup: 18438, groups: 1, calls: 1, lowCalls: 1, movers: 9, print: '6151ff3e' },
+  'project/kalshi':                 { everyday: 10648, closeup: 18886, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '3d1a5755' },
+  'project/corgi':                  { everyday: 10074, closeup: 18126, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '4bcff427' },
+  'project/model-rocketry':         { everyday: 556,   closeup: 1332,  groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'ac353ff1' },
+  'project/cyberpatriot':           { everyday: 10896, closeup: 17296, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: 'ccd56af4' },
+  'project/fish-onboarding':        { everyday: 10694, closeup: 20940, groups: 1, calls: 1, lowCalls: 1, movers: 10, print: '7726ee75' },
 };
 
-/** The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. */
+/**
+ * The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. Since the
+ * voxel look (2026-11-16) every world reaches the GPU as cubes, so what a frame costs is the
+ * CUBES (`farCubes`, the everyday mesh cut at `tuning.world.voxel.cellsPerRadius`, per body and
+ * for the galaxy), and the triangles of the rows are only what the cubes are cut from: they cost
+ * building time, which makeBody slices across frames (sim/world/rows.ts, SLICE_TRIS). They rose
+ * on purpose and once, from 2800 every day and 6600 up close, when the islands were rebuilt
+ * dense (Allen: "these planets are extremely plain... take a deeper look at the design and
+ * animation of the artifact"): 11,000 rows every day and 21,000 up close at most, the islands'
+ * cubes 38,620 to 46,932 every day (the suns and home were already 40,000 to 47,000).
+ */
 const CEILING = {
-  everyday: 2800,
-  closeup: 6600,
+  everyday: 11500,
+  closeup: 21500,
+  farCubes: 50000,
+  galaxyFarCubes: 860000,
   galaxyCalls: 40,
   galaxyLowCalls: 30,
 } as const;
@@ -263,6 +277,22 @@ describe('the emblem worlds', () => {
     expect(lowCalls).toBeLessThanOrEqual(CEILING.galaxyLowCalls);
   });
 
+  it('keeps every body in cubes under the ceiling, and the whole galaxy under its own', () => {
+    const { cellsPerRadius, maxCells, occlusion, jitter } = tuning.world.voxel;
+    const options = { cell: 1 / cellsPerRadius, maxCells, occlusion, jitter };
+    const cubes = (packed: Packed): number =>
+      packed.triangleCount === 0 ? 0 : finishNow(voxelize(packed, options)).triangleCount;
+    let galaxy = 0;
+    for (const [id, recipe] of Object.entries(BODIES)) {
+      const { far, kind, still, motion } = built(id, recipe);
+      const rest = assemble(far, { kind, still, motion });
+      const count = cubes(rest.turn) + cubes(rest.hold);
+      expect(count, id).toBeLessThanOrEqual(CEILING.farCubes);
+      if (real.bodies.some((b) => b.id === id)) galaxy += count;
+    }
+    expect(galaxy).toBeLessThanOrEqual(CEILING.galaxyFarCubes);
+  });
+
   it('outlines every ghost in its family, and draws no lines for a body without one', () => {
     for (const [id, recipe] of Object.entries(BODIES)) {
       const { near, kind, still, motion } = built(id, recipe);
@@ -293,13 +323,29 @@ describe('the emblem worlds', () => {
       ['twin-rocket', 'turn'],
       ['twin-flame', 'turn'],
     ]);
-    // A planned island's crane and its ball both stand on the turning island.
+    // An island's life turns with it: a planned island's crane and its ball, the smoke, the
+    // leaves, the crystals under it, and the gulls, islets and clouds round it.
+    const LIFE: [string, string][] = [
+      ['smoke-1', 'turn'],
+      ['smoke-2', 'turn'],
+      ['leaves', 'turn'],
+      ['crystals', 'turn'],
+      ['gulls', 'turn'],
+      ['islets', 'turn'],
+      ['clouds', 'turn'],
+    ];
     expect(groups('project/sports-analysis')).toEqual([
       ['ball', 'turn'],
       ['crane', 'turn'],
+      ...LIFE,
     ]);
-    // Berkeley's buses turn round the island's middle, on the island.
-    expect(groups('project/hackathons-at-berkeley')).toEqual([['bus', 'turn']]);
+    // Berkeley's buses turn round the island's middle, on the island; its waterfall pours there.
+    expect(groups('project/hackathons-at-berkeley')).toEqual([
+      ['bus', 'turn'],
+      ['string-lights', 'turn'],
+      ['flow', 'turn'],
+      ...LIFE,
+    ]);
     // Model Rocketry never turns: its flame and streamer hang from the held group.
     expect(groups('project/model-rocketry')).toEqual([
       ['flame', 'hold'],

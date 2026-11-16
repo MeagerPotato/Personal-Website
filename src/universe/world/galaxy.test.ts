@@ -494,15 +494,15 @@ describe('Galaxy', () => {
     const normals = Array.from(mesh.geometry.getAttribute('normal').array);
     expect(normals.every((n) => n === 0 || Math.abs(n) === 1)).toBe(true);
 
-    // Every facet is one of the family's two colours (nudged by the generator's jitter), and none
-    // of its biome's.
+    // Every facet is one of the family's two colours (nudged by the generator's jitter, and each
+    // cube by its grain, tuning.world.voxel.jitter), and none of its biome's.
     const bands = plannedBands('sky');
     const colors = mesh.geometry.getAttribute('color');
+    const nudge = tuning.planet.colorJitter + tuning.world.voxel.jitter;
     const near = (at: number, band: readonly number[]): boolean =>
       [colors.getX(at), colors.getY(at), colors.getZ(at)].every(
         (value, channel) =>
-          Math.abs(value - (band[channel] ?? 0)) <=
-          tuning.planet.colorJitter * (band[channel] ?? 0) + 1e-6,
+          Math.abs(value - (band[channel] ?? 0)) <= nudge * (band[channel] ?? 0) + 1e-6,
       );
     for (let at = 0; at < colors.count; at += 1) {
       expect(near(at, bands.low) || near(at, bands.high)).toBe(true);

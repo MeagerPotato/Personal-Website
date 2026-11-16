@@ -61,12 +61,13 @@ export interface CloseUpSource {
  * radius 1, so a cube is `1 / cellsPerRadius` whatever the body's size.
  */
 function* inCubes(assembly: Assembly, near: boolean, low: boolean): Generator<void, Assembly> {
-  const { cellsPerRadius, nearCellsPerRadius, lowCellsPerRadius, maxCells, occlusion } =
+  const { cellsPerRadius, nearCellsPerRadius, lowCellsPerRadius, maxCells, occlusion, jitter } =
     tuning.world.voxel;
   const options = {
     cell: 1 / (low ? lowCellsPerRadius : near ? nearCellsPerRadius : cellsPerRadius),
     maxCells,
     occlusion,
+    jitter,
     bevel: near && !low,
   };
   const cubes = function* (packed: Packed): Generator<void, Packed> {

@@ -80,7 +80,7 @@ export class PlanetMesh {
   private build(detail: number, done: (geometry: BufferGeometry) => void): () => void {
     const { radius, seed, bands, look, jobs, nearDetail } = this.options;
     const near = nearDetail !== null && detail === nearDetail;
-    const { cellsPerRadius, nearCellsPerRadius, maxCells, occlusion, sourceScale } =
+    const { cellsPerRadius, nearCellsPerRadius, maxCells, occlusion, sourceScale, jitter } =
       tuning.world.voxel;
     // A finer ball under the cubes than would be drawn as it is (BodyMesh, `cubeDetailsOf`).
     const fine = Math.round(detail * sourceScale);
@@ -91,6 +91,7 @@ export class PlanetMesh {
         cell: radius / (near ? nearCellsPerRadius : cellsPerRadius),
         maxCells,
         occlusion,
+        jitter,
         bevel: near,
       });
     })();
