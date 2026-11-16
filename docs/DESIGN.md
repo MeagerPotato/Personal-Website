@@ -632,9 +632,11 @@ On 2026-11-05 Allen asked for the whole site in a voxel style, "less pixely" tha
 and without the "translucent, glossy look" of before. He chose from demos (the plan and the demos
 are linked from the project's notes) on 2026-11-05 and 2026-11-16:
 
-- **Fine cubes.** A body is cut into about 18 cubes per radius every day, 40 up close, 12 on the
-  low tier (`tuning.world.voxel`); a model (the rocket, the station, the satellite, a relay) into
-  about 30 along its longest side. The cubes are a grid in the body's own frame, so they turn
+- **Fine cubes.** A body is cut into about 30 cubes per radius every day, 64 up close, 16 on the
+  low tier (`tuning.world.voxel`; "even finer", 2026-11-16: it was 18, 40 and 12); a model (the
+  rocket, the station, the satellite, a relay) into about 44 along its longest side. The ground
+  under the cubes is built twice as finely as the worlds' budget draws it (`sourceScale`), so a
+  coast follows its shape, not its facets. The cubes are a grid in the body's own frame, so they turn
   with it and never crawl.
 - **No cell lines.** A face of cubes is one flat colour; nothing draws the grid.
 - **Corner shade.** Where blocks meet in a hollow the corner is darker (ambient occlusion baked
@@ -649,7 +651,14 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   with no blur.
 - **Flat where it is a chart.** The star map and the minimap are drawn as they were: the map tier
   of a body is not cut into cubes.
-- **Square stars.** A star's core and halo are squares (`tuning.starfield.square`).
+- **Square stars.** A star's core and halo are squares, and a bright one sparkles as a pixel
+  cross of four equal arms (`tuning.starfield.square`).
+- **A sky in blocks.** The baked sky's light (the Milky Way's haze, the far galaxies) is shown in
+  blocks of about 12 px on a laptop (`tuning.look.sky.mosaic`), so it sits with the cubes; what
+  is baked is unchanged, and so are its gates.
+- **Pixel headings, clean body.** On screen, headings, the wordmark, route signs, the nav, keys,
+  crumbs, caps labels and the engine's own controls over the world are set in Pixelify Sans
+  (`tokens.font.pixel`); paragraphs stay in Outfit, and paper stays in Outfit entirely.
 
 How: `sim/voxel.ts` turns any finished mesh into cubes (it fills a grid from the mesh's
 triangles, keeps the faces that show and bakes their corner shade). `world/BodyMesh.ts`,

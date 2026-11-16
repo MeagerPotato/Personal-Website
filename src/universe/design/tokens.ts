@@ -151,10 +151,10 @@ export const tokens = {
 
   font: {
     /**
-     * ONE self-hosted face for everything a visitor reads: Outfit (variable 100 to 900, Latin
+     * The self-hosted face for everything a visitor reads at length: Outfit (variable 100 to 900, Latin
      * subset, 32 KB, public/fonts), the clean geometric sans closest to Mini Motorways' own
-     * lettering. Headings, body, labels, chips and the HUD all speak it, the way every sign on a
-     * transit map is set in one face. 'Outfit Fallback' is local Arial scaled to Outfit's measure
+     * lettering. Paragraphs speak it everywhere, and paper speaks nothing else; on screen the
+     * headings, labels, chips and the HUD wear `pixel` (below) since 2026-11-16. 'Outfit Fallback' is local Arial scaled to Outfit's measure
      * and line box (section 0 of src/styles/global.css), so the swap moves very little: a single
      * line stays put, though a paragraph right at a line break can gain or lose a line.
      */
