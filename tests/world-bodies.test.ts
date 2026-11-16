@@ -136,12 +136,22 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
  * dense (Allen: "these planets are extremely plain... take a deeper look at the design and
  * animation of the artifact"): 11,000 rows every day and 21,000 up close at most, the islands'
  * cubes 38,620 to 46,932 every day (the suns and home were already 40,000 to 47,000).
+ *
+ * Every day is only near by, though: a world is drawn in its everyday cubes within
+ * `tuning.world.farEnterRadii` of the ship, and in its SMALL build (`smallCubes`, the everyday
+ * rows cut at `smallCellsPerRadius`) everywhere else and on the star map, where it is a dot. So
+ * what most frames cost is the small builds: about 3,000 triangles a world and 66,000 for the
+ * galaxy on 2026-11-16, where the everyday cubes of every world at once were 828,000 (on the
+ * low tier the star map drew 251,000 triangles a frame, and the CPU renderer took four times as
+ * long over it as before the cubes).
  */
 const CEILING = {
   everyday: 11500,
   closeup: 21500,
   farCubes: 50000,
   galaxyFarCubes: 860000,
+  smallCubes: 5000,
+  galaxySmallCubes: 75000,
   galaxyCalls: 40,
   galaxyLowCalls: 30,
 } as const;
@@ -165,6 +175,13 @@ function built(id: string, recipe: BodyRecipe) {
   const detail = (near: boolean): number => groundDetail(kind, planned, near, tuning.world);
   const fine = (near: boolean) => fineOf(near, false, tuning.world.round);
   const far = make(id, recipe, { detail: detail(false), seed, looks: LOOKS, fine: fine(false) });
+  // Seen small (world/BodyMesh.ts): the everyday rows, as round as the low tier's.
+  const small = make(id, recipe, {
+    detail: detail(false),
+    seed,
+    looks: LOOKS,
+    fine: fineOf(false, true, tuning.world.round),
+  });
   const near = make(id, recipe, {
     detail: detail(true),
     seed,
@@ -172,7 +189,7 @@ function built(id: string, recipe: BodyRecipe) {
     near: NEAR[id] ?? [],
     fine: fine(true),
   });
-  return { far, near, kind, still, motion };
+  return { far, small, near, kind, still, motion };
 }
 
 /** FNV-1a over text. */
@@ -278,19 +295,33 @@ describe('the emblem worlds', () => {
   });
 
   it('keeps every body in cubes under the ceiling, and the whole galaxy under its own', () => {
-    const { cellsPerRadius, maxCells, occlusion, jitter } = tuning.world.voxel;
-    const options = { cell: 1 / cellsPerRadius, maxCells, occlusion, jitter };
-    const cubes = (packed: Packed): number =>
-      packed.triangleCount === 0 ? 0 : finishNow(voxelize(packed, options)).triangleCount;
+    const { cellsPerRadius, smallCellsPerRadius, maxCells, occlusion, jitter } = tuning.world.voxel;
+    const cubesOf =
+      (cells: number) =>
+      (packed: Packed): number =>
+        packed.triangleCount === 0
+          ? 0
+          : finishNow(voxelize(packed, { cell: 1 / cells, maxCells, occlusion, jitter }))
+              .triangleCount;
+    const cubes = cubesOf(cellsPerRadius);
+    const coarse = cubesOf(smallCellsPerRadius);
     let galaxy = 0;
+    let galaxySmall = 0;
     for (const [id, recipe] of Object.entries(BODIES)) {
-      const { far, kind, still, motion } = built(id, recipe);
+      const { far, small, kind, still, motion } = built(id, recipe);
       const rest = assemble(far, { kind, still, motion });
       const count = cubes(rest.turn) + cubes(rest.hold);
       expect(count, id).toBeLessThanOrEqual(CEILING.farCubes);
-      if (real.bodies.some((b) => b.id === id)) galaxy += count;
+      const seen = assemble(small, { kind, still, motion });
+      const smallCount = coarse(seen.turn) + coarse(seen.hold);
+      expect(smallCount, id).toBeLessThanOrEqual(CEILING.smallCubes);
+      if (real.bodies.some((b) => b.id === id)) {
+        galaxy += count;
+        galaxySmall += smallCount;
+      }
     }
     expect(galaxy).toBeLessThanOrEqual(CEILING.galaxyFarCubes);
+    expect(galaxySmall).toBeLessThanOrEqual(CEILING.galaxySmallCubes);
   });
 
   it('outlines every ghost in its family, and draws no lines for a body without one', () => {

@@ -54,6 +54,8 @@ interface Made {
   material: ToonMaterial;
   closeUp: Source;
   finish(): void;
+  /** Within reach of the everyday build, which is then made. */
+  everyday(): void;
   /** Every object of the world by name, or undefined. */
   named(name: string): Object3D | undefined;
   shown(): string[];
@@ -70,6 +72,7 @@ function make(
     closeUp: Source;
     edges: (family: ThemeKey) => Material;
     recipe: BodyRecipe;
+    distanceRadii: number;
   }> = {},
 ): Made {
   const recipe = over.recipe ?? BODIES[id];
@@ -90,6 +93,7 @@ function make(
     reducedMotion: over.reducedMotion ?? false,
     closeUp,
     ...(over.edges ? { edges: over.edges } : {}),
+    ...(over.distanceRadii !== undefined ? { distanceRadii: over.distanceRadii } : {}),
   });
   return {
     world,
@@ -97,6 +101,11 @@ function make(
     material,
     closeUp,
     finish: () => {
+      while (jobs.pending > 0) jobs.frameUpdate();
+    },
+    everyday: () => {
+      while (jobs.pending > 0) jobs.frameUpdate();
+      world.update(EVERYDAY, step, 0);
       while (jobs.pending > 0) jobs.frameUpdate();
     },
     named: (name) => world.object.getObjectByName(name),
@@ -110,25 +119,101 @@ function make(
   };
 }
 
-const FAR = 100;
+/** Within reach of the everyday build, outside the close-up's. */
+const EVERYDAY = 20;
+/** Seen small: past the everyday build's reach. */
+const AWAY = 1000;
 const NEAR_BY = 2;
 const step = 1 / 60;
 
 describe('BodyMesh', () => {
-  it('draws nothing until its everyday build exists, then the body at its size', () => {
+  it('draws nothing until its small build exists, then the body at its size', () => {
     const { world, finish, shown, jobs } = make('project/robotics', 'planet', { radius: 8 });
     expect(world.built).toBe(false);
     expect(jobs.pending).toBe(1);
-    world.update(FAR, step, 0);
+    world.update(AWAY, step, 0);
     expect(shown()).toEqual([]);
     finish();
-    world.update(FAR, step, 0);
+    world.update(AWAY, step, 0);
     expect(world.built).toBe(true);
-    expect(shown()).toEqual(['far:turn']);
+    expect(shown()).toEqual(['small:turn']);
     // Modelled at radius 1, drawn at the body's.
     expect(world.object.scale.x).toBe(8);
     expect(world.reach).toBeGreaterThan(1);
     world.dispose();
+  });
+
+  it('draws a world seen small in coarse cubes, and its everyday cubes only within their reach', () => {
+    const { world, finish, shown, jobs, named } = make('project/robotics', 'planet');
+    const triangles = (name: string): number =>
+      (((named(name) as Mesh).geometry as BufferGeometry).index?.count ?? 0) / 3;
+    finish();
+    world.update(AWAY, step, 0);
+    expect(jobs.pending).toBe(0);
+    world.update(EVERYDAY, step, 0);
+    // Shown small until the everyday build exists, which is then swapped in.
+    expect(shown()).toEqual(['small:turn']);
+    finish();
+    world.update(EVERYDAY, step, 0);
+    expect(shown()).toEqual(['far:turn']);
+    // Coarse: a fraction of the everyday cubes' triangles.
+    expect(triangles('small:turn')).toBeLessThan(triangles('far:turn') / 3);
+    const reach = world.reach;
+
+    // Past the exit, but not for long: it stays, and is shown. Then it goes.
+    const { farExitRadii, farLingerSec } = tuning.world;
+    world.update(farExitRadii + 1, 1, 1);
+    expect(shown()).toEqual(['far:turn']);
+    world.update(farExitRadii + 1, farLingerSec, 2);
+    expect(named('far:turn')).toBeUndefined();
+    expect(shown()).toEqual(['small:turn']);
+    // Its reach does not shrink with it.
+    expect(world.reach).toBe(reach);
+
+    // On the star map, coarse while the map draws it small, every day where it draws it big.
+    const { smallBelowPx } = tuning.world.voxel;
+    world.update(AWAY, step, 3, true, smallBelowPx / 2);
+    expect(jobs.pending).toBe(0);
+    expect(shown()).toEqual(['small:turn']);
+    world.update(AWAY, step, 3, true, smallBelowPx * 2);
+    finish();
+    world.update(AWAY, step, 3, true, smallBelowPx * 2);
+    expect(shown()).toEqual(['far:turn']);
+    world.update(AWAY, step, 3, true, smallBelowPx / 2);
+    expect(shown()).toEqual(['small:turn']);
+    world.dispose();
+  });
+
+  it('made near by, builds its everyday cubes first, and its small ones once it is seen small', () => {
+    const { world, finish, shown, jobs, named } = make('project/robotics', 'planet', {
+      distanceRadii: NEAR_BY,
+    });
+    finish();
+    world.update(EVERYDAY, step, 0);
+    expect(world.built).toBe(true);
+    expect(shown()).toEqual(['far:turn']);
+    expect(named('small:turn')).toBeUndefined();
+    expect(jobs.pending).toBe(0);
+    // On the map, drawn small: the small build is made, and the everyday one shown until then.
+    world.update(EVERYDAY, step, 0, true);
+    expect(shown()).toEqual(['far:turn']);
+    finish();
+    world.update(EVERYDAY, step, 0, true);
+    expect(shown()).toEqual(['small:turn']);
+    world.dispose();
+
+    // Flown away from, it makes its small build before it lets the everyday one go.
+    const away = make('project/robotics', 'planet', { distanceRadii: NEAR_BY });
+    away.finish();
+    const { farExitRadii, farLingerSec } = tuning.world;
+    away.world.update(farExitRadii + 1, farLingerSec + 1, 1);
+    expect(away.named('far:turn')).toBeDefined();
+    away.finish();
+    away.world.update(farExitRadii + 1, step, 2);
+    away.world.update(farExitRadii + 1, farLingerSec + 1, 3);
+    expect(away.named('far:turn')).toBeUndefined();
+    expect(away.shown()).toEqual(['small:turn']);
+    away.world.dispose();
   });
 
   it('draws planned work at its share of the finished size, with its ghosts outlined', () => {
@@ -139,8 +224,12 @@ describe('BodyMesh', () => {
       recipe,
     });
     finish();
-    world.update(FAR, step, 0);
+    world.update(AWAY, step, 0);
     expect(world.object.scale.x).toBeCloseTo(8 * tuning.world.plannedScale, 12);
+    // Every build outlines its ghosts.
+    expect([named('small:turn:edges'), named('small:hold:edges')].some(Boolean)).toBe(true);
+    world.update(EVERYDAY, step, 0);
+    finish();
     const lines = [named('far:turn:edges'), named('far:hold:edges')].filter(Boolean);
     expect(lines.length).toBeGreaterThan(0);
     const edge = lines[0] as LineSegments;
@@ -164,7 +253,7 @@ describe('BodyMesh', () => {
     const recipe = ghosted('project/corgi', 'lilac');
     const one = make('project/corgi', 'planet', { planned: true, edges, recipe });
     const two = make('project/corgi', 'planet', { planned: true, edges, recipe });
-    for (const made of [one, two]) made.finish();
+    for (const made of [one, two]) made.everyday();
     const lines = (made: Made): Material =>
       ((made.named('far:turn:edges') ?? made.named('far:hold:edges')) as LineSegments)
         .material as Material;
@@ -180,7 +269,7 @@ describe('BodyMesh', () => {
 
   it('turns what the glue says turns, and nothing on the low tier', () => {
     const planet = make('project/robotics', 'planet');
-    planet.finish();
+    planet.everyday();
     expect(planet.world.turning).not.toBeNull();
     expect(planet.named('far:turn')?.parent).toBe(planet.world.turning);
 
@@ -192,7 +281,7 @@ describe('BodyMesh', () => {
       ['link/github', 'link'],
     ] as const) {
       const held = make(id, kind);
-      held.finish();
+      held.everyday();
       expect(held.world.turning, id).toBeNull();
       expect(held.named('far:turn'), id).toBeUndefined();
       held.world.dispose();
@@ -200,23 +289,23 @@ describe('BodyMesh', () => {
 
     // About Me: the ground turns, its Circle Line (stops at true bearings) holds.
     const about = make('page/about', 'home');
-    about.finish();
-    about.world.update(FAR, step, 0);
+    about.everyday();
+    about.world.update(EVERYDAY, step, 0);
     expect(about.shown()).toEqual(['far:hold', 'far:turn']);
     expect(about.named('far:hold')?.parent).toBe(about.world.object);
 
     // The low tier: one group, which never turns.
     const low = make('page/about', 'home', { low: true });
-    low.finish();
-    low.world.update(FAR, step, 0);
+    low.everyday();
+    low.world.update(EVERYDAY, step, 0);
     expect(low.world.turning).toBeNull();
     expect(low.shown()).toEqual(['far:hold']);
     for (const made of [planet, about, low]) made.world.dispose();
   });
 
   it('swaps the close-up in near by, drives its movers at the time given, and frees it later', () => {
-    const { world, finish, named, shown } = make('page/about', 'home');
-    finish();
+    const { world, finish, named, shown, everyday } = make('page/about', 'home');
+    everyday();
     world.update(NEAR_BY, step, 0);
     finish();
     world.update(NEAR_BY, step, 7.5);
@@ -236,9 +325,9 @@ describe('BodyMesh', () => {
     const geometry = (named('near:turn') as Mesh).geometry as BufferGeometry;
     const freed = vi.fn();
     geometry.addEventListener('dispose', freed);
-    world.update(FAR, 1, 13);
+    world.update(EVERYDAY, 1, 13);
     expect(named('near:turn')).toBeDefined();
-    world.update(FAR, tuning.world.nearLingerSec, 14);
+    world.update(EVERYDAY, tuning.world.nearLingerSec, 14);
     expect(named('near:turn')).toBeUndefined();
     expect(named('near:mover:train')).toBeUndefined();
     expect(freed).toHaveBeenCalledTimes(1);
@@ -249,7 +338,7 @@ describe('BodyMesh', () => {
   it('hides a part whose scale is nothing, and swells a glowing part’s brightness', () => {
     // The twin rocket's flame only exists while it flies (a bump of scale, 0 at rest).
     const about = make('page/about', 'home');
-    about.finish();
+    about.everyday();
     about.world.update(NEAR_BY, step, 0);
     about.finish();
     about.world.update(NEAR_BY, step, 0);
@@ -261,7 +350,7 @@ describe('BodyMesh', () => {
 
     // The Software sun's caret breathes (a glow).
     const software = make('system/software', 'sun');
-    software.finish();
+    software.everyday();
     software.world.update(NEAR_BY, step, 0);
     software.finish();
     software.world.update(NEAR_BY, step, 1.3);
@@ -278,8 +367,8 @@ describe('BodyMesh', () => {
 
   it('draws the still up close under reduced motion and on the low tier: no movers', () => {
     for (const over of [{ reducedMotion: true }, { low: true }]) {
-      const { world, finish, named, shown } = make('page/about', 'home', over);
-      finish();
+      const { world, finish, named, shown, everyday } = make('page/about', 'home', over);
+      everyday();
       world.update(NEAR_BY, step, 0);
       finish();
       world.update(NEAR_BY, step, 3);
@@ -291,9 +380,9 @@ describe('BodyMesh', () => {
 
   it('asks for the close-up rows only when it wants them, and waits for them', () => {
     const closeUp = source(null);
-    const { world, finish, shown } = make('project/robotics', 'planet', { closeUp });
-    finish();
-    world.update(FAR, step, 0);
+    const { world, finish, shown, everyday } = make('project/robotics', 'planet', { closeUp });
+    everyday();
+    world.update(EVERYDAY, step, 0);
     expect(closeUp.asked).toBe(0);
     world.update(NEAR_BY, step, 0);
     expect(closeUp.asked).toBe(1);
@@ -310,40 +399,48 @@ describe('BodyMesh', () => {
   it('builds the star map’s own variant for rows that have one, and shows it on the map', () => {
     const { world, finish, shown } = make('page/about', 'home');
     finish();
-    world.update(FAR, step, 0, true);
+    world.update(AWAY, step, 0, true);
     finish();
-    world.update(FAR, step, 0, true);
+    world.update(AWAY, step, 0, true);
     expect(shown().every((name) => name.startsWith('map:'))).toBe(true);
     expect(shown().length).toBeGreaterThan(0);
-    world.update(FAR, step, 0, false);
-    expect(shown()).toEqual(['far:hold', 'far:turn']);
+    world.update(AWAY, step, 0, false);
+    expect(shown()).toEqual(['small:hold', 'small:turn']);
     world.dispose();
 
-    // Rows with no variant draw the same on the map as in flight.
+    // Rows with no variant draw their cubes on the map, as far off in flight.
     const plain = make('project/robotics', 'planet');
     plain.finish();
-    plain.world.update(FAR, step, 0, true);
+    plain.world.update(AWAY, step, 0, true);
     expect(plain.jobs.pending).toBe(0);
-    expect(plain.shown()).toEqual(['far:turn']);
+    expect(plain.shown()).toEqual(['small:turn']);
     plain.world.dispose();
   });
 
   it('shows its still on the map near by too: never the close-up, and nothing moves', () => {
     // Docked at Hackathons, the map opened: the clock hand and the confetti are close-up movers.
-    const { world, finish, named, shown } = make('system/hackathons', 'sun', { radius: 20 });
-    finish();
+    const { world, finish, named, shown, everyday } = make('system/hackathons', 'sun', {
+      radius: 20,
+    });
+    everyday();
     world.update(NEAR_BY, step, 0);
     finish();
     world.update(NEAR_BY, step, 20);
     const hand = named('near:mover:hand');
     expect(hand?.visible).toBe(true);
     const turned = hand?.rotation.y;
-    world.update(NEAR_BY, step, 21, true);
-    expect(shown().length).toBeGreaterThan(0);
-    expect(
-      shown().every((name) => name.startsWith('far:')),
-      shown().join(),
-    ).toBe(true);
+    // In its coarse cubes while the map draws it small, its everyday ones where it is big.
+    for (const [px, tier] of [
+      [0, 'small:'],
+      [tuning.world.voxel.smallBelowPx * 2, 'far:'],
+    ] as const) {
+      world.update(NEAR_BY, step, 21, true, px);
+      expect(shown().length).toBeGreaterThan(0);
+      expect(
+        shown().every((name) => name.startsWith(tier)),
+        shown().join(),
+      ).toBe(true);
+    }
     world.update(NEAR_BY, step, 40, true);
     expect(hand?.rotation.y).toBe(turned);
     // Back in flight, the close-up is there still, and moving again.
@@ -354,8 +451,8 @@ describe('BodyMesh', () => {
   });
 
   it('gives back every geometry and material it made, and cancels a build still waiting', () => {
-    const { world, finish, jobs } = make('page/about', 'home');
-    finish();
+    const { world, finish, jobs, everyday } = make('page/about', 'home');
+    everyday();
     world.update(NEAR_BY, step, 0);
     finish();
     world.update(NEAR_BY, step, 0);

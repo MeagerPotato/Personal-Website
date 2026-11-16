@@ -639,6 +639,14 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   under the cubes is built twice as finely as the worlds' budget draws it (`sourceScale`), so a
   coast follows its shape, not its facets. The cubes are a grid in the body's own frame, so they turn
   with it and never crawl.
+- **Coarse when seen small.** A world that is only a few pixels across (far off in the sky, and
+  every world on the star map at its first view) is drawn in 8 cubes per radius, about a pixel
+  each there (`smallCellsPerRadius`): its small build, which every world has from the first. Its
+  everyday cubes are built within 80 radii of the ship (`tuning.world.farEnterRadii`, about 10 px
+  of radius on a laptop) and let go after a while past 100; on the map, where it is drawn bigger
+  than 16 px in radius (`smallBelowPx`). The world a page opens docked at builds its everyday
+  cubes first (`farFirstRadii`). Measured 2026-11-16 on the low tier: the star map drew 251,000
+  triangles a frame before, 85,000 after.
 - **No cell lines.** Nothing draws the grid: the cubes read by their grain and their corner
   shade.
 - **Grain.** Each cube is a few percent lighter or darker than its neighbours (`jitter`; see "The
@@ -665,7 +673,9 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   (`tokens.font.pixel`); paragraphs stay in Outfit, and paper stays in Outfit entirely.
 
 How: `sim/voxel.ts` turns any finished mesh into cubes (it fills a grid from the mesh's
-triangles, keeps the faces that show and bakes their corner shade). `world/BodyMesh.ts`,
+triangles, keeps the faces that show and bakes their corner shade; each face's four corners are
+shared by its two triangles, an indexed mesh, and a face carries no line data, so cubes take
+about half the memory they did as loose triangles). `world/BodyMesh.ts`,
 `world/PlanetMesh.ts` and `core/AssetStore.ts` (assets marked `cubes` in `design/assets.ts`) run
 it after a body is built, so every recipe and every emblem world still says what a body is made
 of, and the cubes follow. The worlds Allen means to draw again himself got nothing more than
@@ -680,7 +690,7 @@ longer surrounds a world.
 | What | Where |
 | --- | --- |
 | The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is; how soft the light is instead (`softness`, `softEdges`) and the close-up bevel | `tuning.shading` |
-| The cubes: how many per radius every day, up close and on the low tier, along a model, the largest grid, how dark a corner gets | `tuning.world.voxel` (the builder: `sim/voxel.ts`) |
+| The cubes: how many per radius every day, up close, on the low tier and seen small, along a model, the largest grid, how dark a corner gets; how far from the ship a world is in its everyday cubes (`farEnterRadii`, `farExitRadii`, `farLingerSec`, `farFirstRadii`, in `tuning.world`) and how big on the map (`smallBelowPx`) | `tuning.world.voxel` (the builder: `sim/voxel.ts`; which build is shown: `world/BodyMesh.ts`) |
 | What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |

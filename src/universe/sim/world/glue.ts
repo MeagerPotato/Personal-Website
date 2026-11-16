@@ -65,15 +65,21 @@ export interface Packed {
   readonly colors: Float32Array;
   /**
    * Eight numbers a vertex: a triangle's other colours and their lines (sim/meshBuilder.ts,
-   * `MeshData.sides`). Zeros wherever a triangle has one colour.
+   * `MeshData.sides`). Zeros wherever a triangle has one colour; empty in cubes (sim/voxel.ts),
+   * where none has.
    */
   readonly sides: Float32Array;
-  /** Four numbers a vertex: how those lines bend (`MeshData.bends`). Zeros where they are straight. */
+  /**
+   * Four numbers a vertex: how those lines bend (`MeshData.bends`). Zeros where they are
+   * straight; empty in cubes.
+   */
   readonly bends: Float32Array;
   /** 0 lit, 1 flat, 2 glow, on each vertex. */
   readonly unlit: Float32Array;
   /** 1 on each vertex of a decal part (FLAG.decal), else 0: for a depth offset. */
   readonly decal: Uint8Array;
+  /** In cubes (sim/voxel.ts), three corners a triangle; loose triangles where left out. */
+  readonly indices?: Uint16Array | Uint32Array;
   readonly triangleCount: number;
 }
 

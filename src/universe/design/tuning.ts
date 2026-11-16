@@ -957,6 +957,21 @@ export const tuning = {
       nearCellsPerRadius: 64,
       /** ...on the low tier, every day and up close. */
       lowCellsPerRadius: 16,
+      /**
+       * ...when the world is seen small (world/BodyMesh.ts, the small build): far off, and on the
+       * star map, where an island is a dot 14 px across. Every world has this build from the
+       * first; the everyday one is made within `farEnterRadii` (below). 8 cubes to a radius are
+       * about a pixel each at that distance on a laptop, and an island is about 3,000 triangles:
+       * a quarter of its low tier's, a thirteenth of its everyday cubes' (2026-11-16: drawn in
+       * those everywhere, the star map took four times as long on the CPU renderer as before).
+       */
+      smallCellsPerRadius: 8,
+      /**
+       * On the star map a world drawn bigger than this, in radius (CSS px), is in its everyday
+       * cubes: at its first view every world is under it (a sun about 12 to 16 px), and a world
+       * the wheel has brought closer is not.
+       */
+      smallBelowPx: 16,
       /** Cubes along a model's longest side (the rocket, the station, the satellite, a relay). */
       modelCells: 44,
       /**
@@ -1031,6 +1046,21 @@ export const tuning = {
     nearEnterRadii: 8,
     nearExitRadii: 10,
     nearLingerSec: 10,
+    /**
+     * The everyday cubes of an emblem world are built inside this many radii, and dropped after
+     * lingering outside the exit; past them it is drawn in its small build (`voxel`). 80 radii
+     * is about 10 px of radius on a laptop (55 degrees over 800 px).
+     */
+    farEnterRadii: 80,
+    farExitRadii: 100,
+    farLingerSec: 10,
+    /**
+     * A world this near when the galaxy is made (the one a page opens docked at) builds its
+     * everyday cubes first: it fills the view, where coarse cubes would show. Every other world
+     * builds its small ones first, so that the whole sky is there in a moment, and the everyday
+     * builds within reach follow (a sun beside it sharpens a moment later).
+     */
+    farFirstRadii: 10,
     /**
      * What generating meshes may take out of a frame (core/jobs.ts): this share of the time the
      * last frame took, within these limits. 4 ms at 60 fps; more only where frames are long anyway.

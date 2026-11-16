@@ -345,7 +345,7 @@ export class Galaxy implements System {
     this.placeLights();
     const spin = this.options.reducedMotion ? 0 : tuning.world.spinRadPerSec * frame.dt;
     this.place(frame.dt, spin, Math.max(0, t));
-    // The close-up rows load once every everyday build is done (the queue is idle), unless a
+    // The close-up rows load once every world is built (the queue is idle), unless a
     // world the ship came near asked for them first.
     if (this.worldCount > 0 && this.options.jobs.pending === 0) this.closeUp.request();
   }
@@ -598,7 +598,8 @@ export class Galaxy implements System {
   private place(dt: number, spin: number, time: number): void {
     const { positions, displayScale } = this;
     const viewer = this.options.viewer.position;
-    const onMap = (this.options.map?.weight ?? 0) >= 0.5;
+    const { map } = this.options;
+    const onMap = (map?.weight ?? 0) >= 0.5;
     let reach = 0;
     for (const view of this.views) {
       const x = positions[view.index * 2] ?? 0;
@@ -622,7 +623,10 @@ export class Galaxy implements System {
           const dz = z - (positions[view.outward * 2 + 1] ?? 0);
           view.world.object.rotation.y = Math.atan2(-dz, dx) + view.outwardYaw;
         }
-        view.world.update(distance, dt, time, onMap);
+        // On the map, how big it is drawn (its radius in CSS px): a world drawn big there is
+        // shown in its everyday cubes, one drawn small in coarse ones (world/BodyMesh.ts).
+        const mapPx = onMap && map ? (view.body.radius * scale) / map.unitsPerPx : 0;
+        view.world.update(distance, dt, time, onMap, mapPx);
       }
     }
     this.displayReach = reach;
@@ -707,6 +711,7 @@ export class Galaxy implements System {
         reducedMotion,
         closeUp: this.closeUp,
         edges: (family) => this.edgesOf(family),
+        distanceRadii: this.distanceTo(body.id, this.options.viewer.position) / body.radius,
       });
       view.world = world;
       this.worldCount += 1;

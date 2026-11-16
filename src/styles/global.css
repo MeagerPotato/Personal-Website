@@ -5180,6 +5180,18 @@ main > .resume-intro > .card-title--quiet {
   }
 
   /*
+   * Under 360 px the pixel face, wider than Outfit, needs a size less and tighter chips to keep
+   * the four words to one row (320 px: 270 px of 288). After the blocks above, so that it wins in
+   * a short window too. Every target stays 44 px tall.
+   */
+  @media (max-width: 22.49rem) {
+    html[data-mode='universe'] .site-nav a {
+      padding-inline: 0.25rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  /*
    * Narrow AND short (a laptop at 400 % zoom: 320 by 256): no room for world beside a panel, nor
    * under a sheet. An open panel takes the whole width under the bar, and the engine's controls
    * wait until it closes, so that nothing lies on the text.

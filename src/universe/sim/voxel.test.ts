@@ -35,6 +35,22 @@ describe('voxelize', () => {
     }
   });
 
+  it('shares a face’s four corners between its two triangles, and with no other face', () => {
+    const out = finishNow(voxelize(box(4), { cell: 1 }));
+    const faces = 6 * 25;
+    expect(out.positions.length / 3).toBe(faces * 4);
+    expect(out.indices.length).toBe(out.triangleCount * 3);
+    expect(Math.max(...out.indices)).toBe(faces * 4 - 1);
+    for (let face = 0; face < faces; face += 1) {
+      const six = Array.from(out.indices.subarray(face * 6, face * 6 + 6));
+      // Two triangles, of this face's own four corners, all four used.
+      expect(new Set(six)).toEqual(new Set([0, 1, 2, 3].map((i) => face * 4 + i)));
+    }
+    // A cube's face has no other colour and no line across it.
+    expect(out.sides.length).toBe(0);
+    expect(out.bends.length).toBe(0);
+  });
+
   it('gives every cube the colour of the surface through it, exactly', () => {
     const out = finishNow(voxelize(box(3, [0.2, 0.4, 0.6]), { cell: 1 }));
     for (let i = 0; i < out.colors.length; i += 3) {

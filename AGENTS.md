@@ -250,12 +250,13 @@ ring or none, or a registered model instead of the globe. `world/looks.ts` (`loo
 place that decides a look (recipe, then the body's emblem rows in `design/worlds/`, then the
 planned maquette, then the generator), for the galaxy and the lab alike, and `tests/worlds.test.ts`
 fails on a key that names no body. A new kind of thing a recipe can say is a logic change. A body
-with rows is drawn by `world/BodyMesh.ts`: the everyday build as a job, the close-up
-(`design/worlds/near.ts` and `motion.ts`, a chunk of their own through `closeup.ts`) within
-`nearEnterRadii`, and its movers driven by the frame's exact time, so nothing of them is a snapshot
-field. A recipe may also say `still` (it never turns) and `faces: 'prograde'` (its own +X keeps
-pointing the way it goes round its parent, as Model Rocketry flies nose first round the Hardware
-sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
+with rows is drawn by `world/BodyMesh.ts`, every build a job: the small build (coarse cubes, for a
+world seen small: far off, and on the star map), the everyday build within `farEnterRadii` (freed
+again past `farExitRadii`), the close-up (`design/worlds/near.ts` and `motion.ts`, a chunk of
+their own through `closeup.ts`) within `nearEnterRadii`, and its movers driven by the frame's exact
+time, so nothing of them is a snapshot field. A recipe may also say `still` (it never turns) and
+`faces: 'prograde'` (its own +X keeps pointing the way it goes round its parent, as Model Rocketry
+flies nose first round the Hardware sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
 is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
 on the low tier and on the star map.
 

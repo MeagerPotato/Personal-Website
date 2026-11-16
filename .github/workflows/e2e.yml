@@ -24,6 +24,14 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The suite in two halves, a runner each. On one runner it took 25 to 41 minutes of these 45
+    # by October 2026, and the voxel look (2026-11-16) draws more triangles, which the runner's
+    # CPU renderer pays for in every frame: the whole of it no longer fits. Every test still runs,
+    # with the same timeouts and retries; `fullyParallel` lets Playwright split them by test.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       ASTRO_TELEMETRY_DISABLED: 1
     steps:
@@ -40,12 +48,12 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
 
       # build -> playwright test (which starts its own `wrangler dev` on dist/)
-      - run: npm run e2e
+      - run: npm run e2e -- --shard=${{ matrix.shard }}/2
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/

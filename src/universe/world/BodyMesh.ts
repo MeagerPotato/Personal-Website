@@ -58,18 +58,11 @@ export interface CloseUpSource {
 /**
  * An assembly in cubes (sim/voxel.ts): its turning and held groups and each mover, on one grid
  * size, so that what moves is made of the same cubes as what stands. The rows are modelled at
- * radius 1, so a cube is `1 / cellsPerRadius` whatever the body's size.
+ * radius 1, so a cube is `1 / cells` whatever the body's size.
  */
-function* inCubes(assembly: Assembly, near: boolean, low: boolean): Generator<void, Assembly> {
-  const { cellsPerRadius, nearCellsPerRadius, lowCellsPerRadius, maxCells, occlusion, jitter } =
-    tuning.world.voxel;
-  const options = {
-    cell: 1 / (low ? lowCellsPerRadius : near ? nearCellsPerRadius : cellsPerRadius),
-    maxCells,
-    occlusion,
-    jitter,
-    bevel: near && !low,
-  };
+function* inCubes(assembly: Assembly, cells: number, bevel: boolean): Generator<void, Assembly> {
+  const { maxCells, occlusion, jitter } = tuning.world.voxel;
+  const options = { cell: 1 / cells, maxCells, occlusion, jitter, bevel };
   const cubes = function* (packed: Packed): Generator<void, Packed> {
     return packed.triangleCount === 0 ? packed : yield* voxelize(packed, options);
   };
@@ -80,6 +73,14 @@ function* inCubes(assembly: Assembly, near: boolean, low: boolean): Generator<vo
   return { ...assembly, turn, hold, movers };
 }
 
+/** Cubes to the radius of a tier's build (`tuning.world.voxel`): the map's own variant has none. */
+const cellsOf = (tier: Exclude<TierName, 'map'>, low: boolean): number => {
+  const voxel = tuning.world.voxel;
+  if (tier === 'small') return voxel.smallCellsPerRadius;
+  if (low) return voxel.lowCellsPerRadius;
+  return tier === 'near' ? voxel.nearCellsPerRadius : voxel.cellsPerRadius;
+};
+
 /** A ground's detail by kind: the tuning's, with a sun's coarser ball on the low tier. */
 const detailsOf = (low: boolean): GroundDetails =>
   low ? { ...tuning.world, detailSun: tuning.look.sun.detailLow } : tuning.world;
@@ -89,10 +90,11 @@ const detailsOf = (low: boolean): GroundDetails =>
  * drawn as it is (`detailsOf`, the worlds' budget), so that a coast or a band follows the
  * shape and not the facets once the cubes are small (`tuning.world.voxel.sourceScale`). Only
  * the cubes reach the GPU, so the finer ground costs time while it is built and nothing after.
+ * Not for coarse cubes (`coarse`: the small build) nor the star map's variant, which is flat.
  */
-const cubeDetailsOf = (low: boolean, map: boolean): GroundDetails => {
+const cubeDetailsOf = (low: boolean, coarse: boolean): GroundDetails => {
   const base = detailsOf(low);
-  if (low || map) return base;
+  if (low || coarse) return base;
   const k = tuning.world.voxel.sourceScale;
   const scale = (detail: number): number => Math.round(detail * k);
   return {
@@ -110,7 +112,7 @@ const loadCloseUp = (): Promise<CloseUpRows> => import('../design/worlds/closeup
 
 /**
  * The close-up chunk as a `CloseUpSource`: loaded once, the first time anyone asks (a world the
- * ship came near, or the galaxy at idle, once every everyday world is built). Should it fail to
+ * ship came near, or the galaxy at idle, once every world is built). Should it fail to
  * arrive (the network, a deploy that replaced it), the worlds stay at their everyday build,
  * which is the whole world at rest: nothing is lost but the close-up.
  */
@@ -177,6 +179,11 @@ export interface BodyMeshOptions {
    * is generated (`material` must be the AIR variant, which knows a lamp from a light).
    */
   readonly lamps?: boolean;
+  /**
+   * How far the viewer is when it is made, in its radii: within `farFirstRadii` its everyday
+   * build comes first, else its small one. Far off when left out.
+   */
+  readonly distanceRadii?: number;
 }
 
 /** A part that moves, drawn: the object its rows drive, and a glowing part's own brightness. */
@@ -197,12 +204,15 @@ interface TierView {
 }
 
 /**
- * The three builds of a world: every day (flight, and the map), up close (the fine ground, the
- * close-up parts and the movers), and the star map's own variant of its rows, which only a body
+ * The four builds of a world: SMALL, the everyday rows in coarse cubes, for a world seen small
+ * (far off, and on the star map), which every world has from the first and keeps; FAR, the
+ * everyday build, made when the ship comes within `farEnterRadii` (or the star map draws the body
+ * big) and freed after `farLingerSec` past `farExitRadii`; NEAR, up close (the fine ground, the
+ * close-up parts and the movers); and the star map's own variant of its rows, which only a body
  * whose rows ask for one has (About Me's Circle Line, bolder and simpler).
  */
-type TierName = 'far' | 'near' | 'map';
-const TIER_NAMES: readonly TierName[] = ['far', 'near', 'map'];
+type TierName = 'small' | 'far' | 'near' | 'map';
+const TIER_NAMES: readonly TierName[] = ['small', 'far', 'near', 'map'];
 
 /**
  * A BODY DRAWN FROM ITS ROWS, an emblem world (sim/world; design/worlds): its ground and its
@@ -210,8 +220,12 @@ const TIER_NAMES: readonly TierName[] = ['far', 'near', 'map'];
  * planet (`turning`, which world/Galaxy.ts spins), a HELD group, which never does, and the edge
  * lines of the parts still to come (a planned world's blueprint), each riding what it outlines.
  *
- * Like world/PlanetMesh.ts: the everyday build is a job (core/jobs.ts, a slice per frame) and the
- * body is invisible until it exists; within `nearEnterRadii` of the viewer the close-up build
+ * Like world/PlanetMesh.ts: every build is a job (core/jobs.ts, a slice per frame). The body is
+ * invisible until its small build exists, the coarse cubes it is drawn in while it is seen small
+ * (a dot in the sky, or on the star map: 14 px across, where the everyday cubes were 12,000
+ * triangles a world on the low tier); within `farEnterRadii` the everyday build is made and
+ * swapped in, and freed again after `farLingerSec` outside `farExitRadii`, so that the galaxy
+ * holds few worlds in full at a time. Within `nearEnterRadii` of the viewer the close-up build
  * (the fine ground, the close-up rows of design/worlds/near.ts and the parts that move) is made
  * the same way and swapped in, and it is freed after `nearLingerSec` outside `nearExitRadii`. The
  * close-up rows and the motion table are a chunk of their own (design/worlds/closeup.ts), which
@@ -222,7 +236,8 @@ const TIER_NAMES: readonly TierName[] = ['far', 'near', 'map'];
  * so a rebuilt engine shows the same picture, and nothing of it is a snapshot field. Under
  * reduced motion and on the low tier the close-up is the still (every part at rest, no movers);
  * on the low tier it is one group, which never turns. The star map shows the still too: the map's
- * own variant where the rows have one, else the everyday build, never the close-up.
+ * own variant where the rows have one, else the small build, or the everyday one where the map
+ * draws the body bigger than `smallBelowPx` in radius; never the close-up.
  *
  * Whoever creates one disposes it: every geometry and material it made goes with it.
  */
@@ -233,14 +248,23 @@ export class BodyMesh {
   readonly turning: Group | null;
 
   private readonly scope = new Scope();
-  private readonly tiers: Record<TierName, TierView | null> = { far: null, near: null, map: null };
+  private readonly tiers: Record<TierName, TierView | null> = {
+    small: null,
+    far: null,
+    near: null,
+    map: null,
+  };
   private building: { readonly tier: TierName; readonly cancel: () => void } | null = null;
   private readonly edges: Material | null;
   /** The size of the rows' radius 1, as a share of the body's radius (planned work is smaller). */
   readonly share: number;
   /** Does it look any different up close? Unknown until the close-up rows have arrived. */
   private closer: boolean | null = null;
+  /** How long the viewer has been past the exit of the close-up, and of the everyday build (s). */
   private awaySec = 0;
+  private farAwaySec = 0;
+  /** How far the everyday build reaches, once it has been made (radii of the rows; 0 before). */
+  private farReach = 0;
   private disposed = false;
 
   constructor(private readonly options: BodyMeshOptions) {
@@ -260,30 +284,54 @@ export class BodyMesh {
         this.scope.track(createEdgeMaterial({ color: tokens.color.system[family].base })))
       : null;
     this.scope.onDispose(() => this.object.removeFromParent());
-    this.build('far');
+    // The first build is what the viewer sees first: a world big on the screen never shows its
+    // coarse cubes on the way to its everyday ones, and every other world is up in a moment.
+    const at = options.distanceRadii ?? Infinity;
+    this.build(at < tuning.world.farFirstRadii ? 'far' : 'small');
   }
 
-  /** How far the body is drawn from its centre, in its radii (1 until it is built). */
+  /**
+   * How far the body is drawn from its centre, in its radii (1 until it is built): the small
+   * build's reach, or the everyday build's once it has been made, whichever is further, so that
+   * it never shrinks when the everyday build is freed.
+   */
   get reach(): number {
-    return Math.max(1, (this.tiers.far?.reach ?? 1) * this.share);
+    return Math.max(1, Math.max(this.tiers.small?.reach ?? 1, this.farReach) * this.share);
   }
 
-  /** Is anything drawn yet? */
+  /** Is anything drawn yet? (The small build or the everyday one, whichever came first.) */
   get built(): boolean {
-    return this.tiers.far !== null;
+    return this.tiers.small !== null || this.tiers.far !== null;
   }
 
   /**
    * Once a frame. `distanceRadii`: how far the viewer is from the centre, in radii of this body;
-   * `time`: the exact simulation time of this frame (s); `onMap`: the star map is what is shown.
+   * `time`: the exact simulation time of this frame (s); `onMap`: the star map is what is shown;
+   * `mapRadiusPx`: how big the map draws the body, its radius in CSS px.
    */
-  update(distanceRadii: number, dt: number, time: number, onMap = false): void {
+  update(distanceRadii: number, dt: number, time: number, onMap = false, mapRadiusPx = 0): void {
     if (this.disposed) return;
     const { nearEnterRadii, nearExitRadii, nearLingerSec } = tuning.world;
+    const { farEnterRadii, farExitRadii, farLingerSec } = tuning.world;
+    const { tiers } = this;
+    // One job at a time: the close-up waits for the everyday build, and a world builds the small
+    // build or the everyday one when it first wants it (it made one of them at once).
+    const bigOnMap = onMap && mapRadiusPx > tuning.world.voxel.smallBelowPx;
+    const everyday = distanceRadii < farEnterRadii || bigOnMap;
+    if (everyday) {
+      this.farAwaySec = 0;
+      if (!tiers.far && !this.building) this.build('far');
+    } else if (!tiers.small && !this.building) {
+      this.build('small');
+    } else if (distanceRadii > farExitRadii && tiers.far && tiers.small) {
+      this.farAwaySec += dt;
+      if (this.farAwaySec > farLingerSec) this.free('far');
+    }
+    // The map draws it small: its small build, which a world built near by has not made yet.
+    if (onMap && !bigOnMap && !tiers.small && !this.building) this.build('small');
     if (distanceRadii < nearEnterRadii) {
       this.awaySec = 0;
-      // One job at a time: the close-up waits for the everyday build to exist.
-      if (!this.tiers.near && !this.building && this.built && this.closer !== false) {
+      if (!tiers.near && !this.building && tiers.far && this.closer !== false) {
         const { closeUp } = this.options;
         const rows = closeUp.rows;
         if (rows === null) closeUp.request();
@@ -292,19 +340,22 @@ export class BodyMesh {
           if (this.closer) this.build('near', rows);
         }
       }
-    } else if (distanceRadii > nearExitRadii && this.tiers.near) {
+    } else if (distanceRadii > nearExitRadii && tiers.near) {
       this.awaySec += dt;
       if (this.awaySec > nearLingerSec) this.free('near');
     }
     const variant = typeof this.options.recipe.rows === 'function';
-    if (onMap && variant && !this.tiers.map && !this.building && this.built) this.build('map');
+    if (onMap && variant && !tiers.map && !this.building && this.built) this.build('map');
 
-    // On the map, the still: its own variant, or the everyday build until that exists (or when
-    // there is none), and never the close-up, whose parts move and some of which are not in the
-    // still at all.
-    const { tiers } = this;
+    // On the map, the still: its own variant, or its cubes until that exists (or when there is
+    // none), and never the close-up, whose parts move and some of which are not in the still at
+    // all. Everywhere, the finest build that exists of those it may show.
     let shown: TierName | null = null;
-    if (this.built) shown = onMap ? (tiers.map ? 'map' : 'far') : tiers.near ? 'near' : 'far';
+    if (this.built) {
+      const cubes: TierName = (bigOnMap ? tiers.far : !tiers.small) ? 'far' : 'small';
+      if (onMap) shown = tiers.map ? 'map' : cubes;
+      else shown = tiers.near ? 'near' : tiers.far ? 'far' : 'small';
+    }
     for (const name of TIER_NAMES) {
       const view = tiers[name];
       if (view) for (const object of view.objects) object.visible = name === shown;
@@ -333,17 +384,18 @@ export class BodyMesh {
   private build(tier: TierName, rows?: CloseUpRows): void {
     const { id, kind, planned, seed, recipe, low, reducedMotion, jobs } = this.options;
     const near = tier === 'near';
+    const small = tier === 'small';
     const lamps = near && this.options.lamps === true;
     const motion = (near && rows?.MOTION[id]) || [];
     const closeUpRows = (near && rows?.NEAR[id]) || [];
     const job = (function* (): Generator<void, Assembly> {
       const made = yield* makeBody(id, recipe, {
-        detail: groundDetail(kind, planned, near, cubeDetailsOf(low, tier === 'map')),
+        detail: groundDetail(kind, planned, near, cubeDetailsOf(low, small || tier === 'map')),
         looks: { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun },
         seed,
         map: tier === 'map',
         near: closeUpRows,
-        fine: fineOf(near, low, tuning.world.round),
+        fine: fineOf(near, low || small, tuning.world.round),
       });
       const build = lamps ? withLamps(made, recipe, seed) : made;
       yield;
@@ -356,12 +408,15 @@ export class BodyMesh {
         motion,
       });
       // The star map's own variant stays as it is drawn: the map is flat (docs/DESIGN.md).
-      return tier === 'map' ? assembly : yield* inCubes(assembly, near, low);
+      if (tier === 'map') return assembly;
+      return yield* inCubes(assembly, cellsOf(tier, low), near && !low);
     })();
     const cancel = jobs.add(job, (assembly) => {
       this.building = null;
       if (this.disposed) return;
-      this.tiers[tier] = this.draw(tier, assembly, motion);
+      const view = this.draw(tier, assembly, motion);
+      this.tiers[tier] = view;
+      if (tier === 'far') this.farReach = Math.max(this.farReach, view.reach);
     });
     this.building = { tier, cancel };
   }

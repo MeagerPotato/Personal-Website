@@ -26,7 +26,16 @@ export interface VoxelInput {
   readonly triangleCount: number;
 }
 
-/** What comes out: cubes' outer faces, two triangles each. */
+/** No numbers at all: a cube's face has no other colour, and no line across it. */
+const NONE = new Float32Array(0);
+
+/**
+ * What comes out: cubes' outer faces, two triangles each (`sides` and `bends` empty). INDEXED:
+ * a face's four corners once each, and its two triangles as six indices into them, so that a
+ * world's cubes are two thirds of the vertices they would be as loose triangles (and a frame's
+ * vertex shading two thirds too, where the corners are cached: the CPU renderer of CI is bound
+ * by it).
+ */
 export interface VoxelMesh {
   readonly positions: Float32Array;
   readonly normals: Float32Array;
@@ -42,6 +51,8 @@ export interface VoxelMesh {
    * cubes along the face's two axes, then 0, then 1 (or all four 0: no bevel).
    */
   readonly cell?: Float32Array;
+  /** Three corners a triangle (`triangleCount` of them): 16 bits while the corners fit. */
+  readonly indices: Uint16Array | Uint32Array;
   readonly triangleCount: number;
 }
 
@@ -277,6 +288,7 @@ export function* voxelize(input: VoxelInput, options: VoxelOptions): Generator<v
   const unlitOut: number[] = [];
   const shade: number[] = [];
   const cells: number[] = [];
+  const indices: number[] = [];
   const bevel = options.bevel === true;
   const jitter = options.jitter ?? 0;
   const cube = [0, 0, 0];
@@ -347,7 +359,9 @@ export function* voxelize(input: VoxelInput, options: VoxelOptions): Generator<v
               (ao[0] ?? 0) + (ao[2] ?? 0) < (ao[1] ?? 0) + (ao[3] ?? 0)
                 ? [1, 2, 3, 1, 3, 0]
                 : [0, 1, 2, 0, 2, 3];
-            for (const i of tris) {
+            const first = positions.length / 3;
+            for (const i of tris) indices.push(first + i);
+            for (let i = 0; i < 4; i += 1) {
               const pos = at[i] ?? [0, 0, 0];
               positions.push(pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0);
               normals.push(d === 0 ? sign : 0, d === 1 ? sign : 0, d === 2 ? sign : 0);
@@ -365,16 +379,18 @@ export function* voxelize(input: VoxelInput, options: VoxelOptions): Generator<v
 
   const count = positions.length / 3;
   return {
+    indices: count <= 65536 ? new Uint16Array(indices) : new Uint32Array(indices),
     positions: new Float32Array(positions),
     normals: new Float32Array(normals),
     colors: new Float32Array(colors),
-    sides: new Float32Array(count * 8),
-    bends: new Float32Array(count * 4),
+    // A cube's face is one colour, with no line across it: none (core/geometry.ts draws zeros).
+    sides: NONE,
+    bends: NONE,
     unlit: new Float32Array(unlitOut),
     decal: new Uint8Array(count),
     shade: new Uint8Array(shade),
     ...(bevel ? { cell: new Float32Array(cells) } : {}),
-    triangleCount: count / 3,
+    triangleCount: indices.length / 3,
   };
 }
 

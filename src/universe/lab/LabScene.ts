@@ -894,7 +894,9 @@ class Turntable implements System {
     this.stepJump(frame);
     this.flame?.update(this.input, frame);
     // Up close as if the ship were at its surface; far as if across its system.
-    this.world?.update(state.near ? 0 : 1000, frame.dt, frame.simTime, state.onMap);
+    // "Far" is the everyday build: within its reach, outside the close-up's.
+    const away = (tuning.world.nearExitRadii + tuning.world.farEnterRadii) / 2;
+    this.world?.update(state.near ? 0 : away, frame.dt, frame.simTime, state.onMap);
     // On the star map every surface is flat colour, and a corona is only its halo (main.ts).
     setToonFlatness(state.onMap && this.world ? tuning.map.flatness : 0);
     this.corona?.setCalm(state.onMap ? 1 : 0);
