@@ -83,6 +83,27 @@ function* inCubes(assembly: Assembly, near: boolean, low: boolean): Generator<vo
 const detailsOf = (low: boolean): GroundDetails =>
   low ? { ...tuning.world, detailSun: tuning.look.sun.detailLow } : tuning.world;
 
+/**
+ * The detail of the ground that is cut into cubes (high and medium tiers): finer than the one
+ * drawn as it is (`detailsOf`, the worlds' budget), so that a coast or a band follows the
+ * shape and not the facets once the cubes are small (`tuning.world.voxel.sourceScale`). Only
+ * the cubes reach the GPU, so the finer ground costs time while it is built and nothing after.
+ */
+const cubeDetailsOf = (low: boolean, map: boolean): GroundDetails => {
+  const base = detailsOf(low);
+  if (low || map) return base;
+  const k = tuning.world.voxel.sourceScale;
+  const scale = (detail: number): number => Math.round(detail * k);
+  return {
+    detailPlanet: scale(base.detailPlanet),
+    detailNear: scale(base.detailNear),
+    detailMoon: scale(base.detailMoon),
+    detailSun: scale(base.detailSun),
+    detailMaquettePlanet: scale(base.detailMaquettePlanet),
+    detailMaquetteMoon: scale(base.detailMaquetteMoon),
+  };
+};
+
 /** The close-up chunk. Its only import, and a dynamic one: the chunk is a file of its own. */
 const loadCloseUp = (): Promise<CloseUpRows> => import('../design/worlds/closeup');
 
@@ -316,7 +337,7 @@ export class BodyMesh {
     const closeUpRows = (near && rows?.NEAR[id]) || [];
     const job = (function* (): Generator<void, Assembly> {
       const made = yield* makeBody(id, recipe, {
-        detail: groundDetail(kind, planned, near, detailsOf(low)),
+        detail: groundDetail(kind, planned, near, cubeDetailsOf(low, tier === 'map')),
         looks: { planet: tuning.planet, terrain: tuning.terrain, sun: tuning.look.sun },
         seed,
         map: tier === 'map',

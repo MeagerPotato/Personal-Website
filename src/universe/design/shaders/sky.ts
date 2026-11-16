@@ -17,7 +17,8 @@
  * holds then shows.
  *
  * Uniforms: uBloomMask (shared, see materials.ts), uDeep, uHorizon (linear colours),
- * uHorizonFalloff; uPano (the panorama: rgb the added light, alpha how much of a star shows:
+ * uHorizonFalloff; uMosaic (the blocks the baked light is shown in, across and up; 0 smooth);
+ * uPano (the panorama: rgb the added light, alpha how much of a star shows:
  * shared with the stars) and uExposure (how much of its light shows: the reveal, less while
  * docked and on the star map).
  */
@@ -40,6 +41,7 @@ export const backdrop = {
     uniform float uHorizonFalloff;
     uniform sampler2D uPano;
     uniform float uExposure;
+    uniform vec2 uMosaic;
 
     varying vec3 vDirection;
 
@@ -55,6 +57,8 @@ export const backdrop = {
 
       // The panorama is an equal-area cylinder: azimuth across, the direction's y up.
       vec2 at = vec2(atan(direction.x, direction.z) * 0.15915494 + 0.5, direction.y * 0.5 + 0.5);
+      // In blocks, to sit with the cube worlds: every point of a block shows its middle.
+      if (uMosaic.x > 0.0) at = (floor(at * uMosaic) + 0.5) / uMosaic;
       // The azimuth jumps a whole turn at the seam: no derivative of it may pick a level.
       color += textureLod(uPano, at, 0.0).rgb * uExposure;
 
@@ -97,7 +101,8 @@ export const STAR_KIND_COUNT = 5;
  * two halos), uArm (length and gain of the spikes, length and gain of the line across) and
  * uThick (the sigma across a spike, and across the line across); uProfile (exponent, taper);
  * uBloomMask (shared, see materials.ts), uUnder (linear: the navy the stars are added to) and
- * uSquare (1 square stars, 0 round: `starfield.square`);
+ * uSquare (1 square stars with four equal arms, a pixel cross; 0 round, with six:
+ * `starfield.square`);
  * uPano (shared with the backdrop) and uReveal (0 until the sky is baked, then eased up to 1
  * with the sky's own light over `look.sky.revealSec`, world/SkyBake.ts; a cut under reduced
  * motion): a star in the Milky Way's dark lane is dimmed by the panorama's alpha there, and
@@ -208,11 +213,17 @@ export const stars = {
       float light = exp(-r2 * vCore) + vHalo.y * exp(-r2 * vHalo.x) + vHalo.w * exp(-r2 * vHalo.z);
       if (vArm.y + vArm.w > 0.0) {
         float arms = spike(vec2(0.0, 1.0), vArm.x, vThick.x);
-        if (vThick.z > 0.5) {
-          arms += spike(vec2(0.8660254, 0.5), vArm.x, vThick.x);
-          arms += spike(vec2(-0.8660254, 0.5), vArm.x, vThick.x);
+        if (uSquare > 0.5) {
+          // A square star sparkles as a pixel cross: four equal arms, upright and level.
+          arms += spike(vec2(1.0, 0.0), vArm.x, vThick.x);
+          light += vArm.y * arms;
+        } else {
+          if (vThick.z > 0.5) {
+            arms += spike(vec2(0.8660254, 0.5), vArm.x, vThick.x);
+            arms += spike(vec2(-0.8660254, 0.5), vArm.x, vThick.x);
+          }
+          light += vArm.y * arms + vArm.w * spike(vec2(1.0, 0.0), vArm.z, vThick.y);
         }
-        light += vArm.y * arms + vArm.w * spike(vec2(1.0, 0.0), vArm.z, vThick.y);
       }
       vec4 under = vec4(uUnder * (1.0 - uBloomMask), 0.0);
       gl_FragColor = vec4(vColor * light, 1.0) + under;

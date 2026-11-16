@@ -376,6 +376,7 @@ export function createBackdropMaterial(): ShaderMaterial {
       uHorizonFalloff: { value: tuning.backdrop.horizonFalloff },
       uPano: skyLight.uPano,
       uExposure: skyLight.uExposure,
+      uMosaic: { value: new Vector2(...tuning.look.sky.mosaic) },
     },
     side: BackSide,
     depthWrite: false,

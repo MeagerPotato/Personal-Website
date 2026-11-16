@@ -943,21 +943,34 @@ export const tuning = {
   /** How the galaxy is drawn (world/Galaxy.ts). */
   world: {
     /**
-     * THE VOXEL LOOK (sim/voxel.ts, docs/DESIGN.md "Voxel worlds"): every body is drawn in cubes,
+     * THE VOXEL LOOK (sim/voxel.ts, docs/DESIGN.md "Cubes"): every body is drawn in cubes,
      * so many to its radius. Allen chose fine cubes on 2026-11-05 ("finer than B"); the close-up
      * is finer still and carries the bevel. The star map draws no cubes (it stays flat).
      */
     voxel: {
-      /** Cubes to a body's radius, every day (the high and medium tiers). */
-      cellsPerRadius: 18,
+      /**
+       * Cubes to a body's radius, every day (the high and medium tiers). 30 since 2026-11-16,
+       * when Allen asked for "even finer" (it was 18, then 40 up close and 12 on the low tier).
+       */
+      cellsPerRadius: 30,
       /** ...when the ship is close (the close-up build). */
-      nearCellsPerRadius: 40,
+      nearCellsPerRadius: 64,
       /** ...on the low tier, every day and up close. */
-      lowCellsPerRadius: 12,
+      lowCellsPerRadius: 16,
       /** Cubes along a model's longest side (the rocket, the station, the satellite, a relay). */
-      modelCells: 30,
-      /** The widest grid, in cubes: past it the cube grows (memory: 6 bytes a cube while building). */
-      maxCells: 150,
+      modelCells: 44,
+      /**
+       * The widest grid, in cubes: past it the cube grows. A ringed world up close is about 4.8
+       * radii wide, so 256 keeps 53 cubes to its radius (memory: about 4 bytes a cell of its
+       * box while building, about 30 MB for that one and freed when it is done).
+       */
+      maxCells: 256,
+      /**
+       * The ground under the cubes is this many times finer than the one the worlds' budget
+       * draws (`detailPlanet` and the rest, below), so that a coast follows its shape and not
+       * its facets (world/BodyMesh.ts, `cubeDetailsOf`). Not on the low tier or the star map.
+       */
+      sourceScale: 2,
       /** How dark the darkest inside corner is: 1 is no corner shade at all. */
       occlusion: 0.58,
     },
@@ -1399,6 +1412,13 @@ export const tuning = {
      * baked: changing it means baking again.
      */
     sky: {
+      /**
+       * The voxel look's sky (Allen, 2026-11-16: "so it doesn't seem too out of place"): the
+       * baked light is SHOWN in blocks, this many across a whole turn and from the bottom of the
+       * sky to its top (about 12 px a block on a laptop). Nothing is baked differently, so the
+       * gates (tests/sky-gates.test.ts) hold as they were. [0, 0] shows it smooth.
+       */
+      mosaic: [720, 360] as [number, number],
       /** Scales the added light, after the ceiling has held it: never above 1. */
       intensity: 0.9,
       /** Seconds over which the baked sky's light comes in. A cut under reduced motion. */

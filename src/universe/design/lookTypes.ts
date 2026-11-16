@@ -91,6 +91,8 @@ export interface SkyBand {
 
 /** `tuning.look.sky`: design/tuning.ts says what each number does. */
 export interface SkyLook {
+  /** The blocks the baked light is shown in, across a turn and up the sky ([0, 0]: smooth). */
+  readonly mosaic: readonly [number, number];
   readonly intensity: number;
   readonly revealSec: number;
   readonly exposureDocked: number;

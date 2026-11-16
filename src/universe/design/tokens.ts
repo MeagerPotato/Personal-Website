@@ -161,6 +161,13 @@ export const tokens = {
     body: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
     /** Headings and the wordmark: the same face, heavier. */
     display: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
+    /**
+     * The voxel look's lettering (Allen, 2026-11-16: "pixel headings, clean body"): Pixelify Sans
+     * (OFL, variable 400 to 700, Latin, 12 KB, public/fonts) for headings, signs, labels, chips
+     * and keys on screen. Paragraphs stay in `body`, and paper stays in Outfit. Not preloaded: it
+     * swaps in, over Outfit, which holds its place until then.
+     */
+    pixel: "'Pixelify Sans', 'Outfit', 'Outfit Fallback', system-ui, sans-serif",
     /** Code only (Markdown `code` and `pre`): the system's own mono, nothing to download. */
     mono: "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
   },

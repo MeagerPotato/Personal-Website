@@ -697,8 +697,11 @@ describe('the sky’s bake', () => {
       'uExposure',
       'uHorizon',
       'uHorizonFalloff',
+      // How the panorama is shown: in blocks, for the cube worlds (tuning.look.sky.mosaic).
+      'uMosaic',
       'uPano',
     ]);
+    expect(material.uniforms.uMosaic?.value.toArray()).toEqual([...tuning.look.sky.mosaic]);
     // Every uniform the shader declares is handed to it.
     const declared = [...sky.backdrop.fragmentShader.matchAll(/uniform \w+ (\w+)/g)].map(
       (match) => match[1],

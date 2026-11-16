@@ -64,6 +64,18 @@
  *     94.9% at 700 (headings, the wordmark).
  * Apple devices have Arial too; phones without it fall through to system-ui, unmatched.
  */
+/* The voxel look's lettering for headings, signs, labels and keys (tokens.ts, `font.pixel`). */
+@font-face {
+  font-family: 'Pixelify Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/pixelify-sans-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @font-face {
   font-family: 'Outfit Fallback';
   font-style: normal;
@@ -456,6 +468,45 @@ h2,
 h3,
 .wordmark {
   font-family: var(--font-display);
+}
+
+/*
+ * PIXEL HEADINGS, CLEAN BODY (Allen, 2026-11-16). On a screen, what is read at a glance (the
+ * headings, the wordmark, the route signs, the nav, the keys, the crumbs, the caps labels and
+ * everything the engine sets over the world) is in the pixel face, to match the cubes; the
+ * paragraphs stay in Outfit, and paper stays in Outfit too (the resume's PDF is printed from it).
+ * A pixel face is drawn on a grid: no negative tracking, and weights of 400 to 700 only.
+ */
+@media screen {
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    .wordmark,
+    .eyebrow,
+    .site-nav,
+    .crumbs,
+    .panel-button,
+    .panel-toggle,
+    .mode-link,
+    .card__meta,
+    .entry__when,
+    .facts dt,
+    .flight-hint kbd,
+    .body-labels,
+    .dock-prompt,
+    .hyper-offer,
+    .map-toggle,
+    .flight-deck,
+    .minimap
+  ) {
+    font-family: var(--font-pixel);
+  }
+
+  :is(h1, h2, h3, h4, .wordmark) {
+    letter-spacing: 0;
+  }
 }
 
 h1 {
