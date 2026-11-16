@@ -52,39 +52,26 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
     ['flame', 'glow', '', 'sine', 1, 3, 0, 0.25],
     ['streamer', 'rot', 'z', 'sine', 0.22, 7],
   ],
-  'project/robotics': [['pose-cloud', 'scale', '*', 'hill', 1, 12, 0, 0.3]],
-  'project/cyberpatriot': [['fix-tick', 'scale', '*', 'hill', 1, 20]],
-  'project/canadian-fish-demo': [
-    ['card-fan', 'rot', 'z', 'sine', 0.06, 6],
-    ['ask-card', 'pos', 'x', 'ramp', -0.26, 10, 0, 0.4],
-    ['ask-card', 'scale', '*', 'hill', 1, 10, 0, 0.4],
+  'project/robotics': [
+    ['bot', 'pos', 'x', 'sine', 0.06, 9],
+    ['pose-cloud', 'scale', '*', 'hill', 1, 12, 0, 0.3],
   ],
-  'project/fishai': [
-    ['athena-loop', 'rot', 'y', 'ramp', TAU, 30],
-    // A turn about the axis the board's columns turn about (near.ts): west edge to east and back.
-    ['scan-bar', 'rot', 'y', 'sine', 0.45, 10, 0, 0.75],
-  ],
-  'project/fish-onboarding': [['scan-line', 'pos', 'z', 'sine', 0.17, 8]],
-  'project/days2meet': [['paint-cursor', 'pos', 'x', 'sine', 0.5, 8]],
+  // The islands (islands.ts): one small life each, and the planned ones' cranes.
+  'project/cyberpatriot': [['flags', 'rot', 'y', 'sine', 0.2, 7]],
+  'project/canadian-fish-demo': [['leap', 'pos', 'y', 'sine', 0.06, 7]],
+  'project/fishai': [['rod', 'rot', 'x', 'sine', 0.05, 6]],
+  'project/fish-onboarding': [['clouds', 'pos', 'y', 'sine', 0.04, 9]],
+  'project/days2meet': [['paint-cursor', 'pos', 'x', 'sine', 0.3, 8]],
   'project/fish-online': [CRANE],
-  'project/sports-analysis': [CRANE, ['ball', 'rot', 'y', 'ramp', TAU, 30]],
-  // The coin rocks as a whole ('*'), about the body's centre.
-  'project/kalshi': [CRANE, ['*', 'rot', 'z', 'sine', 0.12, 12]],
-  'project/corgi': [CRANE],
-  // The magnifier rides with the ring, over its seam.
-  'project/hackgt-13': [
-    ['wave-ring', 'rot', 'y', 'ramp', TAU, 60],
-    ['magnifier', 'rot', 'y', 'ramp', TAU, 60],
+  'project/sports-analysis': [CRANE, ['ball', 'pos', 'y', 'sine', 0.05, 6]],
+  'project/kalshi': [
+    CRANE,
+    ['yes-face', 'rot', 'y', 'ramp', TAU, 20],
+    ['no-face', 'rot', 'y', 'ramp', TAU, 20],
   ],
-  'project/hackathons-at-berkeley': [['headlights', 'glow', '', 'sine', 1, 4, 0, 0.25]],
-  // The four stands do the wave, a quarter period apart.
-  'project/cal-hacks-13': [0, 0.25, 0.5, 0.75].map((phase, i): MotionRow => [
-    `stands-${i + 1}`,
-    'pos',
-    'y',
-    'sine',
-    0.04,
-    8,
-    phase,
-  ]),
+  'project/corgi': [CRANE],
+  'project/hackgt-13': [['wave-ring', 'pos', 'y', 'sine', 0.04, 6]],
+  // Two buses opposite each other on the ring road: their part turns about the island's middle.
+  'project/hackathons-at-berkeley': [['bus', 'rot', 'y', 'ramp', TAU, 40]],
+  'project/cal-hacks-13': [['clouds', 'pos', 'x', 'sine', 0.05, 10]],
 };

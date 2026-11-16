@@ -1101,7 +1101,8 @@ class Turntable implements System {
               windows: own?.windows ?? false,
             };
     this.lamps = air?.windows === true && state.windows;
-    if (!air) return null;
+    // As in flight (main.ts): no shells round a world while the look has them off.
+    if (!air || !tuning.look.air.shells) return null;
     const { center } = this;
     const make = (): ToonMaterial => {
       const material = createToonMaterial({

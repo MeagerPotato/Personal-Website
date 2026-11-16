@@ -108,20 +108,20 @@ const GOLDEN: Readonly<Record<string, Budget>> = {
   'system/software':                { everyday: 2052, closeup: 2052, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '55bbfcbf' },
   'system/research':                { everyday: 2578, closeup: 2890, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '3e6c91fb' },
   'system/hackathons':              { everyday: 2562, closeup: 2850, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'c7f289f7' },
-  'project/robotics':               { everyday: 2292, closeup: 6176, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'b5bcdd37' },
-  'project/canadian-fish-demo':     { everyday: 1892, closeup: 5188, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '8b21b2eb' },
-  'project/fishai':                 { everyday: 1722, closeup: 2030, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '44eadb4c' },
-  'project/days2meet':              { everyday: 1706, closeup: 4762, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '13445590' },
-  'project/hackgt-13':              { everyday: 1908, closeup: 6156, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '50d29a94' },
-  'project/hackathons-at-berkeley': { everyday: 2498, closeup: 6088, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c94123a3' },
-  'project/cal-hacks-13':           { everyday: 1950, closeup: 4980, groups: 1, calls: 1, lowCalls: 1, movers: 4, print: 'f71727c0' },
-  'project/fish-online':            { everyday: 2084, closeup: 2676, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: 'ff1e7ca6' },
-  'project/sports-analysis':        { everyday: 2340, closeup: 3016, groups: 2, calls: 2, lowCalls: 1, movers: 2, print: '2eb57b5b' },
-  'project/kalshi':                 { everyday: 676,  closeup: 1260, groups: 1, calls: 2, lowCalls: 2, movers: 2, print: '569d8408' },
-  'project/corgi':                  { everyday: 2746, closeup: 3630, groups: 2, calls: 3, lowCalls: 2, movers: 1, print: '7a8df6ff' },
+  'project/robotics':               { everyday: 2200, closeup: 3132, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: '985dacd5' },
+  'project/canadian-fish-demo':     { everyday: 1700, closeup: 2260, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '30e537eb' },
+  'project/fishai':                 { everyday: 1278, closeup: 1842, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '2b157b55' },
+  'project/days2meet':              { everyday: 1772, closeup: 2240, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'a34f1c3b' },
+  'project/hackgt-13':              { everyday: 2108, closeup: 2716, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '425ad0fb' },
+  'project/hackathons-at-berkeley': { everyday: 1736, closeup: 2316, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'c845599b' },
+  'project/cal-hacks-13':           { everyday: 1346, closeup: 1814, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '67ff4d1f' },
+  'project/fish-online':            { everyday: 1242, closeup: 1786, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '4e8ec197' },
+  'project/sports-analysis':        { everyday: 1208, closeup: 1780, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'e654ea06' },
+  'project/kalshi':                 { everyday: 1214, closeup: 1760, groups: 1, calls: 1, lowCalls: 1, movers: 3, print: 'dedbcfec' },
+  'project/corgi':                  { everyday: 1224, closeup: 1724, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: '0c466c85' },
   'project/model-rocketry':         { everyday: 556,  closeup: 1332, groups: 1, calls: 1, lowCalls: 1, movers: 2, print: 'ac353ff1' },
-  'project/cyberpatriot':           { everyday: 1968, closeup: 4972, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'edf52fc8' },
-  'project/fish-onboarding':        { everyday: 1950, closeup: 2852, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'f937f226' },
+  'project/cyberpatriot':           { everyday: 2100, closeup: 2672, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'fa84ef1c' },
+  'project/fish-onboarding':        { everyday: 1156, closeup: 1608, groups: 1, calls: 1, lowCalls: 1, movers: 1, print: 'ff9ba358' },
 };
 
 /** The budget's ceilings (build-plan.md, section 7): per body, and for the whole galaxy. */
@@ -293,15 +293,17 @@ describe('the emblem worlds', () => {
       ['twin-rocket', 'turn'],
       ['twin-flame', 'turn'],
     ]);
-    // The planned crane stands on the ground; the ball rides the held ring.
+    // A planned island's crane and its ball both stand on the turning island.
     expect(groups('project/sports-analysis')).toEqual([
+      ['ball', 'turn'],
       ['crane', 'turn'],
-      ['ball', 'hold'],
     ]);
-    // The coin never turns: it rocks as a whole, carrying its crane.
-    expect(groups('project/kalshi')).toEqual([
-      ['*', 'hold'],
-      ['crane', 'hold'],
+    // Berkeley's buses turn round the island's middle, on the island.
+    expect(groups('project/hackathons-at-berkeley')).toEqual([['bus', 'turn']]);
+    // Model Rocketry never turns: its flame and streamer hang from the held group.
+    expect(groups('project/model-rocketry')).toEqual([
+      ['flame', 'hold'],
+      ['streamer', 'hold'],
     ]);
   });
 
@@ -392,8 +394,40 @@ describe('the emblem worlds', () => {
     // A ground with no relief is its shape exactly at the corners of its facets, and the facets
     // lie inside it. A decal that dips inside the shape anywhere (a flat plate on a rounded box)
     // is covered there by the ground: half a windshield, the foot of a sign.
+    // The islands stand on hulls, so the rule is also held on a rounded box of the kind the
+    // Berkeley bus once was, with a plate on its nose just off the skin.
+    const box: BodyRecipe = {
+      rows: [
+        {
+          seed: 'decal-fixture',
+          biome: 'lilac',
+          recipe: { flat: 0.5 },
+          shape: { p: 4, s: [1, 0.6, 0.6] },
+          up: 'vertex',
+        },
+        [
+          'nose-plate',
+          FLAG.decal,
+          [
+            'quad',
+            [1.01, -0.1, -0.1],
+            [1.01, -0.1, 0.1],
+            [1.01, 0.1, 0.1],
+            [1.01, 0.1, -0.1],
+            'space.800',
+            [1, 0, 0],
+          ],
+        ],
+      ],
+    };
+    const recipes: [string, BodyRecipe][] = [
+      ...Object.entries(BODIES).filter(
+        (entry): entry is [string, BodyRecipe] => entry[1] !== undefined,
+      ),
+      ['project/hackathons-at-berkeley', box],
+    ];
     let checked = 0;
-    for (const [id, recipe] of Object.entries(BODIES)) {
+    for (const [id, recipe] of recipes) {
       const [ground] = rowsOf(recipe, { map: false });
       if (isHull(ground) || groundLook(ground, LOOKS).flat === undefined) continue;
       const { p, s } = ground.shape ?? { p: 2, s: [1, 1, 1] };

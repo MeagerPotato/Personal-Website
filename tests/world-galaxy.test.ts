@@ -10,6 +10,8 @@ import { tuning } from '../src/universe/design/tuning';
 import { BODIES } from '../src/universe/design/worlds/bodies';
 import { MOTION } from '../src/universe/design/worlds/motion';
 import { NEAR } from '../src/universe/design/worlds/near';
+import type { ThemeKey } from '../src/universe/design/tokens';
+import { FLAG, type BodyRecipe, type PartRow } from '../src/universe/sim/world/rows';
 import { Galaxy } from '../src/universe/world/Galaxy';
 
 // THE REAL GALAXY, DRAWN FROM ITS ROWS (world/Galaxy.ts with world/BodyMesh.ts): every body that
@@ -25,7 +27,31 @@ const frame = (simTime: number, dt = 1 / 60): Frame => ({
   simTime,
 });
 
-function setup(over: { low?: boolean; reducedMotion?: boolean; viewer?: Vector3 } = {}) {
+/**
+ * A planned body's rows with a blueprint of what is still to come (FLAG.ghost) in `ghost`'s
+ * family. The planned islands are clay now, so the blueprint look is held on this fixture.
+ */
+function ghosted(id: string, ghost: ThemeKey): BodyRecipe {
+  const recipe = BODIES[id];
+  if (!recipe) throw new Error(`no rows for ${id}`);
+  const [ground, ...parts] =
+    typeof recipe.rows === 'function' ? recipe.rows({ map: false }) : recipe.rows;
+  const blueprint: PartRow = [
+    'blueprint',
+    FLAG.ghost,
+    ['box', 0.3, 0.3, 0.3, 'ink.mid', { at: [0, 0.45, 0] }],
+  ];
+  return { ...recipe, ghost, rows: [ground, ...parts, blueprint] };
+}
+
+function setup(
+  over: {
+    low?: boolean;
+    reducedMotion?: boolean;
+    viewer?: Vector3;
+    bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
+  } = {},
+) {
   const jobs = new JobQueue(1000);
   const viewer = { position: over.viewer ?? new Vector3(0, 0, -5000) };
   const closeUp = vi.fn(() => Promise.resolve({ NEAR, MOTION }));
@@ -37,6 +63,7 @@ function setup(over: { low?: boolean; reducedMotion?: boolean; viewer?: Vector3 
     reducedMotion: over.reducedMotion ?? false,
     low: over.low ?? false,
     closeUp,
+    ...(over.bodies ? { bodies: over.bodies } : {}),
   });
   const node = (id: string): Object3D => {
     const found = galaxy.object.getObjectByName(id);
@@ -323,7 +350,14 @@ describe('the real galaxy, drawn from its rows', () => {
   });
 
   it('draws the blueprint lines with one material per family, and gives each back', () => {
-    const { galaxy, finish } = setup();
+    // The planned islands are clay; three of them are given a blueprint here, in three families.
+    const bodies: Readonly<Partial<Record<string, BodyRecipe>>> = {
+      ...BODIES,
+      'project/kalshi': ghosted('project/kalshi', 'mint'),
+      'project/corgi': ghosted('project/corgi', 'lilac'),
+      'project/fish-online': ghosted('project/fish-online', 'sky'),
+    };
+    const { galaxy, finish } = setup({ bodies });
     finish();
     galaxy.frameUpdate(frame(1));
     // Planned work's lines, by the family its rows say it will wear (BodyRecipe.ghost).
@@ -332,7 +366,7 @@ describe('the real galaxy, drawn from its rows', () => {
       if (!child.name.endsWith(':edges')) return;
       let body: Object3D | null = child;
       while (body && !body.name.includes('/')) body = body.parent;
-      const family = BODIES[body?.name ?? '']?.ghost ?? '?';
+      const family = bodies[body?.name ?? '']?.ghost ?? '?';
       const seen = byFamily.get(family) ?? new Set<Material>();
       seen.add((child as LineSegments).material as Material);
       byFamily.set(family, seen);

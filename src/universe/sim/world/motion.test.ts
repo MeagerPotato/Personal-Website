@@ -39,8 +39,7 @@ const TOGETHER: Readonly<Record<string, readonly (readonly string[])[]>> = {
       'pin-nnn',
     ],
   ],
-  'project/cal-hacks-13': [['stands-1', 'stands-2', 'stands-3', 'stands-4']],
-  'project/hackgt-13': [['wave-ring', 'magnifier']],
+  'project/kalshi': [['yes-face', 'no-face']],
 };
 const motionOf = (id: string, part: string): string =>
   TOGETHER[id]?.find((parts) => parts.includes(part))?.join('+') ?? part;
@@ -151,7 +150,7 @@ describe('the driver', () => {
   it('leaves out of the still what only exists while it plays', () => {
     expect([...absentAtRest(MOTION['page/about'] ?? [])]).toEqual(['twin-flame']);
     expect([...absentAtRest(MOTION['system/hackathons'] ?? [])]).toEqual(['confetti']);
-    expect([...absentAtRest(MOTION['project/cyberpatriot'] ?? [])]).toEqual(['fix-tick']);
+    expect([...absentAtRest(MOTION['project/cyberpatriot'] ?? [])]).toEqual([]);
     expect([...absentAtRest(MOTION['project/robotics'] ?? [])]).toEqual([]);
     // A scale at 0 at its still, and nothing else.
     expect([...absentAtRest([['a', 'scale', '*', 'sine', 1, 8]])]).toEqual(['a']);

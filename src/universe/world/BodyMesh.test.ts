@@ -11,9 +11,27 @@ import { MOTION } from '../design/worlds/motion';
 import { NEAR } from '../design/worlds/near';
 import { hexToLinear } from '../sim/color';
 import { drive } from '../sim/world/motion';
+import { FLAG, type BodyRecipe, type PartRow } from '../sim/world/rows';
 import { BodyMesh, CloseUpLoader, type CloseUpRows, type CloseUpSource } from './BodyMesh';
 
 const ROWS: CloseUpRows = { NEAR, MOTION };
+
+/**
+ * A planned body's rows with a blueprint of what is still to come (FLAG.ghost) in `ghost`'s
+ * family. The planned islands are clay now, so the blueprint look is held on this fixture.
+ */
+function ghosted(id: string, ghost: ThemeKey): BodyRecipe {
+  const recipe = BODIES[id];
+  if (!recipe) throw new Error(`no rows for ${id}`);
+  const [ground, ...parts] =
+    typeof recipe.rows === 'function' ? recipe.rows({ map: false }) : recipe.rows;
+  const blueprint: PartRow = [
+    'blueprint',
+    FLAG.ghost,
+    ['box', 0.3, 0.3, 0.3, 'ink.mid', { at: [0, 0.45, 0] }],
+  ];
+  return { ...recipe, ghost, rows: [ground, ...parts, blueprint] };
+}
 
 /** A close-up source whose rows are there from the start (or not yet, with `null`). */
 interface Source extends CloseUpSource {
@@ -51,9 +69,10 @@ function make(
     reducedMotion: boolean;
     closeUp: Source;
     edges: (family: ThemeKey) => Material;
+    recipe: BodyRecipe;
   }> = {},
 ): Made {
-  const recipe = BODIES[id];
+  const recipe = over.recipe ?? BODIES[id];
   if (!recipe) throw new Error(`no rows for ${id}`);
   const jobs = new JobQueue(1000);
   const material = createToonMaterial({ vertexColors: true });
@@ -113,9 +132,11 @@ describe('BodyMesh', () => {
   });
 
   it('draws planned work at its share of the finished size, with its ghosts outlined', () => {
+    const recipe = ghosted('project/corgi', 'lilac');
     const { world, finish, named } = make('project/corgi', 'planet', {
       planned: true,
       radius: 8,
+      recipe,
     });
     finish();
     world.update(FAR, step, 0);
@@ -123,10 +144,9 @@ describe('BodyMesh', () => {
     const lines = [named('far:turn:edges'), named('far:hold:edges')].filter(Boolean);
     expect(lines.length).toBeGreaterThan(0);
     const edge = lines[0] as LineSegments;
-    const recipe = BODIES['project/corgi'];
     const color = (edge.material as Material & { uniforms: { uColor: { value: unknown } } })
       .uniforms.uColor.value as { r: number; g: number; b: number };
-    const expected = hexToLinear(tokens.color.system[recipe?.ghost ?? 'coral'].base);
+    const expected = hexToLinear(tokens.color.system[recipe.ghost ?? 'coral'].base);
     expect([color.r, color.g, color.b].map((v) => Number(v.toFixed(6)))).toEqual(
       expected.map((v) => Number(v.toFixed(6))),
     );
@@ -141,8 +161,9 @@ describe('BodyMesh', () => {
       shared.set(family, made);
       return made;
     };
-    const one = make('project/corgi', 'planet', { planned: true, edges });
-    const two = make('project/corgi', 'planet', { planned: true, edges });
+    const recipe = ghosted('project/corgi', 'lilac');
+    const one = make('project/corgi', 'planet', { planned: true, edges, recipe });
+    const two = make('project/corgi', 'planet', { planned: true, edges, recipe });
     for (const made of [one, two]) made.finish();
     const lines = (made: Made): Material =>
       ((made.named('far:turn:edges') ?? made.named('far:hold:edges')) as LineSegments)
@@ -238,20 +259,21 @@ describe('BodyMesh', () => {
     about.world.update(NEAR_BY, step, 8);
     expect(flame?.visible).toBe(true);
 
-    const berkeley = make('project/hackathons-at-berkeley', 'planet');
-    berkeley.finish();
-    berkeley.world.update(NEAR_BY, step, 0);
-    berkeley.finish();
-    berkeley.world.update(NEAR_BY, step, 1.3);
-    const lights = berkeley.named('near:mover:headlights') as Mesh;
-    const own = lights.material as ToonMaterial;
-    expect(own).not.toBe(berkeley.material);
+    // The Software sun's caret breathes (a glow).
+    const software = make('system/software', 'sun');
+    software.finish();
+    software.world.update(NEAR_BY, step, 0);
+    software.finish();
+    software.world.update(NEAR_BY, step, 1.3);
+    const caret = software.named('near:mover:caret') as Mesh;
+    const own = caret.material as ToonMaterial;
+    expect(own).not.toBe(software.material);
     // Lit by the same light, which it shares and never copies.
-    expect(own.uniforms.uSunPosition.value).toBe(berkeley.material.uniforms.uSunPosition.value);
-    const row = MOTION['project/hackathons-at-berkeley']?.[0];
+    expect(own.uniforms.uSunPosition.value).toBe(software.material.uniforms.uSunPosition.value);
+    const row = MOTION['system/software']?.[0];
     if (!row) throw new Error('fixture');
     expect(own.uniforms.uTint.value.r).toBeCloseTo(drive(row, 1.3).value, 6);
-    for (const made of [about, berkeley]) made.world.dispose();
+    for (const made of [about, software]) made.world.dispose();
   });
 
   it('draws the still up close under reduced motion and on the low tier: no movers', () => {

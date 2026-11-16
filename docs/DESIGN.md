@@ -791,6 +791,31 @@ down, so the sky BELOW the horizon is what a visitor mostly sees; keep that part
 colours small and high. (It holds for any big see-through warm area over the sky, not only a
 glow: hyperspace's walls in coral's or butter's shade went brick and khaki.)
 
+### The isles _(every project a floating island, 2026-11-16)_
+
+Allen asked for the galaxy to be "1000x cooler", with the voxel island on a turtle's back from his
+reference as the inspiration. Every project's world is now a **floating island**: a diorama cut
+out of the ground and hung in space. One kit (`design/worlds/isles.ts`) gives each the same body,
+a grass top on a lip of turf, a band of soil and a root of rock that tapers to a point, boulders
+half out of the rim and stalactites under it, plus scenery: trees, pines, cottages, clouds,
+stepping stones, and a pond whose water runs to the edge and falls off it. On top stands what
+the project is (`design/worlds/islands.ts`): Robotics' field with its bot and its cloud of
+guesses, CyberPatriot's castle, the Canadian fish leaping over a lake, FishAI's jetty and rod,
+the onboarding path, Days2Meet's month of heat beds, HackGT's dish (with a dashed ring of signal
+round the island, in the ship's lane), the Berkeley buses on a ring road, Cal Hacks' campanile
+and scoreboard.
+
+- **The grass says the family**, by biome: a frost island, a tide island, a bloom island.
+- **Planned work is grey clay, not a blueprint.** A planned island is primer stone with its
+  crane, a paint chip and a little rubble, and what it will be modelled in plain clay. The
+  blueprint (FLAG.ghost, navy with edge lines) still works, but cut into cubes its fill reads as a
+  dark blob and the cubes swallow its lines, so no body uses it now; the tests hold it on a
+  fixture.
+- **Each island has one small life** (`design/worlds/motion.ts`): a bot that shuffles, flags
+  that wave, a fish that leaps, a rod that bobs, two buses round the ring road, drifting clouds.
+- **The suns, home, the profiles and Model Rocketry keep their worlds.** Model Rocketry flies
+  nose first round its sun and is no island.
+
 ## Deep light _(a preview: branch `claude/deep-space`, not on `main`)_
 
 On 2026-10-01 Allen asked for "higher fidelity art styles across the board, instead of just

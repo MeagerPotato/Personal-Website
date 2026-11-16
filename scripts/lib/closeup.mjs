@@ -20,7 +20,7 @@ export const CLOSE_UP_BUDGET = 4.5 * 1024;
  * and in no other, or the rows were folded into a chunk that every visit downloads.
  * tests/build-scripts.test.ts checks that each is still such a name.
  */
-export const CLOSE_UP_MARKERS = ['floodlights', 'binder-rings', 'solver-board'];
+export const CLOSE_UP_MARKERS = ['pose-cloud', 'altimeter-digits', 'recovery-badges'];
 
 const DYNAMIC_IMPORT_RE = /\bimport\(\s*["'`]([^"'`]+)["'`]\s*\)/g;
 

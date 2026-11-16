@@ -1,6 +1,7 @@
 import type { BodyRecipe } from '../../sim/world/rows';
 import { HACKATHONS } from './hackathons';
 import { HOME } from './home';
+import { ISLANDS } from './islands';
 import { PROJECTS } from './projects';
 import { RESEARCH } from './research';
 
@@ -15,4 +16,5 @@ export const BODIES: Readonly<Record<string, BodyRecipe>> = {
   ...PROJECTS,
   ...RESEARCH,
   ...HACKATHONS,
+  ...ISLANDS,
 };
