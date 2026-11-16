@@ -64,6 +64,18 @@
  *     94.9% at 700 (headings, the wordmark).
  * Apple devices have Arial too; phones without it fall through to system-ui, unmatched.
  */
+/* The voxel look's lettering for headings, signs, labels and keys (tokens.ts, `font.pixel`). */
+@font-face {
+  font-family: 'Pixelify Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/pixelify-sans-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @font-face {
   font-family: 'Outfit Fallback';
   font-style: normal;
@@ -456,6 +468,45 @@ h2,
 h3,
 .wordmark {
   font-family: var(--font-display);
+}
+
+/*
+ * PIXEL HEADINGS, CLEAN BODY (Allen, 2026-11-16). On a screen, what is read at a glance (the
+ * headings, the wordmark, the route signs, the nav, the keys, the crumbs, the caps labels and
+ * everything the engine sets over the world) is in the pixel face, to match the cubes; the
+ * paragraphs stay in Outfit, and paper stays in Outfit too (the resume's PDF is printed from it).
+ * A pixel face is drawn on a grid: no negative tracking, and weights of 400 to 700 only.
+ */
+@media screen {
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    .wordmark,
+    .eyebrow,
+    .site-nav,
+    .crumbs,
+    .panel-button,
+    .panel-toggle,
+    .mode-link,
+    .card__meta,
+    .entry__when,
+    .facts dt,
+    .flight-hint kbd,
+    .body-labels,
+    .dock-prompt,
+    .hyper-offer,
+    .map-toggle,
+    .flight-deck,
+    .minimap
+  ) {
+    font-family: var(--font-pixel);
+  }
+
+  :is(h1, h2, h3, h4, .wordmark) {
+    letter-spacing: 0;
+  }
 }
 
 h1 {
@@ -2054,12 +2105,13 @@ main > .resume-intro > .card-title--quiet {
     --minimap-size: clamp(11rem, 26.5svh, 13.75rem);
     --minimap-held: clamp(9.25rem, 22svh, 11.5rem);
     /*
-     * The plate under every chip over the world. Over white (the worst case) it composites to a
-     * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
-     * ink.mid 7.2, butter 9.3. ink.low would be 4.49, a hair under AA, so ink.low is NEVER text
-     * on this plate (the same test holds all of these).
+     * The plate under every chip over the world. Solid and matte since the voxel look (Allen,
+     * 2026-11-16): nothing of the world shows through, and nothing is blurred behind it. The
+     * share stays written as a mix so that src/site/contrast.test.ts, which computes every
+     * pairing on it from the tokens, measures whatever it is set to; it keeps ink.low off this
+     * plate as long as that would fall short of AA.
      */
-    --hud: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
+    --hud: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
     --hud-edge: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
   }
 
@@ -4791,9 +4843,7 @@ main > .resume-intro > .card-title--quiet {
     border: 1px solid var(--hud-edge);
     border-top: 0.3125rem solid var(--theme-base);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
     font-size: var(--text-base);
     transition:
       transform var(--motion-slow) var(--motion-ease-out),
@@ -4803,8 +4853,6 @@ main > .resume-intro > .card-title--quiet {
   @media (prefers-contrast: more), (forced-colors: active) {
     html[data-mode='universe'] .panel {
       background: var(--color-surface-panel);
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
     }
   }
 
@@ -5132,6 +5180,18 @@ main > .resume-intro > .card-title--quiet {
   }
 
   /*
+   * Under 360 px the pixel face, wider than Outfit, needs a size less and tighter chips to keep
+   * the four words to one row (320 px: 270 px of 288). After the blocks above, so that it wins in
+   * a short window too. Every target stays 44 px tall.
+   */
+  @media (max-width: 22.49rem) {
+    html[data-mode='universe'] .site-nav a {
+      padding-inline: 0.25rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  /*
    * Narrow AND short (a laptop at 400 % zoom: 320 by 256): no room for world beside a panel, nor
    * under a sheet. An open panel takes the whole width under the bar, and the engine's controls
    * wait until it closes, so that nothing lies on the text.
@@ -5202,8 +5262,6 @@ main > .resume-intro > .card-title--quiet {
       width: auto;
       border: 0;
       background: none;
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
       /* Nothing slides in: the cards arrive by themselves (card-in, below). */
       transition: none;
       pointer-events: none;
@@ -5331,7 +5389,7 @@ main > .resume-intro > .card-title--quiet {
       border-left: var(--line) solid var(--theme-base);
       border-radius: var(--radius-md);
       color: var(--color-ink-mid);
-      background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+      background: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
       font-size: var(--text-base);
       cursor: pointer;
       pointer-events: auto;
@@ -5393,8 +5451,6 @@ main > .resume-intro > .card-title--quiet {
       border-top: 0.3125rem solid var(--theme-base);
       border-radius: var(--radius-lg);
       color: var(--color-ink-high);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
       cursor: auto;
     }
 
@@ -5734,8 +5790,6 @@ main > .resume-intro > .card-title--quiet {
       scroll-padding-top: var(--title-h);
       scroll-padding-bottom: var(--more-h);
       color: var(--color-ink-high);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
       cursor: auto;
       scrollbar-color: var(--color-ink-low) transparent;
       scrollbar-width: thin;
@@ -6287,8 +6341,6 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     padding: 0;
     border: 0;
     background: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
   }
 
   /* One ink: every text colour in the file collapses to black. */

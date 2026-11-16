@@ -1,14 +1,11 @@
 import { TAU } from '../../sim/math';
-import { add, brg, cross, norm, ORIGIN, scale, type Vec2, type Vec3 } from '../../sim/world/kit';
+import { brg, type Vec2, type Vec3 } from '../../sim/world/kit';
 import type { ColorPath } from '../../sim/world/palette';
-import { dirOf, shapeNormal, shapePoint, spinToward } from '../../sim/world/placement';
 import { FLAG, type Item, type PartRow } from '../../sim/world/rows';
-import type { ThemeKey } from '../tokens';
 import { CORE } from './gears';
-import { BUS, LOAF, WAVE } from './hackathons';
 import { rocket } from './home';
-import { D2M, SCR, SHAPE_FISH, tilted, yTop } from './projects';
-import { COIN_TILT } from './research';
+import { FIELD_Y, ROBOT_AT } from './islands';
+import { CORGI_DUST } from './islands/corgi';
 import { nth, rad } from './shared';
 
 /**
@@ -62,205 +59,18 @@ const about: PartRow[] = [
 
 // --- Projects ----------------------------------------------------------------------------------------
 
-// Robotics: the pit. Seven bots on the bench; round the first one drifts a cloud of eight guesses
-// about where it is (Monte Carlo localisation), and every twelve seconds the cloud closes in.
-const BOT: Item = [
-  'g',
-  ['box', 0.13, 0.05, 0.17, 'coral.light'],
-  ['box', 0.05, 0.035, 0.07, 'sky.light', { at: [0, 0.04, 0.02] }],
-];
+// Robotics: round the robot on its field drifts a cloud of eight guesses about where it is (Monte
+// Carlo localisation), and every twelve seconds the cloud closes in on it.
 // prettier-ignore
 const GUESSES: readonly Vec2[] = [[0.19, 0.05], [-0.2, 0.12], [0.1, -0.22], [-0.14, -0.18], [0.24, -0.06], [-0.05, 0.25], [0.02, -0.3], [-0.27, -0.02]];
 const robotics: PartRow[] = [
   [
-    'pit',
-    0,
-    ...Array.from({ length: 7 }, (_, i): Item => [
-      's',
-      38,
-      -36 + i * 12,
-      { spin: 0.3, alt: 0.02 },
-      BOT,
-    ]),
-  ],
-  [
     'pose-cloud',
     0,
     [
-      's',
-      38,
-      -36,
-      { spin: 0.3, alt: 0.02 },
-      ['x', GUESSES.map(([x, z]): Vec3 => [x, 0.07, z]), ['bead', 0.032, 'ink.high']],
-    ],
-  ],
-];
-
-// Canadian Fish: the game table on the flank (the same six-seat table Fish Online will bring to
-// the web): two teams of three, and a card in flight between two neighbouring seats, the ask.
-const seat = (i: number): Vec2 => [0.26 * Math.cos((i / 6) * TAU), 0.26 * Math.sin((i / 6) * TAU)];
-const FISH_AT = shapePoint(norm([0.05, 0.62, 0.78]), SHAPE_FISH);
-const FISH_UP = shapeNormal(FISH_AT, SHAPE_FISH);
-const onTable = (item: Item): Item => [
-  'n',
-  add(FISH_AT, scale(FISH_UP, 0.02)),
-  FISH_UP,
-  0.3,
-  1,
-  item,
-];
-const canadianFish: PartRow[] = [
-  [
-    'game-table',
-    0,
-    onTable([
-      'g',
-      // Fish Online's table (projects.ts): a cream top on a grey rim. A sky top vanished into the
-      // stripes it stands on.
-      ['cyl', 0.17, 0.04, 0.075, 6, 'ink.mid', 'ink.mid', 'ink.high'],
-      ['cyl', 0.025, 0, 0.04, 5, 'ink.mid'],
-      ...Array.from({ length: 6 }, (_, i): Item => [
-        'cyl',
-        0.04,
-        0,
-        0.075,
-        5,
-        i % 2 ? 'sky.light' : 'ink.high',
-        { at: [seat(i)[0], 0, seat(i)[1]] },
-      ]),
-    ]),
-  ],
-  [
-    'ask-card',
-    0,
-    onTable([
-      'g',
-      ['box', 0.09, 0.008, 0.06, 'ink.high'],
-      ['tile', 0.018, 4, 'coral.base', 0.005, Math.PI / 4],
-      { at: [seat(1)[0] - 0.26 * 0.4, 0.14, seat(1)[1]], s: Math.sin(Math.PI * 0.4) },
-    ]),
-  ],
-];
-
-// FishAI: ATHENA in training, a bead running a dashed outer loop; the solver board, 54 cells (nine
-// half-suits of six cards) all settled; and a scan bar that sweeps across it: the constraint
-// solver propagating to its fixed point. The loop runs at 1.715 radii, 0.03 inside the concept
-// set's 1.745: there its bead stood 1.82 radii out as the tilted loop turned, past the 1.8 its
-// docking ring leaves room for (design/worlds/reach.ts), and the ship's nose could touch it.
-const LOOP = 1.715;
-const BOARD = dirOf(64, 20);
-const EAST = norm(cross([0, 1, 0], BOARD));
-const SOUTH = cross(EAST, BOARD);
-const NORTH = scale(SOUTH, -1);
-/** How far round from the board's middle its west edge is (radians): where the scan bar rests. */
-const WEST = 0.45;
-const fishai: PartRow[] = [
-  [
-    'solver-board',
-    0,
-    // Every cell's rows run east, as the board's do (spinToward): over a ground this curved, each
-    // cell's own frame would otherwise turn it a little further than the last.
-    ...Array.from({ length: 54 }, (_, k): Item => {
-      const col = k % 9;
-      const row = Math.floor(k / 9);
-      const d = norm(
-        add(BOARD, add(scale(EAST, (col - 4) * 0.105), scale(SOUTH, (row - 2.5) * 0.105))),
-      );
-      return [
-        'n',
-        scale(d, 1.012),
-        d,
-        spinToward(d, EAST),
-        1,
-        ['tile', 0.064, 4, col % 2 ? 'sky.light' : 'ink.high', 0, Math.PI / 4],
-      ];
-    }),
-  ],
-  // The bar lies along the board's west edge and turns with the ground, as the board does. Its
-  // pivot is the moon's centre and its own +Y the axis the board's columns turn about (NORTH), so
-  // the sweep (motion.ts) is a turn about that axis: across the board, along its columns, at its
-  // height. Its own +X is the board's middle, and the bar lies WEST round from it.
-  [
-    'scan-bar',
-    0,
-    [
-      'n',
-      ORIGIN,
-      NORTH,
-      spinToward(NORTH, BOARD),
-      1,
-      [
-        'box',
-        0.03,
-        0.66,
-        0.012,
-        'coral.base',
-        { at: [1.03 * Math.cos(WEST), 0, 1.03 * Math.sin(WEST)], rot: [0, -WEST, 0] },
-      ],
-    ],
-  ],
-  [
-    'athena-loop',
-    FLAG.hold | FLAG.flat,
-    [
-      'g',
-      ...Array.from({ length: 16 }, (_, i): Item => [
-        'ring',
-        [LOOP - 0.025, LOOP + 0.025],
-        (i / 16) * TAU,
-        (i / 16) * TAU + 0.26,
-        1,
-        0,
-        0,
-        'sky.light',
-      ]),
-      ['bead', 0.084, 'ink.high', { at: [brg(rad(120), LOOP)[0], 0, brg(rad(120), LOOP)[1]] }],
-      { rot: [rad(14), 0, rad(-6)] },
-    ],
-  ],
-];
-
-// Days2Meet: the press-and-hold cursor, painting the next cell, and the binder rings of a desk
-// calendar along the north edge.
-const CURSOR_X = D2M.cx + 3 * D2M.dx;
-const CURSOR_Z = D2M.cz + 3 * D2M.dz;
-const days2meet: PartRow[] = [
-  [
-    'paint-cursor',
-    0,
-    [
-      'n',
-      [CURSOR_X, yTop(CURSOR_X, CURSOR_Z) + 0.05, CURSOR_Z],
-      [0, 1, 0],
-      // Its own +X along the week (world +X): the way it sweeps (motion.ts).
-      spinToward([0, 1, 0], [1, 0, 0]),
-      1,
-      [
-        'g',
-        ['ring', [0.07, 0.12], 0, TAU, 10, 0, 0, 'ink.high'],
-        ['tile', 0.045, 6, 'ink.high', 0],
-      ],
-    ],
-  ],
-  [
-    'binder-rings',
-    0,
-    [
       'x',
-      [-0.4, 0.4].map((x): Vec3 => [x, yTop(x, -0.86) * 0.98, -0.86]),
-      [
-        'ring',
-        [0.115, 0.15],
-        -Math.PI / 2,
-        Math.PI / 2,
-        8,
-        0,
-        0,
-        'ink.mid',
-        'ink.low',
-        2,
-        { rot: [Math.PI / 2, 0, 0] },
-      ],
+      GUESSES.map(([x, z]): Vec3 => [ROBOT_AT[0] + x * 0.8, FIELD_Y + 0.12, ROBOT_AT[1] + z * 0.8]),
+      ['box', 0.035, 0.035, 0.035, 'ink.high', { g: 1 }],
     ],
   ],
 ];
@@ -371,52 +181,6 @@ const modelRocketryNear: PartRow[] = [
   ],
 ];
 
-// CyberPatriot: a vulnerability closing. A mint tick appears on the third row, open in the still,
-// every twenty seconds, and goes again. A group places it, so that its pivot is its own middle
-// and it grows where it stands (an op's own `at` is no pivot: rows.ts, `pivotOf`).
-const cyberpatriot: PartRow[] = [
-  [
-    'fix-tick',
-    0,
-    tilted(['g', ['box', 0.1, 0.1, 0.02, 'mint.base'], { at: [-0.34, SCR.cy - 0.07, 0.046] }]),
-  ],
-];
-
-// Fish Onboarding: your nine cards (the deal is 54 cards between six players), and "scan me": a
-// thin coral line sweeping to and fro across the code on the phone. Each card lies on the last,
-// turned 0.3 rad further, so a strip of its -X side shows: its pip is there, where the next card
-// does not cover it.
-const fishOnboarding: PartRow[] = [
-  [
-    'nine-cards',
-    0,
-    [
-      's',
-      34,
-      40,
-      { spin: 0.2, alt: 0.012 },
-      [
-        'g',
-        ...Array.from({ length: 9 }, (_, i): Item => [
-          'g',
-          ['box', 0.09, 0.004, 0.13, i % 2 ? 'ink.high' : 'sky.light', { at: [0, 0, 0.065] }],
-          [
-            'tile',
-            0.018,
-            4,
-            i % 3 ? 'coral.base' : 'space.800',
-            0.0035,
-            Math.PI / 4,
-            { at: [-0.0305, 0, 0.108] },
-          ],
-          { rot: [0, (i - 4) * 0.3, 0], at: [0, i * 0.0045, 0] },
-        ]),
-      ],
-    ],
-  ],
-  ['scan-line', 0, ['box', 0.4, 0.004, 0.012, 'coral.base', { at: [0, 1.062, 0.03] }]],
-];
-
 // --- Research ----------------------------------------------------------------------------------------
 
 // Research's sun: twelve ticks make the light curve a clock of one period (the far read and the
@@ -434,84 +198,6 @@ const researchSun: PartRow[] = [
       1,
       (i) => ['rq', 0, 1.04, i % 3 ? 1.1 : 1.15, 0.035, 0.035, 0, 0.001, 'mint.light'],
     ],
-  ],
-];
-
-// Sports Analysis: the first analysis, a bar chart with its axes standing on the surface, as plan.
-const sportsAnalysis: PartRow[] = [
-  [
-    'bar-chart',
-    FLAG.ghost,
-    [
-      's',
-      14,
-      -30,
-      { spin: 0.1, alt: 0.01 },
-      [
-        'g',
-        ['box', 0.44, 0.012, 0.1, 'ink.mid'],
-        ...[0.1, 0.17, 0.13, 0.24, 0.33].map((h, i): Item => [
-          'box',
-          0.05,
-          h,
-          0.05,
-          'mint.base',
-          { at: [(i - 2) * 0.075, 0.012 + h / 2, 0] },
-        ]),
-      ],
-    ],
-  ],
-];
-
-// Kalshi: a price chart and an order table on the coin's face, as plan.
-const onCoinFace = (item: Item, at: Vec3): Item => ['g', ['g', item, { at }], COIN_TILT];
-const segment = (p0: Vec2, p1: Vec2): Item => [
-  'box',
-  Math.hypot(p1[0] - p0[0], p1[1] - p0[1]),
-  0.012,
-  0.03,
-  'mint.base',
-  {
-    at: [(p0[0] + p1[0]) / 2, 0.006, (p0[1] + p1[1]) / 2],
-    rot: [0, Math.atan2(-(p1[1] - p0[1]), p1[0] - p0[0]), 0],
-  },
-];
-const kalshi: PartRow[] = [
-  [
-    'price-chart',
-    FLAG.hold | FLAG.ghost,
-    onCoinFace(
-      [
-        'g',
-        ['box', 0.46, 0.012, 0.02, 'mint.base', { at: [0, 0.006, 0.17] }],
-        ['box', 0.02, 0.012, 0.34, 'mint.base', { at: [-0.22, 0.006, 0] }],
-        segment([-0.2, 0.1], [-0.1, -0.02]),
-        segment([-0.1, -0.02], [0, 0.06]),
-        segment([0, 0.06], [0.1, -0.12]),
-        segment([0.1, -0.12], [0.2, -0.06]),
-      ],
-      [0.4, 0.128, 0.45],
-    ),
-  ],
-  [
-    'order-table',
-    FLAG.hold | FLAG.ghost,
-    onCoinFace(
-      [
-        'g',
-        ...[0, 1, 2].flatMap((r) =>
-          [0, 1].map((c): Item => [
-            'box',
-            0.13,
-            0.012,
-            0.06,
-            'mint.base',
-            { at: [c * 0.16 - 0.08, 0.006, r * 0.08] },
-          ]),
-        ),
-      ],
-      [-0.42, 0.128, -0.5],
-    ),
   ],
 ];
 
@@ -537,198 +223,6 @@ const hackathonsSun: PartRow[] = [
         return [x, 0, z];
       }),
       (i) => ['tile', 0.06, 4, nth(CONFETTI, i % 5), 0, i],
-    ],
-  ],
-];
-
-// HackGT 13: four detector dishes round the north pole; sixteen evidence markers on the ground,
-// one per forensic expert; a magnifier over the seam where the smooth wave turns to steps; and
-// the report, two bars lying on the ground (minDCF .076 and .153, lower is better) with their
-// numbers in cells of 0.028 (2.3 px on a 360 px phone).
-const DISH: Item = [
-  'g',
-  ['cyl', 0.03, 0, 0.14, 5, 'ink.mid'],
-  ['dome', 0.13, 8, 2, 'lilac.light', { at: [0, 0.16, 0], rot: [0.7, 0, 0], s: [1, 0.6, 1] }],
-];
-const LENS = brg(Math.PI, WAVE.r);
-/** Where the magnifier hangs: 0.46 over the seam, its lens tipped toward the ground. */
-const OVER_SEAM = { at: [LENS[0], 0.46, LENS[1]], rot: [0.5, 0, 0] } as const;
-const hackgt: PartRow[] = [
-  [
-    'detector-dishes',
-    0,
-    ...[0, 90, 180, 270].map((deg): Item => [
-      's',
-      48,
-      deg + 45,
-      { spin: rad(deg), alt: 0.01 },
-      DISH,
-    ]),
-  ],
-  [
-    'evidence-markers',
-    0,
-    ...Array.from({ length: 16 }, (_, i): Item => [
-      's',
-      34,
-      i * 22.5,
-      { alt: 0.005 },
-      [
-        'fin',
-        [
-          [-0.065, 0],
-          [0.065, 0],
-          [0, 0.14],
-        ],
-        0.04,
-        'lilac.light',
-      ],
-    ]),
-  ],
-  // The lens and the handle are placed one by one, so that the magnifier's pivot is the body's
-  // centre: it turns with the wave ring (motion.ts) and stays over the seam.
-  [
-    'magnifier',
-    FLAG.hold,
-    ['g', ['ring', [0.15, 0.22], 0, TAU, 14, -0.02, 0.035, 'ink.high', 'ink.mid', 1], OVER_SEAM],
-    ['g', ['box', 0.42, 0.06, 0.09, 'ink.mid', { at: [0.41, 0, 0] }], OVER_SEAM],
-  ],
-  // The report lies south of the ring of markers (latitude 34), clear of every one.
-  [
-    'report',
-    0,
-    [
-      's',
-      13,
-      75,
-      { spin: 0.3, alt: 0.01 },
-      [
-        'g',
-        ['box', 0.88, 0.014, 0.5, 'space.800'],
-        ['box', 0.1, 0.076, 0.1, 'mint.base', { at: [-0.21, 0.045, 0.12] }],
-        ['box', 0.1, 0.153, 0.1, 'coral.base', { at: [0.21, 0.083, 0.12] }],
-        ['pix', '.076', 0.028, 'ink.high', { at: [-0.21, 0.008, -0.1], rot: [-Math.PI / 2, 0, 0] }],
-        ['pix', '.153', 0.028, 'ink.high', { at: [0.21, 0.008, -0.1], rot: [-Math.PI / 2, 0, 0] }],
-      ],
-    ],
-  ],
-];
-
-// Hackathons at Berkeley: the roof rack, merch crates and the catering.
-const rackRod = (p0: Vec2, p1: Vec2, y: number): Item => [
-  'box',
-  Math.hypot(p1[0] - p0[0], p1[1] - p0[1]),
-  0.03,
-  0.03,
-  'ink.mid',
-  {
-    at: [(p0[0] + p1[0]) / 2, y, (p0[1] + p1[1]) / 2],
-    rot: [0, Math.atan2(-(p1[1] - p0[1]), p1[0] - p0[0]), 0],
-  },
-];
-const crate = (family: ThemeKey, at: Vec3, spin: number, s = 1): Item => [
-  'g',
-  ['box', 0.34, 0.24, 0.3, `${family}.light`],
-  ['box', 0.06, 0.246, 0.306, 'ink.high'],
-  { at, rot: [0, spin, 0], ...(s === 1 ? {} : { s }) },
-];
-const PIZZA: Item = [
-  'g',
-  ['box', 0.34, 0.05, 0.34, 'ink.high'],
-  ['tile', 0.12, 8, 'biome.dune.high', 0.026],
-];
-const ROOF = BUS.SH - 0.03;
-const berkeley: PartRow[] = [
-  [
-    'roof-rack',
-    0,
-    rackRod([-0.85, -0.28], [0.78, -0.28], ROOF + 0.02),
-    rackRod([-0.85, 0.28], [0.78, 0.28], ROOF + 0.02),
-    crate('coral', [-0.68, ROOF + 0.12, 0.02], 0.08),
-    ...[0, 1, 2].map((k): Item => [
-      'g',
-      PIZZA,
-      { at: [-0.26, ROOF + 0.025 + k * 0.052, -0.02], rot: [0, 0.1 * k, 0] },
-    ]),
-    crate('lilac', [0.16, ROOF + 0.12, -0.03], -0.06),
-    crate('coral', [0.56, ROOF + 0.12, 0.03], 0.05),
-    crate('sky', [0.56, ROOF + 0.36, 0.03], -0.15, 0.85),
-  ],
-];
-
-// Cal Hacks 13.0: four floodlight masts round the stadium, their lamps unlit and bright.
-const calHacks: PartRow[] = [
-  [
-    'floodlights',
-    0,
-    [
-      'around',
-      4,
-      rad(45),
-      0.99,
-      0.2,
-      1,
-      [
-        'g',
-        ['cyl', 0.022, 0, 1.3, 4, 'ink.mid'],
-        ['box', 0.24, 0.15, 0.05, 'star.warm', { at: [0, 1.34, 0.02], rot: [0.35, 0, 0], g: 2 }],
-      ],
-    ],
-  ],
-];
-
-// Corgi: RunItBack, one photo becoming a room (as plan), and the 5th-place block with its numeral.
-// They stand on the loaf itself (its shape), not on the unit sphere round it. The photo leans back,
-// its face to the sky, so that it reads from orbit and not edge-on.
-const corgi: PartRow[] = [
-  [
-    'photo',
-    FLAG.ghost,
-    [
-      's',
-      16,
-      -52,
-      { spin: 0.3, alt: 0.16, shape: LOAF },
-      ['box', 0.28, 0.21, 0.02, 'lilac.base', { rot: [-1.25, 0, 0] }],
-    ],
-  ],
-  [
-    'room',
-    FLAG.ghost,
-    [
-      's',
-      12,
-      -8,
-      { spin: 0.2, alt: 0.01, shape: LOAF },
-      [
-        'g',
-        ['box', 0.26, 0.015, 0.26, 'lilac.base', { at: [0, 0.008, 0] }],
-        ['box', 0.26, 0.2, 0.015, 'lilac.base', { at: [0, 0.115, -0.12] }],
-        ['box', 0.015, 0.2, 0.26, 'lilac.base', { at: [-0.12, 0.115, 0] }],
-      ],
-    ],
-  ],
-  [
-    'fifth-block',
-    FLAG.ghost,
-    [
-      's',
-      6,
-      30,
-      { spin: 0.1, alt: 0.01, shape: LOAF },
-      ['box', 0.34, 0.22, 0.16, 'lilac.base', { at: [0, 0.11, 0] }],
-    ],
-  ],
-  // On the block's outward face: so near the equator, its others look along the ground.
-  [
-    'fifth-numeral',
-    0,
-    [
-      's',
-      6,
-      30,
-      { spin: 0.1, alt: 0.01, shape: LOAF },
-      ['pix', '5', 0.04, 'ink.high', { at: [0, 0.223, 0], rot: [-Math.PI / 2, 0, 0] }],
     ],
   ],
 ];
@@ -774,16 +268,6 @@ export const NEAR: Readonly<Record<string, readonly PartRow[]>> = {
   'system/research': researchSun,
   'system/hackathons': hackathonsSun,
   'project/robotics': robotics,
-  'project/canadian-fish-demo': canadianFish,
-  'project/fishai': fishai,
-  'project/days2meet': days2meet,
-  'project/hackgt-13': hackgt,
-  'project/hackathons-at-berkeley': berkeley,
-  'project/cal-hacks-13': calHacks,
+  'project/corgi': [CORGI_DUST],
   'project/model-rocketry': modelRocketryNear,
-  'project/sports-analysis': sportsAnalysis,
-  'project/kalshi': kalshi,
-  'project/corgi': corgi,
-  'project/fish-onboarding': fishOnboarding,
-  'project/cyberpatriot': cyberpatriot,
 };

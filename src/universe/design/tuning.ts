@@ -792,7 +792,7 @@ export const tuning = {
    */
   post: {
     /** How much of the blurred glow is added back, and how far it spreads (0 to 1). */
-    bloomStrength: 0.9,
+    bloomStrength: 0.55,
     /**
      * How much of it is kept off the very thing that glows (0 to 1): at 0 a sun's ball is its
      * colour plus its own blur, clipped to near white; at 1 exactly its token, with the glow all
@@ -804,7 +804,7 @@ export const tuning = {
     bloomLevels: 5,
     /** How much the corners darken (0 = not at all), from and to which distance from the middle
      * (0.5 is the middle of an edge, 0.71 a corner). */
-    vignette: 0.2,
+    vignette: 0.1,
     vignetteRange: [0.35, 0.9],
   } satisfies PostParams,
 
@@ -942,6 +942,71 @@ export const tuning = {
 
   /** How the galaxy is drawn (world/Galaxy.ts). */
   world: {
+    /**
+     * THE VOXEL LOOK (sim/voxel.ts, docs/DESIGN.md "Cubes"): every body is drawn in cubes,
+     * so many to its radius. Allen chose fine cubes on 2026-11-05 ("finer than B"); the close-up
+     * is finer still and carries the bevel. The star map draws no cubes (it stays flat).
+     */
+    voxel: {
+      /**
+       * Cubes to a body's radius, every day (the high and medium tiers). 30 since 2026-11-16,
+       * when Allen asked for "even finer" (it was 18, then 40 up close and 12 on the low tier).
+       */
+      cellsPerRadius: 30,
+      /** ...when the ship is close (the close-up build). */
+      nearCellsPerRadius: 64,
+      /** ...on the low tier, every day and up close. */
+      lowCellsPerRadius: 16,
+      /**
+       * ...when the world is seen small (world/BodyMesh.ts, the small build): far off, and on the
+       * star map, where an island is a dot 14 px across. Every world has this build from the
+       * first; the everyday one is made within `farEnterRadii` (below). 8 cubes to a radius are
+       * about a pixel each at that distance on a laptop, and an island is about 3,000 triangles:
+       * a quarter of its low tier's, a thirteenth of its everyday cubes' (2026-11-16: drawn in
+       * those everywhere, the star map took four times as long on the CPU renderer as before).
+       */
+      smallCellsPerRadius: 8,
+      /**
+       * ...seen small on the low tier: about 1,700 triangles an island, as many as its flat world
+       * drew before the cubes. The low tier is the device that draws slowly (and CI's renderer,
+       * which draws on the CPU, where the star map's every frame pays for each one).
+       */
+      lowSmallCellsPerRadius: 6,
+      /**
+       * On the star map a world drawn bigger than this, in radius (CSS px), is in its everyday
+       * cubes: at its first view every world is under it (a sun about 12 to 16 px), and a world
+       * the wheel has brought closer is not.
+       */
+      smallBelowPx: 16,
+      /** Cubes along a model's longest side (the rocket, the station, the satellite, a relay). */
+      modelCells: 44,
+      /**
+       * ...on the low tier. The rocket is in every frame, the star map's too: at 44 it is
+       * 10,000 triangles, which a slow device pays for in each one, and at 28 about 4,000 (the
+       * low tier's worlds have 16 cubes to their radius against 30, the same share).
+       */
+      lowModelCells: 28,
+      /**
+       * The widest grid, in cubes: past it the cube grows. A ringed world up close is about 4.8
+       * radii wide, so 256 keeps 53 cubes to its radius (memory: about 4 bytes a cell of its
+       * box while building, about 30 MB for that one and freed when it is done).
+       */
+      maxCells: 256,
+      /**
+       * The ground under the cubes is this many times finer than the one the worlds' budget
+       * draws (`detailPlanet` and the rest, below), so that a coast follows its shape and not
+       * its facets (world/BodyMesh.ts, `cubeDetailsOf`). Not on the low tier or the star map.
+       */
+      sourceScale: 2,
+      /** How dark the darkest inside corner is: 1 is no corner shade at all. */
+      occlusion: 0.58,
+      /**
+       * How far a lit cube's brightness strays from its colour, either way (sim/voxel.ts,
+       * `grain`): the grain of voxel art, so a lawn reads as cubes of grass and not one green.
+       * Allen, 2026-11-16: "these planets are extremely plain".
+       */
+      jitter: 0.09,
+    },
     /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
     detailPlanet: 8,
     detailNear: 14,
@@ -993,6 +1058,28 @@ export const tuning = {
     nearEnterRadii: 8,
     nearExitRadii: 10,
     nearLingerSec: 10,
+    /**
+     * The everyday cubes of an emblem world are built inside this many radii, and dropped after
+     * lingering outside the exit; past them it is drawn in its small build (`voxel`). 80 radii
+     * is about 10 px of radius on a laptop (55 degrees over 800 px).
+     */
+    farEnterRadii: 80,
+    farExitRadii: 100,
+    /**
+     * ...on the low tier: 50 radii is about 16 px of radius. Its everyday cubes (16 to a radius)
+     * would be under a pixel each before that, and at home they were twelve worlds of 11,000 to
+     * 14,000 triangles a frame, which the device the low tier is for pays for in every one.
+     */
+    lowFarEnterRadii: 50,
+    lowFarExitRadii: 65,
+    farLingerSec: 10,
+    /**
+     * A world this near when the galaxy is made (the one a page opens docked at) builds its
+     * everyday cubes first: it fills the view, where coarse cubes would show. Every other world
+     * builds its small ones first, so that the whole sky is there in a moment, and the everyday
+     * builds within reach follow (a sun beside it sharpens a moment later).
+     */
+    farFirstRadii: 10,
     /**
      * What generating meshes may take out of a frame (core/jobs.ts): this share of the time the
      * last frame took, within these limits. 4 ms at 60 fps; more only where frames are long anyway.
@@ -1070,6 +1157,18 @@ export const tuning = {
     /** How lit the middle band is: 0 = same as shade, 1 = same as lit. */
     midLevel: 0.55,
     /**
+     * The voxel look's light (docs/DESIGN.md): 0 is the three hard bands above, 1 a soft ramp from
+     * shade to lit between the two facings of `softEdges` (x < y). Allen chose soft on 2026-11-16.
+     */
+    softness: 1,
+    softEdges: [-0.35, 0.65] as [number, number],
+    /**
+     * How much darker a cube's face is at its rim than at its middle, up close only (the close-up
+     * build carries where each corner is on its face: sim/voxel.ts, `bevel`). Allen chose "bevel
+     * only up close" on 2026-11-16. 0: sharp cubes.
+     */
+    bevel: 0.1,
+    /**
      * A decal (a grid or a number painted on a world's ground: sim/world/glue.ts) is drawn this
      * share of its distance nearer the camera, along its own line of sight (shaders/toonFlat.ts):
      * a depth bias that moves nothing on screen and keeps it over the ground it hugs, from the
@@ -1111,6 +1210,11 @@ export const tuning = {
   },
 
   starfield: {
+    /**
+     * 1 draws every star as a square (its core and halo measured the way a grid is), to match
+     * the cube worlds (Allen, 2026-11-16); 0 is the round stars of before.
+     */
+    square: 1,
     /** Changing the seed reshuffles the whole sky; keep it stable so screenshots stay comparable. */
     seed: 'allenkh-starfield',
     /**
@@ -1363,6 +1467,13 @@ export const tuning = {
      * baked: changing it means baking again.
      */
     sky: {
+      /**
+       * The voxel look's sky (Allen, 2026-11-16: "so it doesn't seem too out of place"): the
+       * baked light is SHOWN in blocks, this many across a whole turn and from the bottom of the
+       * sky to its top (about 12 px a block on a laptop). Nothing is baked differently, so the
+       * gates (tests/sky-gates.test.ts) hold as they were. [0, 0] shows it smooth.
+       */
+      mosaic: [720, 360] as [number, number],
       /** Scales the added light, after the ceiling has held it: never above 1. */
       intensity: 0.9,
       /** Seconds over which the baked sky's light comes in. A cut under reduced motion. */
@@ -1759,6 +1870,12 @@ export const tuning = {
      */
     air: {
       /**
+       * Whether the worlds with air wear their shells, rims and clouds (world/AirShells.ts). Off
+       * since the voxel look (2026-11-16): those were the see-through, glossy layer Allen wanted
+       * gone. The bands below and the lamps stay.
+       */
+      shells: false,
+      /**
        * A world with air multiplies its shade band by shading.night times `night`, and its middle
        * band by shading.dusk times `dusk`, as far as `duskShare` says (1: all of it, a deep sunset
        * belt; 0: the middle band is as lit as the day).
@@ -1774,8 +1891,9 @@ export const tuning = {
        */
       limb: {
         power: 3.2,
-        lit: 0.62,
-        always: 0.07,
+        // None since the voxel look (2026-11-16): Allen found the tinted limb glossy.
+        lit: 0,
+        always: 0,
         litEdges: [-0.25, 0.45],
         steps: 3,
         topRadii: [1.04, 1.24],

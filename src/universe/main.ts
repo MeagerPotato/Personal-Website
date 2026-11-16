@@ -150,7 +150,7 @@ export function boot(
     onContextLost: hooks.onContextLost,
   });
 
-  const assets = engine.add(new AssetStore());
+  const assets = engine.add(new AssetStore({ low: quality.tier === 'low' }));
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
   // (The keyboard joins them further down: it asks the navigator what Shift means.)
@@ -256,6 +256,7 @@ export function boot(
       assets,
       jobs,
       viewer: ship,
+      startTime: (start?.steps ?? 0) / tuning.loop.stepHz,
       reducedMotion,
       // The tier is fixed for the life of an engine: a demotion boots a new one (api.ts).
       low: quality.tier === 'low',
@@ -540,7 +541,7 @@ export function boot(
   const homeId = manifest.bodies.find((body) => body.kind === 'home')?.id;
   const air = engine.add(
     new AirShells({
-      worlds: galaxy.airWorlds.map((world) => {
+      worlds: (tuning.look.air.shells ? galaxy.airWorlds : []).map((world) => {
         const clouds = cloudy === 'all' || (cloudy === 'home' && world.id === homeId);
         return clouds ? world : { ...world, cloud: undefined };
       }),

@@ -28,6 +28,7 @@ export type ColorPath =
   | `space.${keyof Tokens['color']['space']}`
   | `surface.${keyof Tokens['color']['surface']}`
   | `star.${keyof Tokens['color']['star']}`
+  | `nature.${keyof Tokens['color']['nature']}`
   | 'lamp.window'
   | `biome.${Ramp}.${Band}`;
 
@@ -76,7 +77,7 @@ function hexOf(path: string): string | undefined {
   if (a === 'lamp') return b === 'window' ? color.window : undefined;
   const group: Readonly<Record<string, string>> | undefined = isTheme(a)
     ? color.system[a]
-    : a === 'ink' || a === 'space' || a === 'surface' || a === 'star'
+    : a === 'ink' || a === 'space' || a === 'surface' || a === 'star' || a === 'nature'
       ? color[a]
       : undefined;
   return group && Object.hasOwn(group, b) ? group[b] : undefined;
@@ -91,7 +92,7 @@ export function colorOf(path: string): Rgb {
     const hex = hexOf(path);
     if (hex === undefined) {
       throw new Error(
-        `colorOf: '${path}' names no colour in tokens.ts (a family, ink, space, surface, star, lamp.window or biome.<ramp>.<band>)`,
+        `colorOf: '${path}' names no colour in tokens.ts (a family, ink, space, surface, star, nature, lamp.window or biome.<ramp>.<band>)`,
       );
     }
     rgb = hexToLinear(hex);

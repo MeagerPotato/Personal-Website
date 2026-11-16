@@ -9,7 +9,8 @@ the pieces fit (layers, the life of a frame, conventions) in
 
 **allenkh.com**: Allen's personal site as a small universe you can fly through. Solar systems are
 passions, planets are projects, moons are sub-projects. Look: Mini Motorways (muted pastels, flat
-shading) on dark navy space. Tone: playful framing, technical substance. The owner appears as
+shading) on dark navy space, the world built of fine cubes with a soft light and solid, matte
+plates over it (docs/DESIGN.md, "Cubes"). Tone: playful framing, technical substance. The owner appears as
 "Allen"; only the resume page (and its print and PDF) gives the full name (`site.fullName`,
 docs/PLAN.md decision 25).
 
@@ -95,7 +96,8 @@ Roadmap and "as built" notes: docs/PLAN.md §5.5 and §6.
    that is showing (same state, no new entry), and a same-page link goes through it.
 8. **Colours live in `src/universe/design/tokens.ts` and nowhere else.** CSS reads them as custom
    properties (`color.ink.high` → `--color-ink-high`). The engine renders with no tone mapping, so
-   a lit surface is exactly the token hex and 3D matches the DOM.
+   a lit surface is exactly the token hex and 3D matches the DOM (a world's cubes stray a few
+   percent either way round it, cube by cube: docs/DESIGN.md, "Cubes", the grain).
 9. **Whoever creates a GPU resource disposes it.** Every engine system implements `dispose()`.
    In a dev build the engine counts what is left when it is disposed and warns in the console.
 10. **Thin Astro.** Astro pre-renders pages and owns the content layer. `astro:*` imports only in
@@ -236,7 +238,8 @@ camera's position: see `shaders/sky.ts`.
 **Add a model.** A function in `design/models/<name>.ts` that returns `ModelData`: a mesh built
 with `MeshBuilder` (`sim/meshBuilder.ts`: lathe, plate, disc, cap; pure, so a test can measure the
 model) plus named **sockets** for whatever attaches to it. Colours are tokens through
-`hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts`;
+`hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts` (with `cubes: true`, the way everything solid is, it is drawn
+in cubes by `sim/voxel.ts`);
 logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
 material, and releases the handle in its scope. Asset names and socket names are API.
 
@@ -247,12 +250,13 @@ ring or none, or a registered model instead of the globe. `world/looks.ts` (`loo
 place that decides a look (recipe, then the body's emblem rows in `design/worlds/`, then the
 planned maquette, then the generator), for the galaxy and the lab alike, and `tests/worlds.test.ts`
 fails on a key that names no body. A new kind of thing a recipe can say is a logic change. A body
-with rows is drawn by `world/BodyMesh.ts`: the everyday build as a job, the close-up
-(`design/worlds/near.ts` and `motion.ts`, a chunk of their own through `closeup.ts`) within
-`nearEnterRadii`, and its movers driven by the frame's exact time, so nothing of them is a snapshot
-field. A recipe may also say `still` (it never turns) and `faces: 'prograde'` (its own +X keeps
-pointing the way it goes round its parent, as Model Rocketry flies nose first round the Hardware
-sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
+with rows is drawn by `world/BodyMesh.ts`, every build a job: the small build (coarse cubes, for a
+world seen small: far off, and on the star map), the everyday build within `farEnterRadii` (nearer on the low tier; freed
+again past `farExitRadii`), the close-up (`design/worlds/near.ts` and `motion.ts`, a chunk of
+their own through `closeup.ts`) within `nearEnterRadii`, and its movers driven by the frame's exact
+time, so nothing of them is a snapshot field. A recipe may also say `still` (it never turns) and
+`faces: 'prograde'` (its own +X keeps pointing the way it goes round its parent, as Model Rocketry
+flies nose first round the Hardware sun): `Galaxy.place` yaws it from its place on its orbit at the frame's exact time, the way a relay
 is kept facing away from home, so that too is no snapshot field, and it holds under reduced motion,
 on the low tier and on the star map.
 

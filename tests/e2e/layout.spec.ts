@@ -69,12 +69,16 @@ for (const size of NARROW) {
         if (path !== '/') await softNavigate(page, path);
         expect(await sidewaysScroll(page), path).toBe(0);
       }
-      // One row at both widths, in our own face (Outfit, preloaded): waited for, not assumed, so
-      // that a runner whose fallback font is wider never measures the fallback.
+      // One row at both widths, in our own face (the nav is in the pixel face on a screen, over
+      // Outfit): waited for, not assumed, so that a runner whose fallback font is wider never
+      // measures the fallback.
       await page.evaluate(async () => {
         await document.fonts.ready;
       });
       expect(await page.evaluate(() => document.fonts.check('600 15px Outfit'))).toBe(true);
+      expect(await page.evaluate(() => document.fonts.check("600 15px 'Pixelify Sans'"))).toBe(
+        true,
+      );
       const rows = await page.evaluate(
         () =>
           new Set(

@@ -3,6 +3,7 @@ import { geometryFrom } from '../core/geometry';
 import type { JobQueue } from '../core/jobs';
 import { tuning } from '../design/tuning';
 import { generatePlanet, type PlanetBands, type PlanetLook } from '../sim/planet';
+import { voxelize } from '../sim/voxel';
 
 export interface PlanetMeshOptions {
   radius: number;
@@ -77,8 +78,24 @@ export class PlanetMesh {
   }
 
   private build(detail: number, done: (geometry: BufferGeometry) => void): () => void {
-    const { radius, seed, bands, look, jobs } = this.options;
-    return jobs.add(generatePlanet({ radius, seed, detail, bands }, look), (data) => {
+    const { radius, seed, bands, look, jobs, nearDetail } = this.options;
+    const near = nearDetail !== null && detail === nearDetail;
+    const { cellsPerRadius, nearCellsPerRadius, maxCells, occlusion, sourceScale, jitter } =
+      tuning.world.voxel;
+    // A finer ball under the cubes than would be drawn as it is (BodyMesh, `cubeDetailsOf`).
+    const fine = Math.round(detail * sourceScale);
+    const job = (function* () {
+      const ball = yield* generatePlanet({ radius, seed, detail: fine, bands }, look);
+      // In cubes, as every body is (sim/voxel.ts).
+      return yield* voxelize(ball, {
+        cell: radius / (near ? nearCellsPerRadius : cellsPerRadius),
+        maxCells,
+        occlusion,
+        jitter,
+        bevel: near,
+      });
+    })();
+    return jobs.add(job, (data) => {
       this.cancelJob = null;
       if (this.disposed) return;
       done(geometryFrom(data));

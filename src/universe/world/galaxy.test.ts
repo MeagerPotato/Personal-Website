@@ -1,4 +1,11 @@
-import { Color, Vector3, type LineBasicMaterial, type Mesh, type Object3D } from 'three';
+import {
+  Color,
+  Vector3,
+  type BufferGeometry,
+  type LineBasicMaterial,
+  type Mesh,
+  type Object3D,
+} from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetStore } from '../core/AssetStore';
 import type { Frame } from '../core/Engine';
@@ -352,12 +359,16 @@ describe('Galaxy', () => {
     expect(home.visible).toBe(true);
     const everyday = home.geometry;
     const facets = (mesh: Mesh): number => mesh.geometry.getAttribute('position').count / 3;
-    expect(facets(home)).toBe(20 * (tuning.world.detailPlanet + 1) ** 2);
+    // In cubes (sim/voxel.ts): every face looks along an axis.
+    const normals = Array.from(home.geometry.getAttribute('normal').array);
+    expect(normals.every((n) => n === 0 || Math.abs(n) === 1)).toBe(true);
+    const far = facets(home);
 
     viewer.position.set(0, 0, -30); // about two radii from the home planet
     galaxy.frameUpdate(frame(1));
     finishJobs();
-    expect(facets(home)).toBe(20 * (tuning.world.detailNear + 1) ** 2);
+    // Up close, finer cubes.
+    expect(facets(home)).toBeGreaterThan(far * 2);
     const closeUp = home.geometry;
     const freed = vi.fn();
     closeUp.addEventListener('dispose', freed);
@@ -373,8 +384,9 @@ describe('Galaxy', () => {
     // Moons and suns never build a close-up.
     viewer.position.copy(galaxy.object.getObjectByName('system/code')?.position ?? viewer.position);
     galaxy.frameUpdate(frame(4));
+    const sunFacets = facets(meshOf('system/code'));
     finishJobs();
-    expect(facets(meshOf('system/code'))).toBe(20 * (tuning.world.detailSun + 1) ** 2);
+    expect(facets(meshOf('system/code'))).toBe(sunFacets);
   });
 
   it('lights the ship by the sun of the system it is in, fading to the key light between systems', () => {
@@ -476,17 +488,21 @@ describe('Galaxy', () => {
     };
     finishJobs();
     const facets = (): number => mesh.geometry.getAttribute('position').count / 3;
-    expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+    const maquette = (): BufferGeometry => mesh.geometry;
+    // In cubes (sim/voxel.ts), as every body is.
+    expect(facets()).toBeGreaterThan(0);
+    const normals = Array.from(mesh.geometry.getAttribute('normal').array);
+    expect(normals.every((n) => n === 0 || Math.abs(n) === 1)).toBe(true);
 
-    // Every facet is one of the family's two colours (nudged by the generator's jitter), and none
-    // of its biome's.
+    // Every facet is one of the family's two colours (nudged by the generator's jitter, and each
+    // cube by its grain, tuning.world.voxel.jitter), and none of its biome's.
     const bands = plannedBands('sky');
     const colors = mesh.geometry.getAttribute('color');
+    const nudge = tuning.planet.colorJitter + tuning.world.voxel.jitter;
     const near = (at: number, band: readonly number[]): boolean =>
       [colors.getX(at), colors.getY(at), colors.getZ(at)].every(
         (value, channel) =>
-          Math.abs(value - (band[channel] ?? 0)) <=
-          tuning.planet.colorJitter * (band[channel] ?? 0) + 1e-6,
+          Math.abs(value - (band[channel] ?? 0)) <= nudge * (band[channel] ?? 0) + 1e-6,
       );
     for (let at = 0; at < colors.count; at += 1) {
       expect(near(at, bands.low) || near(at, bands.high)).toBe(true);
@@ -496,8 +512,9 @@ describe('Galaxy', () => {
     const at = galaxy.object.getObjectByName('project/sports')?.position ?? new Vector3();
     viewer.position.copy(at).add(new Vector3(0, 0, 20));
     galaxy.frameUpdate(frame(1));
+    const before = maquette();
     finishJobs();
-    expect(facets()).toBe(20 * (tuning.world.detailPlanned + 1) ** 2);
+    expect(maquette()).toBe(before);
     galaxy.dispose();
   });
 

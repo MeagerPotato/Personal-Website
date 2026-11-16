@@ -55,12 +55,14 @@ describe('tokensToCss', () => {
       '--color-shading-dusk',
       '--color-shading-night',
       '--color-window',
+      '--color-nature',
     ]) {
       expect(css, name).not.toContain(name);
     }
-    // 25 of them, and each names a token that exists: a typo here would mirror it after all.
+    // 52 of them (27 are the islands' nature palette), and each names a token that exists: a
+    // typo here would mirror it after all.
     const full = tokensToCss(tokens).split(';').length;
-    expect(full - css.split(';').length).toBe(25);
+    expect(full - css.split(';').length).toBe(52);
     for (const path of ENGINE_ONLY) {
       let at: string | TokenTree | undefined = tokens;
       for (const key of path.split('.')) at = typeof at === 'object' ? at[key] : undefined;

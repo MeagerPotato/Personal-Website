@@ -101,6 +101,41 @@ export const tokens = {
     /** ENGINE ONLY. A lit window: a lamp on home's night side, in the bus and the station. */
     window: '#febe8e',
     /**
+     * ENGINE ONLY. The islands' nature (design/worlds/isles.ts, 2026-11-16): the grass, the
+     * trees, the soil and rock, the water and the little buildings of a voxel diorama, richer
+     * than a biome's five stops so that an island reads as a place (Allen: "these planets are
+     * extremely plain"). Lit, each is exactly this colour, with the cubes' grain round it.
+     */
+    nature: {
+      meadow: '#a6dc7f',
+      grass: '#86c86a',
+      moss: '#5fa65e',
+      pine: '#3f8a63',
+      fir: '#2e6b55',
+      gold: '#f6c75a',
+      amber: '#f0a04e',
+      rust: '#e2704f',
+      rose: '#ef9bb0',
+      plum: '#a885d8',
+      bark: '#87573f',
+      loam: '#b9784f',
+      soil: '#94603f',
+      clay: '#6f4a3a',
+      rock: '#8e92ad',
+      slate: '#6d7193',
+      flint: '#b9bdd2',
+      water: '#69b4ec',
+      pool: '#4b8fd4',
+      foam: '#e9f6ff',
+      sand: '#f0d79c',
+      wood: '#c58b5a',
+      brick: '#d9695e',
+      tile: '#5d86c8',
+      crystal: '#b39af7',
+      lamp: '#ffd98a',
+      snow: '#f4f8ff',
+    },
+    /**
      * Interactive text (the sky base), and BUTTER, WHICH MEANS "HERE": the focus ring, the current
      * page's marker, the name the ship is headed for (the butter base).
      */
@@ -151,16 +186,23 @@ export const tokens = {
 
   font: {
     /**
-     * ONE self-hosted face for everything a visitor reads: Outfit (variable 100 to 900, Latin
+     * The self-hosted face for everything a visitor reads at length: Outfit (variable 100 to 900, Latin
      * subset, 32 KB, public/fonts), the clean geometric sans closest to Mini Motorways' own
-     * lettering. Headings, body, labels, chips and the HUD all speak it, the way every sign on a
-     * transit map is set in one face. 'Outfit Fallback' is local Arial scaled to Outfit's measure
+     * lettering. Paragraphs speak it everywhere, and paper speaks nothing else; on screen the
+     * headings, labels, chips and the HUD wear `pixel` (below) since 2026-11-16. 'Outfit Fallback' is local Arial scaled to Outfit's measure
      * and line box (section 0 of src/styles/global.css), so the swap moves very little: a single
      * line stays put, though a paragraph right at a line break can gain or lose a line.
      */
     body: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
     /** Headings and the wordmark: the same face, heavier. */
     display: "'Outfit', 'Outfit Fallback', system-ui, sans-serif",
+    /**
+     * The voxel look's lettering (Allen, 2026-11-16: "pixel headings, clean body"): Pixelify Sans
+     * (OFL, variable 400 to 700, Latin, 12 KB, public/fonts) for headings, signs, labels, chips
+     * and keys on screen. Paragraphs stay in `body`, and paper stays in Outfit. Not preloaded: it
+     * swaps in, over Outfit, which holds its place until then.
+     */
+    pixel: "'Pixelify Sans', 'Outfit', 'Outfit Fallback', system-ui, sans-serif",
     /** Code only (Markdown `code` and `pre`): the system's own mono, nothing to download. */
     mono: "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
   },

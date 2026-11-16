@@ -13,6 +13,32 @@ import { GEARS, Z } from './gears';
 
 /** The planned kit's one motion: the crane's jib swings on its tower. */
 const CRANE: MotionRow = ['crane', 'rot', 'y', 'sine', 0.1, 8];
+/**
+ * An island's life (design/worlds/isles.ts), the reference's: the water pours down its fall,
+ * smoke rises from the chimney in two puffs, leaves drift down, gulls wheel round, the islets
+ * bob, the clouds drift and the crystals under it breathe. Each part is the kit's, by name.
+ */
+const ISLE_LIFE: readonly MotionRow[] = [
+  // One step of the kit's flow (isles.ts, FLOW_STEP) a period: the streaks seem to pour.
+  ['flow', 'pos', 'y', 'ramp', -0.1, 1.25],
+  // Two puffs half a period apart: each rises from the chimney, swells and is gone. At the
+  // still both sit on the chimney (a slide's still is where it starts).
+  ['smoke-1', 'pos', 'y', 'ramp', 0.24, 5],
+  ['smoke-1', 'scale', '*', 'hill', 1, 5, 0, 0.5],
+  ['smoke-2', 'pos', 'y', 'ramp', 0.24, 5, 0.5, 0.5],
+  ['smoke-2', 'scale', '*', 'hill', 1, 5, 0.5],
+  ['leaves', 'pos', 'y', 'ramp', -0.16, 6],
+  ['leaves', 'scale', '*', 'hill', 1, 6, 0, 0.5],
+  ['gulls', 'rot', 'y', 'ramp', TAU, 24],
+  ['islets', 'pos', 'y', 'sine', 0.035, 8],
+  ['clouds', 'pos', 'x', 'sine', 0.05, 12],
+  ['crystals', 'glow', '', 'sine', 1, 3.5],
+];
+
+/** An island's life without the parts it lacks (an island with no waterfall has no `flow`). */
+const lifeWithout = (...parts: readonly string[]): MotionRow[] =>
+  ISLE_LIFE.filter(([part]) => !parts.includes(part));
+
 /** A profile's relay: the arrow out of it nudges towards the door. */
 const EXIT: MotionRow = ['exit-arrow', 'pos', 'x', 'sine', 0.08, 8];
 
@@ -52,39 +78,71 @@ export const MOTION: Readonly<Record<string, readonly MotionRow[]>> = {
     ['flame', 'glow', '', 'sine', 1, 3, 0, 0.25],
     ['streamer', 'rot', 'z', 'sine', 0.22, 7],
   ],
-  'project/robotics': [['pose-cloud', 'scale', '*', 'hill', 1, 12, 0, 0.3]],
-  'project/cyberpatriot': [['fix-tick', 'scale', '*', 'hill', 1, 20]],
+  'project/robotics': [
+    ['bot', 'pos', 'x', 'sine', 0.06, 9],
+    ['pose-cloud', 'scale', '*', 'hill', 1, 12, 0, 0.3],
+    ...ISLE_LIFE,
+  ],
+  // The islands (islands.ts): one small life each, and the planned ones' cranes.
+  'project/cyberpatriot': [
+    ['flags', 'rot', 'y', 'sine', 0.25, 7],
+    ['radar', 'rot', 'y', 'ramp', TAU, 12],
+    ...ISLE_LIFE,
+  ],
+  // The salmon leaps over the lake, nose up on the way out and down on the way back.
   'project/canadian-fish-demo': [
-    ['card-fan', 'rot', 'z', 'sine', 0.06, 6],
-    ['ask-card', 'pos', 'x', 'ramp', -0.26, 10, 0, 0.4],
-    ['ask-card', 'scale', '*', 'hill', 1, 10, 0, 0.4],
+    ['leap', 'pos', 'y', 'sine', 0.07, 7],
+    ['leap', 'rot', 'z', 'sine', 0.3, 7, 0.25],
+    ...ISLE_LIFE,
   ],
   'project/fishai': [
-    ['athena-loop', 'rot', 'y', 'ramp', TAU, 30],
-    // A turn about the axis the board's columns turn about (near.ts): west edge to east and back.
-    ['scan-bar', 'rot', 'y', 'sine', 0.45, 10, 0, 0.75],
+    ['rod', 'rot', 'x', 'sine', 0.06, 6],
+    ['lantern', 'glow', '', 'sine', 1, 3],
+    ...ISLE_LIFE,
   ],
-  'project/fish-onboarding': [['scan-line', 'pos', 'z', 'sine', 0.17, 8]],
-  'project/days2meet': [['paint-cursor', 'pos', 'x', 'sine', 0.5, 8]],
-  'project/fish-online': [CRANE],
-  'project/sports-analysis': [CRANE, ['ball', 'rot', 'y', 'ramp', TAU, 30]],
-  // The coin rocks as a whole ('*'), about the body's centre.
-  'project/kalshi': [CRANE, ['*', 'rot', 'z', 'sine', 0.12, 12]],
-  'project/corgi': [CRANE],
-  // The magnifier rides with the ring, over its seam.
+  'project/fish-onboarding': [
+    ['guide', 'pos', 'y', 'sine', 0.035, 6],
+    ['lanterns', 'glow', '', 'sine', 1, 3],
+    ...ISLE_LIFE,
+  ],
+  // The brush paints across the month; the clock tower's hands go round once a minute.
+  'project/days2meet': [
+    ['paint-cursor', 'pos', 'x', 'sine', 0.3, 8],
+    ['clock-hands', 'rot', 'z', 'ramp', -TAU, 60],
+    ...ISLE_LIFE,
+  ],
+  // The planned islands are building sites: the crane swings, and the site's one sign of life.
+  'project/fish-online': [CRANE, ['signal', 'glow', '', 'sine', 1, 3], ...ISLE_LIFE],
+  'project/sports-analysis': [CRANE, ['ball', 'pos', 'y', 'sine', 0.05, 6], ...lifeWithout('flow')],
+  'project/kalshi': [
+    CRANE,
+    ['yes-face', 'rot', 'y', 'ramp', TAU, 20],
+    ['no-face', 'rot', 'y', 'ramp', TAU, 20],
+    ...lifeWithout('flow'),
+  ],
+  // Now and then a puff of dust off the carving: up, out and gone.
+  'project/corgi': [
+    CRANE,
+    ['dust', 'scale', '*', 'bump', 1, 10],
+    ['dust', 'pos', 'y', 'ramp', 0.08, 10],
+    ...ISLE_LIFE,
+  ],
+  // The dish listens (its rings pulse along its own axis); the playhead runs along the clip.
   'project/hackgt-13': [
-    ['wave-ring', 'rot', 'y', 'ramp', TAU, 60],
-    ['magnifier', 'rot', 'y', 'ramp', TAU, 60],
+    ['wave-ring', 'pos', 'y', 'sine', 0.05, 6],
+    ['playhead', 'pos', 'x', 'ramp', 0.44, 8],
+    ...ISLE_LIFE,
   ],
-  'project/hackathons-at-berkeley': [['headlights', 'glow', '', 'sine', 1, 4, 0, 0.25]],
-  // The four stands do the wave, a quarter period apart.
-  'project/cal-hacks-13': [0, 0.25, 0.5, 0.75].map((phase, i): MotionRow => [
-    `stands-${i + 1}`,
-    'pos',
-    'y',
-    'sine',
-    0.04,
-    8,
-    phase,
-  ]),
+  // Two buses opposite each other on the ring road: their part turns about the island's middle.
+  'project/hackathons-at-berkeley': [
+    ['bus', 'rot', 'y', 'ramp', TAU, 40],
+    ['string-lights', 'glow', '', 'sine', 1, 3],
+    ...ISLE_LIFE,
+  ],
+  // The Campanile's bell swings; the campfire by the tents flickers.
+  'project/cal-hacks-13': [
+    ['bell', 'rot', 'x', 'sine', 0.35, 8],
+    ['flames', 'glow', '', 'sine', 1, 2.5],
+    ...ISLE_LIFE,
+  ],
 };

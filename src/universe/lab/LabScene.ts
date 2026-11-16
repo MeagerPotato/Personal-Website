@@ -271,12 +271,12 @@ export function bootLab(options: LabOptions): { dispose(): void } {
     onContextLost: () => console.warn('[lab] WebGL context lost: reload the page'),
   });
 
-  const assets = engine.add(new AssetStore());
+  const low = options.tier === 'low';
+  const assets = engine.add(new AssetStore({ low }));
   const jobs = new JobQueue(tuning.world.jobBudget);
   const camera = new TurntableCam(engine.canvas);
   const turn = Number(query.get('turn'));
   if (query.has('turn') && Number.isFinite(turn)) camera.turnRate = turn;
-  const low = options.tier === 'low';
   // The view as the stars are told of it (they size themselves in CSS px, by its height).
   const viewport = (): Viewport => ({
     width: mount.clientWidth || 1,
@@ -347,6 +347,8 @@ export function bootLab(options: LabOptions): { dispose(): void } {
   const emblem = gui.addFolder('world (subject: world)');
   emblem.add(state, 'world', WORLD_IDS).name('body').onChange(rebuild);
   emblem.add(state, 'near').name('close-up');
+  // In its coarse cubes, as a world far off is drawn (and every world on the star map's first view).
+  emblem.add(state, 'small').name('seen small');
   emblem.add(state, 'moving').name('moving (close-up)').onChange(rebuild);
   // As the star map draws it: its map variant if it has one, flat, a sun's corona down to its halo.
   emblem.add(state, 'onMap').name('as on the star map');
@@ -592,6 +594,7 @@ class Turntable implements System {
     subject: 'world' as Subject,
     world: 'page/about',
     near: false,
+    small: false,
     moving: true,
     onMap: false,
     biome: 'terra' as BiomeKey,
@@ -893,8 +896,13 @@ class Turntable implements System {
     this.input.boost = state.boost;
     this.stepJump(frame);
     this.flame?.update(this.input, frame);
-    // Up close as if the ship were at its surface; far as if across its system.
-    this.world?.update(state.near ? 0 : 1000, frame.dt, frame.simTime, state.onMap);
+    // Up close as if the ship were at its surface; far as if across its system (the everyday
+    // build: within its reach, outside the close-up's); seen small as if across the galaxy.
+    const { nearExitRadii, farEnterRadii, farExitRadii } = tuning.world;
+    const away = state.small ? farExitRadii * 10 : (nearExitRadii + farEnterRadii) / 2;
+    // On the map, as big as it is drawn on the turntable (hundreds of px), unless seen small.
+    const mapPx = state.small ? 0 : Number.POSITIVE_INFINITY;
+    this.world?.update(state.near ? 0 : away, frame.dt, frame.simTime, state.onMap, mapPx);
     // On the star map every surface is flat colour, and a corona is only its halo (main.ts).
     setToonFlatness(state.onMap && this.world ? tuning.map.flatness : 0);
     this.corona?.setCalm(state.onMap ? 1 : 0);
@@ -1101,7 +1109,8 @@ class Turntable implements System {
               windows: own?.windows ?? false,
             };
     this.lamps = air?.windows === true && state.windows;
-    if (!air) return null;
+    // As in flight (main.ts): no shells round a world while the look has them off.
+    if (!air || !tuning.look.air.shells) return null;
     const { center } = this;
     const make = (): ToonMaterial => {
       const material = createToonMaterial({

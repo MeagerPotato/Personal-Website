@@ -65,6 +65,9 @@ const toonLook = {
   uShadowTint: { value: new Color(tokens.color.shading.shadow) },
   uBandEdges: { value: new Vector2(...tuning.shading.bandEdges) },
   uMidLevel: { value: tuning.shading.midLevel },
+  uSoftness: { value: tuning.shading.softness },
+  uBevel: { value: tuning.shading.bevel },
+  uSoftEdges: { value: new Vector2(...tuning.shading.softEdges) },
   uFlatness: { value: 0 },
   /** A glowing vertex (aUnlit 2) blooms as a sun does. */
   uGlowBloom: { value: tuning.world.sunBloom },
@@ -128,6 +131,9 @@ export function setToonFlatness(flatness: number): void {
 export function refreshToonLook(): void {
   toonLook.uBandEdges.value.set(...tuning.shading.bandEdges);
   toonLook.uMidLevel.value = tuning.shading.midLevel;
+  toonLook.uSoftness.value = tuning.shading.softness;
+  toonLook.uBevel.value = tuning.shading.bevel;
+  toonLook.uSoftEdges.value.set(...tuning.shading.softEdges);
   toonLook.uGlowBloom.value = tuning.world.sunBloom;
   toonLook.uDecalPull.value = tuning.shading.decalPull;
 }
@@ -143,6 +149,13 @@ export const SIDE_ATTRIBUTE = 'aSide';
 export const OVER_ATTRIBUTE = 'aOver';
 /** How the side's line and the over's bend inside a face (sim/meshBuilder.ts, `MeshData.bends`). */
 export const BEND_ATTRIBUTE = 'aBend';
+/**
+ * How open a corner is, 0 to 1 (sim/voxel.ts: ambient occlusion of the voxel worlds); 1, no
+ * darkening, wherever nobody set it.
+ */
+export const SHADE_ATTRIBUTE = 'aShade';
+/** Where a corner is on its cube's face, for the close-up bevel (sim/voxel.ts, `cell`): zeros, none. */
+export const CELL_ATTRIBUTE = 'aCell';
 
 export interface ToonOptions {
   /** Multiply by the geometry's `color` attribute (per-facet colours). */
@@ -211,6 +224,8 @@ export function createToonMaterial(options: ToonOptions = {}): ToonMaterial {
     [SIDE_ATTRIBUTE]: [0, 0, 0, 0],
     [OVER_ATTRIBUTE]: [0, 0, 0, 0],
     [BEND_ATTRIBUTE]: [0, 0, 0, 0],
+    [SHADE_ATTRIBUTE]: [1],
+    [CELL_ATTRIBUTE]: [0, 0, 0, 0],
   });
   return material as ToonMaterial;
 }
@@ -361,6 +376,7 @@ export function createBackdropMaterial(): ShaderMaterial {
       uHorizonFalloff: { value: tuning.backdrop.horizonFalloff },
       uPano: skyLight.uPano,
       uExposure: skyLight.uExposure,
+      uMosaic: { value: new Vector2(...tuning.look.sky.mosaic) },
     },
     side: BackSide,
     depthWrite: false,
@@ -457,6 +473,7 @@ export function createStarMaterial(options: { motion: boolean }): StarMaterial {
       uProfile: { value: new Vector2(spike.exponent, spike.taper) },
       uBloomMask: bloomMask,
       uUnder: { value: new Color(tokens.color.space[900]) },
+      uSquare: { value: tuning.starfield.square },
       uPano: skyLight.uPano,
       uReveal: skyLight.uReveal,
     },

@@ -2,7 +2,9 @@ import { BufferAttribute, BufferGeometry } from 'three';
 import {
   BEND_ATTRIBUTE,
   DECAL_ATTRIBUTE,
+  CELL_ATTRIBUTE,
   OVER_ATTRIBUTE,
+  SHADE_ATTRIBUTE,
   SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
 } from '../design/materials';
@@ -16,16 +18,26 @@ import type { MeshData } from '../sim/meshBuilder';
 export interface VertexFlags {
   readonly unlit?: Float32Array;
   readonly decal?: Uint8Array;
+  /** How open each corner is, 0 to 255 (sim/voxel.ts); 255 where left out. */
+  readonly shade?: Uint8Array;
+  /** Where each corner is on its cube's face (sim/voxel.ts): zeros, no bevel, where left out. */
+  readonly cell?: Float32Array;
+  /** Three vertices a triangle, for a mesh whose corners are shared (cubes): loose where left out. */
+  readonly indices?: Uint16Array | Uint32Array;
 }
 
 /**
  * Generated mesh data (sim/meshBuilder.ts: plain arrays, testable headless) -> a three.js geometry.
- * Non-indexed, a colour a face and a normal a vertex, which is what the toon shader expects. The
+ * Non-indexed, a colour a face and a normal a vertex, which is what the toon shader expects;
+ * cubes are indexed (`indices`, sim/voxel.ts), their faces' corners shared by its two triangles
+ * and by nothing else, so that each face keeps its own colour and normal. The
  * arrays are handed over, not copied. The caller owns the geometry: track it in a Scope.
  *
  * Both flags, a face's other colours (`sides`: the side and the over, an attribute each) and how
  * their lines bend (`bends`) are
- * always there, zeros (a byte each) where nobody set them: a model, a part with one colour a face. An attribute a geometry left out would read WebGL's generic value at its location,
+ * always there, zeros (a byte each) where nobody set them, or set them empty: a model, a part
+ * with one colour a face, and cubes (sim/voxel.ts), whose faces are one colour each and which
+ * would otherwise carry 36 bytes of zeros a vertex, 40% of a world's memory on the GPU. An attribute a geometry left out would read WebGL's generic value at its location,
  * which is the context's, not the geometry's: three writes the material's default there only when
  * it first sets up that geometry's vertex array, and any program drawn after may write another
  * there that nothing puts back (a 1 would draw a planet flat, or pull it toward the camera).
@@ -40,8 +52,9 @@ export function geometryFrom(mesh: MeshData & VertexFlags): BufferGeometry {
     UNLIT_ATTRIBUTE,
     new BufferAttribute(mesh.unlit ?? new Uint8Array(count), 1),
   );
+  const sides = mesh.sides && mesh.sides.length > 0 ? mesh.sides : undefined;
+  const bends = mesh.bends && mesh.bends.length > 0 ? mesh.bends : undefined;
   [SIDE_ATTRIBUTE, OVER_ATTRIBUTE].forEach((name, which) => {
-    const { sides } = mesh;
     // Eight numbers a vertex in the mesh: the side's four, then the over's.
     const values = sides
       ? Float32Array.from({ length: count * 4 }, (_, i) => sides[i * 2 - (i % 4) + which * 4] ?? 0)
@@ -49,14 +62,20 @@ export function geometryFrom(mesh: MeshData & VertexFlags): BufferGeometry {
     geometry.setAttribute(name, new BufferAttribute(values, 4));
   });
   // How those two lines bend, as it is in the mesh (zeros: straight).
-  geometry.setAttribute(
-    BEND_ATTRIBUTE,
-    new BufferAttribute(mesh.bends ?? new Uint8Array(count * 4), 4),
-  );
+  geometry.setAttribute(BEND_ATTRIBUTE, new BufferAttribute(bends ?? new Uint8Array(count * 4), 4));
   geometry.setAttribute(
     DECAL_ATTRIBUTE,
     new BufferAttribute(mesh.decal ?? new Uint8Array(count), 1),
   );
+  geometry.setAttribute(
+    SHADE_ATTRIBUTE,
+    new BufferAttribute(mesh.shade ?? new Uint8Array(count).fill(255), 1, true),
+  );
+  geometry.setAttribute(
+    CELL_ATTRIBUTE,
+    new BufferAttribute(mesh.cell ?? new Uint8Array(count * 4), 4),
+  );
+  if (mesh.indices) geometry.setIndex(new BufferAttribute(mesh.indices, 1));
   geometry.computeBoundingSphere();
   return geometry;
 }

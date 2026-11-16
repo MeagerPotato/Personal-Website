@@ -21,6 +21,17 @@ describe('AssetStore', () => {
     expect(geometryOf(first).getAttribute('color').itemSize).toBe(3);
   });
 
+  it('cuts a model into fewer cubes on the low tier', () => {
+    const material = new MeshBasicMaterial();
+    const triangles = (store: AssetStore): number =>
+      (geometryOf(store.acquire('rocket', material)).index?.count ?? 0) / 3;
+    const full = triangles(new AssetStore());
+    const low = triangles(new AssetStore({ low: true }));
+    expect(low).toBeGreaterThan(0);
+    // 28 cubes along it against 44: about (28 / 44) squared of the faces.
+    expect(low).toBeLessThan(full * 0.55);
+  });
+
   it('frees the geometry with the last use, and leaves the material to its owner', () => {
     const store = new AssetStore();
     const material = new MeshBasicMaterial();

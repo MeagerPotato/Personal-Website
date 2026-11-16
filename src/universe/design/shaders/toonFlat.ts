@@ -119,6 +119,10 @@ export const toonFlat = {
     attribute vec4 aBend;
     attribute float aUnlit;
     attribute float aDecal;
+    attribute float aShade;
+    attribute vec4 aCell;
+    varying float vShade;
+    varying vec3 vCell;
 
     #ifdef INSTANCED_SUN
       attribute vec3 aSunPosition;
@@ -172,6 +176,8 @@ export const toonFlat = {
       vEdge = vec2(aSide.a, aOver.a);
       vBend = aBend;
       vUnlit = aUnlit;
+      vShade = aShade;
+      vCell = vec3(aCell.xy, aCell.w);
 
       #ifdef SUN
         vBall = position;
@@ -195,6 +201,11 @@ export const toonFlat = {
     uniform vec3 uShadowTint;
     uniform vec2 uBandEdges;
     uniform float uMidLevel;
+    uniform float uSoftness;
+    uniform vec2 uSoftEdges;
+    uniform float uBevel;
+    varying float vShade;
+    varying vec3 vCell;
     uniform float uFlatness;
     uniform float uBloomMask;
     uniform float uGlowBloom;
@@ -297,6 +308,19 @@ export const toonFlat = {
       float facing = dot(normalize(vNormal), normalize(vToSun));
       float dusk = past(facing, uBandEdges.x);
       float day = past(facing, uBandEdges.y);
+      // The voxel look's soft light: a ramp from shade to lit instead of the three bands.
+      float soft = smoothstep(uSoftEdges.x, uSoftEdges.y, facing);
+      dusk = mix(dusk, soft, uSoftness);
+      day = mix(day, soft, uSoftness);
+      // How open this corner of a cube is (sim/voxel.ts); never on the star map.
+      float open = mix(vShade, 1.0, uFlatness);
+      // The bevel, up close: a face a little darker toward its rim, as if its edges were rounded.
+      // Asked of every pixel (a derivative wants no branch round it), used where a cube says so.
+      vec2 inCube = fract(vCell.xy);
+      float rim = min(min(inCube.x, 1.0 - inCube.x), min(inCube.y, 1.0 - inCube.y));
+      float fine = 1.0 - smoothstep(0.08, 0.3, max(fwidth(vCell.x), fwidth(vCell.y)));
+      float edge = 1.0 - smoothstep(0.0, 0.45, rim);
+      open *= 1.0 - uBevel * edge * edge * fine * step(0.5, vCell.z) * (1.0 - uFlatness);
       // Alpha is the bloom guest list (shaders/post.ts), and a lit surface is not on it: 0 when
       // somebody reads the list, plain opaque 1 when the picture goes straight to the canvas. A
       // glowing one is, as shaders/glow.ts writes it.
@@ -306,7 +330,7 @@ export const toonFlat = {
         // stands above the air is lit as everything without air is.
         float inAir = 1.0 - smoothstep(uAirLit.z, uAirLit.w, vAir.w);
         vec3 lit = mix(
-          mix(base * uShadowTint, base, mix(uMidLevel * dusk, 1.0, day)),
+          mix(base * uShadowTint, base, mix(mix(uMidLevel * dusk, 1.0, day), soft, uSoftness)),
           mix(mix(base * uNight, base * uDusk, dusk), base, day),
           inAir
         );
@@ -332,15 +356,15 @@ export const toonFlat = {
           if (ballFacing > uLampNight || uFlatness > 0.5) discard;
           bloom = 0.0;
         }
-        gl_FragColor = vec4(mix(lit, uAir, clamp(air, 0.0, 1.0)), mix(1.0, bloom, uBloomMask));
+        gl_FragColor = vec4(mix(lit * open, uAir, clamp(air, 0.0, 1.0)), mix(1.0, bloom, uBloomMask));
       #else
-        float level = mix(uMidLevel * dusk, 1.0, day);
+        float level = mix(mix(uMidLevel * dusk, 1.0, day), soft, uSoftness);
         // On the star map everything is lit: a map shows what is where, not what time of day it is.
         level = mix(level, 1.0, uFlatness);
         // A flat or glowing vertex takes no light: it is its colour. (The tests are halfway
         // between the whole numbers the attribute holds.)
         if (vUnlit > 0.5) level = 1.0;
-        gl_FragColor = vec4(mix(base * uShadowTint, base, level), mix(1.0, bloom, uBloomMask));
+        gl_FragColor = vec4(mix(base * uShadowTint, base, level) * open, mix(1.0, bloom, uBloomMask));
       #endif
       #include <colorspace_fragment>
     }

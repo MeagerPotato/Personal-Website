@@ -18,8 +18,8 @@ export interface JobBudget {
  * pause; each frame the queue runs jobs until its budget is spent and picks up where it stopped
  * on the next frame. Work arrives a little later; frames always arrive on time.
  *
- * Jobs run in the order they were added, one at a time. Add the queue to the engine LAST, so it
- * spends only what the rest of the frame left over.
+ * Jobs run in the order they were added, one at a time, but for one added `first`. Add the queue
+ * to the engine LAST, so it spends only what the rest of the frame left over.
  */
 export class JobQueue implements System {
   private readonly jobs: Array<{ run: Generator<void, unknown>; done: (result: never) => void }> =
@@ -39,10 +39,15 @@ export class JobQueue implements System {
     return this.jobs.length;
   }
 
-  /** Returns a function that cancels the job: `done` will then never be called. */
-  add<T>(run: Generator<void, T>, done: (result: T) => void): () => void {
+  /**
+   * Returns a function that cancels the job: `done` will then never be called. `first`: it goes
+   * before every job waiting (what fills the view now: a world the ship is docked at), and the
+   * one under way pauses until it is done.
+   */
+  add<T>(run: Generator<void, T>, done: (result: T) => void, first = false): () => void {
     const job = { run, done: done as (result: never) => void };
-    this.jobs.push(job);
+    if (first) this.jobs.unshift(job);
+    else this.jobs.push(job);
     return () => {
       const at = this.jobs.indexOf(job);
       if (at >= 0) this.jobs.splice(at, 1);

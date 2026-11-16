@@ -10,6 +10,9 @@ import { tuning } from '../src/universe/design/tuning';
 import { BODIES } from '../src/universe/design/worlds/bodies';
 import { MOTION } from '../src/universe/design/worlds/motion';
 import { NEAR } from '../src/universe/design/worlds/near';
+import type { ThemeKey } from '../src/universe/design/tokens';
+import { bodyPositions, createOrbitTable } from '../src/universe/sim/orbits';
+import { FLAG, type BodyRecipe, type PartRow } from '../src/universe/sim/world/rows';
 import { Galaxy } from '../src/universe/world/Galaxy';
 
 // THE REAL GALAXY, DRAWN FROM ITS ROWS (world/Galaxy.ts with world/BodyMesh.ts): every body that
@@ -25,7 +28,32 @@ const frame = (simTime: number, dt = 1 / 60): Frame => ({
   simTime,
 });
 
-function setup(over: { low?: boolean; reducedMotion?: boolean; viewer?: Vector3 } = {}) {
+/**
+ * A planned body's rows with a blueprint of what is still to come (FLAG.ghost) in `ghost`'s
+ * family. The planned islands are clay now, so the blueprint look is held on this fixture.
+ */
+function ghosted(id: string, ghost: ThemeKey): BodyRecipe {
+  const recipe = BODIES[id];
+  if (!recipe) throw new Error(`no rows for ${id}`);
+  const [ground, ...parts] =
+    typeof recipe.rows === 'function' ? recipe.rows({ map: false }) : recipe.rows;
+  const blueprint: PartRow = [
+    'blueprint',
+    FLAG.ghost,
+    ['box', 0.3, 0.3, 0.3, 'ink.mid', { at: [0, 0.45, 0] }],
+  ];
+  return { ...recipe, ghost, rows: [ground, ...parts, blueprint] };
+}
+
+function setup(
+  over: {
+    low?: boolean;
+    reducedMotion?: boolean;
+    viewer?: Vector3;
+    startTime?: number;
+    bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
+  } = {},
+) {
   const jobs = new JobQueue(1000);
   const viewer = { position: over.viewer ?? new Vector3(0, 0, -5000) };
   const closeUp = vi.fn(() => Promise.resolve({ NEAR, MOTION }));
@@ -37,6 +65,8 @@ function setup(over: { low?: boolean; reducedMotion?: boolean; viewer?: Vector3 
     reducedMotion: over.reducedMotion ?? false,
     low: over.low ?? false,
     closeUp,
+    ...(over.bodies ? { bodies: over.bodies } : {}),
+    ...(over.startTime !== undefined ? { startTime: over.startTime } : {}),
   });
   const node = (id: string): Object3D => {
     const found = galaxy.object.getObjectByName(id);
@@ -51,7 +81,22 @@ function setup(over: { low?: boolean; reducedMotion?: boolean; viewer?: Vector3 
   const finish = (): void => {
     while (jobs.pending > 0) jobs.frameUpdate();
   };
-  return { galaxy, jobs, viewer, closeUp, node, world, finish };
+  /**
+   * Frames until nothing more is built where the viewer is: a world's small build, then its
+   * everyday one within reach, then its close-up near by, are one job after another.
+   */
+  const settle = (t = 1): void => {
+    for (let i = 0; i < 4; i += 1) {
+      galaxy.frameUpdate(frame(t));
+      finish();
+    }
+    galaxy.frameUpdate(frame(t));
+  };
+  /** A world's group as it is drawn at the moment: its everyday build, or its small one. */
+  const drawn = (id: string, group: 'turn' | 'hold'): Mesh | undefined =>
+    (world(id).getObjectByName(`far:${group}`) ?? world(id).getObjectByName(`small:${group}`)) as
+      Mesh | undefined;
+  return { galaxy, jobs, viewer, closeUp, node, world, finish, settle, drawn };
 }
 
 /** The draw calls of what is shown: every visible mesh and line under `root`. */
@@ -187,11 +232,11 @@ describe('the real galaxy, drawn from its rows', () => {
   });
 
   it('draws a sun’s world in a material of its own, lit by the key light: its ball glows in tones, its signs are flat', () => {
-    const { galaxy, world, finish } = setup();
+    const { galaxy, finish, drawn } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
     for (const sun of withRows.filter((body) => body.kind === 'sun')) {
-      const mesh = world(sun.id).getObjectByName('far:hold') as Mesh;
+      const mesh = drawn(sun.id, 'hold') as Mesh;
       const material = mesh.material as ToonMaterial;
       expect(material.uniforms.uSunPosition.value.equals(KEY_LIGHT_POSITION), sun.id).toBe(true);
       // The SUN variant, with the ladder of its own family: no planet shares it.
@@ -214,20 +259,17 @@ describe('the real galaxy, drawn from its rows', () => {
     // Two suns of one family would share a material; these four are four families.
     const materials = withRows
       .filter((body) => body.kind === 'sun')
-      .map((sun) => (world(sun.id).getObjectByName('far:hold') as Mesh).material);
+      .map((sun) => (drawn(sun.id, 'hold') as Mesh).material);
     expect(new Set(materials).size).toBe(materials.length);
     galaxy.dispose();
   });
 
   it('gives each world with air a material of its own, in its light, round its own centre', () => {
-    const { galaxy, node, world, finish } = setup();
+    const { galaxy, node, finish, drawn } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
-    const surfaceOf = (id: string): ToonMaterial => {
-      const mesh = (world(id).getObjectByName('far:turn') ??
-        world(id).getObjectByName('far:hold')) as Mesh;
-      return mesh.material as ToonMaterial;
-    };
+    const surfaceOf = (id: string): ToonMaterial =>
+      ((drawn(id, 'turn') ?? drawn(id, 'hold')) as Mesh).material as ToonMaterial;
     const airs = Object.keys(tuning.look.air.worlds);
     expect(galaxy.airWorlds.map((air) => air.id).sort()).toEqual([...airs].sort());
     for (const air of galaxy.airWorlds) {
@@ -251,7 +293,7 @@ describe('the real galaxy, drawn from its rows', () => {
   });
 
   it('lights lamps on home’s night side up close, and nowhere else', async () => {
-    const { galaxy, viewer, node, world, finish } = setup();
+    const { galaxy, viewer, node, world, finish, settle } = setup();
     finish();
     galaxy.frameUpdate(frame(1));
     await Promise.resolve();
@@ -266,13 +308,14 @@ describe('the real galaxy, drawn from its rows', () => {
     };
     for (const id of ['page/about', 'project/cal-hacks-13']) {
       viewer.position.copy(node(id).position).add(new Vector3(0, 0, -30));
-      galaxy.frameUpdate(frame(1));
-      finish();
-      galaxy.frameUpdate(frame(1));
+      settle();
     }
-    // Four triangles a lamp, three corners each; in the group that turns with the ground.
-    expect(lampsIn('page/about', 'near')).toBe(tuning.look.air.windows.most * 12);
+    // Each lamp is a cube of the ground (sim/voxel.ts): a few faces, four corners each; in the
+    // group that turns with the ground.
+    expect(lampsIn('page/about', 'near')).toBeGreaterThanOrEqual(tuning.look.air.windows.most * 4);
+    expect(lampsIn('page/about', 'near') % 4).toBe(0);
     expect(lampsIn('page/about', 'far')).toBe(0);
+    expect(lampsIn('page/about', 'small')).toBe(0);
     expect(lampsIn('project/cal-hacks-13', 'near')).toBe(0);
     const turn = world('page/about').getObjectByName('near:turn') as Mesh;
     expect(Array.from(turn.geometry.getAttribute('aUnlit').array)).toContain(3);
@@ -298,19 +341,17 @@ describe('the real galaxy, drawn from its rows', () => {
     expect(low.worlds).toBeLessThanOrEqual(30);
   });
 
-  it('loads the close-up once the everyday worlds are built, and swaps it in near a body', async () => {
-    const { galaxy, viewer, closeUp, node, world, finish } = setup();
+  it('loads the close-up once the worlds are built, and swaps it in near a body', async () => {
+    const { galaxy, viewer, closeUp, node, world, finish, settle } = setup();
     galaxy.frameUpdate(frame(1));
-    expect(closeUp).not.toHaveBeenCalled(); // the everyday builds come first
+    expect(closeUp).not.toHaveBeenCalled(); // the first builds come first
     finish();
     galaxy.frameUpdate(frame(1));
     expect(closeUp).toHaveBeenCalledTimes(1);
     await Promise.resolve();
 
     viewer.position.copy(node('page/about').position).add(new Vector3(0, 0, -30));
-    galaxy.frameUpdate(frame(1));
-    finish();
-    galaxy.frameUpdate(frame(1));
+    settle();
     const about = world('page/about');
     expect(about.getObjectByName('near:hold')?.visible).toBe(true);
     expect(about.getObjectByName('far:hold')?.visible).toBe(false);
@@ -320,8 +361,31 @@ describe('the real galaxy, drawn from its rows', () => {
     galaxy.dispose();
   });
 
+  it('builds first what is near the ship when it starts, at the time it starts', () => {
+    // A reloaded page or a rebuilt engine starts later than 0, docked where its body is then.
+    const startTime = 600;
+    const orbits = createOrbitTable(real.systems, real.bodies);
+    const at = new Float64Array(orbits.count * 2);
+    bodyPositions(orbits, startTime, at);
+    const row = orbits.indexOf('project/days2meet');
+    const viewer = new Vector3(at[row * 2] ?? 0, 0, (at[row * 2 + 1] ?? 0) - 10);
+    const { galaxy, finish, world } = setup({ viewer, startTime });
+    finish();
+    // Its everyday cubes, and never its coarse ones on the way.
+    expect(world('project/days2meet').getObjectByName('far:turn')).toBeDefined();
+    expect(world('project/days2meet').getObjectByName('small:turn')).toBeUndefined();
+    galaxy.dispose();
+  });
+
   it('draws the blueprint lines with one material per family, and gives each back', () => {
-    const { galaxy, finish } = setup();
+    // The planned islands are clay; three of them are given a blueprint here, in three families.
+    const bodies: Readonly<Partial<Record<string, BodyRecipe>>> = {
+      ...BODIES,
+      'project/kalshi': ghosted('project/kalshi', 'mint'),
+      'project/corgi': ghosted('project/corgi', 'lilac'),
+      'project/fish-online': ghosted('project/fish-online', 'sky'),
+    };
+    const { galaxy, finish } = setup({ bodies });
     finish();
     galaxy.frameUpdate(frame(1));
     // Planned work's lines, by the family its rows say it will wear (BodyRecipe.ghost).
@@ -330,7 +394,7 @@ describe('the real galaxy, drawn from its rows', () => {
       if (!child.name.endsWith(':edges')) return;
       let body: Object3D | null = child;
       while (body && !body.name.includes('/')) body = body.parent;
-      const family = BODIES[body?.name ?? '']?.ghost ?? '?';
+      const family = bodies[body?.name ?? '']?.ghost ?? '?';
       const seen = byFamily.get(family) ?? new Set<Material>();
       seen.add((child as LineSegments).material as Material);
       byFamily.set(family, seen);
@@ -349,6 +413,9 @@ describe('the real galaxy, drawn from its rows', () => {
     const { galaxy, viewer, closeUp, node, finish } = setup();
     finish();
     viewer.position.copy(node('project/robotics').position);
+    // Its everyday build first; then, near by, it asks for the close-up.
+    galaxy.frameUpdate(frame(1));
+    finish();
     galaxy.frameUpdate(frame(1));
     expect(closeUp).toHaveBeenCalledTimes(1);
     // The close-up rows arrive a moment later, as a chunk does; then the close-up is built.
