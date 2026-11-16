@@ -271,6 +271,21 @@ async function watchBeside(page: Page): Promise<() => Promise<Beside | null>> {
   return () => page.evaluate(() => (window as unknown as { e2eBeside: Beside | null }).e2eBeside);
 }
 
+/**
+ * Follow a link from a page whose body the ship is docked at, and wait until it is docked at the
+ * next one. The prompt already says "Leave orbit" when the link is followed, and goes on saying it
+ * until the engine's next frame (on a CPU renderer, a big window's frame is a long one), so the
+ * journey must be seen to begin before its end is waited for.
+ */
+async function flyFromOrbit(page: Page, path: string): Promise<void> {
+  const said = await watchText(page, '.dock-prompt');
+  await softNavigate(page, path);
+  await expect
+    .poll(async () => (await said()).some(({ text }) => text.includes('Flying to')), FLIGHT)
+    .toBe(true);
+  await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+}
+
 /** Which of the cards share a pixel with this box: their places in the page's order. */
 const cardsUnder = (box: Box, cards: Box[]): number[] =>
   cards.flatMap((card, index) => (overlap(box, card) ? [index] : []));
@@ -639,8 +654,7 @@ test.describe('on a laptop', () => {
 
       // A link: the next page's cards are up at once, and the ship flies behind them.
       const seen = await watchBeside(page);
-      await softNavigate(page, '/systems/hackathons/');
-      await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+      await flyFromOrbit(page, '/systems/hackathons/');
       const flown = await seen();
       if (!flown) throw new Error('the deck never stood at rest beside the page');
       expect(flown.layout).toBe('strip');
@@ -681,8 +695,7 @@ test.describe('on a laptop', () => {
       await expect(deck(page)).toBeHidden();
 
       const seen = await watchBeside(page);
-      await softNavigate(page, '/systems/hackathons/');
-      await expect(prompt(page)).toContainText('Leave orbit', FLIGHT);
+      await flyFromOrbit(page, '/systems/hackathons/');
       const flown = await seen();
       if (!flown) throw new Error('the deck never stood at rest beside the page');
       expect(flown.layout).toBe('full');
