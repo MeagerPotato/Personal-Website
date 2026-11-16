@@ -242,7 +242,7 @@ Every state is designed, not only the resting one, and each has a shape as well 
 | --- | --- | --- |
 | What it is | the base stylesheet: a fast typographic site | the same page with the 3D world behind it |
 | `<main>` is | the page | the info panel: a deck of cards round the docked body on a wide screen (1280 by 576 px and up), a side panel on a smaller one (and, narrower, on a phone held sideways), a bottom sheet on a phone held upright |
-| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (230.2 KiB gzipped on 2026-10-07 with the look, the cards, the flight deck and hyperspace together: the engine 216.6, the shell 9.9, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget; `npm run verify` prints the figure |
+| JavaScript | about 2 KB gzipped, no framework, no three.js | universe mode's JavaScript (230.2 KiB gzipped on 2026-10-07 with the look, the cards, the flight deck and hyperspace together: the engine 216.6, the shell 9.9, the emblem worlds' close-up chunk 3.8) loads on demand, of a 250 KiB budget, 260 since the dense islands of 2026-11-16 (255.8 KiB then); `npm run verify` prints the figure |
 | Must work | without JS, in print, at 360 px | on a mid-range phone at 30+ fps |
 
 Both are styled from `src/styles/global.css`: base rules are plain mode,
