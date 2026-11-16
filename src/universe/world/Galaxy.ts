@@ -70,6 +70,11 @@ export interface GalaxyOptions {
   jobs: JobQueue;
   /** Whoever the level of detail follows: the ship. */
   viewer: { readonly position: Readonly<Vector3> };
+  /**
+   * The simulation time the engine starts at (s): a rebuilt engine or a reloaded page starts
+   * later than 0, with the ship where the bodies are then. 0 when left out.
+   */
+  startTime?: number;
   reducedMotion: boolean;
   /** The low quality tier: an emblem world is one group that never turns, and nothing of it moves. */
   low?: boolean;
@@ -222,7 +227,8 @@ export class Galaxy implements System {
     this.object.name = 'galaxy';
     this.orbits = options.orbits ?? createOrbitTable(manifest.systems, manifest.bodies);
     this.positions = new Float64Array(this.orbits.count * 2);
-    bodyPositions(this.orbits, 0, this.positions);
+    // Where the bodies are when the engine starts: what is built first goes by it.
+    bodyPositions(this.orbits, options.startTime ?? 0, this.positions);
     this.displayScale = new Float64Array(this.orbits.count).fill(1);
     const byId = new Map(manifest.bodies.map((body) => [body.id, body]));
     this.byId = byId;
@@ -626,7 +632,7 @@ export class Galaxy implements System {
         // On the map, how big it is drawn (its radius in CSS px): a world drawn big there is
         // shown in its everyday cubes, one drawn small in coarse ones (world/BodyMesh.ts).
         const mapPx = onMap && map ? (view.body.radius * scale) / map.unitsPerPx : 0;
-        view.world.update(distance, dt, time, onMap, mapPx);
+        view.world.update(distance, dt, time, onMap, mapPx, (map?.weight ?? 0) >= 1);
       }
     }
     this.displayReach = reach;

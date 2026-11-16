@@ -216,6 +216,44 @@ describe('BodyMesh', () => {
     away.world.dispose();
   });
 
+  it('puts the everyday build of a world it is docked at before every build waiting', () => {
+    // A cut onto its ring (a link under reduced motion): its small build had not begun.
+    const { world, jobs, named, finish, shown } = make('project/robotics', 'planet');
+    let everydayFirst: boolean | null = null;
+    jobs.add(
+      (function* () {
+        yield;
+      })(),
+      () => (everydayFirst = named('far:turn') !== undefined),
+    );
+    world.update(NEAR_BY, step, 0);
+    expect(jobs.pending).toBe(2);
+    finish();
+    expect(everydayFirst).toBe(true);
+    expect(named('small:turn')).toBeUndefined();
+    world.update(NEAR_BY, step, 0);
+    expect(shown()).toEqual(['far:turn']);
+    world.dispose();
+  });
+
+  it('keeps its everyday cubes while the star map opens, and goes coarse once it has', () => {
+    const { world, finish, shown, everyday } = make('project/robotics', 'planet');
+    everyday();
+    const px = tuning.world.voxel.smallBelowPx / 2;
+    world.update(EVERYDAY, step, 0, true, px, false);
+    expect(shown()).toEqual(['far:turn']);
+    world.update(EVERYDAY, step, 0, true, px, true);
+    expect(shown()).toEqual(['small:turn']);
+    // Drawn big while it opens builds nothing: a size is only believed once it has opened.
+    const away = make('project/kalshi', 'planet');
+    away.finish();
+    away.world.update(AWAY, step, 0, true, px * 100, false);
+    expect(away.jobs.pending).toBe(0);
+    expect(away.shown()).toEqual(['small:turn']);
+    finish();
+    for (const made of [world, away.world]) made.dispose();
+  });
+
   it('draws planned work at its share of the finished size, with its ghosts outlined', () => {
     const recipe = ghosted('project/corgi', 'lilac');
     const { world, finish, named } = make('project/corgi', 'planet', {

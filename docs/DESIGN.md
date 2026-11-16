@@ -645,8 +645,11 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   everyday cubes are built within 80 radii of the ship (`tuning.world.farEnterRadii`, about 10 px
   of radius on a laptop) and let go after a while past 100; on the map, where it is drawn bigger
   than 16 px in radius (`smallBelowPx`). The world a page opens docked at builds its everyday
-  cubes first (`farFirstRadii`). Measured 2026-11-16 on the low tier: the star map drew 251,000
-  triangles a frame before, 85,000 after.
+  cubes first (`farFirstRadii`), ahead of every build waiting, and so does one the ship has come
+  that close to, and its close-up; the galaxy starts at the time the ship's saved pose was taken,
+  so "near" is where the ship really is. While the star map is opening a world keeps the cubes it
+  has, and goes coarse once the map is fully open. Measured 2026-11-16 on the low tier: the star
+  map drew 251,000 triangles a frame before, 85,000 after.
 - **No cell lines.** Nothing draws the grid: the cubes read by their grain and their corner
   shade.
 - **Grain.** Each cube is a few percent lighter or darker than its neighbours (`jitter`; see "The

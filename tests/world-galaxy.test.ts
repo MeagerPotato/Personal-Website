@@ -11,6 +11,7 @@ import { BODIES } from '../src/universe/design/worlds/bodies';
 import { MOTION } from '../src/universe/design/worlds/motion';
 import { NEAR } from '../src/universe/design/worlds/near';
 import type { ThemeKey } from '../src/universe/design/tokens';
+import { bodyPositions, createOrbitTable } from '../src/universe/sim/orbits';
 import { FLAG, type BodyRecipe, type PartRow } from '../src/universe/sim/world/rows';
 import { Galaxy } from '../src/universe/world/Galaxy';
 
@@ -49,6 +50,7 @@ function setup(
     low?: boolean;
     reducedMotion?: boolean;
     viewer?: Vector3;
+    startTime?: number;
     bodies?: Readonly<Partial<Record<string, BodyRecipe>>>;
   } = {},
 ) {
@@ -64,6 +66,7 @@ function setup(
     low: over.low ?? false,
     closeUp,
     ...(over.bodies ? { bodies: over.bodies } : {}),
+    ...(over.startTime !== undefined ? { startTime: over.startTime } : {}),
   });
   const node = (id: string): Object3D => {
     const found = galaxy.object.getObjectByName(id);
@@ -355,6 +358,22 @@ describe('the real galaxy, drawn from its rows', () => {
     expect(about.getObjectByName('near:mover:train')).toBeDefined();
     galaxy.frameUpdate(frame(2));
     expect(closeUp).toHaveBeenCalledTimes(1);
+    galaxy.dispose();
+  });
+
+  it('builds first what is near the ship when it starts, at the time it starts', () => {
+    // A reloaded page or a rebuilt engine starts later than 0, docked where its body is then.
+    const startTime = 600;
+    const orbits = createOrbitTable(real.systems, real.bodies);
+    const at = new Float64Array(orbits.count * 2);
+    bodyPositions(orbits, startTime, at);
+    const row = orbits.indexOf('project/days2meet');
+    const viewer = new Vector3(at[row * 2] ?? 0, 0, (at[row * 2 + 1] ?? 0) - 10);
+    const { galaxy, finish, world } = setup({ viewer, startTime });
+    finish();
+    // Its everyday cubes, and never its coarse ones on the way.
+    expect(world('project/days2meet').getObjectByName('far:turn')).toBeDefined();
+    expect(world('project/days2meet').getObjectByName('small:turn')).toBeUndefined();
     galaxy.dispose();
   });
 

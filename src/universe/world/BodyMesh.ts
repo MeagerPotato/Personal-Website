@@ -307,20 +307,35 @@ export class BodyMesh {
   /**
    * Once a frame. `distanceRadii`: how far the viewer is from the centre, in radii of this body;
    * `time`: the exact simulation time of this frame (s); `onMap`: the star map is what is shown;
-   * `mapRadiusPx`: how big the map draws the body, its radius in CSS px.
+   * `mapRadiusPx`: how big the map draws the body, its radius in CSS px, once it has opened all
+   * the way (`mapSettled`; while it opens or closes, a world in its everyday cubes stays in them).
    */
-  update(distanceRadii: number, dt: number, time: number, onMap = false, mapRadiusPx = 0): void {
+  update(
+    distanceRadii: number,
+    dt: number,
+    time: number,
+    onMap = false,
+    mapRadiusPx = 0,
+    mapSettled = true,
+  ): void {
     if (this.disposed) return;
     const { nearEnterRadii, nearExitRadii, nearLingerSec } = tuning.world;
-    const { farEnterRadii, farExitRadii, farLingerSec } = tuning.world;
+    const { farEnterRadii, farExitRadii, farLingerSec, farFirstRadii } = tuning.world;
     const { tiers } = this;
     // One job at a time: the close-up waits for the everyday build, and a world builds the small
     // build or the everyday one when it first wants it (it made one of them at once).
-    const bigOnMap = onMap && mapRadiusPx > tuning.world.voxel.smallBelowPx;
+    const bigOnMap = onMap && mapSettled && mapRadiusPx > tuning.world.voxel.smallBelowPx;
     const everyday = distanceRadii < farEnterRadii || bigOnMap;
     if (everyday) {
       this.farAwaySec = 0;
-      if (!tiers.far && !this.building) this.build('far');
+      // A world that fills the view (the ship cut to its ring: a link under reduced motion, a
+      // page loaded) goes before every build waiting, its small one too if it was waiting.
+      const urgent = distanceRadii < farFirstRadii;
+      if (urgent && this.building?.tier === 'small' && !tiers.far) {
+        this.building.cancel();
+        this.building = null;
+      }
+      if (!tiers.far && !this.building) this.build('far', undefined, urgent);
     } else if (!tiers.small && !this.building) {
       this.build('small');
     } else if (distanceRadii > farExitRadii && tiers.far && tiers.small) {
@@ -337,7 +352,8 @@ export class BodyMesh {
         if (rows === null) closeUp.request();
         else {
           this.closer = this.looksCloser(rows);
-          if (this.closer) this.build('near', rows);
+          // What the ship is at, before the worlds round it.
+          if (this.closer) this.build('near', rows, true);
         }
       }
     } else if (distanceRadii > nearExitRadii && tiers.near) {
@@ -352,7 +368,9 @@ export class BodyMesh {
     // all. Everywhere, the finest build that exists of those it may show.
     let shown: TierName | null = null;
     if (this.built) {
-      const cubes: TierName = (bigOnMap ? tiers.far : !tiers.small) ? 'far' : 'small';
+      const cubes: TierName = (bigOnMap || !mapSettled ? tiers.far : !tiers.small)
+        ? 'far'
+        : 'small';
       if (onMap) shown = tiers.map ? 'map' : cubes;
       else shown = tiers.near ? 'near' : tiers.far ? 'far' : 'small';
     }
@@ -381,7 +399,7 @@ export class BodyMesh {
   }
 
   /** Build a tier as a job: the rows, then the groups, a slice at a time. */
-  private build(tier: TierName, rows?: CloseUpRows): void {
+  private build(tier: TierName, rows?: CloseUpRows, first = false): void {
     const { id, kind, planned, seed, recipe, low, reducedMotion, jobs } = this.options;
     const near = tier === 'near';
     const small = tier === 'small';
@@ -411,13 +429,17 @@ export class BodyMesh {
       if (tier === 'map') return assembly;
       return yield* inCubes(assembly, cellsOf(tier, low), near && !low);
     })();
-    const cancel = jobs.add(job, (assembly) => {
-      this.building = null;
-      if (this.disposed) return;
-      const view = this.draw(tier, assembly, motion);
-      this.tiers[tier] = view;
-      if (tier === 'far') this.farReach = Math.max(this.farReach, view.reach);
-    });
+    const cancel = jobs.add(
+      job,
+      (assembly) => {
+        this.building = null;
+        if (this.disposed) return;
+        const view = this.draw(tier, assembly, motion);
+        this.tiers[tier] = view;
+        if (tier === 'far') this.farReach = Math.max(this.farReach, view.reach);
+      },
+      first,
+    );
     this.building = { tier, cancel };
   }
 

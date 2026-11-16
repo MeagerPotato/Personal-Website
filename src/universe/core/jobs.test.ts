@@ -89,6 +89,35 @@ describe('JobQueue', () => {
     expect(second).toHaveBeenCalledWith('counted to 1');
   });
 
+  it('runs a job added first before every job waiting, and the one under way after it', () => {
+    let clock = 0;
+    const order: string[] = [];
+    const queue = new JobQueue(4, () => clock);
+    const job = function* (name: string, slices: number): Generator<void, string> {
+      for (let i = 0; i < slices; i += 1) {
+        order.push(name);
+        clock += 3;
+        yield;
+      }
+      return name;
+    };
+    queue.add(job('under way', 3), () => order.push('under way: done'));
+    queue.add(job('waiting', 1), () => order.push('waiting: done'));
+    queue.frameUpdate();
+    queue.add(job('first', 1), () => order.push('first: done'), true);
+    while (queue.pending > 0) queue.frameUpdate();
+    expect(order).toEqual([
+      'under way',
+      'under way',
+      'first',
+      'first: done',
+      'under way',
+      'under way: done',
+      'waiting',
+      'waiting: done',
+    ]);
+  });
+
   it('drops everything when it is disposed', () => {
     const done = vi.fn();
     const queue = new JobQueue(1000);
