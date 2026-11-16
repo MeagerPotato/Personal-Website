@@ -100,12 +100,18 @@ describe('the toon material and its per-vertex flags', () => {
     expect(fragmentShader).toContain('float facing = dot(normalize(vNormal), normalize(vToSun));');
     expect(fragmentShader).toContain('float dusk = past(facing, uBandEdges.x);');
     expect(fragmentShader).toContain('float day = past(facing, uBandEdges.y);');
-    expect(fragmentShader).toContain('float level = mix(uMidLevel * dusk, 1.0, day);');
+    expect(fragmentShader).toContain(
+      'float level = mix(mix(uMidLevel * dusk, 1.0, day), soft, uSoftness);',
+    );
+    // The voxel look's soft light: a ramp between two facings, chosen by uSoftness.
+    expect(fragmentShader).toContain(
+      'float soft = smoothstep(uSoftEdges.x, uSoftEdges.y, facing);',
+    );
     expect(fragmentShader).toContain(
       'return clamp((value - edge) / max(fwidth(value), 1e-6) + 0.5, 0.0, 1.0);',
     );
     // A lit place is exactly its colour: the shade is mixed in by the level alone.
-    expect(fragmentShader).toContain('mix(base * uShadowTint, base, level)');
+    expect(fragmentShader).toContain('mix(base * uShadowTint, base, level) * open');
     // A face's other colours are laid over its own along their lines: zeros leave it alone.
     expect(fragmentShader).toContain('mix(vColor, vSide, past(vEdge.x + arc(vBend.xy), 0.5)),');
     expect(fragmentShader).toContain('past(vEdge.y + arc(vBend.zw), 0.5)');

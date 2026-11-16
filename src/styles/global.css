@@ -2054,12 +2054,13 @@ main > .resume-intro > .card-title--quiet {
     --minimap-size: clamp(11rem, 26.5svh, 13.75rem);
     --minimap-held: clamp(9.25rem, 22svh, 11.5rem);
     /*
-     * The plate under every chip over the world. Over white (the worst case) it composites to a
-     * slate navy, which src/site/contrast.test.ts computes from the tokens: ink.high 11.6:1,
-     * ink.mid 7.2, butter 9.3. ink.low would be 4.49, a hair under AA, so ink.low is NEVER text
-     * on this plate (the same test holds all of these).
+     * The plate under every chip over the world. Solid and matte since the voxel look (Allen,
+     * 2026-11-16): nothing of the world shows through, and nothing is blurred behind it. The
+     * share stays written as a mix so that src/site/contrast.test.ts, which computes every
+     * pairing on it from the tokens, measures whatever it is set to; it keeps ink.low off this
+     * plate as long as that would fall short of AA.
      */
-    --hud: color-mix(in srgb, var(--color-surface-panel) 90%, transparent);
+    --hud: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
     --hud-edge: color-mix(in srgb, var(--color-ink-high) 14%, transparent);
   }
 
@@ -4791,9 +4792,7 @@ main > .resume-intro > .card-title--quiet {
     border: 1px solid var(--hud-edge);
     border-top: 0.3125rem solid var(--theme-base);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
     font-size: var(--text-base);
     transition:
       transform var(--motion-slow) var(--motion-ease-out),
@@ -4803,8 +4802,6 @@ main > .resume-intro > .card-title--quiet {
   @media (prefers-contrast: more), (forced-colors: active) {
     html[data-mode='universe'] .panel {
       background: var(--color-surface-panel);
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
     }
   }
 
@@ -5202,8 +5199,6 @@ main > .resume-intro > .card-title--quiet {
       width: auto;
       border: 0;
       background: none;
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
       /* Nothing slides in: the cards arrive by themselves (card-in, below). */
       transition: none;
       pointer-events: none;
@@ -5331,7 +5326,7 @@ main > .resume-intro > .card-title--quiet {
       border-left: var(--line) solid var(--theme-base);
       border-radius: var(--radius-md);
       color: var(--color-ink-mid);
-      background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+      background: color-mix(in srgb, var(--color-surface-panel) 100%, transparent);
       font-size: var(--text-base);
       cursor: pointer;
       pointer-events: auto;
@@ -5393,8 +5388,6 @@ main > .resume-intro > .card-title--quiet {
       border-top: 0.3125rem solid var(--theme-base);
       border-radius: var(--radius-lg);
       color: var(--color-ink-high);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
       cursor: auto;
     }
 
@@ -5734,8 +5727,6 @@ main > .resume-intro > .card-title--quiet {
       scroll-padding-top: var(--title-h);
       scroll-padding-bottom: var(--more-h);
       color: var(--color-ink-high);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
       cursor: auto;
       scrollbar-color: var(--color-ink-low) transparent;
       scrollbar-width: thin;
@@ -6287,8 +6278,6 @@ html[data-mode-reason='reduced-motion'] .notice--reduced-motion {
     padding: 0;
     border: 0;
     background: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
   }
 
   /* One ink: every text colour in the file collapses to black. */

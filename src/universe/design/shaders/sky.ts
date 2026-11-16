@@ -96,7 +96,8 @@ export const STAR_KIND_COUNT = 5;
  * and fastest period of that); by kind, uCore (the core's sigma, px), uHalo (sigma and gain of
  * two halos), uArm (length and gain of the spikes, length and gain of the line across) and
  * uThick (the sigma across a spike, and across the line across); uProfile (exponent, taper);
- * uBloomMask (shared, see materials.ts) and uUnder (linear: the navy the stars are added to);
+ * uBloomMask (shared, see materials.ts), uUnder (linear: the navy the stars are added to) and
+ * uSquare (1 square stars, 0 round: `starfield.square`);
  * uPano (shared with the backdrop) and uReveal (0 until the sky is baked, then eased up to 1
  * with the sky's own light over `look.sky.revealSec`, world/SkyBake.ts; a cut under reduced
  * motion): a star in the Milky Way's dark lane is dimmed by the panorama's alpha there, and
@@ -183,6 +184,7 @@ export const stars = {
     uniform vec2 uProfile;
     uniform float uBloomMask;
     uniform vec3 uUnder;
+    uniform float uSquare;
 
     varying vec3 vColor;
     varying vec2 vPx;
@@ -199,7 +201,10 @@ export const stars = {
     }
 
     void main() {
-      float r2 = dot(vPx, vPx);
+      // uSquare 1 measures the distance the way a grid does (the larger of the two), so a
+      // star's core and halo are squares, as the cube worlds are.
+      float m = max(abs(vPx.x), abs(vPx.y));
+      float r2 = mix(dot(vPx, vPx), m * m, uSquare);
       float light = exp(-r2 * vCore) + vHalo.y * exp(-r2 * vHalo.x) + vHalo.w * exp(-r2 * vHalo.z);
       if (vArm.y + vArm.w > 0.0) {
         float arms = spike(vec2(0.0, 1.0), vArm.x, vThick.x);

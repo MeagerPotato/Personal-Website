@@ -540,7 +540,7 @@ export function boot(
   const homeId = manifest.bodies.find((body) => body.kind === 'home')?.id;
   const air = engine.add(
     new AirShells({
-      worlds: galaxy.airWorlds.map((world) => {
+      worlds: (tuning.look.air.shells ? galaxy.airWorlds : []).map((world) => {
         const clouds = cloudy === 'all' || (cloudy === 'home' && world.id === homeId);
         return clouds ? world : { ...world, cloud: undefined };
       }),

@@ -270,8 +270,10 @@ describe('the real galaxy, drawn from its rows', () => {
       finish();
       galaxy.frameUpdate(frame(1));
     }
-    // Four triangles a lamp, three corners each; in the group that turns with the ground.
-    expect(lampsIn('page/about', 'near')).toBe(tuning.look.air.windows.most * 12);
+    // Each lamp is a cube of the ground (sim/voxel.ts): a few faces, six corners each; in the
+    // group that turns with the ground.
+    expect(lampsIn('page/about', 'near')).toBeGreaterThanOrEqual(tuning.look.air.windows.most * 6);
+    expect(lampsIn('page/about', 'near') % 6).toBe(0);
     expect(lampsIn('page/about', 'far')).toBe(0);
     expect(lampsIn('project/cal-hacks-13', 'near')).toBe(0);
     const turn = world('page/about').getObjectByName('near:turn') as Mesh;

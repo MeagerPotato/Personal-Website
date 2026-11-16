@@ -17,6 +17,7 @@ import { createEdgeMaterial, createToonMaterial, type ToonMaterial } from '../de
 import { tokens, type ThemeKey } from '../design/tokens';
 import { tuning } from '../design/tuning';
 import { groundHeight } from '../sim/planet';
+import { voxelize } from '../sim/voxel';
 import { windowLamps } from '../sim/windows';
 import {
   assembling,
@@ -52,6 +53,30 @@ export interface CloseUpSource {
   readonly rows: CloseUpRows | null;
   /** Ask for the chunk. Asking again changes nothing. */
   request(): void;
+}
+
+/**
+ * An assembly in cubes (sim/voxel.ts): its turning and held groups and each mover, on one grid
+ * size, so that what moves is made of the same cubes as what stands. The rows are modelled at
+ * radius 1, so a cube is `1 / cellsPerRadius` whatever the body's size.
+ */
+function* inCubes(assembly: Assembly, near: boolean, low: boolean): Generator<void, Assembly> {
+  const { cellsPerRadius, nearCellsPerRadius, lowCellsPerRadius, maxCells, occlusion } =
+    tuning.world.voxel;
+  const options = {
+    cell: 1 / (low ? lowCellsPerRadius : near ? nearCellsPerRadius : cellsPerRadius),
+    maxCells,
+    occlusion,
+    bevel: near && !low,
+  };
+  const cubes = function* (packed: Packed): Generator<void, Packed> {
+    return packed.triangleCount === 0 ? packed : yield* voxelize(packed, options);
+  };
+  const turn = yield* cubes(assembly.turn);
+  const hold = yield* cubes(assembly.hold);
+  const movers: Assembly['movers'][number][] = [];
+  for (const mover of assembly.movers) movers.push({ ...mover, mesh: yield* cubes(mover.mesh) });
+  return { ...assembly, turn, hold, movers };
 }
 
 /** A ground's detail by kind: the tuning's, with a sun's coarser ball on the low tier. */
@@ -278,7 +303,8 @@ export class BodyMesh {
     const { id, kind, planned, low, reducedMotion } = this.options;
     const detail = (near: boolean): number => groundDetail(kind, planned, near, detailsOf(low));
     const moves = !low && !reducedMotion && (rows.MOTION[id]?.length ?? 0) > 0;
-    return (rows.NEAR[id]?.length ?? 0) > 0 || detail(true) !== detail(false) || moves;
+    // The close-up is finer cubes (tuning.world.voxel), except on the low tier.
+    return (rows.NEAR[id]?.length ?? 0) > 0 || detail(true) !== detail(false) || moves || !low;
   }
 
   /** Build a tier as a job: the rows, then the groups, a slice at a time. */
@@ -299,7 +325,7 @@ export class BodyMesh {
       });
       const build = lamps ? withLamps(made, recipe, seed) : made;
       yield;
-      return yield* assembling(build, {
+      const assembly = yield* assembling(build, {
         kind,
         still: recipe.still ?? false,
         near,
@@ -307,6 +333,8 @@ export class BodyMesh {
         low,
         motion,
       });
+      // The star map's own variant stays as it is drawn: the map is flat (docs/DESIGN.md).
+      return tier === 'map' ? assembly : yield* inCubes(assembly, near, low);
     })();
     const cancel = jobs.add(job, (assembly) => {
       this.building = null;

@@ -110,7 +110,21 @@ describe('a world with air: its three bands', () => {
 });
 
 describe('a world with air: the tint on its limb', () => {
+  // The cube worlds are matte (Allen, 2026-11-16): the real look has no tint on the limb at all.
+  // The shape of the tint is still held, with the strengths it had before, for whoever turns it
+  // back on.
+  const tinted = { ...look, limb: { ...look.limb, lit: 0.62, always: 0.07 } };
+
+  it('is off in the real look: the worlds are matte', () => {
+    for (const nz of [0, 0.3, 1]) {
+      for (const ballFacing of [-1, 0, 1]) {
+        expect(limbTint(place({ nz, ballFacing }), look)).toBe(0);
+      }
+    }
+  });
+
   it('is nothing mid-disc and the most on the outline, in flat steps', () => {
+    const look = tinted;
     const { lit, always, steps } = look.limb;
     expect(limbTint(place({ nz: 1 }), look)).toBe(0);
     expect(limbTint(place({ nz: 0 }), look)).toBeCloseTo(lit + always);
@@ -127,6 +141,7 @@ describe('a world with air: the tint on its limb', () => {
   });
 
   it('is strong toward the light, faint at night, and gone above the air', () => {
+    const look = tinted;
     const day = limbTint(place({ nz: 0, ballFacing: 1 }), look);
     const night = limbTint(place({ nz: 0, ballFacing: -1 }), look);
     expect(night).toBeCloseTo(look.limb.always);

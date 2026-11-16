@@ -2,7 +2,9 @@ import { BufferAttribute, BufferGeometry } from 'three';
 import {
   BEND_ATTRIBUTE,
   DECAL_ATTRIBUTE,
+  CELL_ATTRIBUTE,
   OVER_ATTRIBUTE,
+  SHADE_ATTRIBUTE,
   SIDE_ATTRIBUTE,
   UNLIT_ATTRIBUTE,
 } from '../design/materials';
@@ -16,6 +18,10 @@ import type { MeshData } from '../sim/meshBuilder';
 export interface VertexFlags {
   readonly unlit?: Float32Array;
   readonly decal?: Uint8Array;
+  /** How open each corner is, 0 to 255 (sim/voxel.ts); 255 where left out. */
+  readonly shade?: Uint8Array;
+  /** Where each corner is on its cube's face (sim/voxel.ts): zeros, no bevel, where left out. */
+  readonly cell?: Float32Array;
 }
 
 /**
@@ -56,6 +62,14 @@ export function geometryFrom(mesh: MeshData & VertexFlags): BufferGeometry {
   geometry.setAttribute(
     DECAL_ATTRIBUTE,
     new BufferAttribute(mesh.decal ?? new Uint8Array(count), 1),
+  );
+  geometry.setAttribute(
+    SHADE_ATTRIBUTE,
+    new BufferAttribute(mesh.shade ?? new Uint8Array(count).fill(255), 1, true),
+  );
+  geometry.setAttribute(
+    CELL_ATTRIBUTE,
+    new BufferAttribute(mesh.cell ?? new Uint8Array(count * 4), 4),
   );
   geometry.computeBoundingSphere();
   return geometry;

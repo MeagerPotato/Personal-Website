@@ -15,15 +15,20 @@ import { tuning } from './tuning';
  *
  * DESIGN SURFACE: models are free to change; asset names and socket names are API.
  */
-export type AssetSource = { kind: 'procedural'; build: () => ModelData };
+export type AssetSource = {
+  kind: 'procedural';
+  build: () => ModelData;
+  /** Drawn in cubes, as every world is (sim/voxel.ts, `tuning.world.voxel.modelCells`). */
+  cubes?: boolean;
+};
 
 export const assets = {
-  rocket: { kind: 'procedural', build: buildRocket },
+  rocket: { kind: 'procedural', build: buildRocket, cubes: true },
   flame: { kind: 'procedural', build: buildFlame },
-  station: { kind: 'procedural', build: buildStation },
-  satellite: { kind: 'procedural', build: buildSatellite },
+  station: { kind: 'procedural', build: buildStation, cubes: true },
+  satellite: { kind: 'procedural', build: buildSatellite, cubes: true },
   /** A link's body: a profile elsewhere, circling home beside the satellite. */
-  relay: { kind: 'procedural', build: buildRelay },
+  relay: { kind: 'procedural', build: buildRelay, cubes: true },
   planetRing: {
     kind: 'procedural',
     build: buildPlanetRing(tuning.world.ringOuterRadii / tuning.world.ringInnerRadii),

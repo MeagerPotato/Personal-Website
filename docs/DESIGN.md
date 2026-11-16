@@ -33,6 +33,10 @@ is a chip on a navy plate that reads on the brightest thing behind it.
 1. **Calm first.** Nothing flashes, nothing fights for attention. The universe is a place, not an ad.
 2. **Flat, not flat-looking.** Two or three shading bands, tinted shadows (never black), no
    gradients on surfaces, no gloss. Depth comes from overlap, scale, and light direction.
+   **Since 2026-11-16 the world is built of cubes** ("Cubes", under "The 3D world"): every body,
+   the ship and the station are made of small square blocks, lit by a soft light, with a shade
+   in the corners where blocks meet. Nothing in the world or over it is translucent or glossy:
+   no air shells, no rims of light, no blurred plates.
 3. **Pastel on navy.** Space is navy, never pure black. Pastels are slightly desaturated. Only
    suns, engine flames, and beacons are allowed to glow.
 4. **One palette everywhere.** The 3D world and the DOM read the same tokens, and the renderer uses
@@ -60,7 +64,7 @@ Source of truth: `src/universe/design/tokens.ts`, mirrored to CSS custom propert
 
 Rules: body text at least 4.5:1, large text 3:1, edges and marks 3:1, re-measure whenever either
 side of a pairing changes: `src/site/contrast.test.ts` measures every pairing the stylesheet relies
-on (the translucent plates composited over white, the brightest thing in the world), so
+on (the plates composited over white, the brightest thing in the world; solid since 2026-11-16), so
 `npm run verify` fails when a colour change breaks one. Each system owns one family: a planet's
 route line and station, its lane colour and its panel's band come from its system's family (its
 name over the world is a navy tag like every name; only the target's is butter), and a project
@@ -493,7 +497,7 @@ of, is in the table under The 3D world.
   its one meaning), with white key caps on a ledge and "Got it" as a key with an `ink.low` edge.
   It never covers the ship or the home planet. It is compact on touch and in narrow windows, and
   hidden on the map, where the same keys move the map.
-- **The panel** is a legend plate over the world (`surface.panel` at 96 %, with a blur), with a
+- **The panel** is a legend plate over the world (solid `surface.panel`, no blur), with a
   5 px band across the top in the page's family (butter for the home system's pages). Its bar
   holds Close (and, on a phone, Expand), keys with an `ink.low` edge, over a hairline that makes
   the scrolling text an edge, not a cut; the text starts about 24 px under it on every page (the
@@ -522,7 +526,7 @@ of, is in the table under The 3D world.
     text, is its title alone in the middle of the card, never a sliver of what it holds (the
     two under a project's head in a window 576 px tall). (Firefox keeps a cap of 7.5 to 11rem,
     `--stub-max`, until it is seen to size a box by what it holds: not run.) The plate is the panel's
-    (`surface.panel` at 96 %), with no
+    (solid `surface.panel`), with no
     blur, `radius.md`, and a 3 px band in the family on the edge that FACES THE BODY: the
     cards read as the ends of lines to it;
   - **a chip** (another card is open): the title row alone. The head's chip is the `<h1>` at
@@ -622,11 +626,48 @@ on a tier with no bloom) is A2's.
 A2 decides: shading band positions and softness, biome colour bands, starfield density and size,
 backdrop treatment, post-processing amounts, the look of map mode and of the lanes.
 
+### Cubes _(the voxel look, 2026-11-16)_
+
+On 2026-11-05 Allen asked for the whole site in a voxel style, "less pixely" than his reference,
+and without the "translucent, glossy look" of before. He chose from demos (the plan and the demos
+are linked from the project's notes) on 2026-11-05 and 2026-11-16:
+
+- **Fine cubes.** A body is cut into about 18 cubes per radius every day, 40 up close, 12 on the
+  low tier (`tuning.world.voxel`); a model (the rocket, the station, the satellite, a relay) into
+  about 30 along its longest side. The cubes are a grid in the body's own frame, so they turn
+  with it and never crawl.
+- **No cell lines.** A face of cubes is one flat colour; nothing draws the grid.
+- **Corner shade.** Where blocks meet in a hollow the corner is darker (ambient occlusion baked
+  into each corner, `occlusion`), so the shape reads without lines. Glowing cubes (lamps,
+  windows) are never shaded.
+- **A bevel up close only.** In the close-up tier each cube's edge darkens a little
+  (`tuning.shading.bevel`); from afar the cubes are sharp.
+- **Soft light.** The light falls off smoothly across a world (`tuning.shading.softness`,
+  `softEdges`) instead of in hard bands; the shadow is still tinted, never black.
+- **Matte.** No air shells, clouds or rims (`look.air.shells` off, the limb tint 0), less bloom
+  and a lighter vignette (`tuning.post`). The panels, cards and chips are solid `surface.panel`
+  with no blur.
+- **Flat where it is a chart.** The star map and the minimap are drawn as they were: the map tier
+  of a body is not cut into cubes.
+- **Square stars.** A star's core and halo are squares (`tuning.starfield.square`).
+
+How: `sim/voxel.ts` turns any finished mesh into cubes (it fills a grid from the mesh's
+triangles, keeps the faces that show and bakes their corner shade). `world/BodyMesh.ts`,
+`world/PlanetMesh.ts` and `core/AssetStore.ts` (assets marked `cubes` in `design/assets.ts`) run
+it after a body is built, so every recipe and every emblem world still says what a body is made
+of, and the cubes follow. The worlds Allen means to draw again himself got nothing more than
+that.
+
+This replaces two older rules: "round and smooth" ("Deep light", below) holds for the shape a
+recipe describes, and the cubes are what is drawn of it; and the soft air of "Light and air" no
+longer surrounds a world.
+
 **Where each knob lives (first pass, all free to change):**
 
 | What | Where |
 | --- | --- |
-| The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is | `tuning.shading` |
+| The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is; how soft the light is instead (`softness`, `softEdges`) and the close-up bevel | `tuning.shading` |
+| The cubes: how many per radius every day, up close and on the low tier, along a model, the largest grid, how dark a corner gets | `tuning.world.voxel` (the builder: `sim/voxel.ts`) |
 | What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |

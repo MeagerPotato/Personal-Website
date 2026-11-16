@@ -792,7 +792,7 @@ export const tuning = {
    */
   post: {
     /** How much of the blurred glow is added back, and how far it spreads (0 to 1). */
-    bloomStrength: 0.9,
+    bloomStrength: 0.55,
     /**
      * How much of it is kept off the very thing that glows (0 to 1): at 0 a sun's ball is its
      * colour plus its own blur, clipped to near white; at 1 exactly its token, with the glow all
@@ -804,7 +804,7 @@ export const tuning = {
     bloomLevels: 5,
     /** How much the corners darken (0 = not at all), from and to which distance from the middle
      * (0.5 is the middle of an edge, 0.71 a corner). */
-    vignette: 0.2,
+    vignette: 0.1,
     vignetteRange: [0.35, 0.9],
   } satisfies PostParams,
 
@@ -942,6 +942,25 @@ export const tuning = {
 
   /** How the galaxy is drawn (world/Galaxy.ts). */
   world: {
+    /**
+     * THE VOXEL LOOK (sim/voxel.ts, docs/DESIGN.md "Voxel worlds"): every body is drawn in cubes,
+     * so many to its radius. Allen chose fine cubes on 2026-11-05 ("finer than B"); the close-up
+     * is finer still and carries the bevel. The star map draws no cubes (it stays flat).
+     */
+    voxel: {
+      /** Cubes to a body's radius, every day (the high and medium tiers). */
+      cellsPerRadius: 18,
+      /** ...when the ship is close (the close-up build). */
+      nearCellsPerRadius: 40,
+      /** ...on the low tier, every day and up close. */
+      lowCellsPerRadius: 12,
+      /** Cubes along a model's longest side (the rocket, the station, the satellite, a relay). */
+      modelCells: 30,
+      /** The widest grid, in cubes: past it the cube grows (memory: 6 bytes a cube while building). */
+      maxCells: 150,
+      /** How dark the darkest inside corner is: 1 is no corner shade at all. */
+      occlusion: 0.58,
+    },
     /** Mesh detail: a body has 20 * (detail + 1)^2 facets. NEAR replaces PLANET when the ship is close. */
     detailPlanet: 8,
     detailNear: 14,
@@ -1070,6 +1089,18 @@ export const tuning = {
     /** How lit the middle band is: 0 = same as shade, 1 = same as lit. */
     midLevel: 0.55,
     /**
+     * The voxel look's light (docs/DESIGN.md): 0 is the three hard bands above, 1 a soft ramp from
+     * shade to lit between the two facings of `softEdges` (x < y). Allen chose soft on 2026-11-16.
+     */
+    softness: 1,
+    softEdges: [-0.35, 0.65] as [number, number],
+    /**
+     * How much darker a cube's face is at its rim than at its middle, up close only (the close-up
+     * build carries where each corner is on its face: sim/voxel.ts, `bevel`). Allen chose "bevel
+     * only up close" on 2026-11-16. 0: sharp cubes.
+     */
+    bevel: 0.1,
+    /**
      * A decal (a grid or a number painted on a world's ground: sim/world/glue.ts) is drawn this
      * share of its distance nearer the camera, along its own line of sight (shaders/toonFlat.ts):
      * a depth bias that moves nothing on screen and keeps it over the ground it hugs, from the
@@ -1111,6 +1142,11 @@ export const tuning = {
   },
 
   starfield: {
+    /**
+     * 1 draws every star as a square (its core and halo measured the way a grid is), to match
+     * the cube worlds (Allen, 2026-11-16); 0 is the round stars of before.
+     */
+    square: 1,
     /** Changing the seed reshuffles the whole sky; keep it stable so screenshots stay comparable. */
     seed: 'allenkh-starfield',
     /**
@@ -1759,6 +1795,12 @@ export const tuning = {
      */
     air: {
       /**
+       * Whether the worlds with air wear their shells, rims and clouds (world/AirShells.ts). Off
+       * since the voxel look (2026-11-16): those were the see-through, glossy layer Allen wanted
+       * gone. The bands below and the lamps stay.
+       */
+      shells: false,
+      /**
        * A world with air multiplies its shade band by shading.night times `night`, and its middle
        * band by shading.dusk times `dusk`, as far as `duskShare` says (1: all of it, a deep sunset
        * belt; 0: the middle band is as lit as the day).
@@ -1774,8 +1816,9 @@ export const tuning = {
        */
       limb: {
         power: 3.2,
-        lit: 0.62,
-        always: 0.07,
+        // None since the voxel look (2026-11-16): Allen found the tinted limb glossy.
+        lit: 0,
+        always: 0,
         litEdges: [-0.25, 0.45],
         steps: 3,
         topRadii: [1.04, 1.24],

@@ -9,7 +9,8 @@ the pieces fit (layers, the life of a frame, conventions) in
 
 **allenkh.com**: Allen's personal site as a small universe you can fly through. Solar systems are
 passions, planets are projects, moons are sub-projects. Look: Mini Motorways (muted pastels, flat
-shading) on dark navy space. Tone: playful framing, technical substance. The owner appears as
+shading) on dark navy space, the world built of fine cubes with a soft light and solid, matte
+plates over it (docs/DESIGN.md, "Cubes"). Tone: playful framing, technical substance. The owner appears as
 "Allen"; only the resume page (and its print and PDF) gives the full name (`site.fullName`,
 docs/PLAN.md decision 25).
 
@@ -236,7 +237,8 @@ camera's position: see `shaders/sky.ts`.
 **Add a model.** A function in `design/models/<name>.ts` that returns `ModelData`: a mesh built
 with `MeshBuilder` (`sim/meshBuilder.ts`: lathe, plate, disc, cap; pure, so a test can measure the
 model) plus named **sockets** for whatever attaches to it. Colours are tokens through
-`hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts`;
+`hexToLinear`. Conventions: +Z forward, +Y up, 1 unit = 1 u. Register it in `design/assets.ts` (with `cubes: true`, the way everything solid is, it is drawn
+in cubes by `sim/voxel.ts`);
 logic gets it with `assets.acquire('<name>', material)` (`core/AssetStore.ts`), brings its own
 material, and releases the handle in its scope. Asset names and socket names are API.
 
