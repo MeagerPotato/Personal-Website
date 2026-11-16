@@ -305,6 +305,38 @@ describe('BodyMesh', () => {
     expect(freed).not.toHaveBeenCalled();
   });
 
+  it('on the low tier, builds its everyday cubes nearer, and is coarser seen small', () => {
+    const tris = (made: Made, prefix: string): number => {
+      let count = 0;
+      made.world.object.traverse((child) => {
+        if (!child.name.startsWith(prefix) || !(child as Mesh).isMesh) return;
+        count += (((child as Mesh).geometry as BufferGeometry).index?.count ?? 0) / 3;
+      });
+      return count;
+    };
+    const full = make('project/robotics', 'planet');
+    const low = make('project/robotics', 'planet', { low: true });
+    // Between the two tiers' reach: the full tier builds its everyday cubes, the low one does not.
+    const between = (tuning.world.lowFarEnterRadii + tuning.world.farEnterRadii) / 2;
+    for (const made of [full, low]) {
+      made.finish();
+      made.world.update(between, step, 0);
+      made.finish();
+      made.world.update(between, step, 0);
+    }
+    expect(tris(full, 'far:')).toBeGreaterThan(0);
+    expect(tris(low, 'far:')).toBe(0);
+    expect(tris(low, 'small:')).toBeGreaterThan(0);
+    // 6 cubes to its radius against 8.
+    expect(tris(low, 'small:')).toBeLessThan(tris(full, 'small:') * 0.75);
+    // Nearer still, it builds them.
+    low.world.update(tuning.world.lowFarEnterRadii - 1, step, 1);
+    low.finish();
+    expect(tris(low, 'far:')).toBeGreaterThan(0);
+    full.world.dispose();
+    low.world.dispose();
+  });
+
   it('turns what the glue says turns, and nothing on the low tier', () => {
     const planet = make('project/robotics', 'planet');
     planet.everyday();

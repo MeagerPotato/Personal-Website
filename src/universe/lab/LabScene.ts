@@ -271,12 +271,12 @@ export function bootLab(options: LabOptions): { dispose(): void } {
     onContextLost: () => console.warn('[lab] WebGL context lost: reload the page'),
   });
 
-  const assets = engine.add(new AssetStore());
+  const low = options.tier === 'low';
+  const assets = engine.add(new AssetStore({ low }));
   const jobs = new JobQueue(tuning.world.jobBudget);
   const camera = new TurntableCam(engine.canvas);
   const turn = Number(query.get('turn'));
   if (query.has('turn') && Number.isFinite(turn)) camera.turnRate = turn;
-  const low = options.tier === 'low';
   // The view as the stars are told of it (they size themselves in CSS px, by its height).
   const viewport = (): Viewport => ({
     width: mount.clientWidth || 1,

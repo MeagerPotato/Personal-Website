@@ -150,7 +150,7 @@ export function boot(
     onContextLost: hooks.onContextLost,
   });
 
-  const assets = engine.add(new AssetStore());
+  const assets = engine.add(new AssetStore({ low: quality.tier === 'low' }));
 
   const input = engine.add(new InputSystem(hooks.onFirstInput));
   // (The keyboard joins them further down: it asks the navigator what Shift means.)

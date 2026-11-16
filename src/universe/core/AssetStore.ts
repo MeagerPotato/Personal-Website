@@ -36,6 +36,9 @@ export class AssetStore implements System {
   private readonly entries = new Map<AssetId, Entry>();
   private disposed = false;
 
+  /** `low`: the low tier, whose models have fewer cubes (`tuning.world.voxel.lowModelCells`). */
+  constructor(private readonly options: { low?: boolean } = {}) {}
+
   acquire(id: AssetId, material: Material): AssetHandle {
     if (this.disposed) throw new Error(`AssetStore: acquire('${id}') after dispose`);
     const entry = this.entries.get(id) ?? this.build(id);
@@ -86,7 +89,9 @@ export class AssetStore implements System {
     const source: AssetSource = assets[id];
     const model = source.build();
     const entry: Entry = {
-      geometry: geometryFrom(source.cubes ? inCubes(model.mesh) : model.mesh),
+      geometry: geometryFrom(
+        source.cubes ? inCubes(model.mesh, this.options.low ?? false) : model.mesh,
+      ),
       sockets: model.sockets,
       uses: 0,
     };
@@ -96,10 +101,10 @@ export class AssetStore implements System {
 }
 
 /**
- * A model in cubes (sim/voxel.ts): `modelCells` along its longest side. Small, so built at once
- * (a few milliseconds, the first time the model is asked for).
+ * A model in cubes (sim/voxel.ts): `modelCells` along its longest side (`lowModelCells` on the
+ * low tier). Small, so built at once (a few milliseconds, the first time the model is asked for).
  */
-function inCubes(mesh: VoxelInput): VoxelMesh {
+function inCubes(mesh: VoxelInput, low: boolean): VoxelMesh {
   const p = mesh.positions;
   const lo = [Infinity, Infinity, Infinity];
   const hi = [-Infinity, -Infinity, -Infinity];
@@ -110,6 +115,7 @@ function inCubes(mesh: VoxelInput): VoxelMesh {
     if (value > (hi[axis] ?? 0)) hi[axis] = value;
   }
   const extent = Math.max(...hi.map((h, axis) => h - (lo[axis] ?? 0)), 1e-6);
-  const { modelCells, maxCells, occlusion, jitter } = tuning.world.voxel;
-  return finishNow(voxelize(mesh, { cell: extent / modelCells, maxCells, occlusion, jitter }));
+  const { modelCells, lowModelCells, maxCells, occlusion, jitter } = tuning.world.voxel;
+  const cells = low ? lowModelCells : modelCells;
+  return finishNow(voxelize(mesh, { cell: extent / cells, maxCells, occlusion, jitter }));
 }

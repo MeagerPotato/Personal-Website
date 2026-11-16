@@ -76,7 +76,7 @@ function* inCubes(assembly: Assembly, cells: number, bevel: boolean): Generator<
 /** Cubes to the radius of a tier's build (`tuning.world.voxel`): the map's own variant has none. */
 const cellsOf = (tier: Exclude<TierName, 'map'>, low: boolean): number => {
   const voxel = tuning.world.voxel;
-  if (tier === 'small') return voxel.smallCellsPerRadius;
+  if (tier === 'small') return low ? voxel.lowSmallCellsPerRadius : voxel.smallCellsPerRadius;
   if (low) return voxel.lowCellsPerRadius;
   return tier === 'near' ? voxel.nearCellsPerRadius : voxel.cellsPerRadius;
 };
@@ -320,7 +320,10 @@ export class BodyMesh {
   ): void {
     if (this.disposed) return;
     const { nearEnterRadii, nearExitRadii, nearLingerSec } = tuning.world;
-    const { farEnterRadii, farExitRadii, farLingerSec, farFirstRadii } = tuning.world;
+    const { farLingerSec, farFirstRadii } = tuning.world;
+    const { low } = this.options;
+    const farEnterRadii = low ? tuning.world.lowFarEnterRadii : tuning.world.farEnterRadii;
+    const farExitRadii = low ? tuning.world.lowFarExitRadii : tuning.world.farExitRadii;
     const { tiers } = this;
     // One job at a time: the close-up waits for the everyday build, and a world builds the small
     // build or the everyday one when it first wants it (it made one of them at once).

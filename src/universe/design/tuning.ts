@@ -967,6 +967,12 @@ export const tuning = {
        */
       smallCellsPerRadius: 8,
       /**
+       * ...seen small on the low tier: about 1,700 triangles an island, as many as its flat world
+       * drew before the cubes. The low tier is the device that draws slowly (and CI's renderer,
+       * which draws on the CPU, where the star map's every frame pays for each one).
+       */
+      lowSmallCellsPerRadius: 6,
+      /**
        * On the star map a world drawn bigger than this, in radius (CSS px), is in its everyday
        * cubes: at its first view every world is under it (a sun about 12 to 16 px), and a world
        * the wheel has brought closer is not.
@@ -974,6 +980,12 @@ export const tuning = {
       smallBelowPx: 16,
       /** Cubes along a model's longest side (the rocket, the station, the satellite, a relay). */
       modelCells: 44,
+      /**
+       * ...on the low tier. The rocket is in every frame, the star map's too: at 44 it is
+       * 10,000 triangles, which a slow device pays for in each one, and at 28 about 4,000 (the
+       * low tier's worlds have 16 cubes to their radius against 30, the same share).
+       */
+      lowModelCells: 28,
       /**
        * The widest grid, in cubes: past it the cube grows. A ringed world up close is about 4.8
        * radii wide, so 256 keeps 53 cubes to its radius (memory: about 4 bytes a cell of its
@@ -1053,6 +1065,13 @@ export const tuning = {
      */
     farEnterRadii: 80,
     farExitRadii: 100,
+    /**
+     * ...on the low tier: 50 radii is about 16 px of radius. Its everyday cubes (16 to a radius)
+     * would be under a pixel each before that, and at home they were twelve worlds of 11,000 to
+     * 14,000 triangles a frame, which the device the low tier is for pays for in every one.
+     */
+    lowFarEnterRadii: 50,
+    lowFarExitRadii: 65,
     farLingerSec: 10,
     /**
      * A world this near when the galaxy is made (the one a page opens docked at) builds its

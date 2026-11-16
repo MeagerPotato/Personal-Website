@@ -251,7 +251,7 @@ place that decides a look (recipe, then the body's emblem rows in `design/worlds
 planned maquette, then the generator), for the galaxy and the lab alike, and `tests/worlds.test.ts`
 fails on a key that names no body. A new kind of thing a recipe can say is a logic change. A body
 with rows is drawn by `world/BodyMesh.ts`, every build a job: the small build (coarse cubes, for a
-world seen small: far off, and on the star map), the everyday build within `farEnterRadii` (freed
+world seen small: far off, and on the star map), the everyday build within `farEnterRadii` (nearer on the low tier; freed
 again past `farExitRadii`), the close-up (`design/worlds/near.ts` and `motion.ts`, a chunk of
 their own through `closeup.ts`) within `nearEnterRadii`, and its movers driven by the frame's exact
 time, so nothing of them is a snapshot field. A recipe may also say `still` (it never turns) and

@@ -635,7 +635,9 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
 
 - **Fine cubes.** A body is cut into about 30 cubes per radius every day, 64 up close, 16 on the
   low tier (`tuning.world.voxel`; "even finer", 2026-11-16: it was 18, 40 and 12); a model (the
-  rocket, the station, the satellite, a relay) into about 44 along its longest side. The ground
+  rocket, the station, the satellite, a relay) into about 44 along its longest side, 28 on the
+  low tier (`lowModelCells`: the rocket is in every frame, and at 44 it was 10,000 triangles of
+  them). The ground
   under the cubes is built twice as finely as the worlds' budget draws it (`sourceScale`), so a
   coast follows its shape, not its facets. The cubes are a grid in the body's own frame, so they turn
   with it and never crawl.
@@ -650,6 +652,11 @@ are linked from the project's notes) on 2026-11-05 and 2026-11-16:
   so "near" is where the ship really is. While the star map is opening a world keeps the cubes it
   has, and goes coarse once the map is fully open. Measured 2026-11-16 on the low tier: the star
   map drew 251,000 triangles a frame before, 85,000 after.
+  The low tier is lighter again (the device it is for draws slowly, and so does CI's renderer,
+  which draws on the CPU): 6 cubes per radius seen small (`lowSmallCellsPerRadius`), and its
+  everyday cubes within 50 radii (`lowFarEnterRadii`, about 16 px of radius), let go past 65.
+  Measured on 2026-11-16 on CI's kind of renderer: the first view at home went from 133 ms a frame
+  to 83 (the flat site before the cubes: 67), the star map from 83 to 50 (before: 50).
 - **No cell lines.** Nothing draws the grid: the cubes read by their grain and their corner
   shade.
 - **Grain.** Each cube is a few percent lighter or darker than its neighbours (`jitter`; see "The
@@ -693,7 +700,7 @@ longer surrounds a world.
 | What | Where |
 | --- | --- |
 | The three shading bands: where a surface passes between shade, middle and lit, and how lit the middle is; how soft the light is instead (`softness`, `softEdges`) and the close-up bevel | `tuning.shading` |
-| The cubes: how many per radius every day, up close, on the low tier and seen small, along a model, the largest grid, how dark a corner gets; how far from the ship a world is in its everyday cubes (`farEnterRadii`, `farExitRadii`, `farLingerSec`, `farFirstRadii`, in `tuning.world`) and how big on the map (`smallBelowPx`) | `tuning.world.voxel` (the builder: `sim/voxel.ts`; which build is shown: `world/BodyMesh.ts`) |
+| The cubes: how many per radius every day, up close, on the low tier and seen small, along a model, the largest grid, how dark a corner gets; how far from the ship a world is in its everyday cubes (`farEnterRadii`, `farExitRadii`, their low tier's `lowFarEnterRadii` and `lowFarExitRadii`, `farLingerSec`, `farFirstRadii`, in `tuning.world`) and how big on the map (`smallBelowPx`) | `tuning.world.voxel` (the builder: `sim/voxel.ts`; which build is shown: `world/BodyMesh.ts`) |
 | What is round and what has edges ("Deep light", round and smooth): by what a thing is made with, said once | `sim/world/kit.ts` (the list at its top), `ROUND_FROM`, `CREASE_DEG` and `POLE_DEG` in `sim/meshBuilder.ts` |
 | How finely a round thing is built: how far the middle of a side may stand inside the true circle, every day, up close and on the low tier, and the most sides anything gets | `tuning.world.round` |
 | The colour of shadow | `tokens.color.shading.shadow` |
